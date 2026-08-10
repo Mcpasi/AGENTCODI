@@ -6,15 +6,21 @@ PROJECT_ROOT="$(cd -- "$SCRIPT_DIR/.." && pwd -P)"
 
 APP_NAME="AGENTCODI"
 APP_ID="de.agentcodi.app"
-APP_VERSION="0.2.2"
-VERSION_CODE="6"
+APP_VERSION="0.3.4"
+VERSION_CODE="11"
 MIN_SDK="29"
 TARGET_SDK="35"
 ABI="arm64-v8a"
 
-CODEX_ANDROID_VERSION="0.147.1"
+CODEX_ANDROID_VERSION="0.147.2"
 CODEX_ANDROID_URL="https://registry.npmjs.org/@mmmbuto/codex-cli-termux/-/codex-cli-termux-$CODEX_ANDROID_VERSION.tgz"
-CODEX_ANDROID_SHA256="a6b75fc5409ef92d2fc936cdf266332f5362438e6bd602d679261e95b4ac3af3"
+CODEX_ANDROID_SHA256="4b70bca7004402cf445670efe43775e76ac598f719c72a8d6c83ac8494bb2b5c"
+CODEX_APP_SERVER_SOURCE_SHA256="c95b61282ed0086b9895b8d401fda274ef9ddf1a80fe808f3fad93f4444d8dc4"
+CODEX_CODE_MODE_HOST_SHA256="aa90fc2ce11bc309a08ea25836019fda6c7ff7edc9eaa35f8f3746a37979fc18"
+CODEX_APP_SERVER_ANDROID_SHA256="11db4fdd763e21fa81f4fb47d61c4bcbea145e817364eaa35f6e75146f85beee"
+CODEX_DEFAULT_HOST_NAME="codex-code-mode-host"
+CODEX_PACKAGED_HOST_NAME="libcodex-codehost.so"
+CODEX_DEFAULT_HOST_OFFSET="10754589"
 
 PLATFORM_URL="https://dl.google.com/android/repository/platform-35_r02.zip"
 PLATFORM_SHA256="0988cacad01b38a18a47bac14a0695f246bc76c1b06c0eeb8eb0dc825ab0c8e0"
@@ -60,7 +66,7 @@ require_command() {
   fi
 }
 
-for command_name in apksigner awk curl dpkg-deb file grep readelf rg sha256sum strings tar unzip zip zipalign zipinfo; do
+for command_name in apksigner awk cmp curl dd dpkg-deb file grep readelf rg sha256sum strings tar unzip wc zip zipalign zipinfo; do
   require_command "$command_name"
 done
 for executable in "$JAVA" "$JAVAC" "$JAR" "$KEYTOOL" "$CLANGXX" "$LLVM_STRIP"; do
@@ -164,25 +170,59 @@ if [ ! -x "$AAPT2_BIN" ]; then
   exit 1
 fi
 LIBCXX_SHARED="$AAPT2_LIBRARY_PATH/libc++_shared.so"
-CODEX_BINARY="$CODEX_EXTRACT/package/bin/codex.bin"
+CODEX_SOURCE_BINARY="$CODEX_EXTRACT/package/bin/codex.bin"
+CODEX_BINARY="$WORK_DIR/codex-app-server-android"
+CODEX_CODE_MODE_HOST_BINARY="$CODEX_EXTRACT/package/bin/codex-code-mode-host"
 CODEX_LICENSE="$CODEX_EXTRACT/package/LICENSE"
 CODEX_NOTICE="$CODEX_EXTRACT/package/NOTICE"
 if [ ! -f "$LIBCXX_SHARED" ] || ! file "$LIBCXX_SHARED" | grep -q 'ARM aarch64'; then
   echo "Pinned libc++ runtime is missing or not ARM64." >&2
   exit 1
 fi
-for codex_file in "$CODEX_BINARY" "$CODEX_LICENSE" "$CODEX_NOTICE"; do
+for codex_file in "$CODEX_SOURCE_BINARY" "$CODEX_CODE_MODE_HOST_BINARY" "$CODEX_LICENSE" "$CODEX_NOTICE"; do
   if [ ! -f "$codex_file" ]; then
     echo "Pinned Codex archive is missing: $codex_file" >&2
     exit 1
   fi
 done
-if ! file "$CODEX_BINARY" | grep -q 'ARM aarch64'; then
-  echo "Pinned Codex app-server is not ARM64." >&2
+if ! printf '%s  %s\n' "$CODEX_APP_SERVER_SOURCE_SHA256" "$CODEX_SOURCE_BINARY" | sha256sum --check --status \
+    || ! printf '%s  %s\n' "$CODEX_CODE_MODE_HOST_SHA256" "$CODEX_CODE_MODE_HOST_BINARY" | sha256sum --check --status; then
+  echo "Pinned Codex archive contains an unexpected executable." >&2
   exit 1
 fi
-if ! readelf -l "$CODEX_BINARY" | grep -q '/system/bin/linker64'; then
-  echo "Pinned Codex app-server does not use the Android linker." >&2
+if [ "${#CODEX_DEFAULT_HOST_NAME}" -ne "${#CODEX_PACKAGED_HOST_NAME}" ]; then
+  echo "Android host-name relocation must preserve the Codex binary layout." >&2
+  exit 1
+fi
+actual_default_host_name="$(dd if="$CODEX_SOURCE_BINARY" bs=1 skip="$CODEX_DEFAULT_HOST_OFFSET" count="${#CODEX_DEFAULT_HOST_NAME}" status=none)"
+if [ "$actual_default_host_name" != "$CODEX_DEFAULT_HOST_NAME" ]; then
+  echo "Pinned Codex app-server no longer contains the reviewed host-name field." >&2
+  exit 1
+fi
+cp "$CODEX_SOURCE_BINARY" "$CODEX_BINARY"
+printf '%s' "$CODEX_PACKAGED_HOST_NAME" \
+  | dd of="$CODEX_BINARY" bs=1 seek="$CODEX_DEFAULT_HOST_OFFSET" conv=notrunc status=none
+if ! printf '%s  %s\n' "$CODEX_APP_SERVER_ANDROID_SHA256" "$CODEX_BINARY" | sha256sum --check --status; then
+  echo "Deterministic Android host-name relocation produced an unexpected app-server." >&2
+  exit 1
+fi
+if [ "$(grep -ao "$CODEX_DEFAULT_HOST_NAME" "$CODEX_BINARY" | wc -l)" -ne 1 ] \
+    || [ "$(grep -ao "$CODEX_PACKAGED_HOST_NAME" "$CODEX_BINARY" | wc -l)" -ne 1 ]; then
+  echo "Codex app-server host-name relocation did not change exactly one reviewed field." >&2
+  exit 1
+fi
+for codex_executable in "$CODEX_BINARY" "$CODEX_CODE_MODE_HOST_BINARY"; do
+  if ! file "$codex_executable" | grep -q 'ARM aarch64'; then
+    echo "Pinned Codex executable is not ARM64: $codex_executable" >&2
+    exit 1
+  fi
+  if ! readelf -l "$codex_executable" | grep -q '/system/bin/linker64'; then
+    echo "Pinned Codex executable does not use the Android linker: $codex_executable" >&2
+    exit 1
+  fi
+done
+if cmp -s "$CODEX_BINARY" "$CODEX_CODE_MODE_HOST_BINARY"; then
+  echo "Pinned Codex archive substituted the app-server binary for the code-mode host." >&2
   exit 1
 fi
 
@@ -224,6 +264,7 @@ echo "Compiling ARM64 JNI engine..."
 "$LLVM_STRIP" --strip-unneeded "$NATIVE_DIR/libagentcodi.so"
 cp "$LIBCXX_SHARED" "$NATIVE_DIR/libc++_shared.so"
 cp "$CODEX_BINARY" "$NATIVE_DIR/libcodex.so"
+cp "$CODEX_CODE_MODE_HOST_BINARY" "$NATIVE_DIR/$CODEX_PACKAGED_HOST_NAME"
 cp "$CODEX_LICENSE" "$THIRD_PARTY_ASSETS/LICENSE"
 cp "$CODEX_NOTICE" "$THIRD_PARTY_ASSETS/NOTICE"
 
@@ -248,11 +289,38 @@ if ! grep -Fq 'model_provider="agentcodi-openai-http"' "$WORK_DIR/native-engine-
   echo "Native engine is missing the HTTPS Responses provider selection." >&2
   exit 1
 fi
+if ! grep -Fq 'approval_policy="on-request"' "$WORK_DIR/native-engine-strings.txt"; then
+  echo "Native engine is missing the user-mediated approval policy." >&2
+  exit 1
+fi
+if grep -Fq 'approval_policy="never"' "$WORK_DIR/native-engine-strings.txt"; then
+  echo "Native engine still contains the obsolete no-prompt approval policy." >&2
+  exit 1
+fi
 if ! grep -Fq 'model_providers.agentcodi-openai-http.supports_websockets=false' "$WORK_DIR/native-engine-strings.txt"; then
   echo "Native engine does not disable the failing Responses WebSocket path." >&2
   exit 1
 fi
-for native_file in "$NATIVE_DIR/libagentcodi.so" "$NATIVE_DIR/libc++_shared.so" "$NATIVE_DIR/libcodex.so"; do
+if ! grep -Fq 'CODEX_CODE_MODE_HOST_PATH' "$WORK_DIR/native-engine-strings.txt"; then
+  echo "Native engine does not provide the packaged code-mode host path." >&2
+  exit 1
+fi
+if ! grep -aFq "$CODEX_PACKAGED_HOST_NAME" "$NATIVE_DIR/libcodex.so" \
+    || [ "$(grep -ao "$CODEX_PACKAGED_HOST_NAME" "$NATIVE_DIR/libcodex.so" | wc -l)" -ne 1 ]; then
+  echo "Packaged app-server does not resolve the Android-native host sibling." >&2
+  exit 1
+fi
+app_server_help="$(env LD_LIBRARY_PATH="$NATIVE_DIR" "$NATIVE_DIR/libcodex.so" app-server --help)"
+if ! printf '%s\n' "$app_server_help" | grep -Fq 'Transport endpoint URL'; then
+  echo "Android-adapted app-server did not pass its native startup smoke test." >&2
+  exit 1
+fi
+code_mode_host_help="$(env LD_LIBRARY_PATH="$NATIVE_DIR" "$NATIVE_DIR/$CODEX_PACKAGED_HOST_NAME" --help)"
+if ! printf '%s\n' "$code_mode_host_help" | grep -Fq 'Transport endpoint:'; then
+  echo "Packaged code-mode host did not pass its native startup smoke test." >&2
+  exit 1
+fi
+for native_file in "$NATIVE_DIR/libagentcodi.so" "$NATIVE_DIR/libc++_shared.so" "$NATIVE_DIR/libcodex.so" "$NATIVE_DIR/$CODEX_PACKAGED_HOST_NAME"; do
   if ! readelf -lW "$native_file" | awk '$1 == "LOAD" { seen = 1; if ($NF != "0x4000") bad = 1 } END { exit (!seen || bad) }'; then
     echo "Native library is not compatible with 16 KiB Android pages: $native_file" >&2
     exit 1
@@ -302,9 +370,17 @@ grep -Fx 'classes.dex' "$WORK_DIR/apk-entries.txt"
 grep -Fx "lib/$ABI/libagentcodi.so" "$WORK_DIR/apk-entries.txt"
 grep -Fx "lib/$ABI/libc++_shared.so" "$WORK_DIR/apk-entries.txt"
 grep -Fx "lib/$ABI/libcodex.so" "$WORK_DIR/apk-entries.txt"
+grep -Fx "lib/$ABI/$CODEX_PACKAGED_HOST_NAME" "$WORK_DIR/apk-entries.txt"
 grep -Fx 'assets/third-party/codex/LICENSE' "$WORK_DIR/apk-entries.txt"
 grep -Fx 'assets/third-party/codex/NOTICE' "$WORK_DIR/apk-entries.txt"
 grep -Fx 'res/raw/third_party_notices.txt' "$WORK_DIR/apk-entries.txt"
+packaged_app_server_sha="$(unzip -p "$VERSIONED_APK" "lib/$ABI/libcodex.so" | sha256sum | awk '{print $1}')"
+packaged_code_mode_host_sha="$(unzip -p "$VERSIONED_APK" "lib/$ABI/$CODEX_PACKAGED_HOST_NAME" | sha256sum | awk '{print $1}')"
+if [ "$packaged_app_server_sha" != "$CODEX_APP_SERVER_ANDROID_SHA256" ] \
+    || [ "$packaged_code_mode_host_sha" != "$CODEX_CODE_MODE_HOST_SHA256" ]; then
+  echo "APK does not contain the reviewed Codex app-server/host pair." >&2
+  exit 1
+fi
 unzip -p "$VERSIONED_APK" classes.dex | strings > "$WORK_DIR/dex-strings.txt"
 grep -Fq 'Lde/agentcodi/app/MainActivity;' "$WORK_DIR/dex-strings.txt"
 grep -Fq 'Lde/agentcodi/app/SettingsActivity;' "$WORK_DIR/dex-strings.txt"
@@ -313,10 +389,15 @@ grep -Fq 'Lde/agentcodi/core/CrashReportFormatter;' "$WORK_DIR/dex-strings.txt"
 grep -Fq 'Lde/agentcodi/core/CodexSessionController;' "$WORK_DIR/dex-strings.txt"
 grep -Fq 'Lde/agentcodi/core/CodexModelOption;' "$WORK_DIR/dex-strings.txt"
 grep -Fq 'Lde/agentcodi/core/CodexReasoningOption;' "$WORK_DIR/dex-strings.txt"
+grep -Fq 'Lde/agentcodi/core/CodexInteractiveRequest;' "$WORK_DIR/dex-strings.txt"
+grep -Fq 'Lde/agentcodi/core/CodexApprovalDecision;' "$WORK_DIR/dex-strings.txt"
+grep -Fq 'Lde/agentcodi/app/InteractiveRequestDialog;' "$WORK_DIR/dex-strings.txt"
 grep -Fq 'Lde/agentcodi/runtime/AgentRuntimeService;' "$WORK_DIR/dex-strings.txt"
 grep -Fq 'Lde/agentcodi/runtime/NativeAppServerTransport;' "$WORK_DIR/dex-strings.txt"
 grep -Fq 'Lde/agentcodi/runtime/CrashDiagnostics;' "$WORK_DIR/dex-strings.txt"
 grep -Fq 'Lde/agentcodi/runtime/NativeEngine;' "$WORK_DIR/dex-strings.txt"
+grep -Fq 'libcodex.so' "$WORK_DIR/dex-strings.txt"
+grep -Fq "$CODEX_PACKAGED_HOST_NAME" "$WORK_DIR/dex-strings.txt"
 grep -Fq 'Lde/agentcodi/storage/CrashReportStore;' "$WORK_DIR/dex-strings.txt"
 if grep -Eq 'sk-[A-Za-z0-9_-]{20,}|eyJ[A-Za-z0-9_-]{16,}\.[A-Za-z0-9_-]{16,}' "$WORK_DIR/dex-strings.txt"; then
   echo "Credential-shaped value found in DEX strings." >&2

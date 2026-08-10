@@ -21,6 +21,7 @@ public final class NativeEngine {
 
     long startAppServer(
         String executable,
+        String codeModeHostExecutable,
         String workspace,
         String codexHome,
         String home,
@@ -29,6 +30,7 @@ public final class NativeEngine {
     ) throws IOException {
         return nativeStartAppServer(
             executable,
+            codeModeHostExecutable,
             workspace,
             codexHome,
             home,
@@ -57,6 +59,7 @@ public final class NativeEngine {
 
     private static native long nativeStartAppServer(
         String executable,
+        String codeModeHostExecutable,
         String workspace,
         String codexHome,
         String home,

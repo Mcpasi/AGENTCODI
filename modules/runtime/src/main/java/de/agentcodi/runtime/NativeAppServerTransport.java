@@ -18,6 +18,7 @@ final class NativeAppServerTransport implements CodexRpcTransport {
     NativeAppServerTransport(
         NativeEngine engine,
         String executable,
+        String codeModeHostExecutable,
         String workspace,
         String codexHome,
         String home,
@@ -30,6 +31,7 @@ final class NativeAppServerTransport implements CodexRpcTransport {
         this.engine = engine;
         long startedHandle = engine.startAppServer(
             executable,
+            codeModeHostExecutable,
             workspace,
             codexHome,
             home,

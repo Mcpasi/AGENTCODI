@@ -57,6 +57,7 @@ public final class SettingsActivity extends Activity {
                 long delay = runtime.getPhase() == RuntimePhase.STARTING
                     || session.isOperationActive()
                     || session.isLoginPending()
+                    || session.hasInteractiveRequest()
                     ? ACTIVE_REFRESH_INTERVAL_MS
                     : IDLE_REFRESH_INTERVAL_MS;
                 if (startupState.shouldRefresh()) {
@@ -90,6 +91,7 @@ public final class SettingsActivity extends Activity {
     private long lastSessionRevision = Long.MIN_VALUE;
     private boolean launchAfterNotificationPermission;
     private CrashDiagnostics crashDiagnostics;
+    private InteractiveRequestDialog interactiveRequestDialog;
 
     @Override
     protected void onCreate(Bundle savedInstanceState) {
@@ -109,6 +111,7 @@ public final class SettingsActivity extends Activity {
             }
             startupState.enter("settings-theme");
             theme = new UiTheme(this);
+            interactiveRequestDialog = new InteractiveRequestDialog(this, theme);
             startupState.enter("settings-content");
             setContentView(buildContent(previousCrash));
             startupState.complete();
@@ -134,6 +137,9 @@ public final class SettingsActivity extends Activity {
     @Override
     protected void onStop() {
         handler.removeCallbacks(refreshTask);
+        if (interactiveRequestDialog != null) {
+            interactiveRequestDialog.dismissForLifecycle();
+        }
         super.onStop();
     }
 
@@ -305,7 +311,7 @@ public final class SettingsActivity extends Activity {
             "• App-Server ausschließlich über begrenztes stdio, ohne Netzwerk-Listener\n"
                 + "• Eigenes Permissions-Profil mit privatem Workspace als Runtime-Root\n"
                 + "• Modelle und Denkstufen werden live vom App-Server geladen\n"
-                + "• Fehlende Approval-/User-Input-Oberflächen bleiben fail-closed\n\n"
+                + "• Native Freigabe- und Rückfragedialoge ohne automatische Zustimmung\n\n"
                 + BuildIdentity.summary() + " · Codex " + BuildIdentity.CODEX_RUNTIME_VERSION
         ));
         theme.addWithTopMargin(page, securityCard, 10);
@@ -413,6 +419,9 @@ public final class SettingsActivity extends Activity {
         theme.setEnabled(logoutButton, actionReady && session.isSignedIn());
         theme.setEnabled(refreshAccountButton, actionReady);
         apiKeyInput.setEnabled(actionReady && showLogin && !session.isLoginPending());
+        if (interactiveRequestDialog != null) {
+            interactiveRequestDialog.render(session);
+        }
     }
 
     private void requestPermissionAndLaunchRuntime() {

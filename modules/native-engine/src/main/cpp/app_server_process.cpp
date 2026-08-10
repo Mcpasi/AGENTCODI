@@ -41,17 +41,18 @@ std::string errno_message(const char* operation, int error_number) {
 
 bool canonical_regular_executable(
     const std::string& path,
+    const char* label,
     std::string* canonical,
     std::string* error) {
   char resolved[PATH_MAX];
   if (path.empty() || realpath(path.c_str(), resolved) == nullptr) {
-    *error = "App-server executable could not be resolved";
+    *error = std::string(label) + " could not be resolved";
     return false;
   }
   struct stat metadata {};
   if (lstat(resolved, &metadata) != 0 || !S_ISREG(metadata.st_mode)
       || access(resolved, X_OK) != 0) {
-    *error = "App-server executable is not a regular executable file";
+    *error = std::string(label) + " is not a regular executable file";
     return false;
   }
   *canonical = resolved;
@@ -132,7 +133,11 @@ bool set_child_environment(const ProcessConfig& config) {
       && setenv("PATH", path.c_str(), 1) == 0
       && setenv("SHELL", "/system/bin/sh", 1) == 0
       && setenv("LD_LIBRARY_PATH", config.library_directory.c_str(), 1) == 0
-      && setenv("CODEX_SELF_EXE", config.executable.c_str(), 1) == 0;
+      && setenv("CODEX_SELF_EXE", config.executable.c_str(), 1) == 0
+      && setenv(
+          "CODEX_CODE_MODE_HOST_PATH",
+          config.code_mode_host_executable.c_str(),
+          1) == 0;
 }
 
 }  // namespace
@@ -145,7 +150,7 @@ std::vector<std::string> CodexAppServerArguments() {
       "-c",
       "cli_auth_credentials_store=\"file\"",
       "-c",
-      "approval_policy=\"never\"",
+      "approval_policy=\"on-request\"",
       // The built-in OpenAI provider enables Responses-over-WebSocket. Some
       // ChatGPT sessions accept the upgrade and then close it by policy, so
       // Codex spends all five stream retries before falling back to HTTPS.
@@ -185,7 +190,13 @@ std::shared_ptr<AppServerProcess> AppServerProcess::Start(
   ProcessConfig config = requested_config;
   if (!canonical_regular_executable(
           requested_config.executable,
+          "App-server executable",
           &config.executable,
+          error)
+      || !canonical_regular_executable(
+          requested_config.code_mode_host_executable,
+          "Code-mode host executable",
+          &config.code_mode_host_executable,
           error)
       || !canonical_directory(
           requested_config.working_directory,
@@ -217,6 +228,11 @@ std::shared_ptr<AppServerProcess> AppServerProcess::Start(
   if (contains_path(config.working_directory, config.codex_home)
       || contains_path(config.codex_home, config.working_directory)) {
     *error = "Codex home must remain separate from the workspace";
+    return nullptr;
+  }
+  if (contains_path(config.working_directory, config.code_mode_host_executable)
+      || contains_path(config.codex_home, config.code_mode_host_executable)) {
+    *error = "Code-mode host must remain outside workspace and Codex home";
     return nullptr;
   }
   for (const std::string& argument : config.arguments) {

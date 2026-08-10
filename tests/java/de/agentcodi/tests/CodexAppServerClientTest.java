@@ -20,10 +20,11 @@ public final class CodexAppServerClientTest {
     public static int run() throws Exception {
         performsOrderedHandshakeAndCorrelatesResponse();
         dispatchesNotifications();
+        correlatesDeferredServerRequestResponses();
         rejectsServerRequestsFailClosed();
         rejectsFractionalOrUnboundedIds();
         enforcesOutgoingLimitAndTimeout();
-        return 5;
+        return 6;
     }
 
     private static void performsOrderedHandshakeAndCorrelatesResponse() throws Exception {
@@ -96,6 +97,67 @@ public final class CodexAppServerClientTest {
                 return transport.hasErrorResponse(0L);
             }
         }, "fail-closed server request");
+        client.close();
+    }
+
+    private static void correlatesDeferredServerRequestResponses() throws Exception {
+        final ScriptedTransport transport = handshakeOnlyTransport();
+        RecordingListener listener = new RecordingListener(true);
+        CodexAppServerClient client = initializedClient(transport, listener);
+        transport.enqueue(JsonCodec.stringify(JsonCodec.object(
+            "id", Long.valueOf(17L),
+            "method", "item/commandExecution/requestApproval",
+            "params", JsonCodec.object(
+                "threadId", "thr_fixture",
+                "turnId", "turn_fixture",
+                "itemId", "item_fixture"
+            )
+        )));
+        waitFor(new Condition() {
+            @Override
+            public boolean isTrue() {
+                return listener.serverRequestIds.size() == 1;
+            }
+        }, "server request dispatch");
+        TestSupport.assertEquals(
+            Long.valueOf(17L),
+            listener.serverRequestIds.get(0),
+            "server request id"
+        );
+        TestSupport.assertTrue(
+            client.respondToServerRequest(
+                17L,
+                JsonCodec.object("decision", "accept")
+            ),
+            "pending server request accepted once"
+        );
+        waitFor(new Condition() {
+            @Override
+            public boolean isTrue() {
+                return transport.hasResultResponse(17L, "decision", "accept");
+            }
+        }, "server request result response");
+        TestSupport.assertFalse(
+            client.respondToServerRequest(17L, JsonCodec.object("decision", "decline")),
+            "duplicate server response rejected"
+        );
+
+        transport.enqueue(JsonCodec.stringify(JsonCodec.object(
+            "id", Long.valueOf(18L),
+            "method", "item/tool/requestUserInput",
+            "params", JsonCodec.object()
+        )));
+        waitFor(new Condition() {
+            @Override
+            public boolean isTrue() {
+                return listener.serverRequestIds.size() == 2;
+            }
+        }, "second server request dispatch");
+        TestSupport.assertTrue(client.abandonServerRequest(18L), "resolved request abandoned");
+        TestSupport.assertFalse(
+            client.respondToServerRequest(18L, JsonCodec.object("answers", JsonCodec.object())),
+            "abandoned request cannot be answered"
+        );
         client.close();
     }
 
@@ -236,6 +298,27 @@ public final class CodexAppServerClientTest {
         private final List<String> notifications =
             Collections.synchronizedList(new ArrayList<String>());
         private volatile Throwable transportFailure;
+        private final boolean acceptServerRequests;
+        private final List<Long> serverRequestIds =
+            Collections.synchronizedList(new ArrayList<Long>());
+
+        private RecordingListener() {
+            this(false);
+        }
+
+        private RecordingListener(boolean acceptServerRequests) {
+            this.acceptServerRequests = acceptServerRequests;
+        }
+
+        @Override
+        public boolean onServerRequest(
+            long requestId,
+            String method,
+            Map<String, Object> params
+        ) {
+            serverRequestIds.add(Long.valueOf(requestId));
+            return acceptServerRequests;
+        }
 
         @Override
         public void onNotification(String method, Map<String, Object> params) {
@@ -310,6 +393,25 @@ public final class CodexAppServerClientTest {
                 for (Map<String, Object> message : sent) {
                     if (JsonCodec.longValue(message.get("id"), -1L) == id
                         && message.containsKey("error")) {
+                        return true;
+                    }
+                }
+            }
+            return false;
+        }
+
+        private boolean hasResultResponse(
+            long id,
+            String field,
+            Object expectedValue
+        ) {
+            synchronized (sent) {
+                for (Map<String, Object> message : sent) {
+                    if (JsonCodec.longValue(message.get("id"), -1L) != id) {
+                        continue;
+                    }
+                    Map<String, Object> result = JsonCodec.optionalObject(message.get("result"));
+                    if (result != null && expectedValue.equals(result.get(field))) {
                         return true;
                     }
                 }

@@ -16,8 +16,15 @@ public final class CodexAppServerClient implements AutoCloseable {
     public static final int MAX_INCOMING_BYTES = 1024 * 1024;
     public static final int MAX_OUTGOING_BYTES = 256 * 1024;
     public static final long MAX_REQUEST_ID = Integer.MAX_VALUE;
+    public static final int MAX_PENDING_SERVER_REQUESTS = 16;
 
     public interface Listener {
+        boolean onServerRequest(
+            long requestId,
+            String method,
+            Map<String, Object> params
+        );
+
         void onNotification(String method, Map<String, Object> params);
 
         void onTransportClosed(Throwable error);
@@ -29,8 +36,10 @@ public final class CodexAppServerClient implements AutoCloseable {
     private final AtomicBoolean started = new AtomicBoolean(false);
     private final AtomicBoolean closed = new AtomicBoolean(false);
     private final Object pendingLock = new Object();
+    private final Object serverRequestLock = new Object();
     private final Object writeLock = new Object();
     private final Map<Long, PendingResponse> pending = new HashMap<Long, PendingResponse>();
+    private final Map<Long, String> pendingServerRequests = new HashMap<Long, String>();
     private volatile boolean initialized;
     private volatile Thread readerThread;
 
@@ -96,6 +105,51 @@ public final class CodexAppServerClient implements AutoCloseable {
         sendNotification(method, params, false);
     }
 
+    public boolean respondToServerRequest(long requestId, Map<String, Object> result)
+        throws IOException {
+        if (!takeServerRequest(requestId)) {
+            return false;
+        }
+        try {
+            writeMessage(JsonCodec.object(
+                "id", Long.valueOf(requestId),
+                "result", result == null
+                    ? Collections.<String, Object>emptyMap()
+                    : result
+            ));
+            return true;
+        } catch (IOException error) {
+            close();
+            throw error;
+        }
+    }
+
+    public boolean respondToServerRequestError(long requestId, int code, String message)
+        throws IOException {
+        if (!takeServerRequest(requestId)) {
+            return false;
+        }
+        try {
+            Map<String, Object> error = JsonCodec.object(
+                "code", Long.valueOf(code),
+                "message", message == null || message.trim().isEmpty()
+                    ? "Client could not handle the request"
+                    : message
+            );
+            writeMessage(JsonCodec.object("id", Long.valueOf(requestId), "error", error));
+            return true;
+        } catch (IOException writeError) {
+            close();
+            throw writeError;
+        }
+    }
+
+    public boolean abandonServerRequest(long requestId) {
+        synchronized (serverRequestLock) {
+            return pendingServerRequests.remove(Long.valueOf(requestId)) != null;
+        }
+    }
+
     @Override
     public void close() {
         if (!closed.compareAndSet(false, true)) {
@@ -107,6 +161,7 @@ public final class CodexAppServerClient implements AutoCloseable {
             // Closing is best effort; pending requests are failed below.
         }
         failPending(new EOFException("Codex app-server connection closed"));
+        clearServerRequests();
         Thread reader = readerThread;
         if (reader != null && reader != Thread.currentThread()) {
             reader.interrupt();
@@ -236,6 +291,7 @@ public final class CodexAppServerClient implements AutoCloseable {
                 ? new EOFException("Codex app-server connection closed")
                 : failure;
             failPending(cause);
+            clearServerRequests();
             if (unexpected) {
                 try {
                     listener.onTransportClosed(cause);
@@ -251,7 +307,7 @@ public final class CodexAppServerClient implements AutoCloseable {
         String method = JsonCodec.optionalString(message.get("method"));
         Long id = validatedIncomingId(idValue);
         if (id != null && !method.isEmpty()) {
-            rejectServerRequest(id.longValue());
+            handleServerRequest(id.longValue(), method, message.get("params"));
             return;
         }
         if (id != null) {
@@ -324,12 +380,65 @@ public final class CodexAppServerClient implements AutoCloseable {
         }
     }
 
-    private void rejectServerRequest(long id) throws IOException {
+    private void handleServerRequest(long id, String method, Object paramsValue)
+        throws IOException {
+        Map<String, Object> params = paramsValue == null
+            ? Collections.<String, Object>emptyMap()
+            : JsonCodec.requireObject(paramsValue, "server request params");
+        boolean overloaded = false;
+        synchronized (serverRequestLock) {
+            Long key = Long.valueOf(id);
+            if (pendingServerRequests.containsKey(key)) {
+                throw new IOException("Duplicate Codex server request ID");
+            }
+            if (pendingServerRequests.size() >= MAX_PENDING_SERVER_REQUESTS) {
+                overloaded = true;
+            } else {
+                pendingServerRequests.put(key, method);
+            }
+        }
+        if (overloaded) {
+            writeServerRequestError(
+                id,
+                -32000,
+                "Client has too many pending server requests"
+            );
+            return;
+        }
+
+        boolean handled = false;
+        try {
+            handled = listener.onServerRequest(id, method, params);
+        } catch (Throwable ignored) {
+            respondToServerRequestError(id, -32603, "Client request handler failed");
+            return;
+        }
+        if (!handled) {
+            respondToServerRequestError(id, -32601, "Client request is not supported");
+        }
+    }
+
+    private void writeServerRequestError(long id, int code, String message) throws IOException {
         Map<String, Object> error = JsonCodec.object(
-            "code", Long.valueOf(-32601L),
-            "message", "Client request is not supported"
+            "code", Long.valueOf(code),
+            "message", message
         );
         writeMessage(JsonCodec.object("id", Long.valueOf(id), "error", error));
+    }
+
+    private boolean takeServerRequest(long id) {
+        if (id < 0L || id > MAX_REQUEST_ID) {
+            throw new IllegalArgumentException("Server request ID is outside the allowed range");
+        }
+        synchronized (serverRequestLock) {
+            return pendingServerRequests.remove(Long.valueOf(id)) != null;
+        }
+    }
+
+    private void clearServerRequests() {
+        synchronized (serverRequestLock) {
+            pendingServerRequests.clear();
+        }
     }
 
     private void failPending(Throwable error) {

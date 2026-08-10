@@ -25,6 +25,7 @@ public final class CodexSessionSnapshot {
     private final List<ChatMessage> messages;
     private final boolean turnActive;
     private final String activeTurnId;
+    private final List<CodexInteractiveRequest> interactiveRequests;
     private final String errorMessage;
 
     public CodexSessionSnapshot(
@@ -48,6 +49,7 @@ public final class CodexSessionSnapshot {
         List<ChatMessage> messages,
         boolean turnActive,
         String activeTurnId,
+        List<CodexInteractiveRequest> interactiveRequests,
         String errorMessage
     ) {
         this.revision = revision;
@@ -70,6 +72,7 @@ public final class CodexSessionSnapshot {
         this.messages = immutableMessageCopy(messages);
         this.turnActive = turnActive;
         this.activeTurnId = nonNull(activeTurnId);
+        this.interactiveRequests = immutableInteractiveRequestCopy(interactiveRequests);
         this.errorMessage = nonNull(errorMessage);
     }
 
@@ -95,6 +98,7 @@ public final class CodexSessionSnapshot {
             Collections.<ChatMessage>emptyList(),
             false,
             "",
+            Collections.<CodexInteractiveRequest>emptyList(),
             ""
         );
     }
@@ -183,6 +187,14 @@ public final class CodexSessionSnapshot {
         return activeTurnId;
     }
 
+    public List<CodexInteractiveRequest> getInteractiveRequests() {
+        return interactiveRequests;
+    }
+
+    public boolean hasInteractiveRequest() {
+        return !interactiveRequests.isEmpty();
+    }
+
     public String getErrorMessage() {
         return errorMessage;
     }
@@ -207,6 +219,16 @@ public final class CodexSessionSnapshot {
         return Collections.unmodifiableList(
             new ArrayList<ChatMessage>(
                 values == null ? Collections.<ChatMessage>emptyList() : values
+            )
+        );
+    }
+
+    private static List<CodexInteractiveRequest> immutableInteractiveRequestCopy(
+        List<CodexInteractiveRequest> values
+    ) {
+        return Collections.unmodifiableList(
+            new ArrayList<CodexInteractiveRequest>(
+                values == null ? Collections.<CodexInteractiveRequest>emptyList() : values
             )
         );
     }

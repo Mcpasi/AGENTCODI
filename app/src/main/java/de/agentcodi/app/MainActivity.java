@@ -62,6 +62,7 @@ public final class MainActivity extends Activity {
                 long delay = runtime.getPhase() == RuntimePhase.STARTING
                     || session.isOperationActive()
                     || session.isTurnActive()
+                    || session.hasInteractiveRequest()
                     ? ACTIVE_REFRESH_INTERVAL_MS
                     : IDLE_REFRESH_INTERVAL_MS;
                 if (startupState.shouldRefresh()) {
@@ -104,6 +105,7 @@ public final class MainActivity extends Activity {
     private long lastRuntimeGeneration = Long.MIN_VALUE;
     private RuntimePhase lastRuntimePhase;
     private CrashDiagnostics crashDiagnostics;
+    private InteractiveRequestDialog interactiveRequestDialog;
 
     @Override
     protected void onCreate(Bundle savedInstanceState) {
@@ -111,6 +113,7 @@ public final class MainActivity extends Activity {
         try {
             startupState.enter("chat-theme");
             theme = new UiTheme(this);
+            interactiveRequestDialog = new InteractiveRequestDialog(this, theme);
             startupState.enter("chat-content");
             setContentView(buildContent());
             startupState.complete();
@@ -136,6 +139,9 @@ public final class MainActivity extends Activity {
     @Override
     protected void onStop() {
         handler.removeCallbacks(refreshTask);
+        if (interactiveRequestDialog != null) {
+            interactiveRequestDialog.dismissForLifecycle();
+        }
         super.onStop();
     }
 
@@ -498,16 +504,20 @@ public final class MainActivity extends Activity {
         boolean canChat = actionReady
             && (!session.requiresOpenaiAuth() || session.isSignedIn());
         theme.setEnabled(refreshThreadsButton, canChat);
-        theme.setEnabled(newThreadButton, canChat && !session.isTurnActive());
-        composerInput.setEnabled(canChat && !session.isTurnActive());
-        theme.setEnabled(sendButton, canChat && !session.isTurnActive());
+        boolean interactionOpen = session.hasInteractiveRequest();
+        theme.setEnabled(
+            newThreadButton,
+            canChat && !session.isTurnActive() && !interactionOpen
+        );
+        composerInput.setEnabled(canChat && !session.isTurnActive() && !interactionOpen);
+        theme.setEnabled(sendButton, canChat && !session.isTurnActive() && !interactionOpen);
         theme.setEnabled(stopButton, session.isReady() && session.isTurnActive());
         threadAdapter.setData(
             session.getThreads(),
             session.getActiveThreadId(),
-            canChat && !session.isOperationActive()
+            canChat && !session.isOperationActive() && !session.isTurnActive() && !interactionOpen
         );
-        bindSelectors(session, canChat && !session.isTurnActive());
+        bindSelectors(session, canChat && !session.isTurnActive() && !interactionOpen);
         renderMessages(session.getActiveThreadId(), session.getMessages());
         if (conversationVisible) {
             screenTitle.setText(
@@ -515,6 +525,9 @@ public final class MainActivity extends Activity {
                     ? "Aktiver Chat"
                     : session.getActiveThreadTitle()
             );
+        }
+        if (interactiveRequestDialog != null) {
+            interactiveRequestDialog.render(session);
         }
     }
 
@@ -553,6 +566,8 @@ public final class MainActivity extends Activity {
         } else if (!session.getErrorMessage().isEmpty()) {
             message = "Fehler: " + session.getErrorMessage();
             settingsAction = true;
+        } else if (session.hasInteractiveRequest()) {
+            message = "Codex wartet auf deine Freigabe oder Eingabe.";
         } else if (session.isOperationActive()) {
             message = session.getOperationMessage();
         } else if (session.isTurnActive()) {

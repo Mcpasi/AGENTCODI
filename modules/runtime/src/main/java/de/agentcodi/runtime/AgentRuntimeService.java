@@ -12,6 +12,7 @@ import android.os.IBinder;
 import android.util.Log;
 
 import de.agentcodi.core.BuildIdentity;
+import de.agentcodi.core.CodexApprovalDecision;
 import de.agentcodi.core.CrashReportFormatter;
 import de.agentcodi.core.CodexSessionController;
 import de.agentcodi.core.CodexSessionSnapshot;
@@ -22,6 +23,7 @@ import de.agentcodi.storage.WorkspaceLayout;
 
 import java.io.File;
 import java.util.Arrays;
+import java.util.Map;
 import java.util.concurrent.atomic.AtomicBoolean;
 
 public final class AgentRuntimeService extends Service {
@@ -124,6 +126,33 @@ public final class AgentRuntimeService extends Service {
         }
     }
 
+    public static void resolveApproval(
+        long requestId,
+        CodexApprovalDecision decision,
+        int amendmentIndex
+    ) {
+        CodexSessionController controller = sessionController;
+        if (controller != null) {
+            controller.resolveApproval(requestId, decision, amendmentIndex);
+        }
+    }
+
+    public static void answerUserInput(long requestId, Map<String, char[]> answers) {
+        CodexSessionController controller = sessionController;
+        if (controller != null) {
+            controller.answerUserInput(requestId, answers);
+            return;
+        }
+        wipeAnswers(answers);
+    }
+
+    public static void dismissUserInput(long requestId) {
+        CodexSessionController controller = sessionController;
+        if (controller != null) {
+            controller.dismissUserInput(requestId);
+        }
+    }
+
     @Override
     public void onCreate() {
         super.onCreate();
@@ -200,10 +229,18 @@ public final class AgentRuntimeService extends Service {
                         throw new IllegalStateException("C++ self-test failed with code " + result);
                     }
                     File nativeLibraryDirectory = new File(getApplicationInfo().nativeLibraryDir);
-                    File codexExecutable = new File(nativeLibraryDirectory, "libcodex.so");
+                    File codexExecutable = new File(
+                        nativeLibraryDirectory,
+                        BuildIdentity.CODEX_RUNTIME_LIBRARY
+                    );
+                    File codeModeHostExecutable = new File(
+                        nativeLibraryDirectory,
+                        BuildIdentity.CODEX_CODE_MODE_HOST_LIBRARY
+                    );
                     NativeAppServerTransport transport = new NativeAppServerTransport(
                         engine,
                         codexExecutable.getAbsolutePath(),
+                        codeModeHostExecutable.getAbsolutePath(),
                         layout.getWorkspace().getAbsolutePath(),
                         layout.getCodexHome().getAbsolutePath(),
                         layout.getHome().getAbsolutePath(),
@@ -355,5 +392,17 @@ public final class AgentRuntimeService extends Service {
         } catch (Throwable ignored) {
             // A successful runtime stays usable even if stale diagnostics cannot be removed.
         }
+    }
+
+    private static void wipeAnswers(Map<String, char[]> answers) {
+        if (answers == null) {
+            return;
+        }
+        for (char[] value : answers.values()) {
+            if (value != null) {
+                Arrays.fill(value, '\0');
+            }
+        }
+        answers.clear();
     }
 }

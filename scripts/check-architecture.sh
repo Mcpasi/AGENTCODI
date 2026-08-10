@@ -73,4 +73,38 @@ if rg -n 'readOnlyAccess|sandboxPolicy' "$PROJECT_ROOT/modules/core/src/main/jav
   exit 1
 fi
 
+if rg -n 'approvalPolicy", "never"' "$PROJECT_ROOT/modules/core/src/main/java/de/agentcodi/core/CodexSessionController.java" \
+    || rg -n 'approval_policy=\\"never\\"' "$PROJECT_ROOT/modules/native-engine/src/main/cpp/app_server_process.cpp"; then
+  echo "The native interactive flow must not be disabled by the old never-approval policy." >&2
+  exit 1
+fi
+
+if ! rg -q 'item/commandExecution/requestApproval' "$PROJECT_ROOT/modules/core/src/main/java/de/agentcodi/core/CodexSessionController.java" \
+    || ! rg -q 'item/fileChange/requestApproval' "$PROJECT_ROOT/modules/core/src/main/java/de/agentcodi/core/CodexSessionController.java" \
+    || ! rg -q 'item/fileChange/patchUpdated' "$PROJECT_ROOT/modules/core/src/main/java/de/agentcodi/core/CodexSessionController.java" \
+    || ! rg -q 'item/tool/requestUserInput' "$PROJECT_ROOT/modules/core/src/main/java/de/agentcodi/core/CodexSessionController.java" \
+    || ! rg -q 'InteractiveRequestDialog' "$PROJECT_ROOT/app/src/main/java/de/agentcodi/app/MainActivity.java" \
+    || ! rg -q 'InteractiveRequestDialog' "$PROJECT_ROOT/app/src/main/java/de/agentcodi/app/SettingsActivity.java"; then
+  echo "Native approval and user-input routing is incomplete." >&2
+  exit 1
+fi
+
+approval_dialog="$PROJECT_ROOT/app/src/main/java/de/agentcodi/app/InteractiveRequestDialog.java"
+if rg -q '\.setItems\(' "$approval_dialog" \
+    || ! rg -q 'setPositiveButton\([[:space:]]*$' "$approval_dialog" \
+    || ! rg -q '"Erlauben"' "$approval_dialog" \
+    || ! rg -q 'setNegativeButton\([[:space:]]*$' "$approval_dialog" \
+    || ! rg -q '"Ablehnen"' "$approval_dialog" \
+    || ! rg -q '"Turn stoppen"' "$approval_dialog"; then
+  echo "Approval details must keep explicit allow and decline buttons visible." >&2
+  exit 1
+fi
+
+if ! rg -q 'CODEX_CODE_MODE_HOST_PATH' "$PROJECT_ROOT/modules/native-engine/src/main/cpp/app_server_process.cpp" \
+    || ! rg -q 'CODEX_CODE_MODE_HOST_LIBRARY' "$PROJECT_ROOT/modules/runtime/src/main/java/de/agentcodi/runtime/AgentRuntimeService.java" \
+    || ! rg -q 'libcodex-codehost\.so' "$PROJECT_ROOT/modules/core/src/main/java/de/agentcodi/core/BuildIdentity.java"; then
+  echo "The packaged code-mode host is not wired through the native supervisor." >&2
+  exit 1
+fi
+
 echo "Architecture checks passed."

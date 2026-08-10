@@ -27,7 +27,7 @@ void expect(bool condition, const char* message) {
 
 int main() {
   const std::string version = agentcodi::engine_version();
-  expect(version == "agentcodi-native/0.2.2", "engine version");
+  expect(version == "agentcodi-native/0.3.4", "engine version");
   expect(agentcodi::run_self_test() == 0, "native self-test");
 
   const std::string diagnostics = agentcodi::runtime_diagnostics();
@@ -40,6 +40,9 @@ int main() {
   expect(
       diagnostics.find("responsesTransport=https") != std::string::npos,
       "HTTPS Responses transport diagnostic");
+  expect(
+      diagnostics.find("codeModeHost=android-sibling") != std::string::npos,
+      "Android sibling code-mode host diagnostic");
 
   const std::vector<std::string> codex_arguments = agentcodi::CodexAppServerArguments();
   const auto contains_argument = [&codex_arguments](const std::string& value) {
@@ -57,6 +60,11 @@ int main() {
   expect(joined_arguments.find("cli_auth_credentials_store=\"file\"")
              != std::string::npos,
          "Codex file credential store");
+  expect(joined_arguments.find("approval_policy=\"on-request\"")
+             != std::string::npos,
+         "Codex native approval policy");
+  expect(joined_arguments.find("approval_policy=\"never\"") == std::string::npos,
+         "obsolete no-prompt policy removed");
   expect(joined_arguments.find("default_permissions=\"agentcodi-workspace\"")
              != std::string::npos,
          "Codex private permission profile default");
@@ -96,6 +104,7 @@ int main() {
 
     agentcodi::ProcessConfig config;
     config.executable = "/system/bin/sh";
+    config.code_mode_host_executable = "/system/bin/sh";
     config.working_directory = workspace;
     config.codex_home = codex_home;
     config.home_directory = home;
@@ -103,6 +112,7 @@ int main() {
     config.library_directory = "/system/lib64";
     config.arguments = {
         "-c",
+        "printf '%s\\n' \"$CODEX_CODE_MODE_HOST_PATH\"; "
         "IFS= read -r line; printf '%s\\n' \"$line\"",
     };
     std::string error;
@@ -110,6 +120,12 @@ int main() {
         agentcodi::AppServerProcess::Start(config, &error);
     expect(process != nullptr, "spawn supervised process");
     if (process != nullptr) {
+      std::string host_path;
+      expect(
+          process->ReadLine(1024U, &host_path, &error)
+              == agentcodi::LineReadStatus::kLine,
+          "read code-mode host environment");
+      expect(host_path == "/system/bin/sh", "canonical code-mode host environment");
       const std::string probe = "{\"probe\":\"ok\"}";
       expect(process->WriteLine(probe, 1024U, &error), "write framed process line");
       std::string response;
@@ -121,6 +137,15 @@ int main() {
       expect(process->Stop(500) != INT_MIN, "supervised process stop");
     }
 
+    config.code_mode_host_executable = root + "/missing-code-mode-host";
+    error.clear();
+    process = agentcodi::AppServerProcess::Start(config, &error);
+    expect(process == nullptr, "reject missing code-mode host");
+    expect(
+        error.find("Code-mode host executable") != std::string::npos,
+        "missing code-mode host error");
+
+    config.code_mode_host_executable = "/system/bin/sh";
     config.codex_home = workspace;
     error.clear();
     process = agentcodi::AppServerProcess::Start(config, &error);

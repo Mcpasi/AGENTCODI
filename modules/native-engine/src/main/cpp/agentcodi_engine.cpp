@@ -6,7 +6,7 @@
 namespace agentcodi {
 namespace {
 
-constexpr const char* kEngineVersion = "agentcodi-native/0.2.2";
+constexpr const char* kEngineVersion = "agentcodi-native/0.3.4";
 
 }  // namespace
 
@@ -30,7 +30,7 @@ int run_self_test() {
 
 std::string runtime_diagnostics() {
   return "abi=arm64-v8a;pointerBits=64;language=cpp;jni=ready;"
-      "appServerSupervisor=ready;responsesTransport=https";
+      "appServerSupervisor=ready;codeModeHost=android-sibling;responsesTransport=https";
 }
 
 }  // namespace agentcodi

@@ -5,13 +5,17 @@ import java.net.URISyntaxException;
 import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.Collections;
+import java.util.HashMap;
 import java.util.HashSet;
+import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
 import java.util.Set;
 import java.util.concurrent.ExecutorService;
 import java.util.concurrent.Executors;
 import java.util.concurrent.RejectedExecutionException;
+import java.util.concurrent.ScheduledExecutorService;
+import java.util.concurrent.TimeUnit;
 import java.util.concurrent.atomic.AtomicLong;
 
 public final class CodexSessionController
@@ -27,16 +31,38 @@ public final class CodexSessionController
     private static final int MAX_HISTORY_CHARACTERS = 1024 * 1024;
     private static final int MAX_PROMPT_CHARACTERS = 32 * 1024;
     private static final int MAX_ERROR_CHARACTERS = 600;
+    private static final int MAX_INTERACTIVE_REQUESTS = 8;
+    private static final int MAX_USER_INPUT_QUESTIONS = 3;
+    private static final int MAX_USER_INPUT_OPTIONS = 8;
+    private static final int MAX_USER_INPUT_ANSWER_CHARACTERS = 16 * 1024;
+    private static final int MAX_FILE_CHANGE_SUMMARIES = 24;
+    private static final int MAX_FILE_CHANGE_DIFF_CHARACTERS = 12 * 1024;
+    private static final int MAX_FILE_CHANGE_TOTAL_CHARACTERS = 48 * 1024;
+    private static final int MAX_POLICY_AMENDMENT_PARTS = 32;
+    private static final long MAX_INTERACTIVE_WAIT_MS = 10L * 60L * 1000L;
     private static final String WORKSPACE_PERMISSION_PROFILE = "agentcodi-workspace";
     private static final String OPENAI_HTTP_MODEL_PROVIDER = "agentcodi-openai-http";
+    private static final String COMMAND_APPROVAL_METHOD =
+        "item/commandExecution/requestApproval";
+    private static final String FILE_CHANGE_APPROVAL_METHOD =
+        "item/fileChange/requestApproval";
+    private static final String FILE_CHANGE_PATCH_UPDATED_METHOD =
+        "item/fileChange/patchUpdated";
+    private static final String USER_INPUT_METHOD = "item/tool/requestUserInput";
 
     private final CodexAppServerClient client;
     private final String workspacePath;
     private final ExecutorService operations = Executors.newSingleThreadExecutor();
+    private final ScheduledExecutorService interactiveResponses =
+        Executors.newSingleThreadScheduledExecutor();
     private final AtomicLong localMessageIds = new AtomicLong(1L);
     private final List<CodexModelOption> models = new ArrayList<CodexModelOption>();
     private final List<CodexThreadSummary> threads = new ArrayList<CodexThreadSummary>();
     private final List<ChatMessage> messages = new ArrayList<ChatMessage>();
+    private final List<CodexInteractiveRequest> interactiveRequests =
+        new ArrayList<CodexInteractiveRequest>();
+    private final Map<String, List<CodexFileChangeSummary>> pendingFileChanges =
+        new HashMap<String, List<CodexFileChangeSummary>>();
 
     private long revision;
     private boolean ready;
@@ -294,6 +320,9 @@ public final class CodexSessionController
         submit("Chat wird geöffnet.", new Operation() {
             @Override
             public void run() throws Exception {
+                synchronized (CodexSessionController.this) {
+                    requireNoActiveTurnOrRequestLocked();
+                }
                 Map<String, Object> result = client.request(
                     "thread/resume",
                     JsonCodec.object(
@@ -301,7 +330,7 @@ public final class CodexSessionController
                         "modelProvider", OPENAI_HTTP_MODEL_PROVIDER,
                         "cwd", workspacePath,
                         "runtimeWorkspaceRoots", JsonCodec.array(workspacePath),
-                        "approvalPolicy", "never",
+                        "approvalPolicy", "on-request",
                         "permissions", WORKSPACE_PERMISSION_PROFILE
                     ),
                     NORMAL_TIMEOUT_MS
@@ -326,6 +355,8 @@ public final class CodexSessionController
                     turnActive = false;
                     activeTurnId = "";
                     lastCompletedTurnId = "";
+                    interactiveRequests.clear();
+                    pendingFileChanges.clear();
                     operationMessage = "Chat ist geöffnet.";
                     publishLocked();
                 }
@@ -386,7 +417,7 @@ public final class CodexSessionController
                     "input", JsonCodec.array(JsonCodec.object("type", "text", "text", prompt)),
                     "cwd", workspacePath,
                     "runtimeWorkspaceRoots", JsonCodec.array(workspacePath),
-                    "approvalPolicy", "never",
+                    "approvalPolicy", "on-request",
                     "permissions", WORKSPACE_PERMISSION_PROFILE,
                     "model", requestModel,
                     "effort", requestEffort
@@ -450,10 +481,153 @@ public final class CodexSessionController
         });
     }
 
+    public void resolveApproval(
+        long requestId,
+        CodexApprovalDecision decision,
+        int amendmentIndex
+    ) {
+        if (decision == null) {
+            setUserError("Eine Freigabeentscheidung fehlt.");
+            return;
+        }
+        Map<String, Object> response;
+        synchronized (this) {
+            int index = findInteractiveRequestLocked(requestId);
+            if (index < 0) {
+                setUserError("Diese Freigabe ist nicht mehr aktiv.");
+                return;
+            }
+            CodexInteractiveRequest request = interactiveRequests.get(index);
+            if (request.getKind() == CodexInteractiveRequest.Kind.USER_INPUT) {
+                setUserError("Diese Anfrage erwartet eine Texteingabe.");
+                return;
+            }
+            try {
+                response = approvalResponse(request, decision, amendmentIndex);
+            } catch (IllegalArgumentException error) {
+                setUserError(error.getMessage());
+                return;
+            }
+            interactiveRequests.remove(index);
+            errorMessage = "";
+            operationMessage = "Freigabeentscheidung wird übermittelt.";
+            publishLocked();
+        }
+        submitInteractiveResponse(requestId, response);
+    }
+
+    public void answerUserInput(long requestId, Map<String, char[]> suppliedAnswers) {
+        Map<String, Object> response = null;
+        String validationError = "";
+        try {
+            synchronized (this) {
+                int index = findInteractiveRequestLocked(requestId);
+                if (index < 0) {
+                    validationError = "Diese Eingabeanfrage ist nicht mehr aktiv.";
+                } else {
+                    CodexInteractiveRequest request = interactiveRequests.get(index);
+                    if (request.getKind() != CodexInteractiveRequest.Kind.USER_INPUT) {
+                        validationError = "Diese Anfrage erwartet eine Freigabeentscheidung.";
+                    } else {
+                        try {
+                            response = userInputResponse(request, suppliedAnswers);
+                        } catch (IllegalArgumentException error) {
+                            validationError = error.getMessage();
+                        }
+                        if (response != null) {
+                            interactiveRequests.remove(index);
+                            errorMessage = "";
+                            operationMessage = "Antwort wird an Codex übermittelt.";
+                            publishLocked();
+                        }
+                    }
+                }
+                if (!validationError.isEmpty()) {
+                    errorMessage = validationError;
+                    publishLocked();
+                }
+            }
+        } finally {
+            wipeAnswers(suppliedAnswers);
+        }
+        if (response != null) {
+            submitInteractiveResponse(requestId, response);
+        }
+    }
+
+    public void dismissUserInput(long requestId) {
+        Map<String, Object> response = null;
+        synchronized (this) {
+            int index = findInteractiveRequestLocked(requestId);
+            if (index < 0) {
+                setUserError("Diese Eingabeanfrage ist nicht mehr aktiv.");
+                return;
+            }
+            CodexInteractiveRequest request = interactiveRequests.get(index);
+            if (request.getKind() != CodexInteractiveRequest.Kind.USER_INPUT) {
+                setUserError("Diese Anfrage erwartet eine Freigabeentscheidung.");
+                return;
+            }
+            interactiveRequests.remove(index);
+            response = emptyUserInputResponse();
+            operationMessage = "Eingabeanfrage wird ohne Antwort geschlossen.";
+            publishLocked();
+        }
+        submitInteractiveResponse(requestId, response);
+    }
+
+    @Override
+    public boolean onServerRequest(
+        final long requestId,
+        String method,
+        Map<String, Object> params
+    ) {
+        if (!COMMAND_APPROVAL_METHOD.equals(method)
+            && !FILE_CHANGE_APPROVAL_METHOD.equals(method)
+            && !USER_INPUT_METHOD.equals(method)) {
+            return false;
+        }
+        final CodexInteractiveRequest request;
+        try {
+            request = parseInteractiveRequest(requestId, method, params);
+        } catch (IllegalArgumentException error) {
+            submitInteractiveError(requestId, -32602, "Invalid interactive request");
+            return true;
+        }
+
+        boolean stale;
+        boolean overloaded;
+        synchronized (this) {
+            stale = closed
+                || !ready
+                || !turnActive
+                || !matchesActiveThread(request.getThreadId())
+                || (!activeTurnId.isEmpty()
+                    && !activeTurnId.equals(request.getTurnId()));
+            overloaded = !stale
+                && interactiveRequests.size() >= MAX_INTERACTIVE_REQUESTS;
+            if (!stale && !overloaded) {
+                interactiveRequests.add(request);
+                operationMessage = request.getKind() == CodexInteractiveRequest.Kind.USER_INPUT
+                    ? "Codex wartet auf deine Eingabe."
+                    : "Codex wartet auf deine Freigabe.";
+                publishLocked();
+            }
+        }
+        if (stale || overloaded) {
+            submitSafeInteractiveRejection(request);
+            return true;
+        }
+        scheduleInteractiveTimeout(request);
+        return true;
+    }
+
     @Override
     public void onNotification(String method, Map<String, Object> params) {
         if ("item/agentMessage/delta".equals(method)) {
             handleAgentDelta(params);
+        } else if (FILE_CHANGE_PATCH_UPDATED_METHOD.equals(method)) {
+            handleFileChangePatchUpdated(params);
         } else if ("item/started".equals(method) || "item/completed".equals(method)) {
             handleItem(params, "item/started".equals(method));
         } else if ("turn/started".equals(method)) {
@@ -466,6 +640,8 @@ public final class CodexSessionController
             handleLoginCompleted(params);
         } else if ("account/updated".equals(method)) {
             queueAccountRefresh();
+        } else if ("serverRequest/resolved".equals(method)) {
+            handleServerRequestResolved(params);
         }
     }
 
@@ -478,9 +654,12 @@ public final class CodexSessionController
         turnActive = false;
         activeTurnId = "";
         operationActive = false;
+        interactiveRequests.clear();
+        pendingFileChanges.clear();
         connectionMessage = "Verbindung zum Codex App-Server wurde beendet.";
         errorMessage = safeError(error);
         publishLocked();
+        interactiveResponses.shutdownNow();
     }
 
     @Override
@@ -494,12 +673,15 @@ public final class CodexSessionController
             turnActive = false;
             activeTurnId = "";
             operationActive = false;
+            interactiveRequests.clear();
+            pendingFileChanges.clear();
             connectionMessage = "Codex App-Server wurde gestoppt.";
             loginUrl = "";
             loginId = "";
             publishLocked();
         }
         operations.shutdownNow();
+        interactiveResponses.shutdownNow();
         client.close();
     }
 
@@ -718,6 +900,7 @@ public final class CodexSessionController
     private String startNewThreadInternal() throws Exception {
         String requestModel;
         synchronized (this) {
+            requireNoActiveTurnOrRequestLocked();
             if (requiresOpenaiAuth && authMode.isEmpty()) {
                 throw new IllegalStateException("Bitte zuerst anmelden.");
             }
@@ -730,7 +913,7 @@ public final class CodexSessionController
         Map<String, Object> params = JsonCodec.object(
             "cwd", workspacePath,
             "runtimeWorkspaceRoots", JsonCodec.array(workspacePath),
-            "approvalPolicy", "never",
+            "approvalPolicy", "on-request",
             "permissions", WORKSPACE_PERMISSION_PROFILE,
             "modelProvider", OPENAI_HTTP_MODEL_PROVIDER,
             "model", requestModel,
@@ -759,6 +942,8 @@ public final class CodexSessionController
             turnActive = false;
             activeTurnId = "";
             lastCompletedTurnId = "";
+            interactiveRequests.clear();
+            pendingFileChanges.clear();
             upsertThreadLocked(new CodexThreadSummary(id, activeThreadTitle, 0L));
             operationMessage = "Neuer Chat ist bereit.";
             publishLocked();
@@ -813,6 +998,9 @@ public final class CodexSessionController
         if (itemId.isEmpty()) {
             return;
         }
+        List<CodexFileChangeSummary> fileChanges = "fileChange".equals(type)
+            ? parseFileChangeSummaries(item)
+            : Collections.<CodexFileChangeSummary>emptyList();
         synchronized (this) {
             if (!matchesActiveThread(threadId)) {
                 return;
@@ -845,6 +1033,41 @@ public final class CodexSessionController
                     replacePendingUserOrAddLocked(itemId, text);
                     publishLocked();
                 }
+            } else if ("fileChange".equals(type)) {
+                if (startedEvent) {
+                    cacheFileChangesLocked(itemId, fileChanges);
+                }
+                boolean changed = !fileChanges.isEmpty()
+                    && enrichInteractiveFileChangeLocked(itemId, fileChanges);
+                if (!startedEvent) {
+                    pendingFileChanges.remove(itemId);
+                }
+                if (changed) {
+                    publishLocked();
+                }
+            }
+        }
+    }
+
+    private void handleFileChangePatchUpdated(Map<String, Object> params) {
+        String threadId = JsonCodec.optionalString(params.get("threadId"));
+        String turnId = JsonCodec.optionalString(params.get("turnId"));
+        String itemId = JsonCodec.optionalString(params.get("itemId"));
+        if (!isSafeOpaqueIdentifier(threadId)
+            || !isSafeOpaqueIdentifier(turnId)
+            || !isSafeOpaqueIdentifier(itemId)) {
+            return;
+        }
+        List<CodexFileChangeSummary> changes = parseFileChangeSummaries(params);
+        synchronized (this) {
+            if (!turnActive
+                || !matchesActiveThread(threadId)
+                || (!activeTurnId.isEmpty() && !activeTurnId.equals(turnId))) {
+                return;
+            }
+            replaceFileChangesLocked(itemId, changes);
+            if (enrichInteractiveFileChangeLocked(itemId, changes)) {
+                publishLocked();
             }
         }
     }
@@ -889,6 +1112,8 @@ public final class CodexSessionController
             turnActive = false;
             lastCompletedTurnId = completedTurnId;
             activeTurnId = "";
+            clearInteractiveRequestsForTurnLocked(completedTurnId);
+            pendingFileChanges.clear();
             finishStreamingMessagesLocked();
             String status = JsonCodec.optionalString(turn.get("status"));
             operationMessage = "interrupted".equals(status)
@@ -1042,6 +1267,748 @@ public final class CodexSessionController
         }
     }
 
+    private CodexInteractiveRequest parseInteractiveRequest(
+        long requestId,
+        String method,
+        Map<String, Object> params
+    ) {
+        String threadId = requireInteractiveIdentifier(params.get("threadId"), "threadId");
+        String turnId = requireInteractiveIdentifier(params.get("turnId"), "turnId");
+        String itemId = requireInteractiveIdentifier(params.get("itemId"), "itemId");
+        long now = System.currentTimeMillis();
+
+        if (USER_INPUT_METHOD.equals(method)) {
+            Object blockingValue = params.get("isBlocking");
+            if (!(blockingValue instanceof Boolean)) {
+                throw new IllegalArgumentException("isBlocking must be a boolean");
+            }
+            long waitMilliseconds = MAX_INTERACTIVE_WAIT_MS;
+            Object autoResolution = params.get("autoResolutionMs");
+            if (autoResolution != null) {
+                if (!(autoResolution instanceof Long)
+                    || ((Long) autoResolution).longValue() < 0L) {
+                    throw new IllegalArgumentException("autoResolutionMs must be an integer");
+                }
+                waitMilliseconds = Math.min(
+                    ((Long) autoResolution).longValue(),
+                    MAX_INTERACTIVE_WAIT_MS
+                );
+            }
+            List<Object> questionValues = JsonCodec.requireArray(
+                params.get("questions"),
+                "user input questions"
+            );
+            if (questionValues.isEmpty()
+                || questionValues.size() > MAX_USER_INPUT_QUESTIONS) {
+                throw new IllegalArgumentException("user input question count is invalid");
+            }
+            List<CodexUserInputQuestion> questions =
+                new ArrayList<CodexUserInputQuestion>();
+            Set<String> questionIds = new HashSet<String>();
+            for (Object questionValue : questionValues) {
+                Map<String, Object> question = JsonCodec.requireObject(
+                    questionValue,
+                    "user input question"
+                );
+                String questionId = requireQuestionId(question.get("id"));
+                if (!questionIds.add(questionId)) {
+                    throw new IllegalArgumentException("user input question ids must be unique");
+                }
+                String header = requireBoundedString(question.get("header"), "header", 80);
+                String prompt = requireBoundedString(
+                    question.get("question"),
+                    "question",
+                    1200
+                );
+                List<Object> optionValues = JsonCodec.optionalArray(question.get("options"));
+                if (optionValues.size() > MAX_USER_INPUT_OPTIONS) {
+                    throw new IllegalArgumentException("user input option count is invalid");
+                }
+                List<CodexUserInputOption> options = new ArrayList<CodexUserInputOption>();
+                Set<String> optionLabels = new HashSet<String>();
+                for (Object optionValue : optionValues) {
+                    Map<String, Object> option = JsonCodec.requireObject(
+                        optionValue,
+                        "user input option"
+                    );
+                    String label = requireBoundedString(option.get("label"), "option label", 160);
+                    if (!optionLabels.add(label)) {
+                        throw new IllegalArgumentException("user input option labels must be unique");
+                    }
+                    options.add(new CodexUserInputOption(
+                        label,
+                        requireBoundedString(
+                            option.get("description"),
+                            "option description",
+                            600
+                        )
+                    ));
+                }
+                questions.add(new CodexUserInputQuestion(
+                    questionId,
+                    header,
+                    prompt,
+                    options,
+                    optionalBoolean(question, "isOther", false),
+                    optionalBoolean(question, "isSecret", false)
+                ));
+            }
+            return new CodexInteractiveRequest(
+                requestId,
+                CodexInteractiveRequest.Kind.USER_INPUT,
+                threadId,
+                turnId,
+                itemId,
+                "",
+                "",
+                "",
+                "",
+                "",
+                "",
+                Collections.<CodexFileChangeSummary>emptyList(),
+                Collections.<String>emptyList(),
+                Collections.<CodexNetworkPolicyAmendment>emptyList(),
+                questions,
+                ((Boolean) blockingValue).booleanValue(),
+                now + waitMilliseconds
+            );
+        }
+
+        Object startedAt = params.get("startedAtMs");
+        if (!(startedAt instanceof Long) || ((Long) startedAt).longValue() < 0L) {
+            throw new IllegalArgumentException("startedAtMs must be a positive integer");
+        }
+        if (params.containsKey("additionalPermissions")) {
+            throw new IllegalArgumentException("additional permissions are not supported");
+        }
+        String reason = optionalBoundedString(params.get("reason"), 2000);
+        String command = optionalBoundedString(params.get("command"), 16 * 1024);
+        if (command.isEmpty()) {
+            command = commandActionSummary(params.get("commandActions"));
+        }
+        String cwd = optionalBoundedString(params.get("cwd"), 2048);
+        String grantRoot = optionalBoundedString(params.get("grantRoot"), 2048);
+        String networkHost = "";
+        String networkProtocol = "";
+        Map<String, Object> networkContext = JsonCodec.optionalObject(
+            params.get("networkApprovalContext")
+        );
+        if (networkContext != null) {
+            networkHost = requireBoundedString(networkContext.get("host"), "network host", 253);
+            networkProtocol = requireBoundedString(
+                networkContext.get("protocol"),
+                "network protocol",
+                24
+            );
+            if (!"http".equals(networkProtocol)
+                && !"https".equals(networkProtocol)
+                && !"socks5Tcp".equals(networkProtocol)
+                && !"socks5Udp".equals(networkProtocol)) {
+                throw new IllegalArgumentException("network protocol is unsupported");
+            }
+        }
+
+        List<String> execPolicy = parseBoundedStringArray(
+            params.get("proposedExecpolicyAmendment"),
+            MAX_POLICY_AMENDMENT_PARTS,
+            1024
+        );
+        List<CodexNetworkPolicyAmendment> networkPolicies =
+            new ArrayList<CodexNetworkPolicyAmendment>();
+        List<Object> networkValues = JsonCodec.optionalArray(
+            params.get("proposedNetworkPolicyAmendments")
+        );
+        if (networkValues.size() > MAX_POLICY_AMENDMENT_PARTS) {
+            throw new IllegalArgumentException("too many network policy amendments");
+        }
+        for (Object networkValue : networkValues) {
+            Map<String, Object> amendment = JsonCodec.requireObject(
+                networkValue,
+                "network policy amendment"
+            );
+            String action = requireBoundedString(amendment.get("action"), "network action", 8);
+            if (!"allow".equals(action) && !"deny".equals(action)) {
+                throw new IllegalArgumentException("network policy action is invalid");
+            }
+            networkPolicies.add(new CodexNetworkPolicyAmendment(
+                action,
+                requireBoundedString(amendment.get("host"), "network policy host", 253)
+            ));
+        }
+
+        CodexInteractiveRequest.Kind kind = COMMAND_APPROVAL_METHOD.equals(method)
+            ? CodexInteractiveRequest.Kind.COMMAND_APPROVAL
+            : CodexInteractiveRequest.Kind.FILE_CHANGE_APPROVAL;
+        List<CodexFileChangeSummary> changes = Collections.emptyList();
+        if (kind == CodexInteractiveRequest.Kind.FILE_CHANGE_APPROVAL) {
+            synchronized (this) {
+                List<CodexFileChangeSummary> cached = pendingFileChanges.get(itemId);
+                if (cached != null) {
+                    changes = cached;
+                }
+            }
+        }
+        return new CodexInteractiveRequest(
+            requestId,
+            kind,
+            threadId,
+            turnId,
+            itemId,
+            reason,
+            command,
+            cwd,
+            grantRoot,
+            networkHost,
+            networkProtocol,
+            changes,
+            execPolicy,
+            networkPolicies,
+            Collections.<CodexUserInputQuestion>emptyList(),
+            true,
+            now + MAX_INTERACTIVE_WAIT_MS
+        );
+    }
+
+    private Map<String, Object> approvalResponse(
+        CodexInteractiveRequest request,
+        CodexApprovalDecision decision,
+        int amendmentIndex
+    ) {
+        Object wireDecision;
+        switch (decision) {
+            case ACCEPT:
+                requireApprovalScope(request);
+                wireDecision = "accept";
+                break;
+            case ACCEPT_FOR_SESSION:
+                requireApprovalScope(request);
+                wireDecision = "acceptForSession";
+                break;
+            case DECLINE:
+                wireDecision = "decline";
+                break;
+            case CANCEL:
+                wireDecision = "cancel";
+                break;
+            case ACCEPT_WITH_EXEC_POLICY_AMENDMENT:
+                requireCommandApproval(request);
+                requireApprovalScope(request);
+                if (request.getProposedExecPolicyAmendment().isEmpty()) {
+                    throw new IllegalArgumentException(
+                        "Für diese Freigabe wurde keine Befehlsregel vorgeschlagen."
+                    );
+                }
+                wireDecision = JsonCodec.object(
+                    "acceptWithExecpolicyAmendment",
+                    JsonCodec.object(
+                        "execpolicy_amendment",
+                        new ArrayList<String>(request.getProposedExecPolicyAmendment())
+                    )
+                );
+                break;
+            case APPLY_NETWORK_POLICY_AMENDMENT:
+                requireCommandApproval(request);
+                if (amendmentIndex < 0
+                    || amendmentIndex >= request.getProposedNetworkPolicyAmendments().size()) {
+                    throw new IllegalArgumentException(
+                        "Die vorgeschlagene Netzwerkregel ist nicht mehr verfügbar."
+                    );
+                }
+                CodexNetworkPolicyAmendment amendment =
+                    request.getProposedNetworkPolicyAmendments().get(amendmentIndex);
+                wireDecision = JsonCodec.object(
+                    "applyNetworkPolicyAmendment",
+                    JsonCodec.object(
+                        "network_policy_amendment",
+                        JsonCodec.object(
+                            "action", amendment.getAction(),
+                            "host", amendment.getHost()
+                        )
+                    )
+                );
+                break;
+            default:
+                throw new IllegalArgumentException("Unbekannte Freigabeentscheidung.");
+        }
+        return JsonCodec.object("decision", wireDecision);
+    }
+
+    private static Map<String, Object> userInputResponse(
+        CodexInteractiveRequest request,
+        Map<String, char[]> suppliedAnswers
+    ) {
+        if (suppliedAnswers == null
+            || suppliedAnswers.size() != request.getQuestions().size()) {
+            throw new IllegalArgumentException("Bitte alle Fragen beantworten.");
+        }
+        Map<String, Object> answers = new LinkedHashMap<String, Object>();
+        for (CodexUserInputQuestion question : request.getQuestions()) {
+            char[] value = suppliedAnswers.get(question.getId());
+            if (value == null || value.length == 0
+                || value.length > MAX_USER_INPUT_ANSWER_CHARACTERS) {
+                throw new IllegalArgumentException("Bitte alle Fragen gültig beantworten.");
+            }
+            answers.put(
+                question.getId(),
+                JsonCodec.object("answers", JsonCodec.array(new String(value)))
+            );
+        }
+        return JsonCodec.object("answers", answers);
+    }
+
+    private static Map<String, Object> emptyUserInputResponse() {
+        return JsonCodec.object("answers", new LinkedHashMap<String, Object>());
+    }
+
+    private void submitInteractiveResponse(
+        final long requestId,
+        final Map<String, Object> response
+    ) {
+        try {
+            interactiveResponses.execute(new Runnable() {
+                @Override
+                public void run() {
+                    try {
+                        client.respondToServerRequest(requestId, response);
+                    } catch (Throwable error) {
+                        handleInteractiveResponseFailure(error);
+                    }
+                }
+            });
+        } catch (RejectedExecutionException ignored) {
+            // Runtime shutdown is already authoritative.
+        }
+    }
+
+    private void submitInteractiveError(
+        final long requestId,
+        final int code,
+        final String message
+    ) {
+        try {
+            interactiveResponses.execute(new Runnable() {
+                @Override
+                public void run() {
+                    try {
+                        client.respondToServerRequestError(requestId, code, message);
+                    } catch (Throwable error) {
+                        handleInteractiveResponseFailure(error);
+                    }
+                }
+            });
+        } catch (RejectedExecutionException ignored) {
+            // Runtime shutdown is already authoritative.
+        }
+    }
+
+    private void submitSafeInteractiveRejection(CodexInteractiveRequest request) {
+        Map<String, Object> response = request.getKind()
+            == CodexInteractiveRequest.Kind.USER_INPUT
+            ? emptyUserInputResponse()
+            : JsonCodec.object("decision", "cancel");
+        submitInteractiveResponse(request.getRequestId(), response);
+    }
+
+    private void scheduleInteractiveTimeout(final CodexInteractiveRequest request) {
+        long delay = Math.max(
+            0L,
+            request.getExpiresAtMilliseconds() - System.currentTimeMillis()
+        );
+        try {
+            interactiveResponses.schedule(new Runnable() {
+                @Override
+                public void run() {
+                    boolean removed;
+                    synchronized (CodexSessionController.this) {
+                        int index = findInteractiveRequestLocked(request.getRequestId());
+                        removed = index >= 0;
+                        if (removed) {
+                            interactiveRequests.remove(index);
+                            operationMessage = "Eine Codex-Anfrage ist sicher abgelaufen.";
+                            publishLocked();
+                        }
+                    }
+                    if (removed) {
+                        try {
+                            client.respondToServerRequest(
+                                request.getRequestId(),
+                                request.getKind() == CodexInteractiveRequest.Kind.USER_INPUT
+                                    ? emptyUserInputResponse()
+                                    : JsonCodec.object("decision", "cancel")
+                            );
+                        } catch (Throwable error) {
+                            handleInteractiveResponseFailure(error);
+                        }
+                    }
+                }
+            }, delay, TimeUnit.MILLISECONDS);
+        } catch (RejectedExecutionException ignored) {
+            // Runtime shutdown is already authoritative.
+        }
+    }
+
+    private void handleServerRequestResolved(Map<String, Object> params) {
+        Object requestIdValue = params.get("requestId");
+        if (!(requestIdValue instanceof Long)) {
+            return;
+        }
+        long requestId = ((Long) requestIdValue).longValue();
+        if (requestId < 0L || requestId > CodexAppServerClient.MAX_REQUEST_ID) {
+            return;
+        }
+        client.abandonServerRequest(requestId);
+        synchronized (this) {
+            int index = findInteractiveRequestLocked(requestId);
+            if (index >= 0) {
+                interactiveRequests.remove(index);
+                operationMessage = "Codex hat die Anfrage geschlossen.";
+                publishLocked();
+            }
+        }
+    }
+
+    private synchronized void handleInteractiveResponseFailure(Throwable error) {
+        if (closed) {
+            return;
+        }
+        ready = false;
+        turnActive = false;
+        activeTurnId = "";
+        operationActive = false;
+        interactiveRequests.clear();
+        pendingFileChanges.clear();
+        connectionMessage = "Eine Antwort an den Codex App-Server ist fehlgeschlagen.";
+        errorMessage = safeError(error);
+        publishLocked();
+        client.close();
+    }
+
+    private int findInteractiveRequestLocked(long requestId) {
+        for (int index = 0; index < interactiveRequests.size(); index++) {
+            if (interactiveRequests.get(index).getRequestId() == requestId) {
+                return index;
+            }
+        }
+        return -1;
+    }
+
+    private void clearInteractiveRequestsForTurnLocked(String turnId) {
+        for (int index = interactiveRequests.size() - 1; index >= 0; index--) {
+            CodexInteractiveRequest request = interactiveRequests.get(index);
+            if (turnId.equals(request.getTurnId())) {
+                interactiveRequests.remove(index);
+                client.abandonServerRequest(request.getRequestId());
+            }
+        }
+    }
+
+    private void cacheFileChangesLocked(
+        String itemId,
+        List<CodexFileChangeSummary> changes
+    ) {
+        if (changes.isEmpty()) {
+            return;
+        }
+        if (pendingFileChanges.size() >= MAX_INTERACTIVE_REQUESTS
+            && !pendingFileChanges.containsKey(itemId)) {
+            String first = pendingFileChanges.keySet().iterator().next();
+            pendingFileChanges.remove(first);
+        }
+        pendingFileChanges.put(
+            itemId,
+            Collections.unmodifiableList(new ArrayList<CodexFileChangeSummary>(changes))
+        );
+    }
+
+    private void replaceFileChangesLocked(
+        String itemId,
+        List<CodexFileChangeSummary> changes
+    ) {
+        if (changes.isEmpty()) {
+            pendingFileChanges.remove(itemId);
+            return;
+        }
+        cacheFileChangesLocked(itemId, changes);
+    }
+
+    private boolean enrichInteractiveFileChangeLocked(
+        String itemId,
+        List<CodexFileChangeSummary> changes
+    ) {
+        for (int index = 0; index < interactiveRequests.size(); index++) {
+            CodexInteractiveRequest request = interactiveRequests.get(index);
+            if (request.getKind() == CodexInteractiveRequest.Kind.FILE_CHANGE_APPROVAL
+                && request.getItemId().equals(itemId)) {
+                interactiveRequests.set(index, request.withFileChanges(changes));
+                return true;
+            }
+        }
+        return false;
+    }
+
+    private static List<CodexFileChangeSummary> parseFileChangeSummaries(
+        Map<String, Object> item
+    ) {
+        List<CodexFileChangeSummary> changes = new ArrayList<CodexFileChangeSummary>();
+        int totalCharacters = 0;
+        List<Object> values;
+        try {
+            values = JsonCodec.optionalArray(item.get("changes"));
+        } catch (IllegalArgumentException ignored) {
+            return changes;
+        }
+        if (values.size() > MAX_FILE_CHANGE_SUMMARIES) {
+            return changes;
+        }
+        for (Object value : values) {
+            if (totalCharacters >= MAX_FILE_CHANGE_TOTAL_CHARACTERS) {
+                return Collections.emptyList();
+            }
+            try {
+                Map<String, Object> change = JsonCodec.requireObject(value, "file change");
+                String path = optionalBoundedString(change.get("path"), 2048);
+                Map<String, Object> kindValue = JsonCodec.requireObject(
+                    change.get("kind"),
+                    "file change kind"
+                );
+                String kind = requireBoundedString(
+                    kindValue.get("type"),
+                    "file change kind type",
+                    16
+                );
+                if (!"add".equals(kind)
+                    && !"delete".equals(kind)
+                    && !"update".equals(kind)) {
+                    throw new IllegalArgumentException("file change kind is invalid");
+                }
+                String movePath = "update".equals(kind)
+                    ? optionalBoundedString(kindValue.get("move_path"), 2048)
+                    : "";
+                int metadataCharacters = path.length() + kind.length() + movePath.length();
+                int remainingCharacters = MAX_FILE_CHANGE_TOTAL_CHARACTERS
+                    - totalCharacters
+                    - metadataCharacters;
+                if (path.isEmpty() || remainingCharacters < 0) {
+                    return Collections.emptyList();
+                }
+                Object diffValue = change.get("diff");
+                if (!(diffValue instanceof String)) {
+                    throw new IllegalArgumentException("file change diff must be a string");
+                }
+                String diff = bounded(
+                    (String) diffValue,
+                    Math.min(
+                        MAX_FILE_CHANGE_DIFF_CHARACTERS,
+                        remainingCharacters
+                    )
+                );
+                changes.add(new CodexFileChangeSummary(path, kind, movePath, diff));
+                totalCharacters += metadataCharacters + diff.length();
+            } catch (IllegalArgumentException ignored) {
+                // Never approve a patch whose complete path set could not be validated.
+                return Collections.emptyList();
+            }
+        }
+        return changes;
+    }
+
+    private static void requireCommandApproval(CodexInteractiveRequest request) {
+        if (request.getKind() != CodexInteractiveRequest.Kind.COMMAND_APPROVAL) {
+            throw new IllegalArgumentException(
+                "Diese Entscheidung ist nur für Befehlsfreigaben zulässig."
+            );
+        }
+    }
+
+    private void requireApprovalScope(CodexInteractiveRequest request) {
+        if (request.getKind() == CodexInteractiveRequest.Kind.FILE_CHANGE_APPROVAL
+            && request.getFileChanges().isEmpty()) {
+            throw new IllegalArgumentException(
+                "Die Dateiänderungsdetails sind noch nicht verfügbar; bitte nicht blind freigeben."
+            );
+        }
+        if (request.getKind() == CodexInteractiveRequest.Kind.COMMAND_APPROVAL
+            && request.getCommand().isEmpty()
+            && request.getNetworkHost().isEmpty()) {
+            throw new IllegalArgumentException(
+                "Die Befehlsdetails sind noch nicht verfügbar; bitte nicht blind freigeben."
+            );
+        }
+        if (!isSafeWorkspacePath(request.getCwd())
+            || !isSafeWorkspacePath(request.getGrantRoot())) {
+            throw new IllegalArgumentException(
+                "Eine Freigabe außerhalb des privaten Workspace ist nicht zulässig."
+            );
+        }
+        for (CodexFileChangeSummary change : request.getFileChanges()) {
+            if (!isSafeWorkspacePath(change.getPath())
+                || !isSafeWorkspacePath(change.getMovePath())) {
+                throw new IllegalArgumentException(
+                    "Eine Dateiänderung außerhalb des privaten Workspace ist nicht zulässig."
+                );
+            }
+        }
+    }
+
+    private boolean isSafeWorkspacePath(String value) {
+        if (value == null || value.isEmpty()) {
+            return true;
+        }
+        if (value.indexOf('\0') >= 0 || value.indexOf('\n') >= 0
+            || value.indexOf('\r') >= 0) {
+            return false;
+        }
+        if (value.equals("..") || value.startsWith("../")
+            || value.endsWith("/..") || value.contains("/../")) {
+            return false;
+        }
+        if (!value.startsWith("/")) {
+            return true;
+        }
+        return value.equals(workspacePath) || value.startsWith(workspacePath + "/");
+    }
+
+    private void requireNoActiveTurnOrRequestLocked() {
+        if (turnActive || !interactiveRequests.isEmpty()) {
+            throw new IllegalStateException(
+                "Der laufende Turn muss zuerst abgeschlossen oder gestoppt werden."
+            );
+        }
+    }
+
+    private static String requireInteractiveIdentifier(Object value, String field) {
+        String identifier = JsonCodec.requireString(value, field);
+        if (!isSafeOpaqueIdentifier(identifier)) {
+            throw new IllegalArgumentException(field + " is invalid");
+        }
+        return identifier;
+    }
+
+    private static String requireQuestionId(Object value) {
+        String identifier = JsonCodec.requireString(value, "question id");
+        if (identifier.length() > 80 || !isSafeOpaqueIdentifier(identifier)) {
+            throw new IllegalArgumentException("question id is invalid");
+        }
+        return identifier;
+    }
+
+    private static boolean isSafeOpaqueIdentifier(String value) {
+        if (value == null || value.isEmpty() || value.length() > 160) {
+            return false;
+        }
+        for (int index = 0; index < value.length(); index++) {
+            char character = value.charAt(index);
+            if (!(character >= 'a' && character <= 'z')
+                && !(character >= 'A' && character <= 'Z')
+                && !(character >= '0' && character <= '9')
+                && character != '-' && character != '_' && character != '.'
+                && character != ':') {
+                return false;
+            }
+        }
+        return true;
+    }
+
+    private static String requireBoundedString(Object value, String field, int maximum) {
+        String text = JsonCodec.requireString(value, field);
+        if (text.length() > maximum || containsForbiddenControl(text)) {
+            throw new IllegalArgumentException(field + " exceeds its limit");
+        }
+        return text;
+    }
+
+    private static String optionalBoundedString(Object value, int maximum) {
+        if (value == null) {
+            return "";
+        }
+        if (!(value instanceof String)) {
+            throw new IllegalArgumentException("optional value must be a string");
+        }
+        String text = (String) value;
+        if (text.length() > maximum || containsForbiddenControl(text)) {
+            throw new IllegalArgumentException("optional value exceeds its limit");
+        }
+        return text;
+    }
+
+    private static boolean containsForbiddenControl(String value) {
+        return value.indexOf('\0') >= 0;
+    }
+
+    private static boolean optionalBoolean(
+        Map<String, Object> value,
+        String field,
+        boolean fallback
+    ) {
+        Object candidate = value.get(field);
+        if (candidate == null) {
+            return fallback;
+        }
+        if (!(candidate instanceof Boolean)) {
+            throw new IllegalArgumentException(field + " must be a boolean");
+        }
+        return ((Boolean) candidate).booleanValue();
+    }
+
+    private static List<String> parseBoundedStringArray(
+        Object value,
+        int maximumEntries,
+        int maximumCharacters
+    ) {
+        List<Object> values = JsonCodec.optionalArray(value);
+        if (values.size() > maximumEntries) {
+            throw new IllegalArgumentException("string array has too many entries");
+        }
+        List<String> result = new ArrayList<String>();
+        int totalCharacters = 0;
+        for (Object entry : values) {
+            String text = requireBoundedString(entry, "array entry", maximumCharacters);
+            totalCharacters += text.length();
+            if (totalCharacters > 16 * 1024) {
+                throw new IllegalArgumentException("string array exceeds its limit");
+            }
+            result.add(text);
+        }
+        return result;
+    }
+
+    private static String commandActionSummary(Object value) {
+        List<Object> actions = JsonCodec.optionalArray(value);
+        if (actions.size() > 32) {
+            throw new IllegalArgumentException("too many command actions");
+        }
+        StringBuilder summary = new StringBuilder();
+        Set<String> seen = new HashSet<String>();
+        for (Object actionValue : actions) {
+            Map<String, Object> action = JsonCodec.requireObject(
+                actionValue,
+                "command action"
+            );
+            String command = optionalBoundedString(action.get("command"), 4096);
+            if (command.isEmpty() || !seen.add(command)) {
+                continue;
+            }
+            if (summary.length() != 0) {
+                summary.append('\n');
+            }
+            if (summary.length() + command.length() > 16 * 1024) {
+                throw new IllegalArgumentException("command actions exceed their limit");
+            }
+            summary.append(command);
+        }
+        return summary.toString();
+    }
+
+    private static void wipeAnswers(Map<String, char[]> answers) {
+        if (answers == null) {
+            return;
+        }
+        for (char[] value : answers.values()) {
+            wipe(value);
+        }
+        answers.clear();
+    }
+
     private synchronized void setUserError(String message) {
         errorMessage = message;
         publishLocked();
@@ -1070,6 +2037,7 @@ public final class CodexSessionController
             messages,
             turnActive,
             activeTurnId,
+            interactiveRequests,
             errorMessage
         );
     }

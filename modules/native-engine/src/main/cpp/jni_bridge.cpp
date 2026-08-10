@@ -80,6 +80,7 @@ Java_de_agentcodi_runtime_NativeEngine_nativeStartAppServer(
     JNIEnv* environment,
     jclass,
     jstring executable,
+    jstring code_mode_host_executable,
     jstring workspace,
     jstring codex_home,
     jstring home,
@@ -87,6 +88,11 @@ Java_de_agentcodi_runtime_NativeEngine_nativeStartAppServer(
     jstring native_library_directory) {
   agentcodi::ProcessConfig config;
   if (!from_java_string(environment, executable, "Executable", &config.executable)
+      || !from_java_string(
+          environment,
+          code_mode_host_executable,
+          "Code-mode host executable",
+          &config.code_mode_host_executable)
       || !from_java_string(environment, workspace, "Workspace", &config.working_directory)
       || !from_java_string(environment, codex_home, "Codex home", &config.codex_home)
       || !from_java_string(environment, home, "Home", &config.home_directory)

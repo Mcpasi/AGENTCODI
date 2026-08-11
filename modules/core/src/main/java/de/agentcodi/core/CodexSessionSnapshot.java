@@ -22,6 +22,7 @@ public final class CodexSessionSnapshot {
     private final List<CodexThreadSummary> threads;
     private final String activeThreadId;
     private final String activeThreadTitle;
+    private final List<CodexTranscriptItem> transcriptItems;
     private final List<ChatMessage> messages;
     private final boolean turnActive;
     private final String activeTurnId;
@@ -46,7 +47,7 @@ public final class CodexSessionSnapshot {
         List<CodexThreadSummary> threads,
         String activeThreadId,
         String activeThreadTitle,
-        List<ChatMessage> messages,
+        List<CodexTranscriptItem> transcriptItems,
         boolean turnActive,
         String activeTurnId,
         List<CodexInteractiveRequest> interactiveRequests,
@@ -69,7 +70,8 @@ public final class CodexSessionSnapshot {
         this.threads = immutableCopy(threads);
         this.activeThreadId = nonNull(activeThreadId);
         this.activeThreadTitle = nonNull(activeThreadTitle);
-        this.messages = immutableMessageCopy(messages);
+        this.transcriptItems = immutableTranscriptCopy(transcriptItems);
+        this.messages = messagesFromTranscript(this.transcriptItems);
         this.turnActive = turnActive;
         this.activeTurnId = nonNull(activeTurnId);
         this.interactiveRequests = immutableInteractiveRequestCopy(interactiveRequests);
@@ -95,7 +97,7 @@ public final class CodexSessionSnapshot {
             Collections.<CodexThreadSummary>emptyList(),
             "",
             "",
-            Collections.<ChatMessage>emptyList(),
+            Collections.<CodexTranscriptItem>emptyList(),
             false,
             "",
             Collections.<CodexInteractiveRequest>emptyList(),
@@ -179,6 +181,10 @@ public final class CodexSessionSnapshot {
         return messages;
     }
 
+    public List<CodexTranscriptItem> getTranscriptItems() {
+        return transcriptItems;
+    }
+
     public boolean isTurnActive() {
         return turnActive;
     }
@@ -215,12 +221,26 @@ public final class CodexSessionSnapshot {
         );
     }
 
-    private static List<ChatMessage> immutableMessageCopy(List<ChatMessage> values) {
+    private static List<CodexTranscriptItem> immutableTranscriptCopy(
+        List<CodexTranscriptItem> values
+    ) {
         return Collections.unmodifiableList(
-            new ArrayList<ChatMessage>(
-                values == null ? Collections.<ChatMessage>emptyList() : values
+            new ArrayList<CodexTranscriptItem>(
+                values == null ? Collections.<CodexTranscriptItem>emptyList() : values
             )
         );
+    }
+
+    private static List<ChatMessage> messagesFromTranscript(
+        List<CodexTranscriptItem> values
+    ) {
+        List<ChatMessage> result = new ArrayList<ChatMessage>();
+        for (CodexTranscriptItem value : values) {
+            if (value.isMessage()) {
+                result.add(value.getMessage());
+            }
+        }
+        return Collections.unmodifiableList(result);
     }
 
     private static List<CodexInteractiveRequest> immutableInteractiveRequestCopy(

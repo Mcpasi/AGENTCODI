@@ -33,8 +33,11 @@ public final class AgentRuntimeService extends Service {
     private static final RuntimeStateMachine STATE = new RuntimeStateMachine();
     private static final AtomicBoolean BOOTSTRAP_ACTIVE = new AtomicBoolean(false);
     private static final CodexSessionSnapshot STOPPED_SESSION = CodexSessionSnapshot.stopped();
+    private static final Object SESSION_LOCK = new Object();
     private static volatile CodexSessionController sessionController;
+    private static volatile AgentRuntimeService activeService;
     private volatile Thread bootstrapThread;
+    private volatile String notificationTextKey = RuntimeText.NOTIFICATION_STARTING;
 
     public static RuntimeSnapshot snapshot() {
         return STATE.snapshot();
@@ -153,12 +156,22 @@ public final class AgentRuntimeService extends Service {
         }
     }
 
+    public static void refreshLocalizedNotification() {
+        AgentRuntimeService service = activeService;
+        if (service != null) {
+            service.createNotificationChannel();
+            service.updateNotificationSafely(service.notificationTextKey);
+        }
+    }
+
     @Override
     public void onCreate() {
         super.onCreate();
+        activeService = this;
         try {
             createNotificationChannel();
-            startForeground(NOTIFICATION_ID, buildNotification("Native Runtime startet"));
+            notificationTextKey = RuntimeText.NOTIFICATION_STARTING;
+            startForeground(NOTIFICATION_ID, buildNotification(notificationTextKey));
             startRuntimeIfNeeded();
         } catch (Throwable error) {
             recordServiceFailure("service-onCreate", error);
@@ -184,8 +197,14 @@ public final class AgentRuntimeService extends Service {
 
     @Override
     public void onDestroy() {
-        CodexSessionController controller = sessionController;
-        sessionController = null;
+        if (activeService == this) {
+            activeService = null;
+        }
+        CodexSessionController controller;
+        synchronized (SESSION_LOCK) {
+            controller = sessionController;
+            sessionController = null;
+        }
         if (controller != null) {
             controller.close();
         }
@@ -249,9 +268,31 @@ public final class AgentRuntimeService extends Service {
                     );
                     startedController = new CodexSessionController(
                         transport,
-                        layout.getWorkspace().getAbsolutePath()
+                        layout.getWorkspace().getAbsolutePath(),
+                        new CodexSessionController.ConnectionFailureListener() {
+                            @Override
+                            public void onConnectionFailed(
+                                CodexSessionController controller,
+                                Throwable error
+                            ) {
+                                handleSessionConnectionFailure(
+                                    controller,
+                                    generation,
+                                    error
+                                );
+                            }
+                        }
                     );
                     startedController.start();
+                    CodexSessionController previousController;
+                    synchronized (SESSION_LOCK) {
+                        previousController = sessionController;
+                        sessionController = startedController;
+                    }
+                    if (previousController != null
+                        && previousController != startedController) {
+                        previousController.close();
+                    }
                     boolean accepted = STATE.markReady(
                         generation,
                         engine.version(),
@@ -261,16 +302,26 @@ public final class AgentRuntimeService extends Service {
                         layout.getWorkspace().getAbsolutePath()
                     );
                     if (accepted) {
-                        sessionController = startedController;
                         startedController = null;
                         clearStoredCrashReport();
-                        updateNotificationSafely("Codex App-Server bereit");
+                        updateNotificationSafely(RuntimeText.NOTIFICATION_READY);
                         Log.i(TAG, BuildIdentity.summary() + " app-server ready");
+                    } else {
+                        synchronized (SESSION_LOCK) {
+                            if (sessionController == startedController) {
+                                sessionController = null;
+                            }
+                        }
                     }
                 } catch (Throwable error) {
                     recordServiceFailure("runtime-bootstrap", generation, error);
                 } finally {
                     if (startedController != null) {
+                        synchronized (SESSION_LOCK) {
+                            if (sessionController == startedController) {
+                                sessionController = null;
+                            }
+                        }
                         startedController.close();
                     }
                     BOOTSTRAP_ACTIVE.set(false);
@@ -290,6 +341,37 @@ public final class AgentRuntimeService extends Service {
         }
     }
 
+    private void handleSessionConnectionFailure(
+        CodexSessionController failedController,
+        long generation,
+        Throwable error
+    ) {
+        boolean owned;
+        synchronized (SESSION_LOCK) {
+            owned = sessionController == failedController;
+            if (owned) {
+                sessionController = null;
+            }
+        }
+        RuntimeSnapshot current = STATE.snapshot();
+        boolean currentBootstrapFailure = current.getGeneration() == generation
+            && current.getPhase() == RuntimePhase.STARTING;
+        if (!owned && !currentBootstrapFailure) {
+            return;
+        }
+
+        failedController.close();
+        String message = "Codex App-Server-Verbindung fehlgeschlagen: "
+            + safeMessage(error == null ? null : error.getMessage());
+        if (STATE.markFailed(generation, message)) {
+            persistCrash("app-server-transport", error == null
+                ? new IllegalStateException("Unknown app-server transport failure")
+                : error);
+            updateNotificationSafely(RuntimeText.NOTIFICATION_DISCONNECTED);
+            Log.e(TAG, "App-server transport failed; explicit restart is available");
+        }
+    }
+
     private void createNotificationChannel() {
         if (Build.VERSION.SDK_INT < Build.VERSION_CODES.O) {
             return;
@@ -301,14 +383,22 @@ public final class AgentRuntimeService extends Service {
         }
         NotificationChannel channel = new NotificationChannel(
             CHANNEL_ID,
-            "AGENTCODI Agent-Runtime",
+            RuntimeText.get(
+                this,
+                RuntimeText.CHANNEL_NAME,
+                "AGENTCODI agent runtime"
+            ),
             NotificationManager.IMPORTANCE_LOW
         );
-        channel.setDescription("Hält den lokalen Codex App-Server und aktive Turns am Leben.");
+        channel.setDescription(RuntimeText.get(
+            this,
+            RuntimeText.CHANNEL_DESCRIPTION,
+            "Keeps the local Codex app-server and active turns alive."
+        ));
         manager.createNotificationChannel(channel);
     }
 
-    private Notification buildNotification(String message) {
+    private Notification buildNotification(String textKey) {
         Intent launchIntent = getPackageManager().getLaunchIntentForPackage(getPackageName());
         Notification.Builder builder = new Notification.Builder(this, CHANNEL_ID);
         int icon = getApplicationInfo().icon != 0
@@ -317,7 +407,7 @@ public final class AgentRuntimeService extends Service {
         builder
             .setSmallIcon(icon)
             .setContentTitle(BuildIdentity.APP_NAME)
-            .setContentText(message)
+            .setContentText(notificationText(textKey))
             .setOngoing(true)
             .setCategory(Notification.CATEGORY_SERVICE);
         if (launchIntent != null) {
@@ -332,16 +422,34 @@ public final class AgentRuntimeService extends Service {
         return builder.build();
     }
 
-    private void updateNotificationSafely(String message) {
+    private void updateNotificationSafely(String textKey) {
         try {
+            notificationTextKey = textKey;
             NotificationManager manager =
                 (NotificationManager) getSystemService(Context.NOTIFICATION_SERVICE);
             if (manager != null) {
-                manager.notify(NOTIFICATION_ID, buildNotification(message));
+                manager.notify(NOTIFICATION_ID, buildNotification(textKey));
             }
         } catch (Throwable error) {
             persistCrash("notification-update", error);
         }
+    }
+
+    private String notificationText(String textKey) {
+        if (RuntimeText.NOTIFICATION_READY.equals(textKey)) {
+            return RuntimeText.get(this, textKey, "Codex app-server is ready");
+        }
+        if (RuntimeText.NOTIFICATION_DISCONNECTED.equals(textKey)) {
+            return RuntimeText.get(
+                this,
+                textKey,
+                "Codex app-server disconnected — restart required"
+            );
+        }
+        if (RuntimeText.NOTIFICATION_ERROR.equals(textKey)) {
+            return RuntimeText.get(this, textKey, "Runtime error");
+        }
+        return RuntimeText.get(this, RuntimeText.NOTIFICATION_STARTING, "Native runtime is starting");
     }
 
     private static String safeMessage(String message) {
@@ -355,7 +463,14 @@ public final class AgentRuntimeService extends Service {
     private void recordServiceFailure(String source, Throwable error) {
         RuntimeSnapshot current = STATE.snapshot();
         long generation = current.getGeneration();
-        if (current.getPhase() != RuntimePhase.STARTING) {
+        if (current.getPhase() == RuntimePhase.FAILED) {
+            persistCrash(source, error);
+            updateNotificationSafely(RuntimeText.NOTIFICATION_ERROR);
+            Log.e(TAG, "Additional runtime failure: " + error.getClass().getName());
+            return;
+        }
+        if (current.getPhase() != RuntimePhase.STARTING
+            && current.getPhase() != RuntimePhase.READY) {
             try {
                 generation = STATE.beginStart();
             } catch (RuntimeException ignored) {
@@ -370,7 +485,7 @@ public final class AgentRuntimeService extends Service {
             + safeMessage(error.getMessage());
         STATE.markFailed(generation, message);
         persistCrash(source, error);
-        updateNotificationSafely("Runtime-Fehler");
+        updateNotificationSafely(RuntimeText.NOTIFICATION_ERROR);
         Log.e(TAG, "Runtime failure: " + error.getClass().getName());
     }
 

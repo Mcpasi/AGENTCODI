@@ -14,7 +14,8 @@ public final class RuntimeStateMachineTest {
         staleCompletionsAreIgnored();
         invalidTransitionsFailClosed();
         stopInvalidatesInFlightCompletion();
-        return 5;
+        readyRuntimeCanFailAndRestart();
+        return 6;
     }
 
     private static void initialStateIsIdle() {
@@ -98,5 +99,27 @@ public final class RuntimeStateMachineTest {
             machine.snapshot().getPhase(),
             "stop must remain authoritative"
         );
+    }
+
+    private static void readyRuntimeCanFailAndRestart() {
+        RuntimeStateMachine machine = new RuntimeStateMachine();
+        long first = machine.beginStart();
+        TestSupport.assertTrue(
+            machine.markReady(first, "native/1", "transport=stdio", "/private/workspace"),
+            "runtime becomes ready before transport failure"
+        );
+        TestSupport.assertTrue(
+            machine.markFailed(first, "App-server transport failed"),
+            "active runtime failure accepted"
+        );
+        RuntimeSnapshot failed = machine.snapshot();
+        TestSupport.assertEquals(RuntimePhase.FAILED, failed.getPhase(), "active failure phase");
+        TestSupport.assertEquals(
+            "/private/workspace",
+            failed.getWorkspacePath(),
+            "failure retains safe workspace diagnostics"
+        );
+        long second = machine.beginStart();
+        TestSupport.assertTrue(second > first, "failed runtime can restart explicitly");
     }
 }

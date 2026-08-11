@@ -1,15 +1,29 @@
 package de.agentcodi.app;
 
 import android.app.Application;
+import android.content.Context;
+import android.content.res.Configuration;
 import android.os.Process;
 
 import de.agentcodi.runtime.CrashDiagnostics;
+import de.agentcodi.runtime.AgentRuntimeService;
 
 public final class AgentCodiApplication extends Application {
+    @Override
+    protected void attachBaseContext(Context base) {
+        super.attachBaseContext(AppLanguage.attach(base));
+    }
+
     @Override
     public void onCreate() {
         super.onCreate();
         installCrashRecorder();
+    }
+
+    @Override
+    public void onConfigurationChanged(Configuration newConfiguration) {
+        super.onConfigurationChanged(newConfiguration);
+        AgentRuntimeService.refreshLocalizedNotification();
     }
 
     private void installCrashRecorder() {

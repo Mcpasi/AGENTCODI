@@ -6,8 +6,8 @@ PROJECT_ROOT="$(cd -- "$SCRIPT_DIR/.." && pwd -P)"
 
 APP_NAME="AGENTCODI"
 APP_ID="de.agentcodi.app"
-APP_VERSION="0.3.4"
-VERSION_CODE="11"
+APP_VERSION="0.4.0"
+VERSION_CODE="20"
 MIN_SDK="29"
 TARGET_SDK="35"
 ABI="arm64-v8a"
@@ -305,6 +305,12 @@ if ! grep -Fq 'CODEX_CODE_MODE_HOST_PATH' "$WORK_DIR/native-engine-strings.txt";
   echo "Native engine does not provide the packaged code-mode host path." >&2
   exit 1
 fi
+if ! grep -Fq 'generated_images' "$WORK_DIR/native-engine-strings.txt" \
+    || ! grep -Fq 'Generated image does not have the required PNG signature' "$WORK_DIR/native-engine-strings.txt" \
+    || ! grep -Fq 'Generated image could not be installed atomically in the workspace' "$WORK_DIR/native-engine-strings.txt"; then
+  echo "Native engine is missing validated workspace image materialization." >&2
+  exit 1
+fi
 if ! grep -aFq "$CODEX_PACKAGED_HOST_NAME" "$NATIVE_DIR/libcodex.so" \
     || [ "$(grep -ao "$CODEX_PACKAGED_HOST_NAME" "$NATIVE_DIR/libcodex.so" | wc -l)" -ne 1 ]; then
   echo "Packaged app-server does not resolve the Android-native host sibling." >&2
@@ -373,7 +379,14 @@ grep -Fx "lib/$ABI/libcodex.so" "$WORK_DIR/apk-entries.txt"
 grep -Fx "lib/$ABI/$CODEX_PACKAGED_HOST_NAME" "$WORK_DIR/apk-entries.txt"
 grep -Fx 'assets/third-party/codex/LICENSE' "$WORK_DIR/apk-entries.txt"
 grep -Fx 'assets/third-party/codex/NOTICE' "$WORK_DIR/apk-entries.txt"
+grep -Fx 'res/raw/agentcodi_apache_2_0.txt' "$WORK_DIR/apk-entries.txt"
 grep -Fx 'res/raw/third_party_notices.txt' "$WORK_DIR/apk-entries.txt"
+grep -Fx 'res/xml/locales_config.xml' "$WORK_DIR/apk-entries.txt"
+if ! unzip -p "$VERSIONED_APK" res/raw/agentcodi_apache_2_0.txt \
+    | grep -Fq 'Copyright 2026 Pascal (Mc Pasi)'; then
+  echo "APK does not contain the named AGENTCODI Apache-2.0 license." >&2
+  exit 1
+fi
 packaged_app_server_sha="$(unzip -p "$VERSIONED_APK" "lib/$ABI/libcodex.so" | sha256sum | awk '{print $1}')"
 packaged_code_mode_host_sha="$(unzip -p "$VERSIONED_APK" "lib/$ABI/$CODEX_PACKAGED_HOST_NAME" | sha256sum | awk '{print $1}')"
 if [ "$packaged_app_server_sha" != "$CODEX_APP_SERVER_ANDROID_SHA256" ] \
@@ -384,7 +397,10 @@ fi
 unzip -p "$VERSIONED_APK" classes.dex | strings > "$WORK_DIR/dex-strings.txt"
 grep -Fq 'Lde/agentcodi/app/MainActivity;' "$WORK_DIR/dex-strings.txt"
 grep -Fq 'Lde/agentcodi/app/SettingsActivity;' "$WORK_DIR/dex-strings.txt"
+grep -Fq 'Lde/agentcodi/app/LicensesActivity;' "$WORK_DIR/dex-strings.txt"
+grep -Fq 'Lde/agentcodi/app/AppLanguage;' "$WORK_DIR/dex-strings.txt"
 grep -Fq 'Lde/agentcodi/app/AgentCodiApplication;' "$WORK_DIR/dex-strings.txt"
+grep -Fq 'Lde/agentcodi/core/UiLanguage;' "$WORK_DIR/dex-strings.txt"
 grep -Fq 'Lde/agentcodi/core/CrashReportFormatter;' "$WORK_DIR/dex-strings.txt"
 grep -Fq 'Lde/agentcodi/core/CodexSessionController;' "$WORK_DIR/dex-strings.txt"
 grep -Fq 'Lde/agentcodi/core/CodexModelOption;' "$WORK_DIR/dex-strings.txt"
@@ -393,12 +409,24 @@ grep -Fq 'Lde/agentcodi/core/CodexInteractiveRequest;' "$WORK_DIR/dex-strings.tx
 grep -Fq 'Lde/agentcodi/core/CodexApprovalDecision;' "$WORK_DIR/dex-strings.txt"
 grep -Fq 'Lde/agentcodi/app/InteractiveRequestDialog;' "$WORK_DIR/dex-strings.txt"
 grep -Fq 'Lde/agentcodi/runtime/AgentRuntimeService;' "$WORK_DIR/dex-strings.txt"
+grep -Fq 'Lde/agentcodi/runtime/RuntimeText;' "$WORK_DIR/dex-strings.txt"
 grep -Fq 'Lde/agentcodi/runtime/NativeAppServerTransport;' "$WORK_DIR/dex-strings.txt"
 grep -Fq 'Lde/agentcodi/runtime/CrashDiagnostics;' "$WORK_DIR/dex-strings.txt"
+grep -Fq 'Lde/agentcodi/runtime/WorkspaceImageExporter;' "$WORK_DIR/dex-strings.txt"
+grep -Fq 'Lde/agentcodi/runtime/WorkspaceFileExporter;' "$WORK_DIR/dex-strings.txt"
 grep -Fq 'Lde/agentcodi/runtime/NativeEngine;' "$WORK_DIR/dex-strings.txt"
 grep -Fq 'libcodex.so' "$WORK_DIR/dex-strings.txt"
 grep -Fq "$CODEX_PACKAGED_HOST_NAME" "$WORK_DIR/dex-strings.txt"
 grep -Fq 'Lde/agentcodi/storage/CrashReportStore;' "$WORK_DIR/dex-strings.txt"
+grep -Fq 'Lde/agentcodi/storage/WorkspaceImageFile;' "$WORK_DIR/dex-strings.txt"
+grep -Fq 'Lde/agentcodi/storage/WorkspaceExportFile;' "$WORK_DIR/dex-strings.txt"
+grep -Fq 'Lde/agentcodi/storage/WorkspaceArchive;' "$WORK_DIR/dex-strings.txt"
+grep -Fq 'android.intent.action.CREATE_DOCUMENT' "$WORK_DIR/dex-strings.txt"
+grep -Fq 'image_export' "$WORK_DIR/dex-strings.txt"
+grep -Fq 'workspace_file_choose' "$WORK_DIR/dex-strings.txt"
+grep -Fq 'language_system' "$WORK_DIR/dex-strings.txt"
+grep -Fq 'licenses_open' "$WORK_DIR/dex-strings.txt"
+grep -Fq 'Hard-linked workspace files are not exportable' "$WORK_DIR/dex-strings.txt"
 if grep -Eq 'sk-[A-Za-z0-9_-]{20,}|eyJ[A-Za-z0-9_-]{16,}\.[A-Za-z0-9_-]{16,}' "$WORK_DIR/dex-strings.txt"; then
   echo "Credential-shaped value found in DEX strings." >&2
   exit 1

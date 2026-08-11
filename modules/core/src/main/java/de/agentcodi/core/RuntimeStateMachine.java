@@ -55,16 +55,18 @@ public final class RuntimeStateMachine {
     }
 
     public synchronized boolean markFailed(long generation, String message) {
-        if (!isCurrentStart(generation)) {
+        RuntimePhase phase = snapshot.getPhase();
+        if (snapshot.getGeneration() != generation
+            || (phase != RuntimePhase.STARTING && phase != RuntimePhase.READY)) {
             return false;
         }
         snapshot = new RuntimeSnapshot(
             generation,
             RuntimePhase.FAILED,
             isBlank(message) ? "Unbekannter Runtime-Fehler." : message,
-            "",
-            "",
-            ""
+            phase == RuntimePhase.READY ? snapshot.getEngineVersion() : "",
+            phase == RuntimePhase.READY ? snapshot.getDiagnostics() : "",
+            phase == RuntimePhase.READY ? snapshot.getWorkspacePath() : ""
         );
         return true;
     }

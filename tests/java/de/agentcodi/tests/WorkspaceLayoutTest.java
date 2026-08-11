@@ -1,9 +1,12 @@
 package de.agentcodi.tests;
 
 import de.agentcodi.storage.WorkspaceLayout;
+import de.agentcodi.storage.WorkspaceImageFile;
 
+import java.io.ByteArrayOutputStream;
 import java.io.File;
 import java.io.IOException;
+import java.io.OutputStream;
 import java.nio.file.Files;
 import java.nio.file.Path;
 import java.nio.file.attribute.PosixFilePermission;
@@ -20,7 +23,16 @@ public final class WorkspaceLayoutTest {
         keepsCodexHomeSeparateAndPrivate();
         rejectsSymbolicCanonicalCredential();
         preservesExistingCanonicalCredential();
-        return 6;
+        acceptsSupportedWorkspaceImage();
+        copiesValidatedWorkspaceImage();
+        rejectsWorkspaceImageMutationDuringCopy();
+        rejectsImageOutsideWorkspace();
+        rejectsMissingWorkspaceImage();
+        acceptsAliasOfWorkspaceRoot();
+        rejectsSymbolicWorkspaceImage();
+        rejectsUnsupportedWorkspaceFile();
+        rejectsOversizedWorkspaceImage();
+        return 15;
     }
 
     private static void createsStablePrivateLayout() throws Exception {
@@ -161,6 +173,268 @@ public final class WorkspaceLayoutTest {
         } finally {
             deleteRecursively(base);
         }
+    }
+
+    private static void acceptsSupportedWorkspaceImage() throws Exception {
+        Path base = Files.createTempDirectory("agentcodi-image-valid-");
+        try {
+            WorkspaceLayout layout = WorkspaceLayout.create(base.toFile());
+            Path image = layout.getWorkspace().toPath().resolve("generated-image");
+            Files.write(image, pngFixture());
+            WorkspaceImageFile inspected = WorkspaceImageFile.inspect(
+                layout.getWorkspace(),
+                image.toString(),
+                1024L
+            );
+            TestSupport.assertEquals("image/png", inspected.getMimeType(), "PNG MIME type");
+            TestSupport.assertEquals(
+                "generated-image.png",
+                inspected.getDisplayName(),
+                "safe export extension"
+            );
+            TestSupport.assertEquals(
+                Long.valueOf(pngFixture().length),
+                Long.valueOf(inspected.getByteCount()),
+                "image byte count"
+            );
+        } finally {
+            deleteRecursively(base);
+        }
+    }
+
+    private static void copiesValidatedWorkspaceImage() throws Exception {
+        Path base = Files.createTempDirectory("agentcodi-image-copy-");
+        try {
+            WorkspaceLayout layout = WorkspaceLayout.create(base.toFile());
+            Path image = layout.getWorkspace().toPath().resolve("copy.png");
+            byte[] expected = pngFixture();
+            Files.write(image, expected);
+            ByteArrayOutputStream destination = new ByteArrayOutputStream();
+            WorkspaceImageFile copied = WorkspaceImageFile.copyTo(
+                layout.getWorkspace(),
+                image.toString(),
+                1024L,
+                destination
+            );
+            TestSupport.assertEquals("copy.png", copied.getDisplayName(), "copy display name");
+            TestSupport.assertTrue(
+                java.util.Arrays.equals(expected, destination.toByteArray()),
+                "validated image copied exactly"
+            );
+        } finally {
+            deleteRecursively(base);
+        }
+    }
+
+    private static void rejectsWorkspaceImageMutationDuringCopy() throws Exception {
+        final Path base = Files.createTempDirectory("agentcodi-image-copy-race-");
+        try {
+            final WorkspaceLayout layout = WorkspaceLayout.create(base.toFile());
+            final Path image = layout.getWorkspace().toPath().resolve("changing.png");
+            Files.write(image, pngFixture());
+            final ByteArrayOutputStream copiedBytes = new ByteArrayOutputStream();
+            final OutputStream mutatingDestination = new OutputStream() {
+                private boolean mutated;
+
+                @Override
+                public void write(int value) throws IOException {
+                    mutateOnce();
+                    copiedBytes.write(value);
+                }
+
+                @Override
+                public void write(byte[] value, int offset, int length) throws IOException {
+                    mutateOnce();
+                    copiedBytes.write(value, offset, length);
+                }
+
+                private void mutateOnce() throws IOException {
+                    if (mutated) {
+                        return;
+                    }
+                    mutated = true;
+                    Files.move(image, image.resolveSibling("changing-before-export.png"));
+                    byte[] replacement = pngFixture();
+                    replacement[replacement.length - 1] = 'B';
+                    Files.write(image, replacement);
+                }
+            };
+            TestSupport.expectThrows(
+                IOException.class,
+                new TestSupport.ThrowingRunnable() {
+                    @Override
+                    public void run() throws Exception {
+                        WorkspaceImageFile.copyTo(
+                            layout.getWorkspace(),
+                            image.toString(),
+                            1024L,
+                            mutatingDestination
+                        );
+                    }
+                },
+                "image replacement during copy must be detected"
+            );
+        } finally {
+            deleteRecursively(base);
+        }
+    }
+
+    private static void rejectsImageOutsideWorkspace() throws Exception {
+        final Path base = Files.createTempDirectory("agentcodi-image-outside-");
+        final Path outside = Files.createTempFile("agentcodi-outside-image-", ".png");
+        try {
+            Files.write(outside, pngFixture());
+            final WorkspaceLayout layout = WorkspaceLayout.create(base.toFile());
+            TestSupport.expectThrows(
+                IOException.class,
+                new TestSupport.ThrowingRunnable() {
+                    @Override
+                    public void run() throws Exception {
+                        WorkspaceImageFile.inspect(
+                            layout.getWorkspace(),
+                            outside.toString(),
+                            1024L
+                        );
+                    }
+                },
+                "outside workspace image"
+            );
+        } finally {
+            deleteRecursively(base);
+            Files.deleteIfExists(outside);
+        }
+    }
+
+    private static void rejectsMissingWorkspaceImage() throws Exception {
+        final Path base = Files.createTempDirectory("agentcodi-image-missing-");
+        try {
+            final WorkspaceLayout layout = WorkspaceLayout.create(base.toFile());
+            final Path missing = layout.getWorkspace().toPath().resolve("missing.png");
+            TestSupport.expectThrows(
+                IOException.class,
+                new TestSupport.ThrowingRunnable() {
+                    @Override
+                    public void run() throws Exception {
+                        WorkspaceImageFile.inspect(
+                            layout.getWorkspace(),
+                            missing.toString(),
+                            1024L
+                        );
+                    }
+                },
+                "missing workspace image"
+            );
+        } finally {
+            deleteRecursively(base);
+        }
+    }
+
+    private static void rejectsSymbolicWorkspaceImage() throws Exception {
+        final Path base = Files.createTempDirectory("agentcodi-image-symlink-");
+        Path outside = Files.createTempFile("agentcodi-image-target-", ".png");
+        try {
+            Files.write(outside, pngFixture());
+            final WorkspaceLayout layout = WorkspaceLayout.create(base.toFile());
+            final Path link = layout.getWorkspace().toPath().resolve("linked.png");
+            Files.createSymbolicLink(link, outside);
+            TestSupport.expectThrows(
+                IOException.class,
+                new TestSupport.ThrowingRunnable() {
+                    @Override
+                    public void run() throws Exception {
+                        WorkspaceImageFile.inspect(
+                            layout.getWorkspace(),
+                            link.toString(),
+                            1024L
+                        );
+                    }
+                },
+                "symbolic workspace image"
+            );
+        } finally {
+            deleteRecursively(base);
+            Files.deleteIfExists(outside);
+        }
+    }
+
+    private static void acceptsAliasOfWorkspaceRoot() throws Exception {
+        Path base = Files.createTempDirectory("agentcodi-image-root-alias-");
+        try {
+            WorkspaceLayout layout = WorkspaceLayout.create(base.toFile());
+            Path image = layout.getWorkspace().toPath().resolve("aliased.png");
+            Files.write(image, pngFixture());
+            Path alias = base.resolve("android-files-alias");
+            Files.createSymbolicLink(alias, layout.getWorkspace().toPath());
+            WorkspaceImageFile inspected = WorkspaceImageFile.inspect(
+                layout.getWorkspace(),
+                alias.resolve("aliased.png").toString(),
+                1024L
+            );
+            TestSupport.assertEquals(
+                image.toFile().getCanonicalPath(),
+                inspected.getFile().getCanonicalPath(),
+                "platform alias resolves to canonical workspace image"
+            );
+        } finally {
+            deleteRecursively(base);
+        }
+    }
+
+    private static void rejectsUnsupportedWorkspaceFile() throws Exception {
+        final Path base = Files.createTempDirectory("agentcodi-image-invalid-");
+        try {
+            final WorkspaceLayout layout = WorkspaceLayout.create(base.toFile());
+            final Path text = layout.getWorkspace().toPath().resolve("not-image.png");
+            Files.write(text, "not an image".getBytes("UTF-8"));
+            TestSupport.expectThrows(
+                IOException.class,
+                new TestSupport.ThrowingRunnable() {
+                    @Override
+                    public void run() throws Exception {
+                        WorkspaceImageFile.inspect(
+                            layout.getWorkspace(),
+                            text.toString(),
+                            1024L
+                        );
+                    }
+                },
+                "unsupported workspace image"
+            );
+        } finally {
+            deleteRecursively(base);
+        }
+    }
+
+    private static void rejectsOversizedWorkspaceImage() throws Exception {
+        final Path base = Files.createTempDirectory("agentcodi-image-large-");
+        try {
+            final WorkspaceLayout layout = WorkspaceLayout.create(base.toFile());
+            final Path image = layout.getWorkspace().toPath().resolve("large.png");
+            Files.write(image, pngFixture());
+            TestSupport.expectThrows(
+                IOException.class,
+                new TestSupport.ThrowingRunnable() {
+                    @Override
+                    public void run() throws Exception {
+                        WorkspaceImageFile.inspect(
+                            layout.getWorkspace(),
+                            image.toString(),
+                            8L
+                        );
+                    }
+                },
+                "oversized workspace image"
+            );
+        } finally {
+            deleteRecursively(base);
+        }
+    }
+
+    private static byte[] pngFixture() {
+        return new byte[] {
+            (byte) 0x89, 'P', 'N', 'G', 0x0d, 0x0a, 0x1a, 0x0a,
+            0x00, 0x00, 0x00, 0x00, 'D', 'A', 'T', 'A'
+        };
     }
 
     private static void deleteRecursively(Path path) throws IOException {

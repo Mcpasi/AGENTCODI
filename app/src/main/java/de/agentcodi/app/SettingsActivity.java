@@ -2,9 +2,11 @@ package de.agentcodi.app;
 
 import android.Manifest;
 import android.app.Activity;
+import android.app.AlertDialog;
 import android.content.ClipData;
 import android.content.ClipboardManager;
 import android.content.Context;
+import android.content.DialogInterface;
 import android.content.Intent;
 import android.content.pm.PackageManager;
 import android.graphics.Typeface;
@@ -28,22 +30,30 @@ import de.agentcodi.core.BuildIdentity;
 import de.agentcodi.core.CodexSessionSnapshot;
 import de.agentcodi.core.CrashReportFormatter;
 import de.agentcodi.core.RuntimePhase;
-import de.agentcodi.core.RuntimeReportFormatter;
 import de.agentcodi.core.RuntimeSnapshot;
+import de.agentcodi.core.UiLanguage;
 import de.agentcodi.core.UiStartupState;
 import de.agentcodi.runtime.AgentRuntimeService;
 import de.agentcodi.runtime.CrashDiagnostics;
+import de.agentcodi.runtime.WorkspaceFileExporter;
 
 import java.net.URI;
+import java.util.List;
 import java.util.Locale;
+import java.util.concurrent.ExecutorService;
+import java.util.concurrent.Executors;
+import java.util.concurrent.RejectedExecutionException;
 
 public final class SettingsActivity extends Activity {
     private static final int NOTIFICATION_PERMISSION_REQUEST = 42;
+    private static final int WORKSPACE_FILE_EXPORT_REQUEST = 7002;
+    private static final int WORKSPACE_ARCHIVE_EXPORT_REQUEST = 7003;
     private static final long ACTIVE_REFRESH_INTERVAL_MS = 250L;
     private static final long IDLE_REFRESH_INTERVAL_MS = 900L;
 
     private final Handler handler = new Handler(Looper.getMainLooper());
     private final UiStartupState startupState = new UiStartupState();
+    private final ExecutorService workspaceOperations = Executors.newSingleThreadExecutor();
     private final Runnable refreshTask = new Runnable() {
         @Override
         public void run() {
@@ -92,6 +102,20 @@ public final class SettingsActivity extends Activity {
     private boolean launchAfterNotificationPermission;
     private CrashDiagnostics crashDiagnostics;
     private InteractiveRequestDialog interactiveRequestDialog;
+    private TextView workspaceExportStatusView;
+    private Button workspaceFileButton;
+    private Button workspaceArchiveButton;
+    private AlertDialog workspaceFileDialog;
+    private WorkspaceFileExporter.FileExport pendingWorkspaceFile;
+    private WorkspaceFileExporter.ArchiveExport pendingWorkspaceArchive;
+    private boolean workspaceOperationActive;
+    private boolean destroyed;
+    private TextView languageStatusView;
+
+    @Override
+    protected void attachBaseContext(Context base) {
+        super.attachBaseContext(AppLanguage.attach(base));
+    }
 
     @Override
     protected void onCreate(Bundle savedInstanceState) {
@@ -140,7 +164,62 @@ public final class SettingsActivity extends Activity {
         if (interactiveRequestDialog != null) {
             interactiveRequestDialog.dismissForLifecycle();
         }
+        if (workspaceFileDialog != null) {
+            workspaceFileDialog.dismiss();
+            workspaceFileDialog = null;
+        }
         super.onStop();
+    }
+
+    @Override
+    protected void onDestroy() {
+        destroyed = true;
+        handler.removeCallbacksAndMessages(null);
+        workspaceOperations.shutdownNow();
+        pendingWorkspaceFile = null;
+        pendingWorkspaceArchive = null;
+        super.onDestroy();
+    }
+
+    @Override
+    protected void onActivityResult(int requestCode, int resultCode, Intent data) {
+        super.onActivityResult(requestCode, resultCode, data);
+        if (requestCode == WORKSPACE_FILE_EXPORT_REQUEST) {
+            WorkspaceFileExporter.FileExport source = pendingWorkspaceFile;
+            pendingWorkspaceFile = null;
+            if (resultCode != RESULT_OK || data == null || data.getData() == null) {
+                finishWorkspaceOperation(
+                    getString(R.string.workspace_file_export_cancelled),
+                    false
+                );
+                return;
+            }
+            if (source == null) {
+                finishWorkspaceOperation(
+                    getString(R.string.workspace_file_selection_expired),
+                    true
+                );
+                return;
+            }
+            exportWorkspaceFile(source, data.getData());
+            return;
+        }
+        if (requestCode == WORKSPACE_ARCHIVE_EXPORT_REQUEST) {
+            WorkspaceFileExporter.ArchiveExport archive = pendingWorkspaceArchive;
+            pendingWorkspaceArchive = null;
+            if (resultCode != RESULT_OK || data == null || data.getData() == null) {
+                finishWorkspaceOperation(
+                    getString(R.string.workspace_zip_export_cancelled),
+                    false
+                );
+                return;
+            }
+            if (archive == null) {
+                finishWorkspaceOperation(getString(R.string.workspace_zip_expired), true);
+                return;
+            }
+            exportWorkspaceArchive(data.getData());
+        }
     }
 
     private View buildContent(String previousCrash) {
@@ -160,7 +239,7 @@ public final class SettingsActivity extends Activity {
         LinearLayout topBar = new LinearLayout(this);
         topBar.setOrientation(LinearLayout.HORIZONTAL);
         topBar.setGravity(Gravity.CENTER_VERTICAL);
-        Button closeButton = theme.compactButton("‹ Chats");
+        Button closeButton = theme.compactButton(getString(R.string.navigation_chats));
         closeButton.setOnClickListener(new View.OnClickListener() {
             @Override
             public void onClick(View view) {
@@ -168,7 +247,7 @@ public final class SettingsActivity extends Activity {
             }
         });
         topBar.addView(closeButton);
-        TextView title = theme.text("Einstellungen", 26, theme.primary);
+        TextView title = theme.text(getString(R.string.settings_title), 26, theme.primary);
         title.setTypeface(Typeface.DEFAULT_BOLD);
         LinearLayout.LayoutParams titleParams = new LinearLayout.LayoutParams(
             0,
@@ -180,7 +259,7 @@ public final class SettingsActivity extends Activity {
         page.addView(topBar);
 
         TextView subtitle = theme.text(
-            "Runtime, Anmeldung, Sicherheit und technische Diagnose.",
+            getString(R.string.settings_subtitle),
             14,
             theme.secondary
         );
@@ -190,19 +269,31 @@ public final class SettingsActivity extends Activity {
             addCrashReportCard(page, previousCrash);
         }
 
-        theme.addWithTopMargin(page, theme.sectionLabel("RUNTIME"), 28);
+        addLanguageCard(page);
+
+        theme.addWithTopMargin(
+            page,
+            theme.sectionLabel(getString(R.string.settings_runtime_section)),
+            28
+        );
         runtimeCard = theme.card();
-        phaseView = theme.text("IDLE", 12, theme.secondary);
+        phaseView = theme.text(getString(R.string.runtime_phase_idle), 12, theme.secondary);
         phaseView.setTypeface(Typeface.DEFAULT_BOLD);
         runtimeCard.addView(phaseView);
-        runtimeMessageView = theme.text("Runtime wartet auf den Start.", 18, theme.primary);
+        runtimeMessageView = theme.text(
+            getString(R.string.runtime_status_idle),
+            18,
+            theme.primary
+        );
         runtimeMessageView.setTypeface(Typeface.DEFAULT_BOLD);
         theme.addWithTopMargin(runtimeCard, runtimeMessageView, 8);
         technicalView = theme.text("", 13, theme.secondary);
         technicalView.setTextIsSelectable(true);
         technicalView.setLineSpacing(0.0f, 1.16f);
         theme.addWithTopMargin(runtimeCard, technicalView, 10);
-        startRuntimeButton = theme.primaryButton("Codex Runtime starten");
+        startRuntimeButton = theme.primaryButton(
+            getString(R.string.settings_runtime_start)
+        );
         startRuntimeButton.setOnClickListener(new View.OnClickListener() {
             @Override
             public void onClick(View view) {
@@ -210,7 +301,9 @@ public final class SettingsActivity extends Activity {
             }
         });
         theme.addWithTopMargin(runtimeCard, startRuntimeButton, 16);
-        Button copyDiagnosticsButton = theme.secondaryButton("Technische Diagnose kopieren");
+        Button copyDiagnosticsButton = theme.secondaryButton(
+            getString(R.string.settings_copy_diagnostics)
+        );
         copyDiagnosticsButton.setOnClickListener(new View.OnClickListener() {
             @Override
             public void onClick(View view) {
@@ -220,25 +313,70 @@ public final class SettingsActivity extends Activity {
         theme.addWithTopMargin(runtimeCard, copyDiagnosticsButton, 8);
         theme.addWithTopMargin(page, runtimeCard, 10);
 
-        theme.addWithTopMargin(page, theme.sectionLabel("ANMELDUNG"), 28);
+        theme.addWithTopMargin(
+            page,
+            theme.sectionLabel(getString(R.string.workspace_export_section)),
+            28
+        );
+        LinearLayout workspaceCard = theme.card();
+        workspaceCard.addView(theme.body(getString(R.string.workspace_export_description)));
+        workspaceExportStatusView = theme.text(
+            getString(R.string.workspace_export_ready),
+            13,
+            theme.secondary
+        );
+        workspaceExportStatusView.setLineSpacing(0.0f, 1.16f);
+        theme.addWithTopMargin(workspaceCard, workspaceExportStatusView, 12);
+        workspaceFileButton = theme.secondaryButton(
+            getString(R.string.workspace_file_choose)
+        );
+        workspaceFileButton.setOnClickListener(new View.OnClickListener() {
+            @Override
+            public void onClick(View view) {
+                loadWorkspaceFileCatalog();
+            }
+        });
+        theme.addWithTopMargin(workspaceCard, workspaceFileButton, 14);
+        workspaceArchiveButton = theme.secondaryButton(
+            getString(R.string.workspace_archive_export)
+        );
+        workspaceArchiveButton.setOnClickListener(new View.OnClickListener() {
+            @Override
+            public void onClick(View view) {
+                prepareWorkspaceArchive();
+            }
+        });
+        theme.addWithTopMargin(workspaceCard, workspaceArchiveButton, 8);
+        theme.addWithTopMargin(page, workspaceCard, 10);
+
+        theme.addWithTopMargin(
+            page,
+            theme.sectionLabel(getString(R.string.account_section)),
+            28
+        );
         LinearLayout accountCard = theme.card();
-        sessionStatusView = theme.text("Codex App-Server ist nicht gestartet.", 13, theme.secondary);
+        sessionStatusView = theme.text(
+            getString(R.string.account_server_not_started),
+            13,
+            theme.secondary
+        );
         sessionStatusView.setLineSpacing(0.0f, 1.16f);
         accountCard.addView(sessionStatusView);
-        accountView = theme.text("Nicht angemeldet", 18, theme.primary);
+        accountView = theme.text(getString(R.string.account_not_signed_in), 18, theme.primary);
         accountView.setTypeface(Typeface.DEFAULT_BOLD);
         theme.addWithTopMargin(accountCard, accountView, 12);
 
         TextView credentialBoundary = theme.text(
-            "Zugangsdaten verwaltet ausschließlich Codex im privaten CODEX_HOME/auth.json. "
-                + "Sie erscheinen weder in Chats noch in Diagnose, Zwischenablage oder APK.",
+            getString(R.string.account_credential_boundary),
             13,
             theme.secondary
         );
         credentialBoundary.setLineSpacing(0.0f, 1.18f);
         theme.addWithTopMargin(accountCard, credentialBoundary, 8);
 
-        chatGptLoginButton = theme.primaryButton("Mit ChatGPT anmelden");
+        chatGptLoginButton = theme.primaryButton(
+            getString(R.string.account_chatgpt_sign_in)
+        );
         chatGptLoginButton.setOnClickListener(new View.OnClickListener() {
             @Override
             public void onClick(View view) {
@@ -247,7 +385,7 @@ public final class SettingsActivity extends Activity {
         });
         theme.addWithTopMargin(accountCard, chatGptLoginButton, 16);
 
-        openLoginButton = theme.secondaryButton("Sichere Anmeldeseite öffnen");
+        openLoginButton = theme.secondaryButton(getString(R.string.account_open_login));
         openLoginButton.setVisibility(View.GONE);
         openLoginButton.setOnClickListener(new View.OnClickListener() {
             @Override
@@ -261,7 +399,7 @@ public final class SettingsActivity extends Activity {
         theme.addWithTopMargin(accountCard, loginHintView, 8);
 
         apiKeyInput = new EditText(this);
-        apiKeyInput.setHint("OpenAI API-Schlüssel (optional)");
+        apiKeyInput.setHint(R.string.account_api_key_hint);
         apiKeyInput.setHintTextColor(theme.secondary);
         apiKeyInput.setTextColor(theme.primary);
         apiKeyInput.setSingleLine(true);
@@ -276,7 +414,9 @@ public final class SettingsActivity extends Activity {
             apiKeyInput.setAutofillHints(new String[0]);
         }
         theme.addWithTopMargin(accountCard, apiKeyInput, 14);
-        apiKeyLoginButton = theme.secondaryButton("API-Schlüssel an Codex übergeben");
+        apiKeyLoginButton = theme.secondaryButton(
+            getString(R.string.account_api_key_submit)
+        );
         apiKeyLoginButton.setOnClickListener(new View.OnClickListener() {
             @Override
             public void onClick(View view) {
@@ -285,7 +425,7 @@ public final class SettingsActivity extends Activity {
         });
         theme.addWithTopMargin(accountCard, apiKeyLoginButton, 8);
 
-        logoutButton = theme.secondaryButton("Abmelden");
+        logoutButton = theme.secondaryButton(getString(R.string.account_sign_out));
         logoutButton.setVisibility(View.GONE);
         logoutButton.setOnClickListener(new View.OnClickListener() {
             @Override
@@ -295,7 +435,7 @@ public final class SettingsActivity extends Activity {
         });
         theme.addWithTopMargin(accountCard, logoutButton, 8);
 
-        refreshAccountButton = theme.secondaryButton("Konto und Modelle aktualisieren");
+        refreshAccountButton = theme.secondaryButton(getString(R.string.account_refresh));
         refreshAccountButton.setOnClickListener(new View.OnClickListener() {
             @Override
             public void onClick(View view) {
@@ -305,17 +445,117 @@ public final class SettingsActivity extends Activity {
         theme.addWithTopMargin(accountCard, refreshAccountButton, 8);
         theme.addWithTopMargin(page, accountCard, 10);
 
-        theme.addWithTopMargin(page, theme.sectionLabel("SICHERHEIT UND STATUS"), 28);
+        theme.addWithTopMargin(
+            page,
+            theme.sectionLabel(getString(R.string.licenses_section)),
+            28
+        );
+        LinearLayout licensesCard = theme.card();
+        licensesCard.addView(theme.body(getString(R.string.licenses_settings_description)));
+        Button licensesButton = theme.secondaryButton(getString(R.string.licenses_open));
+        licensesButton.setOnClickListener(new View.OnClickListener() {
+            @Override
+            public void onClick(View view) {
+                startActivity(new Intent(SettingsActivity.this, LicensesActivity.class));
+            }
+        });
+        theme.addWithTopMargin(licensesCard, licensesButton, 14);
+        theme.addWithTopMargin(page, licensesCard, 10);
+
+        theme.addWithTopMargin(
+            page,
+            theme.sectionLabel(getString(R.string.security_section)),
+            28
+        );
         LinearLayout securityCard = theme.card();
         securityCard.addView(theme.body(
-            "• App-Server ausschließlich über begrenztes stdio, ohne Netzwerk-Listener\n"
-                + "• Eigenes Permissions-Profil mit privatem Workspace als Runtime-Root\n"
-                + "• Modelle und Denkstufen werden live vom App-Server geladen\n"
-                + "• Native Freigabe- und Rückfragedialoge ohne automatische Zustimmung\n\n"
-                + BuildIdentity.summary() + " · Codex " + BuildIdentity.CODEX_RUNTIME_VERSION
+            getString(
+                R.string.security_summary,
+                BuildIdentity.summary(),
+                BuildIdentity.CODEX_RUNTIME_VERSION
+            )
         ));
         theme.addWithTopMargin(page, securityCard, 10);
         return scroll;
+    }
+
+    private void addLanguageCard(LinearLayout page) {
+        theme.addWithTopMargin(
+            page,
+            theme.sectionLabel(getString(R.string.language_section)),
+            28
+        );
+        LinearLayout card = theme.card();
+        card.addView(theme.body(getString(R.string.language_description)));
+        languageStatusView = theme.text(languageSummary(), 15, theme.primary);
+        languageStatusView.setTypeface(Typeface.DEFAULT_BOLD);
+        theme.addWithTopMargin(card, languageStatusView, 12);
+        Button changeButton = theme.secondaryButton(getString(R.string.language_change));
+        changeButton.setOnClickListener(new View.OnClickListener() {
+            @Override
+            public void onClick(View view) {
+                showLanguageDialog();
+            }
+        });
+        theme.addWithTopMargin(card, changeButton, 12);
+        theme.addWithTopMargin(page, card, 10);
+    }
+
+    private String languageSummary() {
+        UiLanguage selected = AppLanguage.selected(this);
+        String effective = "de".equals(AppLanguage.effectiveLanguageTag(this))
+            ? getString(R.string.language_german)
+            : getString(R.string.language_english);
+        return selected.followsSystem()
+            ? getString(R.string.language_current_system, effective)
+            : getString(R.string.language_current_explicit, effective);
+    }
+
+    private void showLanguageDialog() {
+        final UiLanguage[] choices = new UiLanguage[] {
+            UiLanguage.SYSTEM,
+            UiLanguage.ENGLISH,
+            UiLanguage.GERMAN
+        };
+        String[] labels = new String[] {
+            getString(R.string.language_system),
+            getString(R.string.language_english),
+            getString(R.string.language_german)
+        };
+        UiLanguage selected = AppLanguage.selected(this);
+        int checked = selected == UiLanguage.ENGLISH
+            ? 1
+            : selected == UiLanguage.GERMAN ? 2 : 0;
+        final AlertDialog dialog = new AlertDialog.Builder(this)
+            .setTitle(R.string.language_dialog_title)
+            .setSingleChoiceItems(labels, checked, null)
+            .setNegativeButton(R.string.common_cancel, null)
+            .create();
+        dialog.setOnShowListener(new DialogInterface.OnShowListener() {
+            @Override
+            public void onShow(DialogInterface source) {
+                dialog.getListView().setOnItemClickListener(
+                    new android.widget.AdapterView.OnItemClickListener() {
+                        @Override
+                        public void onItemClick(
+                            android.widget.AdapterView<?> parent,
+                            View view,
+                            int position,
+                            long id
+                        ) {
+                            if (position < 0 || position >= choices.length) {
+                                return;
+                            }
+                            dialog.dismiss();
+                            if (AppLanguage.select(SettingsActivity.this, choices[position])) {
+                                AgentRuntimeService.refreshLocalizedNotification();
+                            }
+                        }
+                    }
+                );
+            }
+        });
+        dialog.show();
     }
 
     private void render(RuntimeSnapshot runtime, CodexSessionSnapshot session) {
@@ -329,21 +569,24 @@ public final class SettingsActivity extends Activity {
         lastSessionRevision = session.getRevision();
         currentLoginUrl = session.getLoginUrl();
 
-        phaseView.setText(runtime.getPhase().name());
+        phaseView.setText(UiText.phase(this, runtime.getPhase()));
         phaseView.setTextColor(phaseColor(runtime.getPhase()));
-        runtimeMessageView.setText(runtime.getMessage());
+        runtimeMessageView.setText(UiText.runtimeMessage(this, runtime));
         StringBuilder technical = new StringBuilder();
         if (!runtime.getEngineVersion().isEmpty()) {
-            technical.append("Engine: ").append(runtime.getEngineVersion()).append('\n');
+            technical.append(getString(R.string.settings_engine_label))
+                .append(": ").append(runtime.getEngineVersion()).append('\n');
         }
         if (!runtime.getDiagnostics().isEmpty()) {
-            technical.append("Diagnose: ").append(runtime.getDiagnostics()).append('\n');
+            technical.append(getString(R.string.settings_diagnostics_label))
+                .append(": ").append(runtime.getDiagnostics()).append('\n');
         }
         if (!runtime.getWorkspacePath().isEmpty()) {
-            technical.append("Workspace: ").append(runtime.getWorkspacePath());
+            technical.append(getString(R.string.settings_workspace_label))
+                .append(": ").append(runtime.getWorkspacePath());
         }
         technicalView.setText(technical.length() == 0
-            ? "Generation " + runtime.getGeneration()
+            ? getString(R.string.settings_generation, Long.valueOf(runtime.getGeneration()))
             : technical.toString()
         );
         runtimeCard.setBackground(theme.background(
@@ -357,20 +600,25 @@ public final class SettingsActivity extends Activity {
         theme.setEnabled(startRuntimeButton, runtimeCanStart);
         startRuntimeButton.setText(
             runtime.getPhase() == RuntimePhase.READY
-                ? "Runtime läuft"
+                ? getString(R.string.settings_runtime_running)
                 : runtime.getPhase() == RuntimePhase.STARTING
-                    ? "Runtime startet …"
+                    ? getString(R.string.settings_runtime_starting)
                     : runtime.getPhase() == RuntimePhase.FAILED
-                        ? "Runtime erneut starten"
-                        : "Codex Runtime starten"
+                        ? getString(R.string.settings_runtime_restart)
+                        : getString(R.string.settings_runtime_start)
         );
 
-        StringBuilder status = new StringBuilder(session.getConnectionMessage());
+        StringBuilder status = new StringBuilder(
+            UiText.coreStatus(this, session.getConnectionMessage())
+        );
         if (!session.getOperationMessage().isEmpty()) {
-            status.append('\n').append(session.getOperationMessage());
+            status.append('\n').append(UiText.coreStatus(this, session.getOperationMessage()));
         }
         if (!session.getErrorMessage().isEmpty()) {
-            status.append('\n').append("Fehler: ").append(session.getErrorMessage());
+            status.append('\n').append(getString(
+                R.string.common_error_prefix,
+                UiText.errorReason(this, session.getErrorMessage())
+            ));
         }
         sessionStatusView.setText(status.toString());
         sessionStatusView.setTextColor(
@@ -378,8 +626,10 @@ public final class SettingsActivity extends Activity {
         );
 
         if (session.isSignedIn()) {
-            StringBuilder account = new StringBuilder("Angemeldet über ")
-                .append(authLabel(session.getAuthMode()));
+            StringBuilder account = new StringBuilder(getString(
+                R.string.account_signed_in_through,
+                authLabel(session.getAuthMode())
+            ));
             if (!session.getAccountEmail().isEmpty()) {
                 account.append('\n').append(session.getAccountEmail());
             }
@@ -388,9 +638,9 @@ public final class SettingsActivity extends Activity {
             }
             accountView.setText(account.toString());
         } else if (!session.requiresOpenaiAuth()) {
-            accountView.setText("Der aktive Provider benötigt keine OpenAI-Anmeldung.");
+            accountView.setText(R.string.account_provider_no_auth);
         } else {
-            accountView.setText("Nicht angemeldet");
+            accountView.setText(R.string.account_not_signed_in);
         }
 
         boolean actionReady = session.isReady() && !session.isOperationActive();
@@ -403,8 +653,8 @@ public final class SettingsActivity extends Activity {
         loginHintView.setVisibility(session.isLoginPending() ? View.VISIBLE : View.GONE);
         loginHintView.setText(session.isLoginPending()
             ? currentLoginUrl.isEmpty()
-                ? "Anmeldung wird vorbereitet …"
-                : "Schließe die Anmeldung im externen Browser ab. Der Kontostatus aktualisiert sich automatisch."
+                ? getString(R.string.account_login_preparing)
+                : getString(R.string.account_login_browser_hint)
             : ""
         );
         theme.setEnabled(
@@ -468,7 +718,10 @@ public final class SettingsActivity extends Activity {
             showInlineFailure(error);
             Toast.makeText(
                 this,
-                "Runtime konnte nicht gestartet werden: " + error.getClass().getSimpleName(),
+                getString(
+                    R.string.settings_runtime_launch_failed,
+                    error.getClass().getSimpleName()
+                ),
                 Toast.LENGTH_LONG
             ).show();
         }
@@ -486,7 +739,11 @@ public final class SettingsActivity extends Activity {
 
     private void openCurrentLoginUrl() {
         if (!isTrustedLoginUrl(currentLoginUrl)) {
-            Toast.makeText(this, "Die Anmelde-URL wurde abgelehnt.", Toast.LENGTH_LONG).show();
+            Toast.makeText(
+                this,
+                R.string.account_login_url_rejected,
+                Toast.LENGTH_LONG
+            ).show();
             return;
         }
         try {
@@ -494,39 +751,419 @@ public final class SettingsActivity extends Activity {
         } catch (Throwable error) {
             Toast.makeText(
                 this,
-                "Die Anmeldeseite konnte nicht geöffnet werden.",
+                R.string.account_login_page_failed,
                 Toast.LENGTH_LONG
             ).show();
         }
+    }
+
+    private void loadWorkspaceFileCatalog() {
+        if (!beginWorkspaceOperation(getString(R.string.workspace_files_checking))) {
+            return;
+        }
+        final Context applicationContext = getApplicationContext();
+        if (!submitWorkspaceOperation(new Runnable() {
+            @Override
+            public void run() {
+                try {
+                    final List<WorkspaceFileExporter.FileExport> files =
+                        WorkspaceFileExporter.list(applicationContext);
+                    runOnUiThread(new Runnable() {
+                        @Override
+                        public void run() {
+                            showWorkspaceFileCatalog(files);
+                        }
+                    });
+                } catch (final Throwable error) {
+                    runOnUiThread(new Runnable() {
+                        @Override
+                        public void run() {
+                            finishWorkspaceOperation(
+                                getString(
+                                    R.string.workspace_files_check_failed,
+                                    safeFailureMessage(error)
+                                ),
+                                true
+                            );
+                        }
+                    });
+                }
+            }
+        })) {
+            finishWorkspaceOperation(
+                getString(R.string.workspace_check_start_failed),
+                true
+            );
+        }
+    }
+
+    private void showWorkspaceFileCatalog(
+        final List<WorkspaceFileExporter.FileExport> files
+    ) {
+        if (destroyed || isFinishing()) {
+            return;
+        }
+        if (files == null || files.isEmpty()) {
+            finishWorkspaceOperation(getString(R.string.workspace_no_regular_files), false);
+            return;
+        }
+        final String[] labels = new String[files.size()];
+        for (int index = 0; index < files.size(); index++) {
+            WorkspaceFileExporter.FileExport file = files.get(index);
+            labels[index] = file.getRelativePath()
+                + "  ·  " + readableByteCount(file.getByteCount())
+                + (file.isWithinExportLimit()
+                    ? ""
+                    : "  ·  " + getString(R.string.workspace_over_export_limit));
+        }
+        workspaceExportStatusView.setText(
+            getResources().getQuantityString(
+                R.plurals.workspace_files_checked,
+                files.size(),
+                Integer.valueOf(files.size())
+            )
+        );
+        workspaceExportStatusView.setTextColor(theme.secondary);
+        AlertDialog dialog = new AlertDialog.Builder(this)
+            .setTitle(R.string.workspace_file_export_title)
+            .setItems(labels, new DialogInterface.OnClickListener() {
+                @Override
+                public void onClick(DialogInterface ignored, int which) {
+                    WorkspaceFileExporter.FileExport selected = files.get(which);
+                    if (!selected.isWithinExportLimit()) {
+                        finishWorkspaceOperation(
+                            getString(R.string.workspace_file_too_large),
+                            true
+                        );
+                        return;
+                    }
+                    openWorkspaceFileDocument(selected);
+                }
+            })
+            .setNegativeButton(R.string.common_cancel, null)
+            .create();
+        dialog.setOnDismissListener(new DialogInterface.OnDismissListener() {
+            @Override
+            public void onDismiss(DialogInterface ignored) {
+                workspaceFileDialog = null;
+                if (pendingWorkspaceFile == null && workspaceOperationActive) {
+                    finishWorkspaceOperation(
+                        getString(R.string.workspace_file_selection_cancelled),
+                        false
+                    );
+                }
+            }
+        });
+        workspaceFileDialog = dialog;
+        dialog.show();
+    }
+
+    private void openWorkspaceFileDocument(WorkspaceFileExporter.FileExport source) {
+        pendingWorkspaceFile = source;
+        Intent intent = new Intent(Intent.ACTION_CREATE_DOCUMENT);
+        intent.addCategory(Intent.CATEGORY_OPENABLE);
+        intent.setType(source.getMimeType());
+        intent.putExtra(Intent.EXTRA_TITLE, source.getDisplayName());
+        try {
+            workspaceExportStatusView.setText(
+                getString(R.string.workspace_file_target, source.getRelativePath())
+            );
+            startActivityForResult(intent, WORKSPACE_FILE_EXPORT_REQUEST);
+        } catch (Throwable error) {
+            pendingWorkspaceFile = null;
+            finishWorkspaceOperation(
+                getString(R.string.document_picker_open_failed),
+                true
+            );
+        }
+    }
+
+    private void exportWorkspaceFile(
+        final WorkspaceFileExporter.FileExport source,
+        final Uri destination
+    ) {
+        workspaceExportStatusView.setText(R.string.workspace_file_exporting);
+        final Context applicationContext = getApplicationContext();
+        if (!submitWorkspaceOperation(new Runnable() {
+            @Override
+            public void run() {
+                try {
+                    final WorkspaceFileExporter.FileExport exported =
+                        WorkspaceFileExporter.export(
+                            applicationContext,
+                            source.getSourcePath(),
+                            destination
+                        );
+                    runOnUiThread(new Runnable() {
+                        @Override
+                        public void run() {
+                            finishWorkspaceOperation(
+                                getString(
+                                    R.string.workspace_file_exported,
+                                    exported.getRelativePath(),
+                                    readableByteCount(exported.getByteCount())
+                                ),
+                                false
+                            );
+                        }
+                    });
+                } catch (final Throwable error) {
+                    runOnUiThread(new Runnable() {
+                        @Override
+                        public void run() {
+                            finishWorkspaceOperation(
+                                getString(
+                                    R.string.workspace_file_export_failed,
+                                    safeFailureMessage(error)
+                                ),
+                                true
+                            );
+                        }
+                    });
+                }
+            }
+        })) {
+            finishWorkspaceOperation(
+                getString(R.string.workspace_file_export_start_failed),
+                true
+            );
+        }
+    }
+
+    private void prepareWorkspaceArchive() {
+        if (!beginWorkspaceOperation(getString(R.string.workspace_zip_preparing))) {
+            return;
+        }
+        final Context applicationContext = getApplicationContext();
+        if (!submitWorkspaceOperation(new Runnable() {
+            @Override
+            public void run() {
+                try {
+                    final WorkspaceFileExporter.ArchiveExport archive =
+                        WorkspaceFileExporter.inspectArchive(applicationContext);
+                    runOnUiThread(new Runnable() {
+                        @Override
+                        public void run() {
+                            openWorkspaceArchiveDocument(archive);
+                        }
+                    });
+                } catch (final Throwable error) {
+                    runOnUiThread(new Runnable() {
+                        @Override
+                        public void run() {
+                            finishWorkspaceOperation(
+                                getString(
+                                    R.string.workspace_zip_prepare_failed,
+                                    safeFailureMessage(error)
+                                ),
+                                true
+                            );
+                        }
+                    });
+                }
+            }
+        })) {
+            finishWorkspaceOperation(
+                getString(R.string.workspace_zip_check_start_failed),
+                true
+            );
+        }
+    }
+
+    private void openWorkspaceArchiveDocument(
+        WorkspaceFileExporter.ArchiveExport archive
+    ) {
+        if (destroyed || isFinishing()) {
+            return;
+        }
+        pendingWorkspaceArchive = archive;
+        Intent intent = new Intent(Intent.ACTION_CREATE_DOCUMENT);
+        intent.addCategory(Intent.CATEGORY_OPENABLE);
+        intent.setType("application/zip");
+        intent.putExtra(Intent.EXTRA_TITLE, archive.getDisplayName());
+        try {
+            workspaceExportStatusView.setText(
+                getResources().getQuantityString(
+                    R.plurals.workspace_zip_target,
+                    archive.getFileCount(),
+                    Integer.valueOf(archive.getFileCount()),
+                    readableByteCount(archive.getByteCount())
+                )
+            );
+            startActivityForResult(intent, WORKSPACE_ARCHIVE_EXPORT_REQUEST);
+        } catch (Throwable error) {
+            pendingWorkspaceArchive = null;
+            finishWorkspaceOperation(
+                getString(R.string.document_picker_open_failed),
+                true
+            );
+        }
+    }
+
+    private void exportWorkspaceArchive(final Uri destination) {
+        workspaceExportStatusView.setText(R.string.workspace_zip_exporting);
+        final Context applicationContext = getApplicationContext();
+        if (!submitWorkspaceOperation(new Runnable() {
+            @Override
+            public void run() {
+                try {
+                    final WorkspaceFileExporter.ArchiveExport exported =
+                        WorkspaceFileExporter.exportArchive(
+                            applicationContext,
+                            destination
+                        );
+                    runOnUiThread(new Runnable() {
+                        @Override
+                        public void run() {
+                            finishWorkspaceOperation(
+                                getResources().getQuantityString(
+                                    R.plurals.workspace_zip_exported,
+                                    exported.getFileCount(),
+                                    Integer.valueOf(exported.getFileCount()),
+                                    readableByteCount(exported.getByteCount())
+                                ),
+                                false
+                            );
+                        }
+                    });
+                } catch (final Throwable error) {
+                    runOnUiThread(new Runnable() {
+                        @Override
+                        public void run() {
+                            finishWorkspaceOperation(
+                                getString(
+                                    R.string.workspace_zip_export_failed,
+                                    safeFailureMessage(error)
+                                ),
+                                true
+                            );
+                        }
+                    });
+                }
+            }
+        })) {
+            finishWorkspaceOperation(
+                getString(R.string.workspace_zip_export_start_failed),
+                true
+            );
+        }
+    }
+
+    private boolean beginWorkspaceOperation(String message) {
+        if (workspaceOperationActive || destroyed) {
+            return false;
+        }
+        workspaceOperationActive = true;
+        pendingWorkspaceFile = null;
+        pendingWorkspaceArchive = null;
+        workspaceExportStatusView.setText(message);
+        workspaceExportStatusView.setTextColor(theme.secondary);
+        theme.setEnabled(workspaceFileButton, false);
+        theme.setEnabled(workspaceArchiveButton, false);
+        return true;
+    }
+
+    private void finishWorkspaceOperation(String message, boolean failure) {
+        if (destroyed || workspaceExportStatusView == null) {
+            return;
+        }
+        workspaceOperationActive = false;
+        workspaceExportStatusView.setText(message);
+        workspaceExportStatusView.setTextColor(failure ? theme.danger : theme.secondary);
+        theme.setEnabled(workspaceFileButton, true);
+        theme.setEnabled(workspaceArchiveButton, true);
+    }
+
+    private boolean submitWorkspaceOperation(Runnable operation) {
+        try {
+            workspaceOperations.execute(operation);
+            return true;
+        } catch (RejectedExecutionException error) {
+            return false;
+        }
+    }
+
+    private String safeFailureMessage(Throwable error) {
+        String source = error == null ? "" : error.getMessage();
+        if (source == null || source.trim().isEmpty()) {
+            return error == null
+                ? getString(R.string.common_unknown_error)
+                : error.getClass().getSimpleName();
+        }
+        StringBuilder safe = new StringBuilder();
+        for (int index = 0; index < source.length() && safe.length() < 180; index++) {
+            char character = source.charAt(index);
+            safe.append(character < 0x20 || character == 0x7f ? ' ' : character);
+        }
+        return UiText.errorReason(this, safe.toString().trim());
+    }
+
+    private static String readableByteCount(long bytes) {
+        if (bytes < 1024L) {
+            return bytes + " B";
+        }
+        double value = bytes;
+        String[] units = new String[] {"KiB", "MiB", "GiB", "TiB"};
+        int unit = -1;
+        do {
+            value /= 1024.0d;
+            unit++;
+        } while (value >= 1024.0d && unit < units.length - 1);
+        return String.format(Locale.ROOT, "%.1f %s", value, units[unit]);
     }
 
     private void copyDiagnostics() {
         ClipboardManager clipboard =
             (ClipboardManager) getSystemService(Context.CLIPBOARD_SERVICE);
         if (clipboard == null) {
-            Toast.makeText(this, "Zwischenablage ist nicht verfügbar.", Toast.LENGTH_SHORT).show();
+            Toast.makeText(
+                this,
+                R.string.diagnostics_clipboard_unavailable,
+                Toast.LENGTH_SHORT
+            ).show();
             return;
         }
         clipboard.setPrimaryClip(ClipData.newPlainText(
-            "AGENTCODI Diagnose",
-            RuntimeReportFormatter.format(AgentRuntimeService.snapshot())
+            getString(R.string.diagnostics_clip_label),
+            localizedRuntimeReport(AgentRuntimeService.snapshot())
         ));
-        Toast.makeText(this, "Diagnose wurde kopiert.", Toast.LENGTH_SHORT).show();
+        Toast.makeText(this, R.string.diagnostics_copied, Toast.LENGTH_SHORT).show();
+    }
+
+    private String localizedRuntimeReport(RuntimeSnapshot snapshot) {
+        StringBuilder report = new StringBuilder();
+        report.append(BuildIdentity.summary()).append('\n');
+        report.append(UiText.phase(this, snapshot.getPhase())).append('\n');
+        report.append(UiText.runtimeMessage(this, snapshot)).append('\n');
+        if (!snapshot.getEngineVersion().isEmpty()) {
+            report.append(getString(R.string.settings_engine_label))
+                .append(": ").append(snapshot.getEngineVersion()).append('\n');
+        }
+        if (!snapshot.getDiagnostics().isEmpty()) {
+            report.append(getString(R.string.settings_diagnostics_label))
+                .append(": ").append(snapshot.getDiagnostics()).append('\n');
+        }
+        if (!snapshot.getWorkspacePath().isEmpty()) {
+            report.append(getString(R.string.settings_workspace_label))
+                .append(": ").append(snapshot.getWorkspacePath()).append('\n');
+        }
+        return report.toString();
     }
 
     private void addCrashReportCard(LinearLayout page, final String report) {
-        theme.addWithTopMargin(page, theme.sectionLabel("LETZTER STARTFEHLER"), 24);
-        LinearLayout card = theme.card();
-        TextView explanation = theme.body(
-            "Der vorherige Prozess wurde unerwartet beendet. Der lokal gespeicherte, "
-                + "bereinigte Bericht kann vor dem Neustart geprüft werden."
+        theme.addWithTopMargin(
+            page,
+            theme.sectionLabel(getString(R.string.crash_section)),
+            24
         );
+        LinearLayout card = theme.card();
+        TextView explanation = theme.body(getString(R.string.crash_explanation));
         card.addView(explanation);
         TextView reportView = theme.text(report, 12, theme.secondary);
         reportView.setTypeface(Typeface.MONOSPACE);
         reportView.setTextIsSelectable(true);
         theme.addWithTopMargin(card, reportView, 12);
-        Button clearButton = theme.secondaryButton("Bericht löschen");
+        Button clearButton = theme.secondaryButton(getString(R.string.crash_delete));
         clearButton.setOnClickListener(new View.OnClickListener() {
             @Override
             public void onClick(View view) {
@@ -546,7 +1183,7 @@ public final class SettingsActivity extends Activity {
         } catch (Throwable ignored) {
             Toast.makeText(
                 this,
-                "Crashbericht konnte nicht gelöscht werden.",
+                R.string.crash_delete_failed,
                 Toast.LENGTH_SHORT
             ).show();
         }
@@ -567,10 +1204,12 @@ public final class SettingsActivity extends Activity {
         if (phaseView == null || runtimeMessageView == null || technicalView == null) {
             return;
         }
-        phaseView.setText(RuntimePhase.FAILED.name());
+        phaseView.setText(R.string.runtime_phase_failed);
         phaseView.setTextColor(theme.danger);
-        runtimeMessageView.setText("Einstellungs- oder Runtime-Fehler wurde abgefangen.");
-        technicalView.setText(error.getClass().getName() + "\nBericht wurde lokal gespeichert.");
+        runtimeMessageView.setText(R.string.settings_runtime_failure_caught);
+        technicalView.setText(
+            error.getClass().getName() + "\n" + getString(R.string.settings_report_saved)
+        );
     }
 
     private void showEmergencyScreen(String source, Throwable error) {
@@ -581,7 +1220,7 @@ public final class SettingsActivity extends Activity {
         fallback.setTextSize(14);
         fallback.setTextIsSelectable(true);
         fallback.setText(
-            "AGENTCODI konnte die Einstellungen nicht initialisieren.\n\n"
+            getString(R.string.settings_initialization_failed) + "\n\n"
                 + CrashReportFormatter.format(source, Thread.currentThread(), error)
         );
         setContentView(fallback);
@@ -600,12 +1239,12 @@ public final class SettingsActivity extends Activity {
         }
     }
 
-    private static String authLabel(String authMode) {
+    private String authLabel(String authMode) {
         if ("chatgpt".equalsIgnoreCase(authMode)) {
             return "ChatGPT";
         }
         if ("apiKey".equalsIgnoreCase(authMode) || "apikey".equalsIgnoreCase(authMode)) {
-            return "OpenAI API-Schlüssel";
+            return getString(R.string.account_api_key_label);
         }
         return authMode;
     }

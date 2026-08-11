@@ -10,8 +10,9 @@ public final class CrashReportFormatterTest {
         formatsBoundedStackTrace();
         redactsNamedAndBearerSecrets();
         redactsJsonOauthAndJwtSecrets();
+        redactsVisibleTextBeforeTruncation();
         handlesCauseCycles();
-        return 4;
+        return 5;
     }
 
     private static void formatsBoundedStackTrace() {
@@ -55,5 +56,22 @@ public final class CrashReportFormatterTest {
         TestSupport.assertFalse(redacted.contains("temporary-state"), "OAuth state removed");
         TestSupport.assertFalse(redacted.contains("temporary-code"), "OAuth code removed");
         TestSupport.assertFalse(redacted.contains("eyJabcdefghijk"), "JWT removed");
+    }
+
+    private static void redactsVisibleTextBeforeTruncation() {
+        String redacted = CrashReportFormatter.redactVisibleText(
+            "prefix apiKey=sk-secretfixture12345 suffix",
+            200
+        );
+        TestSupport.assertContains(redacted, "<redacted>", "visible redaction marker");
+        TestSupport.assertFalse(
+            redacted.contains("sk-secretfixture12345"),
+            "visible secret removed"
+        );
+        String truncated = CrashReportFormatter.redactVisibleText(
+            "0123456789abcdef",
+            8
+        );
+        TestSupport.assertEquals("01234...", truncated, "visible text limit is exact");
     }
 }

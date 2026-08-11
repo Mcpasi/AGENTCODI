@@ -78,17 +78,28 @@ public final class CrashReportFormatter {
     }
 
     public static String redact(String value) {
+        return redactVisibleText(value, MAX_MESSAGE_CHARS);
+    }
+
+    public static String redactVisibleText(String value, int maximumCharacters) {
         if (value == null) {
             return "";
         }
-        String bounded = value.length() <= MAX_MESSAGE_CHARS
-            ? value
-            : value.substring(0, MAX_MESSAGE_CHARS) + "...";
-        String redacted = NAMED_SECRET.matcher(bounded).replaceAll("$1<redacted>");
+        if (maximumCharacters <= 0) {
+            return "";
+        }
+        String redacted = NAMED_SECRET.matcher(value).replaceAll("$1<redacted>");
         redacted = BEARER_SECRET.matcher(redacted).replaceAll("Bearer <redacted>");
         redacted = OAUTH_QUERY_SECRET.matcher(redacted).replaceAll("$1<redacted>");
         redacted = JWT_SHAPE.matcher(redacted).replaceAll("<redacted-token>");
-        return TOKEN_SHAPE.matcher(redacted).replaceAll("<redacted-token>");
+        redacted = TOKEN_SHAPE.matcher(redacted).replaceAll("<redacted-token>");
+        if (redacted.length() <= maximumCharacters) {
+            return redacted;
+        }
+        if (maximumCharacters <= 3) {
+            return redacted.substring(0, maximumCharacters);
+        }
+        return redacted.substring(0, maximumCharacters - 3) + "...";
     }
 
     private static void append(StringBuilder report, String line) {

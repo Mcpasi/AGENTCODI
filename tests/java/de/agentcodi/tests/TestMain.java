@@ -15,7 +15,9 @@ public final class TestMain {
         passed += RuntimeStateMachineTest.run();
         passed += RuntimeReportFormatterTest.run();
         passed += UiStartupStateTest.run();
+        passed += UiLanguageTest.run();
         passed += WorkspaceLayoutTest.run();
+        passed += WorkspaceExportTest.run();
         System.out.println("Java tests passed: " + passed);
     }
 }

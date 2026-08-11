@@ -30,7 +30,26 @@ enum class LineReadStatus {
   kTooLarge,
 };
 
+enum class InboundLineCompactionStatus {
+  kNotApplicable,
+  kCompacted,
+  kInvalid,
+};
+
 std::vector<std::string> CodexAppServerArguments();
+
+InboundLineCompactionStatus CompactInboundImagePayloads(
+    const std::string& line,
+    std::size_t maximum_bytes,
+    std::string* compacted);
+
+InboundLineCompactionStatus MaterializeAndCompactInboundImagePayloads(
+    const std::string& line,
+    std::size_t maximum_bytes,
+    const std::string& workspace_directory,
+    const std::string& temporary_directory,
+    std::string* prepared,
+    std::string* error);
 
 class AppServerProcess final {
  public:
@@ -55,7 +74,11 @@ class AppServerProcess final {
   int Stop(int timeout_milliseconds);
 
  private:
-  AppServerProcess(pid_t pid, int socket_fd);
+  AppServerProcess(
+      pid_t pid,
+      int socket_fd,
+      std::string workspace_directory,
+      std::string temporary_directory);
 
   int DuplicateSocket(std::string* error);
 
@@ -65,6 +88,8 @@ class AppServerProcess final {
   pid_t pid_;
   std::atomic<int> socket_fd_;
   int exit_code_;
+  const std::string workspace_directory_;
+  const std::string temporary_directory_;
   std::string read_buffer_;
 };
 

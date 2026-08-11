@@ -7,6 +7,7 @@ import de.agentcodi.core.CodexModelOption;
 import de.agentcodi.core.CodexRpcTransport;
 import de.agentcodi.core.CodexSessionController;
 import de.agentcodi.core.CodexSessionSnapshot;
+import de.agentcodi.core.CodexTranscriptItem;
 import de.agentcodi.core.JsonCodec;
 
 import java.io.IOException;
@@ -18,6 +19,8 @@ import java.util.List;
 import java.util.Map;
 import java.util.concurrent.ConcurrentHashMap;
 import java.util.concurrent.LinkedBlockingQueue;
+import java.util.concurrent.atomic.AtomicInteger;
+import java.util.concurrent.atomic.AtomicReference;
 
 public final class CodexSessionControllerTest {
     private CodexSessionControllerTest() {
@@ -27,6 +30,11 @@ public final class CodexSessionControllerTest {
         loadsAccountThreadsAndHistory();
         mergesStreamingDeltasAndFinalItem();
         keepsCompletedItemAuthoritativeAcrossReordering();
+        projectsReasoningAndPlanCardsAuthoritatively();
+        releasesCardStreamCapacityAfterTurnCompletion();
+        projectsCompleteToolCardSet();
+        restoresCardsFromThreadHistory();
+        reportsTransportFailureOnceAndReleasesTurn();
         keepsApiKeyOutOfSnapshotsAndWipesCallerBuffer();
         acceptsOnlyTrustedBrowserLoginUrl();
         usesAdvertisedModelEffortAndPermissionProfile();
@@ -36,7 +44,7 @@ public final class CodexSessionControllerTest {
         rejectsIncompleteFileChangePreviews();
         handlesUserInputResolutionAndTimeout();
         rejectsUnavailableWorkspacePermissionProfile();
-        return 12;
+        return 17;
     }
 
     private static void loadsAccountThreadsAndHistory() throws Exception {
@@ -184,6 +192,573 @@ public final class CodexSessionControllerTest {
         controller.close();
     }
 
+    private static void projectsReasoningAndPlanCardsAuthoritatively() throws Exception {
+        FixtureServer server = new FixtureServer(true);
+        server.holdTurnOpen = true;
+        final CodexSessionController controller = new CodexSessionController(
+            server,
+            "/private/workspace"
+        );
+        startHeldTurn(server, controller);
+
+        server.notifyMessage("item/started", itemNotification(JsonCodec.object(
+            "id", "reasoning_fixture",
+            "type", "reasoning",
+            "summary", JsonCodec.array(),
+            "content", JsonCodec.array()
+        )));
+        server.notifyMessage("item/reasoning/summaryPartAdded", streamParams(
+            "reasoning_fixture",
+            "summaryIndex", Long.valueOf(1L),
+            null
+        ));
+        server.notifyMessage("item/reasoning/summaryTextDelta", streamParams(
+            "reasoning_fixture",
+            "summaryIndex", Long.valueOf(1L),
+            "Zweiter Schritt"
+        ));
+        server.notifyMessage("item/reasoning/summaryTextDelta", streamParams(
+            "reasoning_fixture",
+            "summaryIndex", Long.valueOf(0L),
+            "Erster Schritt"
+        ));
+        server.notifyMessage("item/reasoning/textDelta", streamParams(
+            "reasoning_fixture",
+            "contentIndex", Long.valueOf(0L),
+            "Interne Details"
+        ));
+        waitFor(new Condition() {
+            @Override
+            public boolean isTrue() {
+                CodexTranscriptItem item = cardById(controller.snapshot(), "reasoning_fixture");
+                return item != null
+                    && item.isStreaming()
+                    && "Erster Schritt\nZweiter Schritt".equals(item.getSummary())
+                    && "Interne Details".equals(item.getDetail());
+            }
+        }, "reasoning deltas projected by index");
+
+        server.notifyMessage("item/completed", itemNotification(JsonCodec.object(
+            "id", "reasoning_fixture",
+            "type", "reasoning",
+            "summary", JsonCodec.array("Autoritative Zusammenfassung"),
+            "content", JsonCodec.array("Autoritative Reasoning-Details")
+        )));
+        server.notifyMessage("item/reasoning/summaryTextDelta", streamParams(
+            "reasoning_fixture",
+            "summaryIndex", Long.valueOf(0L),
+            " VERALTET"
+        ));
+        server.notifyMessage("item/plan/delta", streamParams(
+            "plan_fixture",
+            null,
+            null,
+            "Plan-Entwurf"
+        ));
+        waitFor(new Condition() {
+            @Override
+            public boolean isTrue() {
+                CodexTranscriptItem plan = cardById(controller.snapshot(), "plan_fixture");
+                return plan != null && "Plan-Entwurf".equals(plan.getDetail());
+            }
+        }, "plan delta projected");
+
+        server.notifyMessage("turn/completed", JsonCodec.object(
+            "threadId", "thr_existing",
+            "turn", JsonCodec.object(
+                "id", "turn_fixture",
+                "status", "completed",
+                "items", JsonCodec.array(),
+                "error", null
+            )
+        ));
+        server.notifyMessage("item/completed", itemNotification(JsonCodec.object(
+            "id", "plan_fixture",
+            "type", "plan",
+            "text", "Autoritativer Plan"
+        )));
+        server.notifyMessage("item/plan/delta", streamParams(
+            "plan_fixture",
+            null,
+            null,
+            " VERALTET"
+        ));
+        waitFor(new Condition() {
+            @Override
+            public boolean isTrue() {
+                CodexTranscriptItem plan = cardById(controller.snapshot(), "plan_fixture");
+                return !controller.snapshot().isTurnActive()
+                    && plan != null
+                    && !plan.isStreaming()
+                    && "Autoritativer Plan".equals(plan.getDetail());
+            }
+        }, "authoritative plan after reordered turn completion");
+        CodexTranscriptItem reasoning = cardById(
+            controller.snapshot(),
+            "reasoning_fixture"
+        );
+        TestSupport.assertEquals(
+            "Autoritative Zusammenfassung",
+            reasoning.getSummary(),
+            "completed reasoning replaces deltas"
+        );
+        TestSupport.assertEquals(
+            "Autoritative Reasoning-Details",
+            reasoning.getDetail(),
+            "completed reasoning details"
+        );
+        TestSupport.assertFalse(reasoning.isStreaming(), "reasoning cannot be revived");
+        controller.close();
+    }
+
+    private static void releasesCardStreamCapacityAfterTurnCompletion() throws Exception {
+        FixtureServer server = new FixtureServer(true);
+        server.holdTurnOpen = true;
+        final CodexSessionController controller = new CodexSessionController(
+            server,
+            "/private/workspace"
+        );
+        startHeldTurn(server, controller);
+
+        for (int index = 0; index < 32; index++) {
+            server.notifyMessage("item/plan/delta", streamParams(
+                "unfinished_plan_" + index,
+                null,
+                null,
+                "Plan " + index
+            ));
+        }
+        waitFor(new Condition() {
+            @Override
+            public boolean isTrue() {
+                return cardById(controller.snapshot(), "unfinished_plan_31") != null;
+            }
+        }, "card stream capacity reached");
+
+        server.notifyMessage("turn/completed", JsonCodec.object(
+            "threadId", "thr_existing",
+            "turn", JsonCodec.object(
+                "id", "turn_fixture",
+                "status", "completed",
+                "items", JsonCodec.array(),
+                "error", null
+            )
+        ));
+        waitFor(new Condition() {
+            @Override
+            public boolean isTrue() {
+                return !controller.snapshot().isTurnActive();
+            }
+        }, "turn with unfinished card streams completed");
+
+        server.notifyMessage("turn/started", JsonCodec.object(
+            "threadId", "thr_existing",
+            "turn", JsonCodec.object(
+                "id", "turn_after_stream_cleanup",
+                "status", "inProgress",
+                "items", JsonCodec.array(),
+                "error", null
+            )
+        ));
+        server.notifyMessage("item/plan/delta", JsonCodec.object(
+            "threadId", "thr_existing",
+            "turnId", "turn_after_stream_cleanup",
+            "itemId", "fresh_plan_after_cleanup",
+            "delta", "Neuer Plan"
+        ));
+        waitFor(new Condition() {
+            @Override
+            public boolean isTrue() {
+                CodexTranscriptItem item = cardById(
+                    controller.snapshot(),
+                    "fresh_plan_after_cleanup"
+                );
+                return item != null && item.isStreaming();
+            }
+        }, "card stream capacity released after turn completion");
+        controller.close();
+    }
+
+    private static void projectsCompleteToolCardSet() throws Exception {
+        FixtureServer server = new FixtureServer(true);
+        server.holdTurnOpen = true;
+        final CodexSessionController controller = new CodexSessionController(
+            server,
+            "/private/workspace"
+        );
+        startHeldTurn(server, controller);
+
+        server.notifyMessage("item/started", itemNotification(JsonCodec.object(
+            "id", "command_card",
+            "type", "commandExecution",
+            "command", "./scripts/test.sh",
+            "commandActions", JsonCodec.array(),
+            "cwd", "/private/workspace",
+            "status", "inProgress",
+            "aggregatedOutput", null
+        )));
+        server.notifyMessage("item/commandExecution/outputDelta", streamParams(
+            "command_card",
+            null,
+            null,
+            "laufende Ausgabe apiKey=sk-outputfixture12345"
+        ));
+        server.notifyMessage("item/commandExecution/terminalInteraction", JsonCodec.object(
+            "threadId", "thr_existing",
+            "turnId", "turn_fixture",
+            "itemId", "command_card",
+            "processId", "process_fixture",
+            "stdin", "yes\n"
+        ));
+        waitFor(new Condition() {
+            @Override
+            public boolean isTrue() {
+                CodexTranscriptItem item = cardById(controller.snapshot(), "command_card");
+                return item != null && item.getDetail().contains("[stdin process_fixture]");
+            }
+        }, "terminal interaction projected in command card");
+        String streamingCommandDetail = cardById(
+            controller.snapshot(),
+            "command_card"
+        ).getDetail();
+        TestSupport.assertContains(
+            streamingCommandDetail,
+            "<redacted>",
+            "streamed tool credential redacted"
+        );
+        TestSupport.assertFalse(
+            streamingCommandDetail.contains("sk-outputfixture12345"),
+            "streamed tool credential absent from snapshot"
+        );
+        server.notifyMessage("item/completed", itemNotification(JsonCodec.object(
+            "id", "command_card",
+            "type", "commandExecution",
+            "command", "./scripts/test.sh",
+            "commandActions", JsonCodec.array(),
+            "cwd", "/private/workspace",
+            "status", "completed",
+            "aggregatedOutput", "finale Ausgabe",
+            "exitCode", Long.valueOf(0L),
+            "durationMs", Long.valueOf(25L)
+        )));
+
+        List<Object> changes = JsonCodec.array(
+            JsonCodec.object(
+                "path", "/private/workspace/neu.txt",
+                "kind", JsonCodec.object("type", "add"),
+                "diff", "+Inhalt"
+            ),
+            JsonCodec.object(
+                "path", "/private/workspace/leer.txt",
+                "kind", JsonCodec.object("type", "update", "move_path", null),
+                "diff", ""
+            )
+        );
+        server.notifyMessage("item/fileChange/patchUpdated", JsonCodec.object(
+            "threadId", "thr_existing",
+            "turnId", "turn_fixture",
+            "itemId", "file_card",
+            "changes", changes
+        ));
+        server.notifyMessage("item/fileChange/outputDelta", streamParams(
+            "file_card",
+            null,
+            null,
+            "Patch angewendet"
+        ));
+        server.notifyMessage("item/completed", itemNotification(JsonCodec.object(
+            "id", "file_card",
+            "type", "fileChange",
+            "changes", changes,
+            "status", "completed"
+        )));
+
+        server.notifyMessage("item/started", itemNotification(JsonCodec.object(
+            "id", "mcp_card",
+            "type", "mcpToolCall",
+            "server", "fixture-server",
+            "tool", "lookup",
+            "arguments", JsonCodec.object("query", "AGENTCODI"),
+            "status", "inProgress"
+        )));
+        server.notifyMessage("item/mcpToolCall/progress", JsonCodec.object(
+            "threadId", "thr_existing",
+            "turnId", "turn_fixture",
+            "itemId", "mcp_card",
+            "message", "Suche läuft"
+        ));
+        server.notifyMessage("item/completed", itemNotification(JsonCodec.object(
+            "id", "mcp_card",
+            "type", "mcpToolCall",
+            "server", "fixture-server",
+            "tool", "lookup",
+            "arguments", JsonCodec.object("query", "AGENTCODI"),
+            "status", "completed",
+            "result", JsonCodec.object("content", JsonCodec.array(JsonCodec.object(
+                "type", "text",
+                "text", "Treffer"
+            )))
+        )));
+
+        notifyCompletedTool(server, JsonCodec.object(
+            "id", "dynamic_card",
+            "type", "dynamicToolCall",
+            "namespace", "fixture",
+            "tool", "render",
+            "arguments", JsonCodec.object("apiKey", "sk-secretfixture12345"),
+            "status", "completed",
+            "success", Boolean.TRUE,
+            "contentItems", JsonCodec.array(JsonCodec.object(
+                "type", "inputText",
+                "text", "Ausgabe"
+            ))
+        ));
+        notifyCompletedTool(server, JsonCodec.object(
+            "id", "collab_card",
+            "type", "collabAgentToolCall",
+            "tool", "spawnAgent",
+            "status", "completed",
+            "senderThreadId", "thr_existing",
+            "receiverThreadIds", JsonCodec.array("thr_child"),
+            "agentsStates", JsonCodec.object(
+                "thr_child", JsonCodec.object("status", "completed", "message", "Fertig")
+            ),
+            "prompt", "Teilaufgabe",
+            "model", "gpt-5.6-terra",
+            "reasoningEffort", "high"
+        ));
+        notifyCompletedTool(server, JsonCodec.object(
+            "id", "subagent_card",
+            "type", "subAgentActivity",
+            "agentPath", "/root/child",
+            "agentThreadId", "thr_child",
+            "kind", "interacted"
+        ));
+        notifyCompletedTool(server, JsonCodec.object(
+            "id", "web_card",
+            "type", "webSearch",
+            "query", "Codex Android",
+            "action", JsonCodec.object("type", "search", "query", "Codex Android"),
+            "results", JsonCodec.array(JsonCodec.object("title", "Treffer"))
+        ));
+        notifyCompletedTool(server, JsonCodec.object(
+            "id", "image_view_card",
+            "type", "imageView",
+            "path", "/private/workspace/bild.png"
+        ));
+        notifyCompletedTool(server, JsonCodec.object(
+            "id", "sleep_card",
+            "type", "sleep",
+            "durationMs", Long.valueOf(500L)
+        ));
+        notifyCompletedTool(server, JsonCodec.object(
+            "id", "image_generation_card",
+            "type", "imageGeneration",
+            "status", "completed",
+            "result", "<generated-image-data-omitted>",
+            "revisedPrompt", "Ein Testbild",
+            "savedPath", "/private/workspace/generated_images/image_generation_card.png"
+        ));
+        notifyCompletedTool(server, JsonCodec.object(
+            "id", "outside_image_card",
+            "type", "imageGeneration",
+            "status", "completed",
+            "result", "metadata only",
+            "savedPath", "/private/other/generated.png"
+        ));
+        notifyCompletedTool(server, JsonCodec.object(
+            "id", "alias_image_card",
+            "type", "imageGeneration",
+            "status", "completed",
+            "result", "metadata only",
+            "savedPath", "/data/data/de.agentcodi.app/files/agentcodi/workspace/generated.png"
+        ));
+        notifyCompletedTool(server, JsonCodec.object(
+            "id", "hook_card",
+            "type", "hookPrompt",
+            "fragments", JsonCodec.array(JsonCodec.object(
+                "hookRunId", "hook_run",
+                "text", "Hook-Hinweis"
+            ))
+        ));
+        notifyCompletedTool(server, JsonCodec.object(
+            "id", "review_card",
+            "type", "enteredReviewMode",
+            "review", "Änderungen prüfen"
+        ));
+        notifyCompletedTool(server, JsonCodec.object(
+            "id", "compaction_card",
+            "type", "contextCompaction"
+        ));
+
+        waitFor(new Condition() {
+            @Override
+            public boolean isTrue() {
+                return cardById(controller.snapshot(), "compaction_card") != null;
+            }
+        }, "all tool cards projected");
+        CodexTranscriptItem command = cardById(controller.snapshot(), "command_card");
+        TestSupport.assertContains(command.getSummary(), "test.sh", "command card command");
+        TestSupport.assertContains(command.getDetail(), "finale Ausgabe", "command final output");
+        TestSupport.assertFalse(command.isStreaming(), "command card completed");
+        TestSupport.assertContains(
+            cardById(controller.snapshot(), "file_card").getDetail(),
+            "/private/workspace/neu.txt",
+            "file card path and diff"
+        );
+        TestSupport.assertContains(
+            cardById(controller.snapshot(), "file_card").getDetail(),
+            "/private/workspace/leer.txt",
+            "file card retains path when text diff is empty"
+        );
+        TestSupport.assertContains(
+            cardById(controller.snapshot(), "file_card").getDetail(),
+            "Kein Text-Diff vorhanden.",
+            "file card explains empty text diff"
+        );
+        TestSupport.assertContains(
+            cardById(controller.snapshot(), "mcp_card").getDetail(),
+            "Treffer",
+            "MCP result"
+        );
+        TestSupport.assertContains(
+            cardById(controller.snapshot(), "image_generation_card").getDetail(),
+            "nicht in den UI-Zustand übernommen",
+            "compacted image result remains understandable"
+        );
+        TestSupport.assertEquals(
+            "/private/workspace/generated_images/image_generation_card.png",
+            cardById(controller.snapshot(), "image_generation_card").getReportedImagePath(),
+            "native workspace-materialized image path reaches runtime validation"
+        );
+        TestSupport.assertEquals(
+            "/private/workspace/bild.png",
+            cardById(controller.snapshot(), "image_view_card").getReportedImagePath(),
+            "viewed image path is retained for runtime validation"
+        );
+        TestSupport.assertEquals(
+            "/private/other/generated.png",
+            cardById(controller.snapshot(), "outside_image_card").getReportedImagePath(),
+            "outside image path remains unverified until canonical runtime validation"
+        );
+        TestSupport.assertContains(
+            cardById(controller.snapshot(), "outside_image_card").getDetail(),
+            "kanonisch",
+            "canonical runtime validation is explained"
+        );
+        TestSupport.assertEquals(
+            "/data/data/de.agentcodi.app/files/agentcodi/workspace/generated.png",
+            cardById(controller.snapshot(), "alias_image_card").getReportedImagePath(),
+            "Android path alias reaches canonical runtime validation"
+        );
+        String dynamicDetail = cardById(controller.snapshot(), "dynamic_card").getDetail();
+        TestSupport.assertContains(dynamicDetail, "<redacted>", "tool credentials redacted");
+        TestSupport.assertFalse(
+            dynamicDetail.contains("sk-secretfixture12345"),
+            "tool credential absent from snapshot"
+        );
+        String[] expectedCards = {
+            "command_card", "file_card", "mcp_card", "dynamic_card", "collab_card",
+            "subagent_card", "web_card", "image_view_card", "sleep_card",
+            "image_generation_card", "outside_image_card", "alias_image_card", "hook_card",
+            "review_card", "compaction_card"
+        };
+        for (String id : expectedCards) {
+            CodexTranscriptItem item = cardById(controller.snapshot(), id);
+            TestSupport.assertTrue(item != null, "tool card visible: " + id);
+            TestSupport.assertEquals(
+                CodexTranscriptItem.Kind.TOOL,
+                item.getKind(),
+                "tool card kind: " + id
+            );
+        }
+        controller.close();
+    }
+
+    private static void restoresCardsFromThreadHistory() throws Exception {
+        FixtureServer server = new FixtureServer(true);
+        server.richHistory = true;
+        final CodexSessionController controller = new CodexSessionController(
+            server,
+            "/private/workspace"
+        );
+        controller.start();
+        controller.openThread("thr_existing");
+        waitFor(new Condition() {
+            @Override
+            public boolean isTrue() {
+                return "thr_existing".equals(controller.snapshot().getActiveThreadId())
+                    && !controller.snapshot().isOperationActive();
+            }
+        }, "rich history resume");
+        TestSupport.assertEquals(
+            Integer.valueOf(2),
+            Integer.valueOf(controller.snapshot().getMessages().size()),
+            "message compatibility view excludes cards"
+        );
+        TestSupport.assertEquals(
+            CodexTranscriptItem.Kind.REASONING,
+            cardById(controller.snapshot(), "reasoning_history").getKind(),
+            "reasoning history restored"
+        );
+        TestSupport.assertEquals(
+            CodexTranscriptItem.Kind.PLAN,
+            cardById(controller.snapshot(), "plan_history").getKind(),
+            "plan history restored"
+        );
+        TestSupport.assertContains(
+            cardById(controller.snapshot(), "command_history").getDetail(),
+            "Historische Ausgabe",
+            "tool history restored"
+        );
+        controller.close();
+    }
+
+    private static void reportsTransportFailureOnceAndReleasesTurn() throws Exception {
+        FixtureServer server = new FixtureServer(true);
+        server.holdTurnOpen = true;
+        final AtomicInteger failures = new AtomicInteger();
+        final AtomicReference<CodexSessionController> failedController =
+            new AtomicReference<CodexSessionController>();
+        final CodexSessionController controller = new CodexSessionController(
+            server,
+            "/private/workspace",
+            new CodexSessionController.ConnectionFailureListener() {
+                @Override
+                public void onConnectionFailed(
+                    CodexSessionController value,
+                    Throwable error
+                ) {
+                    failedController.set(value);
+                    failures.incrementAndGet();
+                }
+            }
+        );
+        startHeldTurn(server, controller);
+        server.close();
+        waitFor(new Condition() {
+            @Override
+            public boolean isTrue() {
+                return failures.get() == 1 && !controller.snapshot().isReady();
+            }
+        }, "transport failure callback");
+        TestSupport.assertEquals(controller, failedController.get(), "failed controller identity");
+        TestSupport.assertFalse(
+            controller.snapshot().isTurnActive(),
+            "transport failure releases active turn"
+        );
+        TestSupport.assertFalse(
+            controller.snapshot().isOperationActive(),
+            "transport failure releases active operation"
+        );
+        controller.close();
+        TestSupport.assertEquals(
+            Integer.valueOf(1),
+            Integer.valueOf(failures.get()),
+            "intentional close does not duplicate failure callback"
+        );
+    }
+
     private static void acceptsOnlyTrustedBrowserLoginUrl() throws Exception {
         FixtureServer server = new FixtureServer(false);
         final CodexSessionController controller = new CodexSessionController(
@@ -268,6 +843,18 @@ public final class CodexSessionControllerTest {
             JsonCodec.booleanValue(capabilities.get("experimentalApi"), false),
             "permission profiles enabled during initialize"
         );
+        List<Object> notificationOptOut = JsonCodec.requireArray(
+            capabilities.get("optOutNotificationMethods"),
+            "notification opt-out"
+        );
+        TestSupport.assertTrue(
+            notificationOptOut.contains("rawResponseItem/completed"),
+            "unused raw response items disabled"
+        );
+        TestSupport.assertTrue(
+            notificationOptOut.contains("rawResponse/completed"),
+            "unused raw response summaries disabled"
+        );
         assertWorkspacePermissionRequest(server.lastThreadResumeParams, "thread/resume");
         assertWorkspacePermissionRequest(server.lastTurnStartParams, "turn/start");
         TestSupport.assertEquals(
@@ -279,6 +866,11 @@ public final class CodexSessionControllerTest {
             "ultra",
             server.lastTurnStartParams.get("effort"),
             "turn effort"
+        );
+        TestSupport.assertEquals(
+            "auto",
+            server.lastTurnStartParams.get("summary"),
+            "reasoning summaries requested"
         );
         TestSupport.assertFalse(
             JsonCodec.stringify(server.lastTurnStartParams).contains("readOnlyAccess"),
@@ -1017,6 +1609,37 @@ public final class CodexSessionControllerTest {
         );
     }
 
+    private static Map<String, Object> itemNotification(Map<String, Object> item) {
+        return JsonCodec.object(
+            "threadId", "thr_existing",
+            "turnId", "turn_fixture",
+            "item", item
+        );
+    }
+
+    private static Map<String, Object> streamParams(
+        String itemId,
+        String indexField,
+        Long index,
+        String delta
+    ) {
+        Map<String, Object> params = new LinkedHashMap<String, Object>();
+        params.put("threadId", "thr_existing");
+        params.put("turnId", "turn_fixture");
+        params.put("itemId", itemId);
+        if (indexField != null && index != null) {
+            params.put(indexField, index);
+        }
+        if (delta != null) {
+            params.put("delta", delta);
+        }
+        return params;
+    }
+
+    private static void notifyCompletedTool(FixtureServer server, Map<String, Object> item) {
+        server.notifyMessage("item/completed", itemNotification(item));
+    }
+
     private static Map<String, Object> singleQuestionRequest(
         String itemId,
         Long autoResolutionMs,
@@ -1094,6 +1717,15 @@ public final class CodexSessionControllerTest {
         return null;
     }
 
+    private static CodexTranscriptItem cardById(CodexSessionSnapshot snapshot, String id) {
+        for (CodexTranscriptItem item : snapshot.getTranscriptItems()) {
+            if (!item.isMessage() && item.getId().equals(id)) {
+                return item;
+            }
+        }
+        return null;
+    }
+
     private static void waitFor(Condition condition, String message) throws Exception {
         long deadline = System.currentTimeMillis() + 3_000L;
         while (!condition.isTrue() && System.currentTimeMillis() < deadline) {
@@ -1122,6 +1754,7 @@ public final class CodexSessionControllerTest {
         private volatile Map<String, Object> lastTurnStartParams;
         private volatile boolean reorderStreamingEvents;
         private volatile boolean holdTurnOpen;
+        private volatile boolean richHistory;
 
         private FixtureServer(boolean signedIn) {
             this(signedIn, true);
@@ -1383,27 +2016,50 @@ public final class CodexSessionControllerTest {
             );
         }
 
-        private static Map<String, Object> thread(String id, boolean includeTurns) {
+        private Map<String, Object> thread(String id, boolean includeTurns) {
             List<Object> turns = new ArrayList<Object>();
             if (includeTurns) {
+                List<Object> items = new ArrayList<Object>();
+                items.add(JsonCodec.object(
+                    "id", "user_history",
+                    "type", "userMessage",
+                    "content", JsonCodec.array(JsonCodec.object(
+                        "type", "text",
+                        "text", "Historische Aufgabe"
+                    ))
+                ));
+                if (richHistory) {
+                    items.add(JsonCodec.object(
+                        "id", "reasoning_history",
+                        "type", "reasoning",
+                        "summary", JsonCodec.array("Historische Überlegung"),
+                        "content", JsonCodec.array("Historische Details")
+                    ));
+                    items.add(JsonCodec.object(
+                        "id", "plan_history",
+                        "type", "plan",
+                        "text", "Historischer Plan"
+                    ));
+                    items.add(JsonCodec.object(
+                        "id", "command_history",
+                        "type", "commandExecution",
+                        "command", "pwd",
+                        "commandActions", JsonCodec.array(),
+                        "cwd", "/private/workspace",
+                        "status", "completed",
+                        "aggregatedOutput", "Historische Ausgabe",
+                        "exitCode", Long.valueOf(0L)
+                    ));
+                }
+                items.add(JsonCodec.object(
+                    "id", "assistant_history",
+                    "type", "agentMessage",
+                    "text", "Historische Antwort"
+                ));
                 turns.add(JsonCodec.object(
                     "id", "turn_history",
                     "status", "completed",
-                    "items", JsonCodec.array(
-                        JsonCodec.object(
-                            "id", "user_history",
-                            "type", "userMessage",
-                            "content", JsonCodec.array(JsonCodec.object(
-                                "type", "text",
-                                "text", "Historische Aufgabe"
-                            ))
-                        ),
-                        JsonCodec.object(
-                            "id", "assistant_history",
-                            "type", "agentMessage",
-                            "text", "Historische Antwort"
-                        )
-                    )
+                    "items", items
                 ));
             }
             return JsonCodec.object(

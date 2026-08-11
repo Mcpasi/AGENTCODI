@@ -1,18 +1,23 @@
 #include "app_server_process.h"
 
+#include <algorithm>
 #include <cerrno>
 #include <chrono>
 #include <climits>
+#include <cstdint>
 #include <cstdlib>
 #include <cstring>
+#include <iomanip>
 #include <sstream>
 #include <thread>
 #include <utility>
+#include <vector>
 
 #include <fcntl.h>
 #include <signal.h>
 #include <sys/socket.h>
 #include <sys/stat.h>
+#include <sys/syscall.h>
 #include <sys/wait.h>
 #include <unistd.h>
 
@@ -20,6 +25,1122 @@ namespace agentcodi {
 namespace {
 
 constexpr int kStillRunning = INT_MIN;
+constexpr std::size_t kMaximumInboundWireBytes = 64U * 1024U * 1024U;
+constexpr std::size_t kImageResultCompactionThreshold = 32U * 1024U;
+constexpr std::size_t kMaximumMaterializedImageBytes = 64U * 1024U * 1024U;
+constexpr std::size_t kMaximumImagesPerLine = 240U;
+constexpr std::size_t kMaximumDecodedMetadataBytes = 256U;
+constexpr unsigned int kRenameNoReplace = 1U;
+constexpr const char* kCompactedImageResult =
+    "\"<generated-image-data-omitted>\"";
+constexpr const char* kGeneratedImagesDirectory = "generated_images";
+
+struct JsonStringSpan {
+  std::size_t begin;
+  std::size_t end;
+};
+
+struct JsonValueSpan {
+  std::size_t begin;
+  std::size_t end;
+};
+
+struct ImagePayload {
+  std::string id;
+  std::string status;
+  JsonStringSpan result_span {};
+  JsonValueSpan saved_path_span {};
+  std::size_t object_end = 0U;
+  bool has_saved_path = false;
+};
+
+struct ImageScanResult {
+  std::vector<JsonStringSpan> raw_result_spans;
+  std::vector<ImagePayload> image_payloads;
+};
+
+struct JsonReplacement {
+  std::size_t begin;
+  std::size_t end;
+  std::string value;
+};
+
+bool is_valid_utf8(const std::string& input) {
+  std::size_t index = 0U;
+  while (index < input.size()) {
+    const unsigned char first = static_cast<unsigned char>(input[index++]);
+    if (first <= 0x7fU) {
+      continue;
+    }
+
+    std::size_t continuation_count = 0U;
+    unsigned char second_minimum = 0x80U;
+    unsigned char second_maximum = 0xbfU;
+    if (first >= 0xc2U && first <= 0xdfU) {
+      continuation_count = 1U;
+    } else if (first >= 0xe0U && first <= 0xefU) {
+      continuation_count = 2U;
+      if (first == 0xe0U) {
+        second_minimum = 0xa0U;
+      } else if (first == 0xedU) {
+        second_maximum = 0x9fU;
+      }
+    } else if (first >= 0xf0U && first <= 0xf4U) {
+      continuation_count = 3U;
+      if (first == 0xf0U) {
+        second_minimum = 0x90U;
+      } else if (first == 0xf4U) {
+        second_maximum = 0x8fU;
+      }
+    } else {
+      return false;
+    }
+
+    if (input.size() - index < continuation_count) {
+      return false;
+    }
+    const unsigned char second = static_cast<unsigned char>(input[index]);
+    if (second < second_minimum || second > second_maximum) {
+      return false;
+    }
+    ++index;
+    for (std::size_t continuation = 1U;
+         continuation < continuation_count;
+         ++continuation) {
+      const unsigned char value = static_cast<unsigned char>(input[index++]);
+      if (value < 0x80U || value > 0xbfU) {
+        return false;
+      }
+    }
+  }
+  return true;
+}
+
+class ImagePayloadScanner final {
+ public:
+  explicit ImagePayloadScanner(const std::string& input)
+      : input_(input), position_(0U) {}
+
+  bool Scan(ImageScanResult* result) {
+    if (result == nullptr || !is_valid_utf8(input_)) {
+      return false;
+    }
+    result_ = result;
+    result_->raw_result_spans.clear();
+    result_->image_payloads.clear();
+    SkipWhitespace();
+    if (!ParseValue(0U)) {
+      return false;
+    }
+    SkipWhitespace();
+    return position_ == input_.size();
+  }
+
+ private:
+  bool ParseValue(std::size_t depth) {
+    if (depth > 64U) {
+      return false;
+    }
+    SkipWhitespace();
+    if (position_ >= input_.size()) {
+      return false;
+    }
+    const char value = input_[position_];
+    if (value == '{') {
+      return ParseObject(depth + 1U);
+    }
+    if (value == '[') {
+      return ParseArray(depth + 1U);
+    }
+    if (value == '"') {
+      return ParseString(nullptr, nullptr);
+    }
+    if (value == 't') {
+      return ParseLiteral("true");
+    }
+    if (value == 'f') {
+      return ParseLiteral("false");
+    }
+    if (value == 'n') {
+      return ParseLiteral("null");
+    }
+    return ParseNumber();
+  }
+
+  bool ParseObject(std::size_t depth) {
+    ++position_;
+    SkipWhitespace();
+    if (Consume('}')) {
+      return true;
+    }
+
+    std::string object_type;
+    std::string object_id;
+    std::string object_status;
+    std::vector<JsonStringSpan> result_spans;
+    JsonValueSpan saved_path_span {};
+    std::size_t type_count = 0U;
+    std::size_t id_count = 0U;
+    std::size_t status_count = 0U;
+    std::size_t result_count = 0U;
+    std::size_t saved_path_count = 0U;
+    bool saw_image_generation_type = false;
+    bool saw_raw_image_generation_type = false;
+    bool saved_path_valid = false;
+    std::size_t entries = 0U;
+    while (position_ < input_.size()) {
+      if (++entries > 10000U) {
+        return false;
+      }
+      std::string key;
+      if (!ParseString(&key, nullptr)) {
+        return false;
+      }
+      SkipWhitespace();
+      if (!Consume(':')) {
+        return false;
+      }
+      SkipWhitespace();
+
+      if (key == "type") {
+        ++type_count;
+        if (Peek('"')) {
+          if (!ParseString(&object_type, nullptr)) {
+            return false;
+          }
+          saw_image_generation_type = saw_image_generation_type
+              || object_type == "imageGeneration";
+          saw_raw_image_generation_type = saw_raw_image_generation_type
+              || object_type == "image_generation_call";
+        } else if (!ParseValue(depth)) {
+          return false;
+        }
+      } else if (key == "id") {
+        ++id_count;
+        if (Peek('"')) {
+          if (!ParseString(&object_id, nullptr)) {
+            return false;
+          }
+        } else if (!ParseValue(depth)) {
+          return false;
+        }
+      } else if (key == "status") {
+        ++status_count;
+        if (Peek('"')) {
+          if (!ParseString(&object_status, nullptr)) {
+            return false;
+          }
+        } else if (!ParseValue(depth)) {
+          return false;
+        }
+      } else if (key == "result") {
+        ++result_count;
+        if (Peek('"')) {
+          JsonStringSpan span {};
+          if (!ParseString(nullptr, &span)) {
+            return false;
+          }
+          result_spans.push_back(span);
+        } else if (!ParseValue(depth)) {
+          return false;
+        }
+      } else if (key == "savedPath") {
+        ++saved_path_count;
+        saved_path_span.begin = position_;
+        if (Peek('"')) {
+          saved_path_valid = ParseString(nullptr, nullptr);
+        } else if (Peek('n')) {
+          saved_path_valid = ParseLiteral("null");
+        } else {
+          saved_path_valid = false;
+          if (!ParseValue(depth)) {
+            return false;
+          }
+        }
+        saved_path_span.end = position_;
+        if (!saved_path_valid) {
+          return false;
+        }
+      } else if (!ParseValue(depth)) {
+        return false;
+      }
+
+      SkipWhitespace();
+      if (Consume('}')) {
+        break;
+      }
+      if (!Consume(',')) {
+        return false;
+      }
+      SkipWhitespace();
+    }
+    if (position_ > input_.size()
+        || (position_ == input_.size() && input_[position_ - 1U] != '}')) {
+      return false;
+    }
+
+    if (saw_image_generation_type) {
+      if (object_type != "imageGeneration" || type_count != 1U
+          || id_count != 1U || status_count != 1U
+          || result_count != 1U || result_spans.size() != 1U
+          || saved_path_count > 1U || object_id.empty()
+          || object_status.empty()
+          || result_->image_payloads.size() >= kMaximumImagesPerLine) {
+        return false;
+      }
+      ImagePayload payload;
+      payload.id = object_id;
+      payload.status = object_status;
+      payload.result_span = result_spans.front();
+      payload.saved_path_span = saved_path_span;
+      payload.object_end = position_ - 1U;
+      payload.has_saved_path = saved_path_count == 1U;
+      result_->image_payloads.push_back(std::move(payload));
+    } else if (saw_raw_image_generation_type) {
+      if (object_type != "image_generation_call" || type_count != 1U
+          || result_count != 1U
+          || result_spans.size() != 1U) {
+        return false;
+      }
+      for (const JsonStringSpan& span : result_spans) {
+        if (span.end - span.begin > kImageResultCompactionThreshold) {
+          result_->raw_result_spans.push_back(span);
+        }
+      }
+    }
+    return true;
+  }
+
+  bool ParseArray(std::size_t depth) {
+    ++position_;
+    SkipWhitespace();
+    if (Consume(']')) {
+      return true;
+    }
+    std::size_t entries = 0U;
+    while (position_ < input_.size()) {
+      if (++entries > 10000U || !ParseValue(depth)) {
+        return false;
+      }
+      SkipWhitespace();
+      if (Consume(']')) {
+        return true;
+      }
+      if (!Consume(',')) {
+        return false;
+      }
+      SkipWhitespace();
+    }
+    return false;
+  }
+
+  bool ParseString(std::string* decoded, JsonStringSpan* span) {
+    if (!Consume('"')) {
+      return false;
+    }
+    const std::size_t begin = position_ - 1U;
+    if (decoded != nullptr) {
+      decoded->clear();
+    }
+    bool decoded_too_long = false;
+    while (position_ < input_.size()) {
+      const unsigned char value = static_cast<unsigned char>(input_[position_++]);
+      if (value == '"') {
+        if (span != nullptr) {
+          span->begin = begin;
+          span->end = position_;
+        }
+        if (decoded != nullptr && decoded_too_long) {
+          decoded->clear();
+        }
+        return true;
+      }
+      if (value < 0x20U) {
+        return false;
+      }
+      if (value != '\\') {
+        AppendDecoded(decoded, static_cast<char>(value), &decoded_too_long);
+        continue;
+      }
+      if (position_ >= input_.size()) {
+        return false;
+      }
+      const char escape = input_[position_++];
+      switch (escape) {
+        case '"':
+        case '\\':
+        case '/':
+          AppendDecoded(decoded, escape, &decoded_too_long);
+          break;
+        case 'b':
+          AppendDecoded(decoded, '\b', &decoded_too_long);
+          break;
+        case 'f':
+          AppendDecoded(decoded, '\f', &decoded_too_long);
+          break;
+        case 'n':
+          AppendDecoded(decoded, '\n', &decoded_too_long);
+          break;
+        case 'r':
+          AppendDecoded(decoded, '\r', &decoded_too_long);
+          break;
+        case 't':
+          AppendDecoded(decoded, '\t', &decoded_too_long);
+          break;
+        case 'u': {
+          unsigned int code_point = 0U;
+          if (!ParseUnicodeCodeUnit(&code_point)) {
+            return false;
+          }
+          if (code_point >= 0xd800U && code_point <= 0xdbffU) {
+            if (position_ + 2U > input_.size()
+                || input_[position_] != '\\'
+                || input_[position_ + 1U] != 'u') {
+              return false;
+            }
+            position_ += 2U;
+            unsigned int low_surrogate = 0U;
+            if (!ParseUnicodeCodeUnit(&low_surrogate)
+                || low_surrogate < 0xdc00U
+                || low_surrogate > 0xdfffU) {
+              return false;
+            }
+            code_point = 0x10000U
+                + ((code_point - 0xd800U) << 10U)
+                + (low_surrogate - 0xdc00U);
+          } else if (code_point >= 0xdc00U && code_point <= 0xdfffU) {
+            return false;
+          }
+          AppendDecoded(
+              decoded,
+              code_point <= 0x7fU ? static_cast<char>(code_point) : '?',
+              &decoded_too_long);
+          break;
+        }
+        default:
+          return false;
+      }
+    }
+    return false;
+  }
+
+  bool ParseNumber() {
+    const std::size_t start = position_;
+    Consume('-');
+    if (Consume('0')) {
+      if (position_ < input_.size()
+          && input_[position_] >= '0' && input_[position_] <= '9') {
+        return false;
+      }
+    } else {
+      const std::size_t integer_start = position_;
+      while (position_ < input_.size()
+          && input_[position_] >= '0' && input_[position_] <= '9') {
+        ++position_;
+      }
+      if (integer_start == position_) {
+        return false;
+      }
+    }
+    if (Consume('.')) {
+      const std::size_t fraction_start = position_;
+      while (position_ < input_.size()
+          && input_[position_] >= '0' && input_[position_] <= '9') {
+        ++position_;
+      }
+      if (fraction_start == position_) {
+        return false;
+      }
+    }
+    if (position_ < input_.size()
+        && (input_[position_] == 'e' || input_[position_] == 'E')) {
+      ++position_;
+      if (position_ < input_.size()
+          && (input_[position_] == '+' || input_[position_] == '-')) {
+        ++position_;
+      }
+      const std::size_t exponent_start = position_;
+      while (position_ < input_.size()
+          && input_[position_] >= '0' && input_[position_] <= '9') {
+        ++position_;
+      }
+      if (exponent_start == position_) {
+        return false;
+      }
+    }
+    return position_ > start;
+  }
+
+  bool ParseLiteral(const char* literal) {
+    const std::size_t length = std::strlen(literal);
+    if (input_.compare(position_, length, literal) != 0) {
+      return false;
+    }
+    position_ += length;
+    return true;
+  }
+
+  void SkipWhitespace() {
+    while (position_ < input_.size()) {
+      const char value = input_[position_];
+      if (value != ' ' && value != '\t' && value != '\r' && value != '\n') {
+        return;
+      }
+      ++position_;
+    }
+  }
+
+  bool Peek(char value) const {
+    return position_ < input_.size() && input_[position_] == value;
+  }
+
+  bool Consume(char value) {
+    if (!Peek(value)) {
+      return false;
+    }
+    ++position_;
+    return true;
+  }
+
+  static void AppendDecoded(
+      std::string* decoded,
+      char value,
+      bool* decoded_too_long) {
+    if (decoded == nullptr || *decoded_too_long) {
+      return;
+    }
+    if (decoded->size() >= kMaximumDecodedMetadataBytes) {
+      decoded->clear();
+      *decoded_too_long = true;
+      return;
+    }
+    decoded->push_back(value);
+  }
+
+  static int HexDigit(char value) {
+    if (value >= '0' && value <= '9') {
+      return value - '0';
+    }
+    if (value >= 'a' && value <= 'f') {
+      return value - 'a' + 10;
+    }
+    if (value >= 'A' && value <= 'F') {
+      return value - 'A' + 10;
+    }
+    return -1;
+  }
+
+  bool ParseUnicodeCodeUnit(unsigned int* value) {
+    if (value == nullptr) {
+      return false;
+    }
+    *value = 0U;
+    for (int index = 0; index < 4; ++index) {
+      if (position_ >= input_.size()) {
+        return false;
+      }
+      const int digit = HexDigit(input_[position_++]);
+      if (digit < 0) {
+        return false;
+      }
+      *value = (*value << 4U) | static_cast<unsigned int>(digit);
+    }
+    return true;
+  }
+
+  const std::string& input_;
+  std::size_t position_;
+  ImageScanResult* result_ = nullptr;
+};
+
+class ScopedDescriptor final {
+ public:
+  explicit ScopedDescriptor(int descriptor = -1) : descriptor_(descriptor) {}
+
+  ~ScopedDescriptor() {
+    Reset();
+  }
+
+  ScopedDescriptor(const ScopedDescriptor&) = delete;
+  ScopedDescriptor& operator=(const ScopedDescriptor&) = delete;
+
+  int Get() const {
+    return descriptor_;
+  }
+
+  void Reset(int descriptor = -1) {
+    if (descriptor_ >= 0) {
+      while (close(descriptor_) == -1 && errno == EINTR) {
+      }
+    }
+    descriptor_ = descriptor;
+  }
+
+ private:
+  int descriptor_;
+};
+
+bool result_string_is_empty(
+    const std::string& line,
+    const JsonStringSpan& span) {
+  return span.end == span.begin + 2U
+      && span.end <= line.size()
+      && line[span.begin] == '"'
+      && line[span.begin + 1U] == '"';
+}
+
+bool result_string_is_compacted(
+    const std::string& line,
+    const JsonStringSpan& span) {
+  return span.end >= span.begin
+      && span.end <= line.size()
+      && line.compare(
+          span.begin,
+          span.end - span.begin,
+          kCompactedImageResult) == 0;
+}
+
+int base64_digit(unsigned char value) {
+  if (value >= 'A' && value <= 'Z') {
+    return value - 'A';
+  }
+  if (value >= 'a' && value <= 'z') {
+    return value - 'a' + 26;
+  }
+  if (value >= '0' && value <= '9') {
+    return value - '0' + 52;
+  }
+  if (value == '+') {
+    return 62;
+  }
+  if (value == '/') {
+    return 63;
+  }
+  return -1;
+}
+
+bool has_png_signature(const std::vector<unsigned char>& bytes) {
+  static const unsigned char signature[] = {
+      0x89U, 0x50U, 0x4eU, 0x47U, 0x0dU, 0x0aU, 0x1aU, 0x0aU,
+  };
+  return bytes.size() >= sizeof(signature)
+      && std::equal(signature, signature + sizeof(signature), bytes.begin());
+}
+
+bool decode_png_result(
+    const std::string& line,
+    const JsonStringSpan& span,
+    std::vector<unsigned char>* bytes,
+    std::string* error) {
+  if (bytes == nullptr || error == nullptr || span.end <= span.begin + 2U
+      || span.end > line.size() || line[span.begin] != '"'
+      || line[span.end - 1U] != '"') {
+    if (error != nullptr) {
+      *error = "Generated image payload has an invalid JSON span";
+    }
+    return false;
+  }
+  std::size_t begin = span.begin + 1U;
+  std::size_t end = span.end - 1U;
+  while (begin < end && line[begin] == ' ') {
+    ++begin;
+  }
+  while (end > begin && line[end - 1U] == ' ') {
+    --end;
+  }
+  const std::size_t encoded_size = end - begin;
+  if (encoded_size == 0U || encoded_size % 4U != 0U
+      || encoded_size / 4U > kMaximumMaterializedImageBytes / 3U + 1U) {
+    *error = "Generated image payload is not bounded base64 data";
+    return false;
+  }
+
+  bytes->clear();
+  bytes->reserve((encoded_size / 4U) * 3U);
+  for (std::size_t offset = 0U; offset < encoded_size; offset += 4U) {
+    const bool final_group = offset + 4U == encoded_size;
+    const unsigned char first = static_cast<unsigned char>(line[begin + offset]);
+    const unsigned char second = static_cast<unsigned char>(line[begin + offset + 1U]);
+    const unsigned char third = static_cast<unsigned char>(line[begin + offset + 2U]);
+    const unsigned char fourth = static_cast<unsigned char>(line[begin + offset + 3U]);
+    const int first_value = base64_digit(first);
+    const int second_value = base64_digit(second);
+    if (first_value < 0 || second_value < 0) {
+      bytes->clear();
+      *error = "Generated image payload contains invalid base64 data";
+      return false;
+    }
+    const bool third_padding = third == '=';
+    const bool fourth_padding = fourth == '=';
+    if (third_padding && (!fourth_padding || !final_group)) {
+      bytes->clear();
+      *error = "Generated image payload contains invalid base64 padding";
+      return false;
+    }
+    if (fourth_padding && !final_group) {
+      bytes->clear();
+      *error = "Generated image payload contains invalid base64 padding";
+      return false;
+    }
+    const int third_value = third_padding ? 0 : base64_digit(third);
+    const int fourth_value = fourth_padding ? 0 : base64_digit(fourth);
+    if (third_value < 0 || fourth_value < 0) {
+      bytes->clear();
+      *error = "Generated image payload contains invalid base64 data";
+      return false;
+    }
+    if ((third_padding && (second_value & 0x0f) != 0)
+        || (fourth_padding && !third_padding && (third_value & 0x03) != 0)) {
+      bytes->clear();
+      *error = "Generated image payload contains non-canonical base64 padding";
+      return false;
+    }
+    bytes->push_back(static_cast<unsigned char>(
+        (first_value << 2U) | (second_value >> 4U)));
+    if (!third_padding) {
+      bytes->push_back(static_cast<unsigned char>(
+          ((second_value & 0x0f) << 4U) | (third_value >> 2U)));
+    }
+    if (!fourth_padding) {
+      bytes->push_back(static_cast<unsigned char>(
+          ((third_value & 0x03) << 6U) | fourth_value));
+    }
+    if (bytes->size() > kMaximumMaterializedImageBytes) {
+      bytes->clear();
+      *error = "Generated image exceeds the materialization limit";
+      return false;
+    }
+  }
+  if (!has_png_signature(*bytes)) {
+    bytes->clear();
+    *error = "Generated image does not have the required PNG signature";
+    return false;
+  }
+  return true;
+}
+
+std::string materialized_image_name(const std::string& id) {
+  std::string safe_id;
+  safe_id.reserve(std::min<std::size_t>(id.size(), 48U));
+  std::uint64_t hash = 1469598103934665603ULL;
+  for (unsigned char value : id) {
+    hash ^= static_cast<std::uint64_t>(value);
+    hash *= 1099511628211ULL;
+    if (safe_id.size() < 48U) {
+      const bool safe = (value >= 'A' && value <= 'Z')
+          || (value >= 'a' && value <= 'z')
+          || (value >= '0' && value <= '9')
+          || value == '-' || value == '_';
+      safe_id.push_back(safe ? static_cast<char>(value) : '_');
+    }
+  }
+  if (safe_id.empty()) {
+    safe_id = "generated_image";
+  }
+  std::ostringstream name;
+  name << safe_id << '-' << std::hex << std::setw(16) << std::setfill('0')
+       << hash << ".png";
+  return name.str();
+}
+
+bool descriptor_matches(
+    int descriptor,
+    const std::vector<unsigned char>& expected,
+    struct stat* verified_metadata,
+    std::string* error) {
+  struct stat metadata {};
+  if (fstat(descriptor, &metadata) != 0 || !S_ISREG(metadata.st_mode)
+      || metadata.st_nlink != 1
+      || metadata.st_size < 0
+      || static_cast<std::uint64_t>(metadata.st_size) != expected.size()
+      || lseek(descriptor, 0, SEEK_SET) != 0) {
+    *error = "Existing generated image conflicts with the completed image";
+    return false;
+  }
+  std::size_t offset = 0U;
+  unsigned char buffer[8192];
+  while (offset < expected.size()) {
+    const std::size_t remaining = expected.size() - offset;
+    const ssize_t count = read(
+        descriptor,
+        buffer,
+        std::min<std::size_t>(sizeof(buffer), remaining));
+    if (count > 0) {
+      if (!std::equal(
+              buffer,
+              buffer + count,
+              expected.begin() + static_cast<std::ptrdiff_t>(offset))) {
+        *error = "Existing generated image conflicts with the completed image";
+        return false;
+      }
+      offset += static_cast<std::size_t>(count);
+    } else if (count == -1 && errno == EINTR) {
+      continue;
+    } else {
+      *error = "Existing generated image could not be verified";
+      return false;
+    }
+  }
+  unsigned char trailing = 0U;
+  ssize_t trailing_count;
+  do {
+    trailing_count = read(descriptor, &trailing, 1U);
+  } while (trailing_count == -1 && errno == EINTR);
+  if (trailing_count != 0) {
+    *error = "Existing generated image changed during verification";
+    return false;
+  }
+  if (verified_metadata != nullptr) {
+    *verified_metadata = metadata;
+  }
+  return true;
+}
+
+bool read_matches(
+    int directory,
+    const std::string& name,
+    const std::vector<unsigned char>& expected,
+    bool* exists,
+    std::string* error) {
+  *exists = false;
+  ScopedDescriptor descriptor(openat(
+      directory,
+      name.c_str(),
+      O_RDONLY | O_CLOEXEC | O_NOFOLLOW));
+  if (descriptor.Get() < 0) {
+    if (errno == ENOENT) {
+      return true;
+    }
+    *error = "Existing generated image could not be opened safely";
+    return false;
+  }
+  if (!descriptor_matches(
+          descriptor.Get(),
+          expected,
+          nullptr,
+          error)) {
+    return false;
+  }
+  *exists = true;
+  return true;
+}
+
+bool open_generated_images_directory(
+    const std::string& workspace_directory,
+    bool create,
+    ScopedDescriptor* directory,
+    std::string* error) {
+  ScopedDescriptor workspace(open(
+      workspace_directory.c_str(),
+      O_RDONLY | O_DIRECTORY | O_CLOEXEC | O_NOFOLLOW));
+  if (workspace.Get() < 0) {
+    *error = "Private workspace could not be opened for image materialization";
+    return false;
+  }
+  if (create && mkdirat(workspace.Get(), kGeneratedImagesDirectory, 0700) != 0
+      && errno != EEXIST) {
+    *error = "Generated-image directory could not be created in the workspace";
+    return false;
+  }
+  const int generated = openat(
+      workspace.Get(),
+      kGeneratedImagesDirectory,
+      O_RDONLY | O_DIRECTORY | O_CLOEXEC | O_NOFOLLOW);
+  if (generated < 0) {
+    if (!create && errno == ENOENT) {
+      directory->Reset();
+      return true;
+    }
+    *error = "Generated-image workspace directory is not a safe directory";
+    return false;
+  }
+  directory->Reset(generated);
+  struct stat metadata {};
+  if (fstat(directory->Get(), &metadata) != 0 || !S_ISDIR(metadata.st_mode)
+      || fchmod(directory->Get(), 0700) != 0) {
+    directory->Reset();
+    *error = "Generated-image workspace directory is not private";
+    return false;
+  }
+  return true;
+}
+
+bool materialize_png(
+    const std::string& workspace_directory,
+    const std::string& temporary_directory,
+    const std::string& image_id,
+    const std::vector<unsigned char>& bytes,
+    std::string* saved_path,
+    std::string* error) {
+  ScopedDescriptor directory;
+  if (!open_generated_images_directory(
+          workspace_directory,
+          true,
+          &directory,
+          error)) {
+    return false;
+  }
+  const std::string name = materialized_image_name(image_id);
+  bool existing = false;
+  if (!read_matches(directory.Get(), name, bytes, &existing, error)) {
+    return false;
+  }
+  if (!existing) {
+    ScopedDescriptor temporary_root(open(
+        temporary_directory.c_str(),
+        O_RDONLY | O_DIRECTORY | O_CLOEXEC | O_NOFOLLOW));
+    if (temporary_root.Get() < 0) {
+      *error = "Private temporary directory could not be opened for image materialization";
+      return false;
+    }
+    static std::atomic<unsigned long long> temporary_sequence(1ULL);
+    std::ostringstream temporary_name_builder;
+    temporary_name_builder << ".agentcodi-image-" << getpid() << '-'
+                           << temporary_sequence.fetch_add(1ULL) << ".tmp";
+    const std::string temporary_name = temporary_name_builder.str();
+    ScopedDescriptor output(openat(
+        temporary_root.Get(),
+        temporary_name.c_str(),
+        O_WRONLY | O_CREAT | O_EXCL | O_CLOEXEC | O_NOFOLLOW,
+        0600));
+    if (output.Get() < 0) {
+      *error = "Generated image temporary file could not be created privately";
+      return false;
+    }
+    std::size_t written = 0U;
+    while (written < bytes.size()) {
+      const ssize_t count = write(
+          output.Get(),
+          bytes.data() + written,
+          bytes.size() - written);
+      if (count > 0) {
+        written += static_cast<std::size_t>(count);
+      } else if (count == -1 && errno == EINTR) {
+        continue;
+      } else {
+        output.Reset();
+        unlinkat(temporary_root.Get(), temporary_name.c_str(), 0);
+        *error = "Generated image could not be written to private temporary storage";
+        return false;
+      }
+    }
+    if (fchmod(output.Get(), 0600) != 0 || fsync(output.Get()) != 0) {
+      output.Reset();
+      unlinkat(temporary_root.Get(), temporary_name.c_str(), 0);
+      *error = "Generated image temporary file could not be synchronized";
+      return false;
+    }
+    output.Reset();
+    if (syscall(
+            SYS_renameat2,
+            temporary_root.Get(),
+            temporary_name.c_str(),
+            directory.Get(),
+            name.c_str(),
+            kRenameNoReplace) != 0) {
+      const int saved_errno = errno;
+      unlinkat(temporary_root.Get(), temporary_name.c_str(), 0);
+      if (saved_errno != EEXIST
+          || !read_matches(directory.Get(), name, bytes, &existing, error)
+          || !existing) {
+        if (error->empty()) {
+          *error = "Generated image could not be installed atomically in the workspace";
+        }
+        return false;
+      }
+    }
+    if (fsync(directory.Get()) != 0 || fsync(temporary_root.Get()) != 0) {
+      *error = "Generated image directory update could not be synchronized";
+      return false;
+    }
+  }
+  *saved_path = workspace_directory + '/' + kGeneratedImagesDirectory + '/' + name;
+  ScopedDescriptor installed(openat(
+      directory.Get(),
+      name.c_str(),
+      O_RDONLY | O_CLOEXEC | O_NOFOLLOW));
+  char resolved[PATH_MAX] {};
+  struct stat installed_metadata {};
+  struct stat path_metadata {};
+  if (installed.Get() < 0
+      || !descriptor_matches(
+          installed.Get(),
+          bytes,
+          &installed_metadata,
+          error)
+      || realpath(saved_path->c_str(), resolved) == nullptr
+      || *saved_path != resolved
+      || lstat(saved_path->c_str(), &path_metadata) != 0
+      || !S_ISREG(path_metadata.st_mode)
+      || path_metadata.st_dev != installed_metadata.st_dev
+      || path_metadata.st_ino != installed_metadata.st_ino
+      || path_metadata.st_nlink != 1
+      || (installed_metadata.st_mode & (S_IRWXG | S_IRWXO)) != 0) {
+    saved_path->clear();
+    if (error->empty()) {
+      *error = "Generated image did not remain a private canonical workspace file";
+    }
+    return false;
+  }
+  return true;
+}
+
+bool find_materialized_png(
+    const std::string& workspace_directory,
+    const std::string& image_id,
+    std::string* saved_path,
+    std::string* error) {
+  ScopedDescriptor directory;
+  if (!open_generated_images_directory(
+          workspace_directory,
+          false,
+          &directory,
+          error)) {
+    return false;
+  }
+  if (directory.Get() < 0) {
+    saved_path->clear();
+    return true;
+  }
+  const std::string name = materialized_image_name(image_id);
+  ScopedDescriptor image(openat(
+      directory.Get(),
+      name.c_str(),
+      O_RDONLY | O_CLOEXEC | O_NOFOLLOW));
+  if (image.Get() < 0) {
+    if (errno == ENOENT) {
+      saved_path->clear();
+      return true;
+    }
+    *error = "Materialized generated image could not be opened safely";
+    return false;
+  }
+  struct stat metadata {};
+  unsigned char signature[8];
+  std::size_t received = 0U;
+  while (received < sizeof(signature)) {
+    const ssize_t count = read(
+        image.Get(),
+        signature + received,
+        sizeof(signature) - received);
+    if (count > 0) {
+      received += static_cast<std::size_t>(count);
+    } else if (count == -1 && errno == EINTR) {
+      continue;
+    } else {
+      break;
+    }
+  }
+  static const unsigned char png_signature[] = {
+      0x89U, 0x50U, 0x4eU, 0x47U, 0x0dU, 0x0aU, 0x1aU, 0x0aU,
+  };
+  if (fstat(image.Get(), &metadata) != 0 || !S_ISREG(metadata.st_mode)
+      || metadata.st_nlink != 1 || metadata.st_size < 8
+      || static_cast<std::uint64_t>(metadata.st_size)
+          > kMaximumMaterializedImageBytes
+      || received != sizeof(signature)
+      || !std::equal(
+          signature,
+          signature + sizeof(signature),
+          png_signature)) {
+    *error = "Materialized generated image failed workspace validation";
+    return false;
+  }
+  *saved_path = workspace_directory + '/' + kGeneratedImagesDirectory + '/' + name;
+  char resolved[PATH_MAX] {};
+  struct stat path_metadata {};
+  if (realpath(saved_path->c_str(), resolved) == nullptr
+      || *saved_path != resolved
+      || lstat(saved_path->c_str(), &path_metadata) != 0
+      || !S_ISREG(path_metadata.st_mode)
+      || path_metadata.st_dev != metadata.st_dev
+      || path_metadata.st_ino != metadata.st_ino
+      || path_metadata.st_nlink != 1
+      || (metadata.st_mode & (S_IRWXG | S_IRWXO)) != 0) {
+    saved_path->clear();
+    *error = "Materialized generated image is not a private canonical workspace file";
+    return false;
+  }
+  return true;
+}
+
+std::string quoted_json_string(const std::string& value) {
+  std::ostringstream escaped;
+  escaped << '"';
+  for (unsigned char character : value) {
+    switch (character) {
+      case '"':
+        escaped << "\\\"";
+        break;
+      case '\\':
+        escaped << "\\\\";
+        break;
+      case '\b':
+        escaped << "\\b";
+        break;
+      case '\f':
+        escaped << "\\f";
+        break;
+      case '\n':
+        escaped << "\\n";
+        break;
+      case '\r':
+        escaped << "\\r";
+        break;
+      case '\t':
+        escaped << "\\t";
+        break;
+      default:
+        if (character < 0x20U) {
+          escaped << "\\u" << std::hex << std::setw(4) << std::setfill('0')
+                  << static_cast<unsigned int>(character) << std::dec;
+        } else {
+          escaped << static_cast<char>(character);
+        }
+        break;
+    }
+  }
+  escaped << '"';
+  return escaped.str();
+}
+
+bool apply_json_replacements(
+    const std::string& line,
+    std::size_t maximum_bytes,
+    std::vector<JsonReplacement>* replacements,
+    std::string* output) {
+  std::sort(
+      replacements->begin(),
+      replacements->end(),
+      [](const JsonReplacement& left, const JsonReplacement& right) {
+        if (left.begin != right.begin) {
+          return left.begin < right.begin;
+        }
+        return left.end < right.end;
+      });
+  output->clear();
+  std::size_t cursor = 0U;
+  for (const JsonReplacement& replacement : *replacements) {
+    if (replacement.begin < cursor || replacement.end < replacement.begin
+        || replacement.end > line.size()) {
+      output->clear();
+      return false;
+    }
+    output->append(line, cursor, replacement.begin - cursor);
+    output->append(replacement.value);
+    cursor = replacement.end;
+    if (output->size() > maximum_bytes) {
+      output->clear();
+      return false;
+    }
+  }
+  output->append(line, cursor, line.size() - cursor);
+  if (output->empty() || output->size() > maximum_bytes) {
+    output->clear();
+    return false;
+  }
+  return true;
+}
 
 bool set_close_on_exec(int descriptor) {
   const int flags = fcntl(descriptor, F_GETFD);
@@ -141,6 +1262,155 @@ bool set_child_environment(const ProcessConfig& config) {
 }
 
 }  // namespace
+
+InboundLineCompactionStatus CompactInboundImagePayloads(
+    const std::string& line,
+    std::size_t maximum_bytes,
+    std::string* compacted) {
+  if (compacted == nullptr || maximum_bytes == 0U) {
+    return InboundLineCompactionStatus::kInvalid;
+  }
+  compacted->clear();
+  ImageScanResult scan_result;
+  ImagePayloadScanner scanner(line);
+  if (!scanner.Scan(&scan_result)) {
+    return InboundLineCompactionStatus::kInvalid;
+  }
+  std::vector<JsonReplacement> replacements;
+  for (const JsonStringSpan& span : scan_result.raw_result_spans) {
+    replacements.push_back(JsonReplacement {
+        span.begin,
+        span.end,
+        kCompactedImageResult,
+    });
+  }
+  for (const ImagePayload& payload : scan_result.image_payloads) {
+    if (payload.result_span.end - payload.result_span.begin
+        > kImageResultCompactionThreshold) {
+      replacements.push_back(JsonReplacement {
+          payload.result_span.begin,
+          payload.result_span.end,
+          kCompactedImageResult,
+      });
+    }
+  }
+  if (replacements.empty()) {
+    return InboundLineCompactionStatus::kNotApplicable;
+  }
+  if (!apply_json_replacements(
+          line,
+          maximum_bytes,
+          &replacements,
+          compacted)) {
+    return InboundLineCompactionStatus::kInvalid;
+  }
+  return InboundLineCompactionStatus::kCompacted;
+}
+
+InboundLineCompactionStatus MaterializeAndCompactInboundImagePayloads(
+    const std::string& line,
+    std::size_t maximum_bytes,
+    const std::string& workspace_directory,
+    const std::string& temporary_directory,
+    std::string* prepared,
+    std::string* error) {
+  if (prepared == nullptr || error == nullptr || maximum_bytes == 0U
+      || workspace_directory.empty() || workspace_directory[0] != '/'
+      || temporary_directory.empty() || temporary_directory[0] != '/') {
+    return InboundLineCompactionStatus::kInvalid;
+  }
+  prepared->clear();
+  error->clear();
+  ImageScanResult scan_result;
+  ImagePayloadScanner scanner(line);
+  if (!scanner.Scan(&scan_result)) {
+    *error = "Incoming app-server image event is not valid bounded JSON";
+    return InboundLineCompactionStatus::kInvalid;
+  }
+
+  std::vector<JsonReplacement> replacements;
+  for (const JsonStringSpan& span : scan_result.raw_result_spans) {
+    replacements.push_back(JsonReplacement {
+        span.begin,
+        span.end,
+        kCompactedImageResult,
+    });
+  }
+  for (const ImagePayload& payload : scan_result.image_payloads) {
+    const bool result_empty = result_string_is_empty(line, payload.result_span);
+    const bool result_compacted = result_string_is_compacted(
+        line,
+        payload.result_span);
+    if (payload.status != "completed") {
+      if (!result_empty) {
+        *error = "Non-completed image event unexpectedly contains image data";
+        return InboundLineCompactionStatus::kInvalid;
+      }
+      continue;
+    }
+
+    std::string materialized_path;
+    if (!result_empty && !result_compacted) {
+      std::vector<unsigned char> image_bytes;
+      if (!decode_png_result(
+              line,
+              payload.result_span,
+              &image_bytes,
+              error)
+          || !materialize_png(
+              workspace_directory,
+              temporary_directory,
+              payload.id,
+              image_bytes,
+              &materialized_path,
+              error)) {
+        return InboundLineCompactionStatus::kInvalid;
+      }
+      replacements.push_back(JsonReplacement {
+          payload.result_span.begin,
+          payload.result_span.end,
+          kCompactedImageResult,
+      });
+    } else if (!find_materialized_png(
+                   workspace_directory,
+                   payload.id,
+                   &materialized_path,
+                   error)) {
+      return InboundLineCompactionStatus::kInvalid;
+    }
+
+    if (materialized_path.empty()) {
+      continue;
+    }
+    const std::string quoted_path = quoted_json_string(materialized_path);
+    if (payload.has_saved_path) {
+      replacements.push_back(JsonReplacement {
+          payload.saved_path_span.begin,
+          payload.saved_path_span.end,
+          quoted_path,
+      });
+    } else {
+      replacements.push_back(JsonReplacement {
+          payload.object_end,
+          payload.object_end,
+          ",\"savedPath\":" + quoted_path,
+      });
+    }
+  }
+
+  if (replacements.empty()) {
+    return InboundLineCompactionStatus::kNotApplicable;
+  }
+  if (!apply_json_replacements(
+          line,
+          maximum_bytes,
+          &replacements,
+          prepared)) {
+    *error = "Prepared generated-image event exceeds the Java framing limit";
+    return InboundLineCompactionStatus::kInvalid;
+  }
+  return InboundLineCompactionStatus::kCompacted;
+}
 
 std::vector<std::string> CodexAppServerArguments() {
   return {
@@ -344,11 +1614,23 @@ std::shared_ptr<AppServerProcess> AppServerProcess::Start(
     *error = errno_message("App-server exec", child_errno);
     return nullptr;
   }
-  return std::shared_ptr<AppServerProcess>(new AppServerProcess(pid, communication[0]));
+  return std::shared_ptr<AppServerProcess>(new AppServerProcess(
+      pid,
+      communication[0],
+      config.working_directory,
+      config.temporary_directory));
 }
 
-AppServerProcess::AppServerProcess(pid_t pid, int socket_fd)
-    : pid_(pid), socket_fd_(socket_fd), exit_code_(kStillRunning) {}
+AppServerProcess::AppServerProcess(
+    pid_t pid,
+    int socket_fd,
+    std::string workspace_directory,
+    std::string temporary_directory)
+    : pid_(pid),
+      socket_fd_(socket_fd),
+      exit_code_(kStillRunning),
+      workspace_directory_(std::move(workspace_directory)),
+      temporary_directory_(std::move(temporary_directory)) {}
 
 AppServerProcess::~AppServerProcess() {
   Stop(100);
@@ -413,23 +1695,53 @@ LineReadStatus AppServerProcess::ReadLine(
   while (true) {
     const std::size_t newline = read_buffer_.find('\n');
     if (newline != std::string::npos) {
-      if (newline > maximum_bytes) {
-        read_buffer_.erase(0, newline + 1U);
-        *error = "Incoming app-server line exceeds the framing limit";
+      std::string candidate = read_buffer_.substr(0, newline);
+      read_buffer_.erase(0, newline + 1U);
+      if (!candidate.empty() && candidate.back() == '\r') {
+        candidate.pop_back();
+      }
+      if (candidate.size() > kMaximumInboundWireBytes) {
+        *error = "Incoming app-server line exceeds the bounded wire limit";
         close_if_open(descriptor);
         return LineReadStatus::kTooLarge;
       }
-      *line = read_buffer_.substr(0, newline);
-      read_buffer_.erase(0, newline + 1U);
-      if (!line->empty() && line->back() == '\r') {
-        line->pop_back();
+      InboundLineCompactionStatus compaction_status =
+          InboundLineCompactionStatus::kNotApplicable;
+      const bool may_contain_image =
+          candidate.find("\"imageGeneration\"") != std::string::npos
+          || candidate.find("\"image_generation_call\"")
+              != std::string::npos;
+      if (candidate.size() > kImageResultCompactionThreshold
+          || may_contain_image) {
+        compaction_status = MaterializeAndCompactInboundImagePayloads(
+            candidate,
+            maximum_bytes,
+            workspace_directory_,
+            temporary_directory_,
+            line,
+            error);
+      }
+      if (compaction_status == InboundLineCompactionStatus::kInvalid) {
+        if (error->empty()) {
+          *error = "Incoming app-server image payload is invalid";
+        }
+        close_if_open(descriptor);
+        return LineReadStatus::kError;
+      }
+      if (compaction_status == InboundLineCompactionStatus::kNotApplicable) {
+        if (candidate.size() > maximum_bytes) {
+          *error = "Incoming app-server line exceeds the framing limit";
+          close_if_open(descriptor);
+          return LineReadStatus::kTooLarge;
+        }
+        *line = std::move(candidate);
       }
       close_if_open(descriptor);
       return LineReadStatus::kLine;
     }
-    if (read_buffer_.size() > maximum_bytes) {
+    if (read_buffer_.size() > kMaximumInboundWireBytes) {
       read_buffer_.clear();
-      *error = "Incoming app-server line exceeds the framing limit";
+      *error = "Incoming app-server line exceeds the bounded wire limit";
       close_if_open(descriptor);
       return LineReadStatus::kTooLarge;
     }

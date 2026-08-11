@@ -11,6 +11,7 @@ import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
 import java.util.Set;
+import java.util.TreeMap;
 import java.util.concurrent.ExecutorService;
 import java.util.concurrent.Executors;
 import java.util.concurrent.RejectedExecutionException;
@@ -20,15 +21,23 @@ import java.util.concurrent.atomic.AtomicLong;
 
 public final class CodexSessionController
     implements CodexAppServerClient.Listener, AutoCloseable {
+    public interface ConnectionFailureListener {
+        void onConnectionFailed(CodexSessionController controller, Throwable error);
+    }
+
     private static final long NORMAL_TIMEOUT_MS = 30_000L;
     private static final long INITIALIZE_TIMEOUT_MS = 20_000L;
     private static final int MAX_THREADS = 200;
     private static final int MAX_THREAD_PAGES = 4;
     private static final int MAX_MODELS = 50;
     private static final int MAX_REASONING_OPTIONS = 8;
-    private static final int MAX_MESSAGES = 200;
+    private static final int MAX_TRANSCRIPT_ITEMS = 240;
     private static final int MAX_MESSAGE_CHARACTERS = 256 * 1024;
     private static final int MAX_HISTORY_CHARACTERS = 1024 * 1024;
+    private static final int MAX_CARD_SECTION_CHARACTERS = 64 * 1024;
+    private static final int MAX_CARD_JSON_CHARACTERS = 16 * 1024;
+    private static final int MAX_REASONING_PARTS = 64;
+    private static final int MAX_ACTIVE_CARD_STREAMS = 32;
     private static final int MAX_PROMPT_CHARACTERS = 32 * 1024;
     private static final int MAX_ERROR_CHARACTERS = 600;
     private static final int MAX_INTERACTIVE_REQUESTS = 8;
@@ -49,24 +58,46 @@ public final class CodexSessionController
     private static final String FILE_CHANGE_PATCH_UPDATED_METHOD =
         "item/fileChange/patchUpdated";
     private static final String USER_INPUT_METHOD = "item/tool/requestUserInput";
+    private static final String REASONING_SUMMARY_DELTA_METHOD =
+        "item/reasoning/summaryTextDelta";
+    private static final String REASONING_SUMMARY_PART_ADDED_METHOD =
+        "item/reasoning/summaryPartAdded";
+    private static final String REASONING_TEXT_DELTA_METHOD =
+        "item/reasoning/textDelta";
+    private static final String PLAN_DELTA_METHOD = "item/plan/delta";
+    private static final String COMMAND_OUTPUT_DELTA_METHOD =
+        "item/commandExecution/outputDelta";
+    private static final String TERMINAL_INTERACTION_METHOD =
+        "item/commandExecution/terminalInteraction";
+    private static final String FILE_CHANGE_OUTPUT_DELTA_METHOD =
+        "item/fileChange/outputDelta";
+    private static final String MCP_PROGRESS_METHOD = "item/mcpToolCall/progress";
+    private static final String COMPACTED_IMAGE_RESULT =
+        "<generated-image-data-omitted>";
 
     private final CodexAppServerClient client;
     private final String workspacePath;
+    private final ConnectionFailureListener connectionFailureListener;
     private final ExecutorService operations = Executors.newSingleThreadExecutor();
     private final ScheduledExecutorService interactiveResponses =
         Executors.newSingleThreadScheduledExecutor();
     private final AtomicLong localMessageIds = new AtomicLong(1L);
     private final List<CodexModelOption> models = new ArrayList<CodexModelOption>();
     private final List<CodexThreadSummary> threads = new ArrayList<CodexThreadSummary>();
-    private final List<ChatMessage> messages = new ArrayList<ChatMessage>();
+    private final List<CodexTranscriptItem> transcriptItems =
+        new ArrayList<CodexTranscriptItem>();
     private final List<CodexInteractiveRequest> interactiveRequests =
         new ArrayList<CodexInteractiveRequest>();
     private final Map<String, List<CodexFileChangeSummary>> pendingFileChanges =
         new HashMap<String, List<CodexFileChangeSummary>>();
+    private final Map<String, ReasoningAccumulator> reasoningStreams =
+        new HashMap<String, ReasoningAccumulator>();
+    private final Map<String, String> toolOutputStreams = new HashMap<String, String>();
 
     private long revision;
     private boolean ready;
     private boolean closed;
+    private boolean connectionFailureReported;
     private String connectionMessage = "Codex App-Server startet.";
     private boolean requiresOpenaiAuth = true;
     private String authMode = "";
@@ -88,11 +119,20 @@ public final class CodexSessionController
     private CodexSessionSnapshot snapshot;
 
     public CodexSessionController(CodexRpcTransport transport, String workspacePath) {
+        this(transport, workspacePath, null);
+    }
+
+    public CodexSessionController(
+        CodexRpcTransport transport,
+        String workspacePath,
+        ConnectionFailureListener connectionFailureListener
+    ) {
         if (workspacePath == null || workspacePath.trim().isEmpty()
             || !workspacePath.startsWith("/")) {
             throw new IllegalArgumentException("Workspace path must be absolute");
         }
         this.workspacePath = workspacePath;
+        this.connectionFailureListener = connectionFailureListener;
         client = new CodexAppServerClient(transport, this);
         synchronized (this) {
             publishLocked();
@@ -117,7 +157,13 @@ public final class CodexSessionController
             client.initialize(
                 JsonCodec.object(
                     "clientInfo", clientInfo,
-                    "capabilities", JsonCodec.object("experimentalApi", Boolean.TRUE)
+                    "capabilities", JsonCodec.object(
+                        "experimentalApi", Boolean.TRUE,
+                        "optOutNotificationMethods", JsonCodec.array(
+                            "rawResponseItem/completed",
+                            "rawResponse/completed"
+                        )
+                    )
                 ),
                 INITIALIZE_TIMEOUT_MS
             );
@@ -345,18 +391,19 @@ public final class CodexSessionController
                     throw new IllegalArgumentException("App-server returned a different thread id");
                 }
                 requireHttpModelProvider(thread, "thread/resume");
-                List<ChatMessage> history = parseHistory(thread);
+                List<CodexTranscriptItem> history = parseHistory(thread);
                 synchronized (CodexSessionController.this) {
                     activeThreadId = returnedId;
                     activeThreadTitle = titleForThread(thread);
                     updateSelectionFromThreadResponseLocked(result);
-                    messages.clear();
-                    messages.addAll(history);
+                    transcriptItems.clear();
+                    transcriptItems.addAll(history);
                     turnActive = false;
                     activeTurnId = "";
                     lastCompletedTurnId = "";
                     interactiveRequests.clear();
                     pendingFileChanges.clear();
+                    clearCardStreamsLocked();
                     operationMessage = "Chat ist geöffnet.";
                     publishLocked();
                 }
@@ -420,7 +467,8 @@ public final class CodexSessionController
                     "approvalPolicy", "on-request",
                     "permissions", WORKSPACE_PERMISSION_PROFILE,
                     "model", requestModel,
-                    "effort", requestEffort
+                    "effort", requestEffort,
+                    "summary", "auto"
                 );
                 try {
                     Map<String, Object> result = client.request(
@@ -626,6 +674,22 @@ public final class CodexSessionController
     public void onNotification(String method, Map<String, Object> params) {
         if ("item/agentMessage/delta".equals(method)) {
             handleAgentDelta(params);
+        } else if (REASONING_SUMMARY_DELTA_METHOD.equals(method)) {
+            handleReasoningDelta(params, true);
+        } else if (REASONING_SUMMARY_PART_ADDED_METHOD.equals(method)) {
+            handleReasoningPartAdded(params);
+        } else if (REASONING_TEXT_DELTA_METHOD.equals(method)) {
+            handleReasoningDelta(params, false);
+        } else if (PLAN_DELTA_METHOD.equals(method)) {
+            handlePlanDelta(params);
+        } else if (COMMAND_OUTPUT_DELTA_METHOD.equals(method)) {
+            handleToolOutputDelta(params, "commandExecution");
+        } else if (TERMINAL_INTERACTION_METHOD.equals(method)) {
+            handleTerminalInteraction(params);
+        } else if (FILE_CHANGE_OUTPUT_DELTA_METHOD.equals(method)) {
+            handleToolOutputDelta(params, "fileChange");
+        } else if (MCP_PROGRESS_METHOD.equals(method)) {
+            handleMcpProgress(params);
         } else if (FILE_CHANGE_PATCH_UPDATED_METHOD.equals(method)) {
             handleFileChangePatchUpdated(params);
         } else if ("item/started".equals(method) || "item/completed".equals(method)) {
@@ -646,20 +710,30 @@ public final class CodexSessionController
     }
 
     @Override
-    public synchronized void onTransportClosed(Throwable error) {
-        if (closed) {
-            return;
+    public void onTransportClosed(Throwable error) {
+        boolean notifyFailure;
+        synchronized (this) {
+            if (closed) {
+                return;
+            }
+            ready = false;
+            turnActive = false;
+            activeTurnId = "";
+            operationActive = false;
+            interactiveRequests.clear();
+            pendingFileChanges.clear();
+            clearCardStreamsLocked();
+            connectionMessage = "Verbindung zum Codex App-Server wurde beendet.";
+            errorMessage = safeError(error);
+            publishLocked();
+            notifyFailure = !connectionFailureReported;
+            connectionFailureReported = true;
         }
-        ready = false;
-        turnActive = false;
-        activeTurnId = "";
-        operationActive = false;
-        interactiveRequests.clear();
-        pendingFileChanges.clear();
-        connectionMessage = "Verbindung zum Codex App-Server wurde beendet.";
-        errorMessage = safeError(error);
-        publishLocked();
+        operations.shutdownNow();
         interactiveResponses.shutdownNow();
+        if (notifyFailure) {
+            notifyConnectionFailure(error);
+        }
     }
 
     @Override
@@ -675,6 +749,7 @@ public final class CodexSessionController
             operationActive = false;
             interactiveRequests.clear();
             pendingFileChanges.clear();
+            clearCardStreamsLocked();
             connectionMessage = "Codex App-Server wurde gestoppt.";
             loginUrl = "";
             loginId = "";
@@ -938,12 +1013,13 @@ public final class CodexSessionController
             activeThreadId = id;
             activeThreadTitle = titleForThread(thread);
             updateSelectionFromThreadResponseLocked(result);
-            messages.clear();
+            transcriptItems.clear();
             turnActive = false;
             activeTurnId = "";
             lastCompletedTurnId = "";
             interactiveRequests.clear();
             pendingFileChanges.clear();
+            clearCardStreamsLocked();
             upsertThreadLocked(new CodexThreadSummary(id, activeThreadTitle, 0L));
             operationMessage = "Neuer Chat ist bereit.";
             publishLocked();
@@ -966,8 +1042,11 @@ public final class CodexSessionController
                 return;
             }
             int index = findMessageLocked(itemId);
-            String existing = index < 0 ? "" : messages.get(index).getText();
-            String combined = boundedStream(existing, delta);
+            ChatMessage current = index < 0
+                ? null
+                : transcriptItems.get(index).getMessage();
+            String existing = current == null ? "" : current.getText();
+            String combined = boundedStream(existing, delta, MAX_MESSAGE_CHARACTERS);
             ChatMessage next = new ChatMessage(
                 itemId,
                 ChatMessage.Role.ASSISTANT,
@@ -977,9 +1056,196 @@ public final class CodexSessionController
             if (index < 0) {
                 addBoundedMessageLocked(next);
             } else {
-                messages.set(index, next);
-                boundTotalMessagesLocked();
+                transcriptItems.set(index, CodexTranscriptItem.message(next));
+                boundTranscriptLocked();
             }
+            publishLocked();
+        }
+    }
+
+    private void handleReasoningPartAdded(Map<String, Object> params) {
+        String threadId = JsonCodec.optionalString(params.get("threadId"));
+        String turnId = JsonCodec.optionalString(params.get("turnId"));
+        String itemId = JsonCodec.optionalString(params.get("itemId"));
+        int partIndex = boundedIndex(params.get("summaryIndex"));
+        if (!isSafeOpaqueIdentifier(itemId) || partIndex < 0) {
+            return;
+        }
+        synchronized (this) {
+            if (!acceptsCardStreamLocked(threadId, turnId, itemId)) {
+                return;
+            }
+            ReasoningAccumulator accumulator = reasoningAccumulatorLocked(itemId);
+            if (accumulator == null) {
+                return;
+            }
+            accumulator.ensureSummaryPart(partIndex);
+            upsertTranscriptItemLocked(reasoningCard(itemId, accumulator, true));
+            publishLocked();
+        }
+    }
+
+    private void handleReasoningDelta(Map<String, Object> params, boolean summary) {
+        String threadId = JsonCodec.optionalString(params.get("threadId"));
+        String turnId = JsonCodec.optionalString(params.get("turnId"));
+        String itemId = JsonCodec.optionalString(params.get("itemId"));
+        String delta = JsonCodec.optionalString(params.get("delta"));
+        int partIndex = boundedIndex(params.get(summary ? "summaryIndex" : "contentIndex"));
+        if (!isSafeOpaqueIdentifier(itemId) || delta.isEmpty() || partIndex < 0) {
+            return;
+        }
+        synchronized (this) {
+            if (!acceptsCardStreamLocked(threadId, turnId, itemId)) {
+                return;
+            }
+            ReasoningAccumulator accumulator = reasoningAccumulatorLocked(itemId);
+            if (accumulator == null) {
+                return;
+            }
+            accumulator.append(partIndex, delta, summary);
+            upsertTranscriptItemLocked(reasoningCard(itemId, accumulator, true));
+            publishLocked();
+        }
+    }
+
+    private void handlePlanDelta(Map<String, Object> params) {
+        String threadId = JsonCodec.optionalString(params.get("threadId"));
+        String turnId = JsonCodec.optionalString(params.get("turnId"));
+        String itemId = JsonCodec.optionalString(params.get("itemId"));
+        String delta = JsonCodec.optionalString(params.get("delta"));
+        if (!isSafeOpaqueIdentifier(itemId) || delta.isEmpty()) {
+            return;
+        }
+        synchronized (this) {
+            if (!acceptsCardStreamLocked(threadId, turnId, itemId)) {
+                return;
+            }
+            String plan = appendCardStreamLocked(itemId, delta, "");
+            if (plan == null) {
+                return;
+            }
+            upsertTranscriptItemLocked(CodexTranscriptItem.card(
+                itemId,
+                CodexTranscriptItem.Kind.PLAN,
+                "plan",
+                "Plan",
+                "",
+                visibleText(plan, MAX_CARD_SECTION_CHARACTERS),
+                "inProgress",
+                true
+            ));
+            publishLocked();
+        }
+    }
+
+    private void handleToolOutputDelta(Map<String, Object> params, String protocolType) {
+        String threadId = JsonCodec.optionalString(params.get("threadId"));
+        String turnId = JsonCodec.optionalString(params.get("turnId"));
+        String itemId = JsonCodec.optionalString(params.get("itemId"));
+        String delta = JsonCodec.optionalString(params.get("delta"));
+        if (!isSafeOpaqueIdentifier(itemId) || delta.isEmpty()) {
+            return;
+        }
+        synchronized (this) {
+            if (!acceptsCardStreamLocked(threadId, turnId, itemId)) {
+                return;
+            }
+            String output = appendCardStreamLocked(itemId, delta, "");
+            if (output == null) {
+                return;
+            }
+            CodexTranscriptItem existing = cardByIdLocked(itemId);
+            String title = "commandExecution".equals(protocolType)
+                ? "Befehl" : "Dateiänderung";
+            String summary = "";
+            String detail = "";
+            if (existing != null && protocolType.equals(existing.getProtocolType())) {
+                title = existing.getTitle();
+                summary = existing.getSummary();
+                detail = existing.getDetail();
+            }
+            upsertTranscriptItemLocked(CodexTranscriptItem.card(
+                itemId,
+                CodexTranscriptItem.Kind.TOOL,
+                protocolType,
+                title,
+                summary,
+                detailWithStream(detail, "Ausgabe", output),
+                "inProgress",
+                true
+            ));
+            publishLocked();
+        }
+    }
+
+    private void handleMcpProgress(Map<String, Object> params) {
+        String threadId = JsonCodec.optionalString(params.get("threadId"));
+        String turnId = JsonCodec.optionalString(params.get("turnId"));
+        String itemId = JsonCodec.optionalString(params.get("itemId"));
+        String message = JsonCodec.optionalString(params.get("message"));
+        if (!isSafeOpaqueIdentifier(itemId) || message.isEmpty()) {
+            return;
+        }
+        synchronized (this) {
+            if (!acceptsCardStreamLocked(threadId, turnId, itemId)) {
+                return;
+            }
+            String progress = appendCardStreamLocked(itemId, message, "\n");
+            if (progress == null) {
+                return;
+            }
+            CodexTranscriptItem existing = cardByIdLocked(itemId);
+            String summary = existing == null ? "" : existing.getSummary();
+            String detail = existing == null ? "" : existing.getDetail();
+            upsertTranscriptItemLocked(CodexTranscriptItem.card(
+                itemId,
+                CodexTranscriptItem.Kind.TOOL,
+                "mcpToolCall",
+                "MCP-Tool",
+                summary,
+                detailWithStream(detail, "Fortschritt", progress),
+                "inProgress",
+                true
+            ));
+            publishLocked();
+        }
+    }
+
+    private void handleTerminalInteraction(Map<String, Object> params) {
+        String threadId = JsonCodec.optionalString(params.get("threadId"));
+        String turnId = JsonCodec.optionalString(params.get("turnId"));
+        String itemId = JsonCodec.optionalString(params.get("itemId"));
+        String stdin = JsonCodec.optionalString(params.get("stdin"));
+        String processId = JsonCodec.optionalString(params.get("processId"));
+        if (!isSafeOpaqueIdentifier(itemId) || stdin.isEmpty()) {
+            return;
+        }
+        String interaction = processId.isEmpty()
+            ? "[stdin] " + stdin
+            : "[stdin " + processId + "] " + stdin;
+        synchronized (this) {
+            if (!acceptsCardStreamLocked(threadId, turnId, itemId)) {
+                return;
+            }
+            String output = appendCardStreamLocked(itemId, interaction, "\n");
+            if (output == null) {
+                return;
+            }
+            CodexTranscriptItem existing = cardByIdLocked(itemId);
+            upsertTranscriptItemLocked(CodexTranscriptItem.card(
+                itemId,
+                CodexTranscriptItem.Kind.TOOL,
+                "commandExecution",
+                "Befehl",
+                existing == null ? "" : existing.getSummary(),
+                detailWithStream(
+                    existing == null ? "" : existing.getDetail(),
+                    "Ausgabe",
+                    output
+                ),
+                "inProgress",
+                true
+            ));
             publishLocked();
         }
     }
@@ -995,7 +1261,7 @@ public final class CodexSessionController
         }
         String type = JsonCodec.optionalString(item.get("type"));
         String itemId = JsonCodec.optionalString(item.get("id"));
-        if (itemId.isEmpty()) {
+        if (!isSafeOpaqueIdentifier(itemId)) {
             return;
         }
         List<CodexFileChangeSummary> fileChanges = "fileChange".equals(type)
@@ -1033,20 +1299,656 @@ public final class CodexSessionController
                     replacePendingUserOrAddLocked(itemId, text);
                     publishLocked();
                 }
-            } else if ("fileChange".equals(type)) {
-                if (startedEvent) {
-                    cacheFileChangesLocked(itemId, fileChanges);
+            } else {
+                if (startedEvent && (isStaleStreamingEventLocked(turnId)
+                    || isFinalCardLocked(itemId))) {
+                    return;
                 }
-                boolean changed = !fileChanges.isEmpty()
-                    && enrichInteractiveFileChangeLocked(itemId, fileChanges);
+                boolean interactiveChanged = false;
+                if ("fileChange".equals(type)) {
+                    if (startedEvent) {
+                        cacheFileChangesLocked(itemId, fileChanges);
+                    }
+                    interactiveChanged = !fileChanges.isEmpty()
+                        && enrichInteractiveFileChangeLocked(itemId, fileChanges);
+                }
+                CodexTranscriptItem card = parseCardItem(
+                    item,
+                    startedEvent,
+                    toolOutputStreams.get(itemId)
+                );
+                if (card == null) {
+                    if (interactiveChanged) {
+                        publishLocked();
+                    }
+                    return;
+                }
+                upsertTranscriptItemLocked(card);
                 if (!startedEvent) {
-                    pendingFileChanges.remove(itemId);
+                    reasoningStreams.remove(itemId);
+                    toolOutputStreams.remove(itemId);
+                    if ("fileChange".equals(type)) {
+                        pendingFileChanges.remove(itemId);
+                    }
                 }
-                if (changed) {
-                    publishLocked();
-                }
+                publishLocked();
             }
         }
+    }
+
+    private CodexTranscriptItem parseCardItem(
+        Map<String, Object> item,
+        boolean startedEvent,
+        String pendingOutput
+    ) {
+        String id = JsonCodec.optionalString(item.get("id"));
+        String type = JsonCodec.optionalString(item.get("type"));
+        if (!isSafeOpaqueIdentifier(id) || type.isEmpty()
+            || "agentMessage".equals(type) || "userMessage".equals(type)) {
+            return null;
+        }
+        String status = itemStatus(item, startedEvent);
+        if ("reasoning".equals(type)) {
+            String summary = joinTextArray(item.get("summary"), MAX_REASONING_PARTS);
+            String content = joinTextArray(item.get("content"), MAX_REASONING_PARTS);
+            if (startedEvent && summary.isEmpty() && content.isEmpty()) {
+                ReasoningAccumulator accumulator = reasoningStreams.get(id);
+                if (accumulator != null) {
+                    return reasoningCard(id, accumulator, true);
+                }
+            }
+            return CodexTranscriptItem.card(
+                id,
+                CodexTranscriptItem.Kind.REASONING,
+                type,
+                "Reasoning",
+                summary,
+                content,
+                status,
+                startedEvent
+            );
+        }
+        if ("plan".equals(type)) {
+            String text = visibleField(item.get("text"), MAX_CARD_SECTION_CHARACTERS);
+            if (startedEvent && text.isEmpty()) {
+                text = visibleText(pendingOutput, MAX_CARD_SECTION_CHARACTERS);
+            }
+            return CodexTranscriptItem.card(
+                id,
+                CodexTranscriptItem.Kind.PLAN,
+                type,
+                "Plan",
+                "",
+                text,
+                status,
+                startedEvent
+            );
+        }
+        if ("commandExecution".equals(type)) {
+            return commandCard(item, status, pendingOutput, startedEvent);
+        }
+        if ("fileChange".equals(type)) {
+            List<CodexFileChangeSummary> changes = parseFileChangeSummaries(item);
+            if (startedEvent && changes.isEmpty()) {
+                List<CodexFileChangeSummary> cached = pendingFileChanges.get(id);
+                if (cached != null) {
+                    changes = cached;
+                }
+            }
+            return fileChangeCard(id, changes, status, pendingOutput, startedEvent);
+        }
+        if ("mcpToolCall".equals(type)) {
+            return mcpToolCard(item, status, pendingOutput, startedEvent);
+        }
+        if ("dynamicToolCall".equals(type)) {
+            return dynamicToolCard(item, status, startedEvent);
+        }
+        if ("collabAgentToolCall".equals(type)) {
+            return collabToolCard(item, status, startedEvent);
+        }
+        if ("subAgentActivity".equals(type)) {
+            String path = visibleField(item.get("agentPath"), 2048);
+            String thread = visibleField(item.get("agentThreadId"), 200);
+            String activity = visibleField(item.get("kind"), 40);
+            StringBuilder detail = new StringBuilder();
+            appendField(detail, "Thread", thread);
+            appendField(detail, "Aktivität", activity);
+            return toolCard(id, type, "Subagent", path, detail.toString(), status, startedEvent);
+        }
+        if ("webSearch".equals(type)) {
+            StringBuilder detail = new StringBuilder();
+            appendField(detail, "Aktion", visibleJson(item.get("action")));
+            appendField(detail, "Ergebnisse", visibleJson(item.get("results")));
+            return toolCard(
+                id,
+                type,
+                "Websuche",
+                visibleField(item.get("query"), MAX_CARD_JSON_CHARACTERS),
+                detail.toString(),
+                status,
+                startedEvent
+            );
+        }
+        if ("imageView".equals(type)) {
+            String imagePath = visibleField(item.get("path"), 4096);
+            boolean hasImageCandidate = isImagePathCandidate(imagePath);
+            CodexTranscriptItem card = toolCard(
+                id,
+                type,
+                "Bildanzeige",
+                imagePath,
+                hasImageCandidate
+                    ? "Die App prüft den gemeldeten Pfad gegen den tatsächlichen privaten Workspace."
+                    : "",
+                status,
+                startedEvent
+            );
+            return hasImageCandidate
+                ? card.withReportedImagePath(imagePath)
+                : card;
+        }
+        if ("sleep".equals(type)) {
+            long duration = nonNegativeLong(item.get("durationMs"));
+            return toolCard(
+                id,
+                type,
+                "Warten",
+                duration < 0L ? "" : duration + " ms",
+                "",
+                status,
+                startedEvent
+            );
+        }
+        if ("imageGeneration".equals(type)) {
+            StringBuilder detail = new StringBuilder();
+            appendField(detail, "Überarbeiteter Prompt", visibleField(
+                item.get("revisedPrompt"),
+                MAX_CARD_JSON_CHARACTERS
+            ));
+            String savedPath = visibleField(item.get("savedPath"), 4096);
+            appendField(detail, "Gemeldeter Speicherpfad", savedPath);
+            String result = visibleField(item.get("result"), MAX_CARD_SECTION_CHARACTERS);
+            appendField(
+                detail,
+                "Ergebnis",
+                COMPACTED_IMAGE_RESULT.equals(result)
+                    ? "Bild erzeugt; eingebettete Bilddaten wurden nicht in den UI-Zustand übernommen."
+                    : result
+            );
+            boolean hasImageCandidate = isImagePathCandidate(savedPath);
+            if (!savedPath.isEmpty()) {
+                appendField(
+                    detail,
+                    "Export",
+                    hasImageCandidate
+                        ? "Die App prüft den gemeldeten Pfad kanonisch. Erst nach erfolgreicher Prüfung wird der Export freigeschaltet."
+                        : "Nicht angeboten: Der gemeldete Pfad ist kein sicher prüfbarer absoluter Dateipfad."
+                );
+            }
+            CodexTranscriptItem card = toolCard(
+                id,
+                type,
+                "Bildgenerierung",
+                "",
+                detail.toString(),
+                status,
+                startedEvent
+            );
+            return hasImageCandidate ? card.withReportedImagePath(savedPath) : card;
+        }
+        if ("hookPrompt".equals(type)) {
+            return toolCard(
+                id,
+                type,
+                "Hook",
+                "",
+                hookFragments(item.get("fragments")),
+                status,
+                startedEvent
+            );
+        }
+        if ("enteredReviewMode".equals(type) || "exitedReviewMode".equals(type)) {
+            return toolCard(
+                id,
+                type,
+                "Review-Modus",
+                "enteredReviewMode".equals(type) ? "Gestartet" : "Beendet",
+                visibleField(item.get("review"), MAX_CARD_SECTION_CHARACTERS),
+                status,
+                startedEvent
+            );
+        }
+        if ("contextCompaction".equals(type)) {
+            return toolCard(
+                id,
+                type,
+                "Kontextkomprimierung",
+                "Kontext wurde für den weiteren Turn verdichtet.",
+                "",
+                status,
+                startedEvent
+            );
+        }
+        return toolCard(
+            id,
+            type,
+            "Tool-Aktivität",
+            visibleText(type, 120),
+            visibleJson(item),
+            status,
+            startedEvent
+        );
+    }
+
+    private static CodexTranscriptItem commandCard(
+        Map<String, Object> item,
+        String status,
+        String pendingOutput,
+        boolean streaming
+    ) {
+        StringBuilder detail = new StringBuilder();
+        appendField(detail, "Arbeitsverzeichnis", visibleField(item.get("cwd"), 4096));
+        appendField(detail, "Quelle", visibleField(item.get("source"), 80));
+        appendField(detail, "Aktionen", visibleJson(item.get("commandActions")));
+        appendField(detail, "Plugin", visibleField(item.get("pluginId"), 200));
+        appendField(detail, "Skript", visibleField(item.get("scriptPath"), 2048));
+        long exitCode = numericLong(item.get("exitCode"));
+        if (exitCode != Long.MIN_VALUE) {
+            appendField(detail, "Exit-Code", Long.toString(exitCode));
+        }
+        long duration = nonNegativeLong(item.get("durationMs"));
+        if (duration >= 0L) {
+            appendField(detail, "Dauer", duration + " ms");
+        }
+        String output = visibleField(item.get("aggregatedOutput"), MAX_CARD_SECTION_CHARACTERS);
+        if (output.isEmpty()) {
+            output = visibleText(pendingOutput, MAX_CARD_SECTION_CHARACTERS);
+        }
+        if (!output.isEmpty()) {
+            appendField(detail, "Ausgabe", output);
+        }
+        return toolCard(
+            JsonCodec.optionalString(item.get("id")),
+            "commandExecution",
+            "Befehl",
+            visibleField(item.get("command"), MAX_CARD_JSON_CHARACTERS),
+            detail.toString(),
+            status,
+            streaming
+        );
+    }
+
+    private static CodexTranscriptItem fileChangeCard(
+        String id,
+        List<CodexFileChangeSummary> changes,
+        String status,
+        String pendingOutput,
+        boolean streaming
+    ) {
+        String detail = formatFileChanges(changes);
+        String output = visibleText(pendingOutput, MAX_CARD_SECTION_CHARACTERS);
+        if (!output.isEmpty()) {
+            StringBuilder combined = new StringBuilder(detail);
+            appendField(combined, "Ausgabe", output);
+            detail = combined.toString();
+        }
+        String summary = changes.isEmpty()
+            ? (streaming
+                ? "Änderungsdetails werden vorbereitet."
+                : "Keine darstellbaren Änderungsdetails.")
+            : changes.size() + (changes.size() == 1 ? " Dateiänderung" : " Dateiänderungen");
+        return toolCard(
+            id,
+            "fileChange",
+            "Dateiänderung",
+            summary,
+            detail,
+            status,
+            streaming
+        );
+    }
+
+    private static CodexTranscriptItem mcpToolCard(
+        Map<String, Object> item,
+        String status,
+        String progress,
+        boolean streaming
+    ) {
+        String server = visibleField(item.get("server"), 200);
+        String tool = visibleField(item.get("tool"), 240);
+        String summary = server.isEmpty() ? tool : server + (tool.isEmpty() ? "" : " · " + tool);
+        StringBuilder detail = new StringBuilder();
+        appendField(detail, "Argumente", visibleJson(item.get("arguments")));
+        appendField(detail, "App-Kontext", visibleJson(item.get("appContext")));
+        appendField(detail, "Fortschritt", visibleText(progress, MAX_CARD_SECTION_CHARACTERS));
+        Map<String, Object> error = safeObject(item.get("error"));
+        if (error != null) {
+            appendField(detail, "Fehler", visibleField(error.get("message"), 4096));
+        }
+        appendField(detail, "Ergebnis", visibleJson(item.get("result")));
+        long duration = nonNegativeLong(item.get("durationMs"));
+        if (duration >= 0L) {
+            appendField(detail, "Dauer", duration + " ms");
+        }
+        return toolCard(
+            JsonCodec.optionalString(item.get("id")),
+            "mcpToolCall",
+            "MCP-Tool",
+            summary,
+            detail.toString(),
+            status,
+            streaming
+        );
+    }
+
+    private static CodexTranscriptItem dynamicToolCard(
+        Map<String, Object> item,
+        String status,
+        boolean streaming
+    ) {
+        String namespace = visibleField(item.get("namespace"), 160);
+        String tool = visibleField(item.get("tool"), 240);
+        String summary = namespace.isEmpty()
+            ? tool : namespace + (tool.isEmpty() ? "" : "/" + tool);
+        StringBuilder detail = new StringBuilder();
+        appendField(detail, "Argumente", visibleJson(item.get("arguments")));
+        appendField(detail, "Ausgabe", visibleJson(item.get("contentItems")));
+        Object success = item.get("success");
+        if (success instanceof Boolean) {
+            appendField(detail, "Erfolg", ((Boolean) success).booleanValue() ? "Ja" : "Nein");
+        }
+        long duration = nonNegativeLong(item.get("durationMs"));
+        if (duration >= 0L) {
+            appendField(detail, "Dauer", duration + " ms");
+        }
+        return toolCard(
+            JsonCodec.optionalString(item.get("id")),
+            "dynamicToolCall",
+            "Dynamisches Tool",
+            summary,
+            detail.toString(),
+            status,
+            streaming
+        );
+    }
+
+    private static CodexTranscriptItem collabToolCard(
+        Map<String, Object> item,
+        String status,
+        boolean streaming
+    ) {
+        StringBuilder detail = new StringBuilder();
+        appendField(detail, "Prompt", visibleField(
+            item.get("prompt"),
+            MAX_CARD_SECTION_CHARACTERS
+        ));
+        appendField(detail, "Modell", visibleField(item.get("model"), 200));
+        appendField(detail, "Denkstufe", visibleField(item.get("reasoningEffort"), 80));
+        appendField(detail, "Sender", visibleField(item.get("senderThreadId"), 200));
+        appendField(detail, "Empfänger", visibleJson(item.get("receiverThreadIds")));
+        appendField(detail, "Agentenstatus", visibleJson(item.get("agentsStates")));
+        return toolCard(
+            JsonCodec.optionalString(item.get("id")),
+            "collabAgentToolCall",
+            "Agenten-Tool",
+            visibleField(item.get("tool"), 120),
+            detail.toString(),
+            status,
+            streaming
+        );
+    }
+
+    private static CodexTranscriptItem toolCard(
+        String id,
+        String protocolType,
+        String title,
+        String summary,
+        String detail,
+        String status,
+        boolean streaming
+    ) {
+        return CodexTranscriptItem.card(
+            id,
+            CodexTranscriptItem.Kind.TOOL,
+            protocolType,
+            title,
+            visibleText(summary, MAX_CARD_SECTION_CHARACTERS),
+            visibleText(detail, MAX_CARD_SECTION_CHARACTERS),
+            visibleText(status, 80),
+            streaming
+        );
+    }
+
+    private boolean acceptsCardStreamLocked(String threadId, String turnId, String itemId) {
+        return matchesActiveThread(threadId)
+            && !isStaleStreamingEventLocked(turnId)
+            && !isFinalCardLocked(itemId);
+    }
+
+    private ReasoningAccumulator reasoningAccumulatorLocked(String itemId) {
+        ReasoningAccumulator existing = reasoningStreams.get(itemId);
+        if (existing != null) {
+            return existing;
+        }
+        if (reasoningStreams.size() + toolOutputStreams.size()
+            >= MAX_ACTIVE_CARD_STREAMS) {
+            return null;
+        }
+        ReasoningAccumulator created = new ReasoningAccumulator();
+        reasoningStreams.put(itemId, created);
+        return created;
+    }
+
+    private String appendCardStreamLocked(String itemId, String value, String separator) {
+        String existing = toolOutputStreams.get(itemId);
+        if (existing == null
+            && reasoningStreams.size() + toolOutputStreams.size()
+                >= MAX_ACTIVE_CARD_STREAMS) {
+            return null;
+        }
+        if (existing == null) {
+            existing = "";
+        }
+        String addition = existing.isEmpty() ? value : separator + value;
+        String combined = boundedStream(
+            existing,
+            addition,
+            MAX_CARD_SECTION_CHARACTERS
+        );
+        combined = visibleText(combined, MAX_CARD_SECTION_CHARACTERS);
+        toolOutputStreams.put(itemId, combined);
+        return combined;
+    }
+
+    private static CodexTranscriptItem reasoningCard(
+        String itemId,
+        ReasoningAccumulator accumulator,
+        boolean streaming
+    ) {
+        return CodexTranscriptItem.card(
+            itemId,
+            CodexTranscriptItem.Kind.REASONING,
+            "reasoning",
+            "Reasoning",
+            visibleText(accumulator.summaryText(), MAX_CARD_SECTION_CHARACTERS),
+            visibleText(accumulator.contentText(), MAX_CARD_SECTION_CHARACTERS),
+            streaming ? "inProgress" : "completed",
+            streaming
+        );
+    }
+
+    private static String detailWithStream(String existing, String label, String stream) {
+        String marker = label + ":\n";
+        String base = existing == null ? "" : existing;
+        int markerIndex = base.indexOf(marker);
+        if (markerIndex >= 0) {
+            int prefixEnd = markerIndex;
+            while (prefixEnd > 0 && base.charAt(prefixEnd - 1) == '\n') {
+                prefixEnd--;
+            }
+            base = base.substring(0, prefixEnd);
+        }
+        StringBuilder detail = new StringBuilder(base);
+        appendField(detail, label, visibleText(stream, MAX_CARD_SECTION_CHARACTERS));
+        return visibleText(detail.toString(), MAX_CARD_SECTION_CHARACTERS);
+    }
+
+    private static String itemStatus(Map<String, Object> item, boolean startedEvent) {
+        String status = visibleField(item.get("status"), 80);
+        if (status.isEmpty()) {
+            status = startedEvent ? "inProgress" : "completed";
+        }
+        return status;
+    }
+
+    private static int boundedIndex(Object value) {
+        if (!(value instanceof Long)) {
+            return -1;
+        }
+        long index = ((Long) value).longValue();
+        return index >= 0L && index < MAX_REASONING_PARTS ? (int) index : -1;
+    }
+
+    private static String joinTextArray(Object value, int maximumEntries) {
+        List<Object> entries;
+        try {
+            entries = JsonCodec.optionalArray(value);
+        } catch (IllegalArgumentException ignored) {
+            return "";
+        }
+        StringBuilder joined = new StringBuilder();
+        int count = Math.min(maximumEntries, entries.size());
+        for (int index = 0; index < count; index++) {
+            if (!(entries.get(index) instanceof String)) {
+                continue;
+            }
+            String text = (String) entries.get(index);
+            if (text.isEmpty()) {
+                continue;
+            }
+            String addition = joined.length() == 0 ? text : "\n" + text;
+            String combined = boundedStream(
+                joined.toString(),
+                addition,
+                MAX_CARD_SECTION_CHARACTERS
+            );
+            joined.setLength(0);
+            joined.append(combined);
+            if (joined.length() >= MAX_CARD_SECTION_CHARACTERS) {
+                break;
+            }
+        }
+        return visibleText(joined.toString(), MAX_CARD_SECTION_CHARACTERS);
+    }
+
+    private static String hookFragments(Object value) {
+        List<Object> entries;
+        try {
+            entries = JsonCodec.optionalArray(value);
+        } catch (IllegalArgumentException ignored) {
+            return "";
+        }
+        StringBuilder result = new StringBuilder();
+        int count = Math.min(32, entries.size());
+        for (int index = 0; index < count; index++) {
+            Map<String, Object> fragment = safeObject(entries.get(index));
+            if (fragment != null) {
+                appendField(result, "Hook", visibleField(
+                    fragment.get("text"),
+                    MAX_CARD_JSON_CHARACTERS
+                ));
+            }
+        }
+        return visibleText(result.toString(), MAX_CARD_SECTION_CHARACTERS);
+    }
+
+    private static String formatFileChanges(List<CodexFileChangeSummary> changes) {
+        StringBuilder detail = new StringBuilder();
+        for (CodexFileChangeSummary change : changes) {
+            String kind;
+            if ("add".equals(change.getKind())) {
+                kind = "HINZUFÜGEN";
+            } else if ("delete".equals(change.getKind())) {
+                kind = "LÖSCHEN";
+            } else {
+                kind = "ÄNDERN";
+            }
+            StringBuilder heading = new StringBuilder(kind)
+                .append(" · ")
+                .append(visibleText(change.getPath(), 4096));
+            if (!change.getMovePath().isEmpty()) {
+                heading.append(" → ").append(visibleText(change.getMovePath(), 4096));
+            }
+            String diff = visibleText(change.getDiff(), MAX_FILE_CHANGE_DIFF_CHARACTERS);
+            appendField(
+                detail,
+                heading.toString(),
+                diff.isEmpty() ? "Kein Text-Diff vorhanden." : diff
+            );
+            if (detail.length() >= MAX_CARD_SECTION_CHARACTERS) {
+                break;
+            }
+        }
+        return visibleText(detail.toString(), MAX_CARD_SECTION_CHARACTERS);
+    }
+
+    private static void appendField(StringBuilder output, String label, String value) {
+        if (value == null || value.isEmpty() || output.length() >= MAX_CARD_SECTION_CHARACTERS) {
+            return;
+        }
+        if (output.length() != 0) {
+            output.append("\n\n");
+        }
+        output.append(label).append(":\n");
+        int remaining = MAX_CARD_SECTION_CHARACTERS - output.length();
+        output.append(bounded(value, Math.max(0, remaining)));
+    }
+
+    private static String visibleField(Object value, int maximumCharacters) {
+        return value instanceof String
+            ? visibleText((String) value, maximumCharacters)
+            : "";
+    }
+
+    private static String visibleJson(Object value) {
+        if (value == null) {
+            return "";
+        }
+        try {
+            return visibleText(JsonCodec.stringify(value), MAX_CARD_JSON_CHARACTERS);
+        } catch (IllegalArgumentException ignored) {
+            return "Inhalt konnte nicht sicher dargestellt werden.";
+        }
+    }
+
+    private static String visibleText(String value, int maximumCharacters) {
+        if (value == null || maximumCharacters <= 0) {
+            return "";
+        }
+        String withoutNulls = value.indexOf('\0') < 0 ? value : value.replace("\0", "");
+        return CrashReportFormatter.redactVisibleText(withoutNulls, maximumCharacters);
+    }
+
+    private static Map<String, Object> safeObject(Object value) {
+        try {
+            return JsonCodec.optionalObject(value);
+        } catch (IllegalArgumentException ignored) {
+            return null;
+        }
+    }
+
+    private static long numericLong(Object value) {
+        return value instanceof Number ? ((Number) value).longValue() : Long.MIN_VALUE;
+    }
+
+    private static long nonNegativeLong(Object value) {
+        long number = numericLong(value);
+        return number >= 0L ? number : -1L;
+    }
+
+    private void clearCardStreamsLocked() {
+        reasoningStreams.clear();
+        toolOutputStreams.clear();
     }
 
     private void handleFileChangePatchUpdated(Map<String, Object> params) {
@@ -1066,7 +1968,18 @@ public final class CodexSessionController
                 return;
             }
             replaceFileChangesLocked(itemId, changes);
-            if (enrichInteractiveFileChangeLocked(itemId, changes)) {
+            boolean changed = enrichInteractiveFileChangeLocked(itemId, changes);
+            if (!isFinalCardLocked(itemId)) {
+                upsertTranscriptItemLocked(fileChangeCard(
+                    itemId,
+                    changes,
+                    "inProgress",
+                    toolOutputStreams.get(itemId),
+                    true
+                ));
+                changed = true;
+            }
+            if (changed) {
                 publishLocked();
             }
         }
@@ -1114,8 +2027,9 @@ public final class CodexSessionController
             activeTurnId = "";
             clearInteractiveRequestsForTurnLocked(completedTurnId);
             pendingFileChanges.clear();
-            finishStreamingMessagesLocked();
             String status = JsonCodec.optionalString(turn.get("status"));
+            finishStreamingTranscriptLocked(status);
+            clearCardStreamsLocked();
             operationMessage = "interrupted".equals(status)
                 ? "Turn wurde gestoppt."
                 : "failed".equals(status) ? "Turn ist fehlgeschlagen." : "Antwort abgeschlossen.";
@@ -1667,20 +2581,42 @@ public final class CodexSessionController
         }
     }
 
-    private synchronized void handleInteractiveResponseFailure(Throwable error) {
-        if (closed) {
+    private void handleInteractiveResponseFailure(Throwable error) {
+        boolean notifyFailure;
+        synchronized (this) {
+            if (closed) {
+                return;
+            }
+            ready = false;
+            turnActive = false;
+            activeTurnId = "";
+            operationActive = false;
+            interactiveRequests.clear();
+            pendingFileChanges.clear();
+            clearCardStreamsLocked();
+            connectionMessage = "Eine Antwort an den Codex App-Server ist fehlgeschlagen.";
+            errorMessage = safeError(error);
+            publishLocked();
+            notifyFailure = !connectionFailureReported;
+            connectionFailureReported = true;
+        }
+        operations.shutdownNow();
+        interactiveResponses.shutdownNow();
+        client.close();
+        if (notifyFailure) {
+            notifyConnectionFailure(error);
+        }
+    }
+
+    private void notifyConnectionFailure(Throwable error) {
+        if (connectionFailureListener == null) {
             return;
         }
-        ready = false;
-        turnActive = false;
-        activeTurnId = "";
-        operationActive = false;
-        interactiveRequests.clear();
-        pendingFileChanges.clear();
-        connectionMessage = "Eine Antwort an den Codex App-Server ist fehlgeschlagen.";
-        errorMessage = safeError(error);
-        publishLocked();
-        client.close();
+        try {
+            connectionFailureListener.onConnectionFailed(this, error);
+        } catch (Throwable ignored) {
+            // A host callback must not obscure or revive a failed transport.
+        }
     }
 
     private int findInteractiveRequestLocked(long requestId) {
@@ -1868,6 +2804,15 @@ public final class CodexSessionController
         return value.equals(workspacePath) || value.startsWith(workspacePath + "/");
     }
 
+    private static boolean isImagePathCandidate(String value) {
+        return value != null
+            && !value.isEmpty()
+            && value.startsWith("/")
+            && value.indexOf('\0') < 0
+            && value.indexOf('\n') < 0
+            && value.indexOf('\r') < 0;
+    }
+
     private void requireNoActiveTurnOrRequestLocked() {
         if (turnActive || !interactiveRequests.isEmpty()) {
             throw new IllegalStateException(
@@ -2034,7 +2979,7 @@ public final class CodexSessionController
             threads,
             activeThreadId,
             activeThreadTitle,
-            messages,
+            transcriptItems,
             turnActive,
             activeTurnId,
             interactiveRequests,
@@ -2064,22 +3009,36 @@ public final class CodexSessionController
         if (index < 0) {
             return false;
         }
-        ChatMessage message = messages.get(index);
+        ChatMessage message = transcriptItems.get(index).getMessage();
         return message.getRole() == ChatMessage.Role.ASSISTANT && !message.isStreaming();
     }
 
-    private void finishStreamingMessagesLocked() {
-        for (int index = 0; index < messages.size(); index++) {
-            ChatMessage message = messages.get(index);
-            if (message.getRole() == ChatMessage.Role.ASSISTANT && message.isStreaming()) {
-                messages.set(index, new ChatMessage(
-                    message.getId(),
-                    message.getRole(),
-                    message.getText(),
-                    false
+    private boolean isFinalCardLocked(String itemId) {
+        CodexTranscriptItem item = cardByIdLocked(itemId);
+        return item != null && !item.isStreaming();
+    }
+
+    private CodexTranscriptItem cardByIdLocked(String itemId) {
+        int index = findTranscriptItemLocked(itemId);
+        if (index < 0 || transcriptItems.get(index).isMessage()) {
+            return null;
+        }
+        return transcriptItems.get(index);
+    }
+
+    private void finishStreamingTranscriptLocked(String turnStatus) {
+        String cardStatus = "interrupted".equals(turnStatus)
+            ? "interrupted"
+            : "failed".equals(turnStatus) ? "failed" : "completed";
+        for (int index = 0; index < transcriptItems.size(); index++) {
+            CodexTranscriptItem item = transcriptItems.get(index);
+            if (item.isStreaming()) {
+                transcriptItems.set(index, item.finish(
+                    item.isMessage() ? "" : cardStatus
                 ));
             }
         }
+        boundTranscriptLocked();
     }
 
     private static void requireWorkspacePermissionProfile(
@@ -2175,18 +3134,27 @@ public final class CodexSessionController
         if (index < 0) {
             addBoundedMessageLocked(value);
         } else {
-            messages.set(index, value);
-            boundTotalMessagesLocked();
+            transcriptItems.set(index, CodexTranscriptItem.message(value));
+            boundTranscriptLocked();
         }
     }
 
     private void replacePendingUserOrAddLocked(String itemId, String text) {
-        for (int index = messages.size() - 1; index >= 0; index--) {
-            ChatMessage message = messages.get(index);
+        for (int index = transcriptItems.size() - 1; index >= 0; index--) {
+            CodexTranscriptItem item = transcriptItems.get(index);
+            if (!item.isMessage()) {
+                continue;
+            }
+            ChatMessage message = item.getMessage();
             if (message.getRole() == ChatMessage.Role.USER
                 && message.getId().startsWith("local-user-")
                 && message.getText().equals(text)) {
-                messages.set(index, new ChatMessage(itemId, ChatMessage.Role.USER, text, false));
+                transcriptItems.set(index, CodexTranscriptItem.message(new ChatMessage(
+                    itemId,
+                    ChatMessage.Role.USER,
+                    text,
+                    false
+                )));
                 return;
             }
         }
@@ -2194,8 +3162,9 @@ public final class CodexSessionController
     }
 
     private int findMessageLocked(String id) {
-        for (int index = 0; index < messages.size(); index++) {
-            if (messages.get(index).getId().equals(id)) {
+        for (int index = 0; index < transcriptItems.size(); index++) {
+            CodexTranscriptItem item = transcriptItems.get(index);
+            if (item.isMessage() && item.getId().equals(id)) {
                 return index;
             }
         }
@@ -2203,26 +3172,45 @@ public final class CodexSessionController
     }
 
     private void addBoundedMessageLocked(ChatMessage message) {
-        messages.add(message);
-        while (messages.size() > MAX_MESSAGES) {
-            messages.remove(0);
-        }
-        boundTotalMessagesLocked();
+        transcriptItems.add(CodexTranscriptItem.message(message));
+        boundTranscriptLocked();
     }
 
-    private void boundTotalMessagesLocked() {
+    private void upsertTranscriptItemLocked(CodexTranscriptItem value) {
+        int index = findTranscriptItemLocked(value.getId());
+        if (index < 0) {
+            transcriptItems.add(value);
+        } else {
+            transcriptItems.set(index, value);
+        }
+        boundTranscriptLocked();
+    }
+
+    private int findTranscriptItemLocked(String id) {
+        for (int index = 0; index < transcriptItems.size(); index++) {
+            if (transcriptItems.get(index).getId().equals(id)) {
+                return index;
+            }
+        }
+        return -1;
+    }
+
+    private void boundTranscriptLocked() {
+        while (transcriptItems.size() > MAX_TRANSCRIPT_ITEMS) {
+            transcriptItems.remove(0);
+        }
         int total = 0;
-        int firstRetained = messages.size();
-        for (int index = messages.size() - 1; index >= 0; index--) {
-            int next = total + messages.get(index).getText().length();
-            if (next > MAX_HISTORY_CHARACTERS && firstRetained < messages.size()) {
+        int firstRetained = transcriptItems.size();
+        for (int index = transcriptItems.size() - 1; index >= 0; index--) {
+            int next = total + transcriptItems.get(index).getVisibleCharacterCount();
+            if (next > MAX_HISTORY_CHARACTERS && firstRetained < transcriptItems.size()) {
                 break;
             }
             total = next;
             firstRetained = index;
         }
-        while (firstRetained > 0 && !messages.isEmpty()) {
-            messages.remove(0);
+        while (firstRetained > 0 && !transcriptItems.isEmpty()) {
+            transcriptItems.remove(0);
             firstRetained--;
         }
     }
@@ -2239,38 +3227,73 @@ public final class CodexSessionController
         }
     }
 
-    private static List<ChatMessage> parseHistory(Map<String, Object> thread) {
-        List<ChatMessage> history = new ArrayList<ChatMessage>();
-        int totalCharacters = 0;
+    private List<CodexTranscriptItem> parseHistory(Map<String, Object> thread) {
+        List<CodexTranscriptItem> history = new ArrayList<CodexTranscriptItem>();
         for (Object turnValue : JsonCodec.optionalArray(thread.get("turns"))) {
             Map<String, Object> turn = JsonCodec.requireObject(turnValue, "thread turn");
             for (Object itemValue : JsonCodec.optionalArray(turn.get("items"))) {
-                if (history.size() >= MAX_MESSAGES || totalCharacters >= MAX_HISTORY_CHARACTERS) {
-                    return history;
-                }
                 Map<String, Object> item = JsonCodec.requireObject(itemValue, "thread item");
                 String id = JsonCodec.optionalString(item.get("id"));
                 String type = JsonCodec.optionalString(item.get("type"));
-                String text = "";
-                ChatMessage.Role role = ChatMessage.Role.SYSTEM;
-                if ("userMessage".equals(type)) {
-                    text = extractUserText(item);
-                    role = ChatMessage.Role.USER;
-                } else if ("agentMessage".equals(type)) {
-                    text = JsonCodec.optionalString(item.get("text"));
-                    role = ChatMessage.Role.ASSISTANT;
+                if (!isSafeOpaqueIdentifier(id)) {
+                    continue;
                 }
-                if (!id.isEmpty() && !text.isEmpty()) {
-                    text = bounded(text, Math.min(
-                        MAX_MESSAGE_CHARACTERS,
-                        MAX_HISTORY_CHARACTERS - totalCharacters
-                    ));
-                    history.add(new ChatMessage(id, role, text, false));
-                    totalCharacters += text.length();
+                if ("userMessage".equals(type)) {
+                    String text = extractUserText(item);
+                    if (!text.isEmpty()) {
+                        addHistoryItem(history, CodexTranscriptItem.message(new ChatMessage(
+                            id,
+                            ChatMessage.Role.USER,
+                            text,
+                            false
+                        )));
+                    }
+                } else if ("agentMessage".equals(type)) {
+                    String text = bounded(
+                        JsonCodec.optionalString(item.get("text")),
+                        MAX_MESSAGE_CHARACTERS
+                    );
+                    if (!text.isEmpty()) {
+                        addHistoryItem(history, CodexTranscriptItem.message(new ChatMessage(
+                            id,
+                            ChatMessage.Role.ASSISTANT,
+                            text,
+                            false
+                        )));
+                    }
+                } else {
+                    CodexTranscriptItem card = parseCardItem(item, false, null);
+                    if (card != null) {
+                        addHistoryItem(history, card);
+                    }
                 }
             }
         }
         return history;
+    }
+
+    private static void addHistoryItem(
+        List<CodexTranscriptItem> history,
+        CodexTranscriptItem item
+    ) {
+        history.add(item);
+        while (history.size() > MAX_TRANSCRIPT_ITEMS) {
+            history.remove(0);
+        }
+        int total = 0;
+        int firstRetained = history.size();
+        for (int index = history.size() - 1; index >= 0; index--) {
+            int next = total + history.get(index).getVisibleCharacterCount();
+            if (next > MAX_HISTORY_CHARACTERS && firstRetained < history.size()) {
+                break;
+            }
+            total = next;
+            firstRetained = index;
+        }
+        while (firstRetained > 0) {
+            history.remove(0);
+            firstRetained--;
+        }
     }
 
     private static String extractUserText(Map<String, Object> item) {
@@ -2313,16 +3336,19 @@ public final class CodexSessionController
         return newline < 0 ? value : value.substring(0, newline);
     }
 
-    private static String boundedStream(String existing, String delta) {
-        if (existing.length() >= MAX_MESSAGE_CHARACTERS) {
+    private static String boundedStream(String existing, String delta, int maximumCharacters) {
+        if (existing.length() >= maximumCharacters) {
             return existing;
         }
-        int remaining = MAX_MESSAGE_CHARACTERS - existing.length();
+        int remaining = maximumCharacters - existing.length();
         if (delta.length() <= remaining) {
             return existing + delta;
         }
         String marker = "\n… Ausgabe gekürzt …";
-        int content = Math.max(0, remaining - marker.length());
+        if (remaining <= marker.length()) {
+            return existing + marker.substring(0, remaining);
+        }
+        int content = remaining - marker.length();
         return existing + delta.substring(0, Math.min(content, delta.length())) + marker;
     }
 
@@ -2418,6 +3444,72 @@ public final class CodexSessionController
     private static void wipe(char[] value) {
         if (value != null) {
             Arrays.fill(value, '\0');
+        }
+    }
+
+    private static final class ReasoningAccumulator {
+        private final Map<Integer, String> summaryParts = new TreeMap<Integer, String>();
+        private final Map<Integer, String> contentParts = new TreeMap<Integer, String>();
+
+        private void ensureSummaryPart(int index) {
+            if (!summaryParts.containsKey(Integer.valueOf(index))) {
+                summaryParts.put(Integer.valueOf(index), "");
+            }
+        }
+
+        private void append(int index, String delta, boolean summary) {
+            Map<Integer, String> parts = summary ? summaryParts : contentParts;
+            Integer key = Integer.valueOf(index);
+            String existing = parts.get(key);
+            int otherCharacters = totalCharacters(parts)
+                - (existing == null ? 0 : existing.length());
+            int maximumForPart = Math.max(
+                0,
+                MAX_CARD_SECTION_CHARACTERS - otherCharacters
+            );
+            String combined = boundedStream(
+                existing == null ? "" : existing,
+                delta,
+                maximumForPart
+            );
+            parts.put(key, visibleText(combined, maximumForPart));
+        }
+
+        private String summaryText() {
+            return joinParts(summaryParts);
+        }
+
+        private String contentText() {
+            return joinParts(contentParts);
+        }
+
+        private static String joinParts(Map<Integer, String> parts) {
+            StringBuilder result = new StringBuilder();
+            for (String part : parts.values()) {
+                if (part.isEmpty()) {
+                    continue;
+                }
+                String addition = result.length() == 0 ? part : "\n" + part;
+                String combined = boundedStream(
+                    result.toString(),
+                    addition,
+                    MAX_CARD_SECTION_CHARACTERS
+                );
+                result.setLength(0);
+                result.append(combined);
+                if (result.length() >= MAX_CARD_SECTION_CHARACTERS) {
+                    break;
+                }
+            }
+            return result.toString();
+        }
+
+        private static int totalCharacters(Map<Integer, String> parts) {
+            int total = 0;
+            for (String part : parts.values()) {
+                total += part.length();
+            }
+            return total;
         }
     }
 

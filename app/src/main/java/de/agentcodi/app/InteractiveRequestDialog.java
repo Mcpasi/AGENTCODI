@@ -103,16 +103,16 @@ final class InteractiveRequestDialog {
             .setView(approvalContent(request, actions));
         if (accept != null) {
             builder.setPositiveButton(
-                "Erlauben",
+                activity.getString(R.string.approval_allow),
                 approvalClickListener(request, accept)
             );
         }
         builder.setNegativeButton(
-            "Ablehnen",
+            activity.getString(R.string.approval_decline),
             approvalClickListener(request, decline)
         );
         builder.setNeutralButton(
-            "Turn stoppen",
+            activity.getString(R.string.approval_stop_turn),
             approvalClickListener(request, cancel)
         );
 
@@ -136,13 +136,12 @@ final class InteractiveRequestDialog {
         ApprovalAction cancel
     ) {
         final AlertDialog shown = new AlertDialog.Builder(activity)
-            .setTitle("Änderungsvorschau wird geladen")
-            .setMessage(
-                "Codex hat eine Dateiänderung angefragt. Die begrenzte Pfad- und "
-                    + "Diff-Vorschau ist noch nicht eingetroffen. Sobald sie vorliegt, "
-                    + "erscheinen Erlauben und Ablehnen. Ohne Vorschau wird nichts freigegeben."
+            .setTitle(R.string.approval_preview_loading_title)
+            .setMessage(R.string.approval_preview_loading_message)
+            .setNeutralButton(
+                R.string.approval_stop_turn,
+                approvalClickListener(request, cancel)
             )
-            .setNeutralButton("Turn stoppen", approvalClickListener(request, cancel))
             .create();
         shown.setCancelable(false);
         shown.setCanceledOnTouchOutside(false);
@@ -197,7 +196,9 @@ final class InteractiveRequestDialog {
                 continue;
             }
             if (!headingAdded) {
-                TextView heading = theme.sectionLabel("WEITERE ENTSCHEIDUNGEN");
+                TextView heading = theme.sectionLabel(
+                    activity.getString(R.string.approval_more_decisions)
+                );
                 theme.addWithTopMargin(content, heading, 18);
                 headingAdded = true;
             }
@@ -277,10 +278,12 @@ final class InteractiveRequestDialog {
         }
 
         AlertDialog shown = new AlertDialog.Builder(activity)
-            .setTitle(request.isBlocking() ? "Codex benötigt deine Eingabe" : "Rückfrage von Codex")
+            .setTitle(request.isBlocking()
+                ? R.string.user_input_blocking_title
+                : R.string.user_input_title)
             .setView(scroll)
-            .setPositiveButton("Antworten", null)
-            .setNegativeButton("Ohne Antwort", null)
+            .setPositiveButton(R.string.user_input_answer, null)
+            .setNegativeButton(R.string.user_input_without_answer, null)
             .create();
         shown.setCancelable(false);
         shown.setCanceledOnTouchOutside(false);
@@ -295,7 +298,7 @@ final class InteractiveRequestDialog {
                         if (answers == null) {
                             Toast.makeText(
                                 activity,
-                                "Bitte jede Frage beantworten.",
+                                R.string.user_input_answer_all,
                                 Toast.LENGTH_SHORT
                             ).show();
                             return;
@@ -357,7 +360,7 @@ final class InteractiveRequestDialog {
                 other.setId(View.generateViewId());
                 otherChoiceId = other.getId();
                 other.setTag(OtherChoice.INSTANCE);
-                other.setText("Andere Antwort");
+                other.setText(R.string.user_input_other);
                 other.setTextColor(theme.primary);
                 other.setTextSize(14);
                 choices.addView(other);
@@ -396,7 +399,9 @@ final class InteractiveRequestDialog {
 
     private EditText answerInput(boolean secret, boolean multiline) {
         EditText input = new EditText(activity);
-        input.setHint(secret ? "Vertrauliche Antwort" : "Eigene Antwort");
+        input.setHint(secret
+            ? R.string.user_input_secret_hint
+            : R.string.user_input_custom_hint);
         input.setHintTextColor(theme.secondary);
         input.setTextColor(theme.primary);
         input.setSaveEnabled(false);
@@ -486,12 +491,12 @@ final class InteractiveRequestDialog {
             : !request.getCommand().isEmpty() || !request.getNetworkHost().isEmpty();
         if (detailsAvailable) {
             actions.add(new ApprovalAction(
-                "Einmal erlauben",
+                activity.getString(R.string.approval_once),
                 CodexApprovalDecision.ACCEPT,
                 -1
             ));
             actions.add(new ApprovalAction(
-                "Für diese Sitzung erlauben",
+                activity.getString(R.string.approval_session),
                 CodexApprovalDecision.ACCEPT_FOR_SESSION,
                 -1
             ));
@@ -500,7 +505,7 @@ final class InteractiveRequestDialog {
             && request.getKind() == CodexInteractiveRequest.Kind.COMMAND_APPROVAL
             && !request.getProposedExecPolicyAmendment().isEmpty()) {
             actions.add(new ApprovalAction(
-                "Vorgeschlagene Befehlsregel übernehmen",
+                activity.getString(R.string.approval_command_rule),
                 CodexApprovalDecision.ACCEPT_WITH_EXEC_POLICY_AMENDMENT,
                 -1
             ));
@@ -509,62 +514,67 @@ final class InteractiveRequestDialog {
             CodexNetworkPolicyAmendment amendment =
                 request.getProposedNetworkPolicyAmendments().get(index);
             actions.add(new ApprovalAction(
-                "Netzwerkregel anwenden: "
-                    + amendment.getAction().toUpperCase()
-                    + " "
-                    + amendment.getHost(),
+                activity.getString(
+                    R.string.approval_network_rule,
+                    amendment.getAction().toUpperCase(),
+                    amendment.getHost()
+                ),
                 CodexApprovalDecision.APPLY_NETWORK_POLICY_AMENDMENT,
                 index
             ));
         }
         actions.add(new ApprovalAction(
-            "Ablehnen und fortfahren",
+            activity.getString(R.string.approval_decline_continue),
             CodexApprovalDecision.DECLINE,
             -1
         ));
         actions.add(new ApprovalAction(
-            "Ablehnen und Turn abbrechen",
+            activity.getString(R.string.approval_decline_cancel),
             CodexApprovalDecision.CANCEL,
             -1
         ));
         return actions;
     }
 
-    private static String approvalTitle(CodexInteractiveRequest request) {
+    private String approvalTitle(CodexInteractiveRequest request) {
         if (!request.getNetworkHost().isEmpty()) {
-            return "Netzwerkzugriff freigeben?";
+            return activity.getString(R.string.approval_network_title);
         }
         return request.getKind() == CodexInteractiveRequest.Kind.COMMAND_APPROVAL
-            ? "Befehl freigeben?"
-            : "Dateiänderungen freigeben?";
+            ? activity.getString(R.string.approval_command_title)
+            : activity.getString(R.string.approval_file_title);
     }
 
-    private static String approvalDetails(CodexInteractiveRequest request) {
+    private String approvalDetails(CodexInteractiveRequest request) {
         StringBuilder details = new StringBuilder();
         if (!request.getReason().isEmpty()) {
             details.append(request.getReason()).append("\n\n");
         }
         if (!request.getNetworkHost().isEmpty()) {
-            details.append("Ziel: ")
+            details.append(activity.getString(R.string.approval_target)).append(": ")
                 .append(request.getNetworkProtocol())
                 .append("://")
                 .append(request.getNetworkHost())
                 .append('\n');
         }
         if (!request.getCommand().isEmpty()) {
-            details.append("Befehl:\n").append(request.getCommand()).append('\n');
+            details.append(activity.getString(R.string.approval_command))
+                .append(":\n").append(request.getCommand()).append('\n');
         }
         if (!request.getCwd().isEmpty()) {
-            details.append("Arbeitsverzeichnis: ").append(request.getCwd()).append('\n');
+            details.append(activity.getString(R.string.approval_cwd))
+                .append(": ").append(request.getCwd()).append('\n');
         }
         if (!request.getGrantRoot().isEmpty()) {
-            details.append("Angefragter Schreibbereich: ")
+            details.append(activity.getString(R.string.approval_write_scope)).append(": ")
                 .append(request.getGrantRoot())
                 .append('\n');
         }
         for (CodexFileChangeSummary change : request.getFileChanges()) {
             details.append('\n')
-                .append(change.getKind().isEmpty() ? "Änderung" : change.getKind())
+                .append(change.getKind().isEmpty()
+                    ? activity.getString(R.string.approval_change)
+                    : localizedFileChangeKind(change.getKind()))
                 .append(" · ")
                 .append(change.getPath());
             if (!change.getMovePath().isEmpty()) {
@@ -576,14 +586,23 @@ final class InteractiveRequestDialog {
             }
         }
         if (details.length() == 0) {
-            details.append("Codex bittet um eine explizite Entscheidung für diesen Turn.");
+            details.append(activity.getString(R.string.approval_default_detail));
         }
-        details.append(
-            "\n\nErlauben gilt nur für diese Anfrage. Ablehnen verweigert nur diese "
-                + "Änderung; der Turn darf danach weiterarbeiten. Turn stoppen beendet den "
-                + "gesamten Turn. Freigaben werden nie automatisch erteilt."
-        );
+        details.append("\n\n").append(activity.getString(R.string.approval_explanation));
         return details.toString();
+    }
+
+    private String localizedFileChangeKind(String kind) {
+        if ("add".equalsIgnoreCase(kind)) {
+            return activity.getString(R.string.card_change_add);
+        }
+        if ("delete".equalsIgnoreCase(kind)) {
+            return activity.getString(R.string.card_change_delete);
+        }
+        if ("update".equalsIgnoreCase(kind)) {
+            return activity.getString(R.string.card_change_update);
+        }
+        return kind;
     }
 
     private static String optionLabel(CodexUserInputOption option) {

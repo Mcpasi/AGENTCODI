@@ -1,10 +1,12 @@
 package de.agentcodi.app;
 
 import android.app.Activity;
+import android.content.Context;
 import android.content.Intent;
 import android.graphics.Color;
 import android.graphics.Typeface;
 import android.graphics.drawable.ColorDrawable;
+import android.net.Uri;
 import android.os.Bundle;
 import android.os.Handler;
 import android.os.Looper;
@@ -22,33 +24,42 @@ import android.widget.ListView;
 import android.widget.ScrollView;
 import android.widget.Spinner;
 import android.widget.TextView;
+import android.widget.Toast;
 
 import de.agentcodi.core.ChatMessage;
 import de.agentcodi.core.CodexModelOption;
 import de.agentcodi.core.CodexReasoningOption;
 import de.agentcodi.core.CodexSessionSnapshot;
 import de.agentcodi.core.CodexThreadSummary;
+import de.agentcodi.core.CodexTranscriptItem;
 import de.agentcodi.core.CrashReportFormatter;
 import de.agentcodi.core.RuntimePhase;
 import de.agentcodi.core.RuntimeSnapshot;
 import de.agentcodi.core.UiStartupState;
 import de.agentcodi.runtime.AgentRuntimeService;
 import de.agentcodi.runtime.CrashDiagnostics;
+import de.agentcodi.runtime.WorkspaceImageExporter;
 
 import java.text.DateFormat;
 import java.util.ArrayList;
 import java.util.Date;
 import java.util.List;
+import java.util.concurrent.ExecutorService;
+import java.util.concurrent.Executors;
+import java.util.concurrent.RejectedExecutionException;
 
 public final class MainActivity extends Activity {
     private static final long ACTIVE_REFRESH_INTERVAL_MS = 250L;
     private static final long IDLE_REFRESH_INTERVAL_MS = 900L;
     private static final int MAX_VISIBLE_THREADS = 80;
+    private static final int IMAGE_EXPORT_REQUEST_CODE = 7001;
 
     private final Handler handler = new Handler(Looper.getMainLooper());
     private final UiStartupState startupState = new UiStartupState();
-    private final List<String> renderedMessageIds = new ArrayList<String>();
-    private final List<TextView> renderedMessageViews = new ArrayList<TextView>();
+    private final List<String> renderedTranscriptKeys = new ArrayList<String>();
+    private final List<TranscriptRow> renderedTranscriptRows =
+        new ArrayList<TranscriptRow>();
+    private final ExecutorService imageOperations = Executors.newSingleThreadExecutor();
     private final Runnable refreshTask = new Runnable() {
         @Override
         public void run() {
@@ -101,11 +112,18 @@ public final class MainActivity extends Activity {
     private boolean pendingNewThread;
     private String newThreadBaseline = "";
     private String renderedThreadId = "";
+    private String pendingImageExportPath = "";
+    private boolean destroyed;
     private long lastSessionRevision = Long.MIN_VALUE;
     private long lastRuntimeGeneration = Long.MIN_VALUE;
     private RuntimePhase lastRuntimePhase;
     private CrashDiagnostics crashDiagnostics;
     private InteractiveRequestDialog interactiveRequestDialog;
+
+    @Override
+    protected void attachBaseContext(Context base) {
+        super.attachBaseContext(AppLanguage.attach(base));
+    }
 
     @Override
     protected void onCreate(Bundle savedInstanceState) {
@@ -146,6 +164,53 @@ public final class MainActivity extends Activity {
     }
 
     @Override
+    protected void onDestroy() {
+        destroyed = true;
+        handler.removeCallbacksAndMessages(null);
+        imageOperations.shutdownNow();
+        super.onDestroy();
+    }
+
+    @Override
+    protected void onActivityResult(int requestCode, int resultCode, Intent data) {
+        if (requestCode != IMAGE_EXPORT_REQUEST_CODE) {
+            super.onActivityResult(requestCode, resultCode, data);
+            return;
+        }
+        final String sourcePath = pendingImageExportPath;
+        pendingImageExportPath = "";
+        final Uri destination = data == null ? null : data.getData();
+        if (resultCode != RESULT_OK || destination == null || sourcePath.isEmpty()) {
+            return;
+        }
+        final android.content.Context applicationContext = getApplicationContext();
+        if (!submitImageOperation(new Runnable() {
+            @Override
+            public void run() {
+                try {
+                    final WorkspaceImageExporter.ImageExport exported =
+                        WorkspaceImageExporter.export(
+                            applicationContext,
+                            sourcePath,
+                            destination
+                    );
+                    showExportToast(
+                        getString(R.string.image_exported, exported.getDisplayName()),
+                        Toast.LENGTH_LONG
+                    );
+                } catch (Throwable error) {
+                    showExportFailure(sourcePath, error);
+                }
+            }
+        })) {
+            showExportToast(
+                getString(R.string.image_export_start_failed),
+                Toast.LENGTH_LONG
+            );
+        }
+    }
+
+    @Override
     public void onBackPressed() {
         if (conversationVisible) {
             showThreadPage();
@@ -165,7 +230,7 @@ public final class MainActivity extends Activity {
         topBar.setOrientation(LinearLayout.HORIZONTAL);
         topBar.setGravity(Gravity.CENTER_VERTICAL);
 
-        backToThreadsButton = theme.compactButton("‹ Chats");
+        backToThreadsButton = theme.compactButton(getString(R.string.navigation_chats));
         backToThreadsButton.setVisibility(View.GONE);
         backToThreadsButton.setOnClickListener(new View.OnClickListener() {
             @Override
@@ -178,7 +243,7 @@ public final class MainActivity extends Activity {
             ViewGroup.LayoutParams.WRAP_CONTENT
         ));
 
-        screenTitle = theme.text("Chats", 24, theme.primary);
+        screenTitle = theme.text(getString(R.string.chat_title), 24, theme.primary);
         screenTitle.setTypeface(Typeface.DEFAULT_BOLD);
         screenTitle.setSingleLine(true);
         screenTitle.setEllipsize(android.text.TextUtils.TruncateAt.END);
@@ -191,7 +256,7 @@ public final class MainActivity extends Activity {
         titleParams.rightMargin = theme.dp(10);
         topBar.addView(screenTitle, titleParams);
 
-        Button settingsButton = theme.compactButton("Einstellungen");
+        Button settingsButton = theme.compactButton(getString(R.string.navigation_settings));
         settingsButton.setOnClickListener(new View.OnClickListener() {
             @Override
             public void onClick(View view) {
@@ -209,14 +274,14 @@ public final class MainActivity extends Activity {
         statusBanner.setGravity(Gravity.CENTER_VERTICAL);
         statusBanner.setPadding(theme.dp(14), theme.dp(12), theme.dp(12), theme.dp(12));
         statusBanner.setBackground(theme.background(theme.surfaceRaised, theme.border, 14));
-        statusText = theme.text("Runtime wird geprüft …", 13, theme.primary);
+        statusText = theme.text(getString(R.string.chat_runtime_checking), 13, theme.primary);
         statusText.setLineSpacing(0.0f, 1.15f);
         statusBanner.addView(statusText, new LinearLayout.LayoutParams(
             0,
             ViewGroup.LayoutParams.WRAP_CONTENT,
             1.0f
         ));
-        statusSettingsButton = theme.compactButton("Öffnen");
+        statusSettingsButton = theme.compactButton(getString(R.string.common_open));
         statusSettingsButton.setOnClickListener(new View.OnClickListener() {
             @Override
             public void onClick(View view) {
@@ -259,13 +324,13 @@ public final class MainActivity extends Activity {
         LinearLayout actions = new LinearLayout(this);
         actions.setOrientation(LinearLayout.HORIZONTAL);
         actions.setGravity(Gravity.CENTER_VERTICAL);
-        TextView intro = theme.text("Deine Codex-Unterhaltungen", 14, theme.secondary);
+        TextView intro = theme.text(getString(R.string.chat_intro), 14, theme.secondary);
         actions.addView(intro, new LinearLayout.LayoutParams(
             0,
             ViewGroup.LayoutParams.WRAP_CONTENT,
             1.0f
         ));
-        refreshThreadsButton = theme.compactButton("Aktualisieren");
+        refreshThreadsButton = theme.compactButton(getString(R.string.chat_refresh));
         refreshThreadsButton.setOnClickListener(new View.OnClickListener() {
             @Override
             public void onClick(View view) {
@@ -275,7 +340,7 @@ public final class MainActivity extends Activity {
         actions.addView(refreshThreadsButton);
         page.addView(actions);
 
-        newThreadButton = theme.primaryButton("+ Neuer Chat");
+        newThreadButton = theme.primaryButton(getString(R.string.chat_new));
         newThreadButton.setOnClickListener(new View.OnClickListener() {
             @Override
             public void onClick(View view) {
@@ -289,7 +354,7 @@ public final class MainActivity extends Activity {
         theme.addWithTopMargin(page, newThreadButton, 12);
 
         TextView emptyView = theme.text(
-            "Noch keine Chats. Starte oben eine neue Unterhaltung.",
+            getString(R.string.chat_empty),
             15,
             theme.secondary
         );
@@ -347,7 +412,7 @@ public final class MainActivity extends Activity {
         selectorRow.setOrientation(LinearLayout.HORIZONTAL);
         LinearLayout modelColumn = new LinearLayout(this);
         modelColumn.setOrientation(LinearLayout.VERTICAL);
-        TextView modelLabel = theme.sectionLabel("MODELL");
+        TextView modelLabel = theme.sectionLabel(getString(R.string.model_section));
         modelColumn.addView(modelLabel);
         modelSpinner = new Spinner(this);
         modelColumn.addView(modelSpinner);
@@ -360,7 +425,7 @@ public final class MainActivity extends Activity {
         LinearLayout effortColumn = new LinearLayout(this);
         effortColumn.setOrientation(LinearLayout.VERTICAL);
         effortColumn.setPadding(theme.dp(10), 0, 0, 0);
-        effortColumn.addView(theme.sectionLabel("DENKSTUFE"));
+        effortColumn.addView(theme.sectionLabel(getString(R.string.reasoning_effort_section)));
         effortSpinner = new Spinner(this);
         effortColumn.addView(effortSpinner);
         selectorRow.addView(effortColumn, new LinearLayout.LayoutParams(
@@ -369,7 +434,11 @@ public final class MainActivity extends Activity {
             0.85f
         ));
         selectors.addView(selectorRow);
-        modelDescription = theme.text("Modelle werden vom App-Server geladen.", 12, theme.secondary);
+        modelDescription = theme.text(
+            getString(R.string.models_loading),
+            12,
+            theme.secondary
+        );
         modelDescription.setLineSpacing(0.0f, 1.15f);
         theme.addWithTopMargin(selectors, modelDescription, 6);
         page.addView(selectors);
@@ -437,7 +506,7 @@ public final class MainActivity extends Activity {
         composer.setPadding(theme.dp(12), theme.dp(10), theme.dp(12), theme.dp(10));
         composer.setBackground(theme.background(theme.surface, theme.border, 16));
         composerInput = new EditText(this);
-        composerInput.setHint("Aufgabe für Codex …");
+        composerInput.setHint(R.string.composer_hint);
         composerInput.setHintTextColor(theme.secondary);
         composerInput.setTextColor(theme.primary);
         composerInput.setMinLines(2);
@@ -451,7 +520,7 @@ public final class MainActivity extends Activity {
 
         LinearLayout sendRow = new LinearLayout(this);
         sendRow.setOrientation(LinearLayout.HORIZONTAL);
-        stopButton = theme.secondaryButton("Stopp");
+        stopButton = theme.secondaryButton(getString(R.string.turn_stop));
         stopButton.setOnClickListener(new View.OnClickListener() {
             @Override
             public void onClick(View view) {
@@ -463,7 +532,7 @@ public final class MainActivity extends Activity {
             ViewGroup.LayoutParams.WRAP_CONTENT,
             0.35f
         ));
-        sendButton = theme.primaryButton("Senden");
+        sendButton = theme.primaryButton(getString(R.string.message_send));
         sendButton.setOnClickListener(new View.OnClickListener() {
             @Override
             public void onClick(View view) {
@@ -518,12 +587,12 @@ public final class MainActivity extends Activity {
             canChat && !session.isOperationActive() && !session.isTurnActive() && !interactionOpen
         );
         bindSelectors(session, canChat && !session.isTurnActive() && !interactionOpen);
-        renderMessages(session.getActiveThreadId(), session.getMessages());
+        renderTranscript(session.getActiveThreadId(), session.getTranscriptItems());
         if (conversationVisible) {
             screenTitle.setText(
                 session.getActiveThreadTitle().isEmpty()
-                    ? "Aktiver Chat"
-                    : session.getActiveThreadTitle()
+                    ? getString(R.string.chat_active)
+                    : UiText.threadTitle(this, session.getActiveThreadTitle())
             );
         }
         if (interactiveRequestDialog != null) {
@@ -555,23 +624,26 @@ public final class MainActivity extends Activity {
         String message = "";
         boolean settingsAction = false;
         if (runtime.getPhase() != RuntimePhase.READY) {
-            message = runtime.getMessage();
+            message = UiText.runtimeMessage(this, runtime);
             settingsAction = true;
         } else if (!session.isReady()) {
-            message = session.getConnectionMessage();
+            message = UiText.coreStatus(this, session.getConnectionMessage());
             settingsAction = true;
         } else if (session.requiresOpenaiAuth() && !session.isSignedIn()) {
-            message = "Bitte in den Einstellungen mit ChatGPT oder einem API-Schlüssel anmelden.";
+            message = getString(R.string.chat_sign_in_required);
             settingsAction = true;
         } else if (!session.getErrorMessage().isEmpty()) {
-            message = "Fehler: " + session.getErrorMessage();
+            message = getString(
+                R.string.common_error_prefix,
+                UiText.errorReason(this, session.getErrorMessage())
+            );
             settingsAction = true;
         } else if (session.hasInteractiveRequest()) {
-            message = "Codex wartet auf deine Freigabe oder Eingabe.";
+            message = getString(R.string.chat_waiting_for_input);
         } else if (session.isOperationActive()) {
-            message = session.getOperationMessage();
+            message = UiText.coreStatus(this, session.getOperationMessage());
         } else if (session.isTurnActive()) {
-            message = "Codex arbeitet und streamt die Antwort …";
+            message = getString(R.string.chat_streaming_response);
         }
         statusBanner.setVisibility(message.isEmpty() ? View.GONE : View.VISIBLE);
         statusText.setText(message);
@@ -639,12 +711,12 @@ public final class MainActivity extends Activity {
         }
     }
 
-    private void renderMessages(String threadId, List<ChatMessage> messages) {
+    private void renderTranscript(String threadId, List<CodexTranscriptItem> items) {
         boolean rebuild = !threadId.equals(renderedThreadId)
-            || messages.size() != renderedMessageIds.size();
+            || items.size() != renderedTranscriptKeys.size();
         if (!rebuild) {
-            for (int index = 0; index < messages.size(); index++) {
-                if (!messages.get(index).getId().equals(renderedMessageIds.get(index))) {
+            for (int index = 0; index < items.size(); index++) {
+                if (!transcriptKey(items.get(index)).equals(renderedTranscriptKeys.get(index))) {
                     rebuild = true;
                     break;
                 }
@@ -652,14 +724,14 @@ public final class MainActivity extends Activity {
         }
         if (rebuild) {
             renderedThreadId = threadId;
-            renderedMessageIds.clear();
-            renderedMessageViews.clear();
+            renderedTranscriptKeys.clear();
+            renderedTranscriptRows.clear();
             messagesContainer.removeAllViews();
-            if (messages.isEmpty()) {
+            if (items.isEmpty()) {
                 TextView empty = theme.text(
                     threadId.isEmpty()
-                        ? "Wähle einen Chat aus."
-                        : "Noch keine Nachrichten. Beschreibe unten deine Aufgabe.",
+                        ? getString(R.string.chat_select)
+                        : getString(R.string.chat_no_messages),
                     14,
                     theme.secondary
                 );
@@ -668,44 +740,345 @@ public final class MainActivity extends Activity {
                 messagesContainer.addView(empty);
                 return;
             }
-            for (int index = 0; index < messages.size(); index++) {
-                ChatMessage message = messages.get(index);
-                TextView view = createMessageView(message);
-                renderedMessageIds.add(message.getId());
-                renderedMessageViews.add(view);
-                theme.addWithTopMargin(messagesContainer, view, index == 0 ? 0 : 10);
+            for (int index = 0; index < items.size(); index++) {
+                CodexTranscriptItem item = items.get(index);
+                TranscriptRow row = createTranscriptRow(item);
+                renderedTranscriptKeys.add(transcriptKey(item));
+                renderedTranscriptRows.add(row);
+                theme.addWithTopMargin(messagesContainer, row.root, index == 0 ? 0 : 10);
             }
             scrollMessagesToBottom();
             return;
         }
         boolean changed = false;
-        for (int index = 0; index < messages.size(); index++) {
-            String value = messageText(messages.get(index));
-            if (!value.contentEquals(renderedMessageViews.get(index).getText())) {
-                renderedMessageViews.get(index).setText(value);
+        for (int index = 0; index < items.size(); index++) {
+            CodexTranscriptItem item = items.get(index);
+            String value = transcriptText(item);
+            TranscriptRow row = renderedTranscriptRows.get(index);
+            if (!value.contentEquals(row.text.getText())) {
+                row.text.setText(value);
+                styleTranscriptView(row.text, item);
                 changed = true;
             }
+            bindImageAction(row, item);
         }
         if (changed) {
             scrollMessagesToBottom();
         }
     }
 
-    private TextView createMessageView(ChatMessage message) {
-        TextView view = theme.text(messageText(message), 14, theme.primary);
-        view.setTextIsSelectable(true);
-        view.setLineSpacing(0.0f, 1.2f);
-        view.setPadding(theme.dp(14), theme.dp(12), theme.dp(14), theme.dp(12));
+    private TranscriptRow createTranscriptRow(CodexTranscriptItem item) {
+        LinearLayout root = new LinearLayout(this);
+        root.setOrientation(LinearLayout.VERTICAL);
+        TextView text = theme.text(
+            transcriptText(item),
+            item.isMessage() ? 14 : 13,
+            theme.primary
+        );
+        text.setTextIsSelectable(true);
+        text.setLineSpacing(0.0f, 1.2f);
+        text.setPadding(theme.dp(14), theme.dp(12), theme.dp(14), theme.dp(12));
+        root.addView(text, new LinearLayout.LayoutParams(
+            ViewGroup.LayoutParams.MATCH_PARENT,
+            ViewGroup.LayoutParams.WRAP_CONTENT
+        ));
+
+        TextView imageStatus = theme.text("", 12, theme.secondary);
+        imageStatus.setLineSpacing(0.0f, 1.15f);
+        imageStatus.setVisibility(View.GONE);
+        theme.addWithTopMargin(root, imageStatus, 6);
+
+        Button imageAction = theme.secondaryButton(getString(R.string.image_export));
+        imageAction.setVisibility(View.GONE);
+        theme.addWithTopMargin(root, imageAction, 6);
+
+        TranscriptRow row = new TranscriptRow(root, text, imageStatus, imageAction);
+        styleTranscriptView(text, item);
+        bindImageAction(row, item);
+        return row;
+    }
+
+    private void styleTranscriptView(TextView view, CodexTranscriptItem item) {
         int fill;
-        if (message.getRole() == ChatMessage.Role.USER) {
+        if (!item.isMessage()) {
+            fill = cardFill(item);
+        } else if (item.getMessage().getRole() == ChatMessage.Role.USER) {
             fill = theme.dark ? 0xFF123B3A : 0xFFE7FAF6;
-        } else if (message.getRole() == ChatMessage.Role.SYSTEM) {
+        } else if (item.getMessage().getRole() == ChatMessage.Role.SYSTEM) {
             fill = theme.dark ? 0xFF3A2420 : 0xFFFFF4E5;
         } else {
             fill = theme.surfaceRaised;
         }
         view.setBackground(theme.background(fill, theme.border, 16));
-        return view;
+        view.setTextColor(theme.primary);
+    }
+
+    private void bindImageAction(TranscriptRow row, CodexTranscriptItem item) {
+        String imagePath = item.getReportedImagePath();
+        if (item.isStreaming() || imagePath.isEmpty()) {
+            row.imagePath = "";
+            row.imageState = ImageValidationState.NONE;
+            row.imageInfo = null;
+            row.imageFailure = "";
+            row.imageStatus.setVisibility(View.GONE);
+            row.imageAction.setVisibility(View.GONE);
+            row.imageAction.setOnClickListener(null);
+            return;
+        }
+        if (!imagePath.equals(row.imagePath)) {
+            row.imagePath = imagePath;
+            beginImageInspection(row, imagePath);
+            return;
+        }
+        applyImageAction(row);
+    }
+
+    private void beginImageInspection(final TranscriptRow row, final String imagePath) {
+        row.imageState = ImageValidationState.CHECKING;
+        row.imageInfo = null;
+        row.imageFailure = "";
+        row.checkingMessage = getString(R.string.image_path_checking);
+        applyImageAction(row);
+        final android.content.Context applicationContext = getApplicationContext();
+        if (!submitImageOperation(new Runnable() {
+            @Override
+            public void run() {
+                try {
+                    final WorkspaceImageExporter.ImageExport image =
+                        WorkspaceImageExporter.inspect(applicationContext, imagePath);
+                    handler.post(new Runnable() {
+                        @Override
+                        public void run() {
+                            completeImageInspection(row, imagePath, image, "");
+                        }
+                    });
+                } catch (Throwable error) {
+                    final String failure = exportFailureMessage(error);
+                    handler.post(new Runnable() {
+                        @Override
+                        public void run() {
+                            completeImageInspection(row, imagePath, null, failure);
+                        }
+                    });
+                }
+            }
+        })) {
+            completeImageInspection(
+                row,
+                imagePath,
+                null,
+                getString(R.string.image_inspection_start_failed)
+            );
+        }
+    }
+
+    private void completeImageInspection(
+        TranscriptRow row,
+        String imagePath,
+        WorkspaceImageExporter.ImageExport image,
+        String failure
+    ) {
+        if (!isCurrentImageRow(row, imagePath)) {
+            return;
+        }
+        row.imageInfo = image;
+        row.imageFailure = failure == null ? "" : failure;
+        row.imageState = image == null
+            ? ImageValidationState.INVALID
+            : ImageValidationState.VALID;
+        applyImageAction(row);
+    }
+
+    private void applyImageAction(final TranscriptRow row) {
+        if (row.imageState == ImageValidationState.NONE) {
+            row.imageStatus.setVisibility(View.GONE);
+            row.imageAction.setVisibility(View.GONE);
+            row.imageAction.setOnClickListener(null);
+            return;
+        }
+        row.imageStatus.setVisibility(View.VISIBLE);
+        row.imageAction.setVisibility(View.VISIBLE);
+        if (row.imageState == ImageValidationState.CHECKING) {
+            row.imageStatus.setText(row.checkingMessage);
+            row.imageStatus.setTextColor(theme.secondary);
+            row.imageAction.setText(R.string.image_inspection_running);
+            row.imageAction.setOnClickListener(null);
+            theme.setEnabled(row.imageAction, false);
+            return;
+        }
+        if (row.imageState == ImageValidationState.INVALID) {
+            row.imageStatus.setText(row.imageFailure);
+            row.imageStatus.setTextColor(theme.danger);
+            row.imageAction.setText(R.string.image_path_recheck);
+            row.imageAction.setOnClickListener(new View.OnClickListener() {
+                @Override
+                public void onClick(View ignored) {
+                    beginImageInspection(row, row.imagePath);
+                }
+            });
+            theme.setEnabled(row.imageAction, true);
+            return;
+        }
+        WorkspaceImageExporter.ImageExport image = row.imageInfo;
+        row.imageStatus.setText(
+            getString(
+                R.string.image_workspace_confirmed,
+                image.getDisplayName(),
+                readableByteCount(image.getByteCount())
+            )
+        );
+        row.imageStatus.setTextColor(theme.secondary);
+        row.imageAction.setText(R.string.image_export);
+        row.imageAction.setOnClickListener(new View.OnClickListener() {
+            @Override
+            public void onClick(View ignored) {
+                verifyAndOpenImageExport(row, row.imagePath);
+            }
+        });
+        theme.setEnabled(row.imageAction, true);
+    }
+
+    private void verifyAndOpenImageExport(
+        final TranscriptRow row,
+        final String imagePath
+    ) {
+        row.imageState = ImageValidationState.CHECKING;
+        row.checkingMessage = getString(R.string.image_pre_export_check);
+        applyImageAction(row);
+        final android.content.Context applicationContext = getApplicationContext();
+        if (!submitImageOperation(new Runnable() {
+            @Override
+            public void run() {
+                try {
+                    final WorkspaceImageExporter.ImageExport image =
+                        WorkspaceImageExporter.inspect(applicationContext, imagePath);
+                    handler.post(new Runnable() {
+                        @Override
+                        public void run() {
+                            if (!isCurrentImageRow(row, imagePath)) {
+                                return;
+                            }
+                            row.imageState = ImageValidationState.VALID;
+                            row.imageInfo = image;
+                            row.imageFailure = "";
+                            applyImageAction(row);
+                            openImageExportDocument(row, imagePath, image);
+                        }
+                    });
+                } catch (Throwable error) {
+                    final String failure = exportFailureMessage(error);
+                    handler.post(new Runnable() {
+                        @Override
+                        public void run() {
+                            completeImageInspection(row, imagePath, null, failure);
+                        }
+                    });
+                }
+            }
+        })) {
+            completeImageInspection(
+                row,
+                imagePath,
+                null,
+                getString(R.string.image_recheck_start_failed)
+            );
+        }
+    }
+
+    private void openImageExportDocument(
+        TranscriptRow row,
+        String sourcePath,
+        WorkspaceImageExporter.ImageExport image
+    ) {
+        try {
+            Intent intent = new Intent(Intent.ACTION_CREATE_DOCUMENT);
+            intent.addCategory(Intent.CATEGORY_OPENABLE);
+            intent.setType(image.getMimeType());
+            intent.putExtra(Intent.EXTRA_TITLE, image.getDisplayName());
+            pendingImageExportPath = sourcePath;
+            startActivityForResult(intent, IMAGE_EXPORT_REQUEST_CODE);
+        } catch (Throwable error) {
+            pendingImageExportPath = "";
+            row.imageState = ImageValidationState.VALID;
+            applyImageAction(row);
+            Toast.makeText(
+                this,
+                R.string.document_picker_open_failed,
+                Toast.LENGTH_LONG
+            ).show();
+        }
+    }
+
+    private boolean isCurrentImageRow(TranscriptRow row, String imagePath) {
+        return !destroyed
+            && imagePath.equals(row.imagePath)
+            && row.root.getParent() != null;
+    }
+
+    private boolean submitImageOperation(Runnable operation) {
+        if (destroyed || imageOperations.isShutdown()) {
+            return false;
+        }
+        try {
+            imageOperations.execute(operation);
+            return true;
+        } catch (RejectedExecutionException ignored) {
+            return false;
+        }
+    }
+
+    private void showExportFailure(final String imagePath, Throwable error) {
+        final String message = exportFailureMessage(error);
+        runOnUiThread(new Runnable() {
+            @Override
+            public void run() {
+                if (destroyed) {
+                    return;
+                }
+                for (TranscriptRow row : renderedTranscriptRows) {
+                    if (imagePath.equals(row.imagePath)) {
+                        row.imageInfo = null;
+                        row.imageFailure = message;
+                        row.imageState = ImageValidationState.INVALID;
+                        applyImageAction(row);
+                    }
+                }
+                if (!isFinishing()) {
+                    Toast.makeText(MainActivity.this, message, Toast.LENGTH_LONG).show();
+                }
+            }
+        });
+    }
+
+    private String readableByteCount(long bytes) {
+        if (bytes >= 1024L * 1024L) {
+            return (bytes / (1024L * 1024L)) + " MiB";
+        }
+        if (bytes >= 1024L) {
+            return (bytes / 1024L) + " KiB";
+        }
+        return getString(R.string.byte_count_bytes, Long.valueOf(bytes));
+    }
+
+    private void showExportToast(final String message, final int duration) {
+        runOnUiThread(new Runnable() {
+            @Override
+            public void run() {
+                if (!destroyed && !isFinishing()) {
+                    Toast.makeText(MainActivity.this, message, duration).show();
+                }
+            }
+        });
+    }
+
+    private String exportFailureMessage(Throwable error) {
+        String reason = error == null || error.getMessage() == null
+            ? getString(R.string.common_unknown_error)
+            : UiText.errorReason(
+                this,
+                CrashReportFormatter.redactVisibleText(error.getMessage(), 180)
+            );
+        return getString(R.string.image_export_path_invalid, reason);
     }
 
     private void scrollMessagesToBottom() {
@@ -724,7 +1097,7 @@ public final class MainActivity extends Activity {
         threadPage.setVisibility(View.VISIBLE);
         conversationPage.setVisibility(View.GONE);
         backToThreadsButton.setVisibility(View.GONE);
-        screenTitle.setText("Chats");
+        screenTitle.setText(R.string.chat_title);
     }
 
     private void showConversationPage(CodexSessionSnapshot session) {
@@ -737,8 +1110,8 @@ public final class MainActivity extends Activity {
         backToThreadsButton.setVisibility(View.VISIBLE);
         screenTitle.setText(
             session.getActiveThreadTitle().isEmpty()
-                ? "Aktiver Chat"
-                : session.getActiveThreadTitle()
+                ? getString(R.string.chat_active)
+                : UiText.threadTitle(this, session.getActiveThreadTitle())
         );
     }
 
@@ -752,8 +1125,7 @@ public final class MainActivity extends Activity {
         }
         statusBanner.setVisibility(View.VISIBLE);
         statusText.setText(
-            "Die Chat-Oberfläche konnte nicht aktualisiert werden: "
-                + error.getClass().getSimpleName()
+            getString(R.string.chat_update_failed, error.getClass().getSimpleName())
         );
         statusText.setTextColor(theme == null ? Color.RED : theme.danger);
     }
@@ -777,7 +1149,7 @@ public final class MainActivity extends Activity {
         fallback.setTextSize(14);
         fallback.setTextIsSelectable(true);
         fallback.setText(
-            "AGENTCODI konnte die Chat-Oberfläche nicht initialisieren.\n\n"
+            getString(R.string.chat_initialization_failed) + "\n\n"
                 + CrashReportFormatter.format(source, Thread.currentThread(), error)
         );
         setContentView(fallback);
@@ -792,9 +1164,9 @@ public final class MainActivity extends Activity {
         return null;
     }
 
-    private static String selectorDescription(CodexModelOption model, String effort) {
+    private String selectorDescription(CodexModelOption model, String effort) {
         if (model == null) {
-            return "Keine Modelle verfügbar.";
+            return getString(R.string.models_unavailable);
         }
         String effortDescription = "";
         for (CodexReasoningOption option : model.getReasoningOptions()) {
@@ -813,33 +1185,117 @@ public final class MainActivity extends Activity {
         return value.toString();
     }
 
-    private static String reasoningLabel(String effort) {
+    private String reasoningLabel(String effort) {
         if ("low".equals(effort)) {
-            return "Niedrig";
+            return getString(R.string.reasoning_low);
         }
         if ("medium".equals(effort)) {
-            return "Mittel";
+            return getString(R.string.reasoning_medium);
         }
         if ("high".equals(effort)) {
-            return "Hoch";
+            return getString(R.string.reasoning_high);
         }
         if ("xhigh".equals(effort)) {
-            return "Sehr hoch";
+            return getString(R.string.reasoning_xhigh);
         }
         if ("max".equals(effort)) {
-            return "Maximum";
+            return getString(R.string.reasoning_max);
         }
         if ("ultra".equals(effort)) {
-            return "Ultra";
+            return getString(R.string.reasoning_ultra);
         }
         return effort;
     }
 
-    private static String messageText(ChatMessage message) {
+    private String messageText(ChatMessage message) {
         String role = message.getRole() == ChatMessage.Role.USER
-            ? "DU"
-            : message.getRole() == ChatMessage.Role.ASSISTANT ? "CODEX" : "SYSTEM";
-        return role + (message.isStreaming() ? " · STREAM" : "") + "\n" + message.getText();
+            ? getString(R.string.transcript_role_you)
+            : message.getRole() == ChatMessage.Role.ASSISTANT
+                ? getString(R.string.transcript_role_codex)
+                : getString(R.string.transcript_role_system);
+        String body = message.getRole() == ChatMessage.Role.SYSTEM
+            ? UiText.coreStatus(this, message.getText())
+            : message.getText();
+        return role
+            + (message.isStreaming()
+                ? " · " + getString(R.string.transcript_stream)
+                : "")
+            + "\n"
+            + body;
+    }
+
+    private static String transcriptKey(CodexTranscriptItem item) {
+        return item.getKind().name() + ":" + item.getId();
+    }
+
+    private String transcriptText(CodexTranscriptItem item) {
+        if (item.isMessage()) {
+            return messageText(item.getMessage());
+        }
+        StringBuilder text = new StringBuilder(
+            UiText.cardTitle(this, item).toUpperCase(java.util.Locale.ROOT)
+        );
+        String status = statusLabel(item.getStatus());
+        if (!status.isEmpty()) {
+            text.append(" · ").append(status);
+        } else if (item.isStreaming()) {
+            text.append(" · ").append(getString(R.string.transcript_stream));
+        }
+        String summary = UiText.cardSummary(this, item);
+        String detail = UiText.cardDetail(this, item.getDetail());
+        if (!summary.isEmpty()) {
+            text.append("\n").append(summary);
+        }
+        if (!detail.isEmpty()) {
+            if (item.getKind() == CodexTranscriptItem.Kind.REASONING
+                && !summary.isEmpty()) {
+                text.append("\n\n").append(getString(R.string.transcript_details)).append('\n');
+            } else {
+                text.append("\n");
+            }
+            text.append(detail);
+        }
+        if (summary.isEmpty() && detail.isEmpty() && item.isStreaming()) {
+            text.append("\n").append(getString(R.string.transcript_receiving));
+        }
+        return text.toString();
+    }
+
+    private String statusLabel(String status) {
+        if ("inProgress".equals(status)) {
+            return getString(R.string.status_in_progress);
+        }
+        if ("completed".equals(status)) {
+            return getString(R.string.status_completed);
+        }
+        if ("failed".equals(status)) {
+            return getString(R.string.status_failed);
+        }
+        if ("declined".equals(status)) {
+            return getString(R.string.status_declined);
+        }
+        if ("interrupted".equals(status)) {
+            return getString(R.string.status_interrupted);
+        }
+        return status == null ? "" : status.toUpperCase(java.util.Locale.ROOT);
+    }
+
+    private int cardFill(CodexTranscriptItem item) {
+        if ("failed".equals(item.getStatus())
+            || "declined".equals(item.getStatus())
+            || "interrupted".equals(item.getStatus())) {
+            return theme.dark ? 0xFF3A2420 : 0xFFFFF1F2;
+        }
+        if (item.getKind() == CodexTranscriptItem.Kind.REASONING) {
+            return theme.dark ? 0xFF25203D : 0xFFF5F3FF;
+        }
+        if (item.getKind() == CodexTranscriptItem.Kind.PLAN) {
+            return theme.dark ? 0xFF172E46 : 0xFFEFF6FF;
+        }
+        if (item.isStreaming()) {
+            return theme.dark ? 0xFF1C3040 : 0xFFECFEFF;
+        }
+        return theme.dark ? 0xFF162D29 : 0xFFF0FDFA;
     }
 
     private final class ThreadAdapter extends BaseAdapter {
@@ -918,12 +1374,14 @@ public final class MainActivity extends Activity {
             }
             CodexThreadSummary value = item(position);
             boolean active = value.getId().equals(activeId);
-            row.title.setText(value.getTitle());
+            row.title.setText(UiText.threadTitle(MainActivity.this, value.getTitle()));
             String updated = value.getUpdatedAtSeconds() <= 0
-                ? "Noch nicht aktualisiert"
+                ? getString(R.string.chat_not_updated)
                 : DateFormat.getDateTimeInstance(DateFormat.SHORT, DateFormat.SHORT)
                     .format(new Date(value.getUpdatedAtSeconds() * 1000L));
-            row.metadata.setText(active ? "Aktiver Chat · " + updated : updated);
+            row.metadata.setText(
+                active ? getString(R.string.chat_active_metadata, updated) : updated
+            );
             row.root.setBackground(theme.background(
                 active ? (theme.dark ? 0xFF123B3A : 0xFFE7FAF6) : theme.surface,
                 Color.TRANSPARENT,
@@ -931,6 +1389,37 @@ public final class MainActivity extends Activity {
             ));
             row.root.setAlpha(enabled ? 1.0f : 0.55f);
             return row.root;
+        }
+    }
+
+    private enum ImageValidationState {
+        NONE,
+        CHECKING,
+        VALID,
+        INVALID
+    }
+
+    private static final class TranscriptRow {
+        private final LinearLayout root;
+        private final TextView text;
+        private final TextView imageStatus;
+        private final Button imageAction;
+        private String imagePath = "";
+        private ImageValidationState imageState = ImageValidationState.NONE;
+        private WorkspaceImageExporter.ImageExport imageInfo;
+        private String imageFailure = "";
+        private String checkingMessage = "";
+
+        private TranscriptRow(
+            LinearLayout root,
+            TextView text,
+            TextView imageStatus,
+            Button imageAction
+        ) {
+            this.root = root;
+            this.text = text;
+            this.imageStatus = imageStatus;
+            this.imageAction = imageAction;
         }
     }
 

@@ -54,8 +54,6 @@ AGENTCODI brings the Codex workflow directly to Android. The standalone app runs
 
 Only install APK files published through the official AGENTCODI release page.
 
-> [!NOTE]
-> This permission applies to the app that opens the APK, such as your browser or file manager. Managed-device policies or Android Advanced Protection may block installation from external sources completely.
 
 ## Current status
 

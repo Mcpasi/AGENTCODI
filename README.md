@@ -4,9 +4,6 @@
   <strong>The Codex workflow, built as a standalone Android app.</strong>
 </p>
 
-<p align="center">
-  <a href="README_DE.md">Deutsch</a> · <strong>English</strong>
-</p>
 
 <p align="center">
   <img alt="Version 0.4.1" src="https://img.shields.io/badge/version-0.4.1-6f42c1">

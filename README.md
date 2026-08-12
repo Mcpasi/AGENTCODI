@@ -1,5 +1,7 @@
 # AGENTCODI
 
+Bring your Codex workflow natively to Android - No Termux, Node/npm required - A runtime written in C++
+
 <p align="center">
   <img alt="Version 0.4.1" src="https://img.shields.io/badge/Version-0.4.1-6f42c1">
   <img alt="Android 10 oder neuer" src="https://img.shields.io/badge/Android-10%2B-3DDC84?logo=android&logoColor=white">
@@ -10,4 +12,11 @@
 
 ---
 
+
 Bring your Codex workflow natively to Android - No Termux, Node/npm required - A runtime written in C++
+
+> [!IMPORTANT]
+> AGENTCODI is currently in an early testing phase
+
+## This is what AGENTCODI offers
+

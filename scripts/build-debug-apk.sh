@@ -6,11 +6,20 @@ PROJECT_ROOT="$(cd -- "$SCRIPT_DIR/.." && pwd -P)"
 
 APP_NAME="AGENTCODI"
 APP_ID="de.agentcodi.app"
-APP_VERSION="0.4.0"
-VERSION_CODE="20"
+APP_VERSION="0.4.1"
+VERSION_CODE="21"
 MIN_SDK="29"
 TARGET_SDK="35"
 ABI="arm64-v8a"
+BUILD_VARIANT="${AGENTCODI_BUILD_VARIANT:-debug}"
+
+case "$BUILD_VARIANT" in
+  debug|release) ;;
+  *)
+    echo "Unsupported AGENTCODI build variant: $BUILD_VARIANT" >&2
+    exit 1
+    ;;
+esac
 
 CODEX_ANDROID_VERSION="0.147.2"
 CODEX_ANDROID_URL="https://registry.npmjs.org/@mmmbuto/codex-cli-termux/-/codex-cli-termux-$CODEX_ANDROID_VERSION.tgz"
@@ -66,7 +75,7 @@ require_command() {
   fi
 }
 
-for command_name in apksigner awk cmp curl dd dpkg-deb file grep readelf rg sha256sum strings tar unzip wc zip zipalign zipinfo; do
+for command_name in apksigner awk cmp curl dd dpkg-deb file grep readelf realpath rg sha256sum stat strings tar tr unzip wc zip zipalign zipinfo; do
   require_command "$command_name"
 done
 for executable in "$JAVA" "$JAVAC" "$JAR" "$KEYTOOL" "$CLANGXX" "$LLVM_STRIP"; do
@@ -75,6 +84,91 @@ for executable in "$JAVA" "$JAVAC" "$JAR" "$KEYTOOL" "$CLANGXX" "$LLVM_STRIP"; d
     exit 1
   fi
 done
+
+validate_external_private_file() {
+  local configuration_name="$1"
+  local configured_path="$2"
+  local canonical_path
+  local file_mode
+  local link_count
+
+  if [ -z "$configured_path" ]; then
+    echo "Missing release signing configuration: $configuration_name" >&2
+    exit 1
+  fi
+  case "$configured_path" in
+    /*) ;;
+    *)
+      echo "$configuration_name must be an absolute path outside the project." >&2
+      exit 1
+      ;;
+  esac
+  if [ ! -f "$configured_path" ] || [ -L "$configured_path" ] || [ ! -s "$configured_path" ]; then
+    echo "$configuration_name must name a non-empty, non-symlink regular file." >&2
+    exit 1
+  fi
+  canonical_path="$(realpath -- "$configured_path")"
+  case "$canonical_path" in
+    "$PROJECT_ROOT"|"$PROJECT_ROOT"/*)
+      echo "$configuration_name must remain outside the project tree." >&2
+      exit 1
+      ;;
+  esac
+  file_mode="$(stat -c '%a' "$canonical_path")"
+  if (( (8#$file_mode & 077) != 0 )); then
+    echo "$configuration_name must not be accessible by group or other users." >&2
+    exit 1
+  fi
+  link_count="$(stat -c '%h' "$canonical_path")"
+  if [ "$link_count" -ne 1 ]; then
+    echo "$configuration_name must not be hard-linked." >&2
+    exit 1
+  fi
+  printf '%s\n' "$canonical_path"
+}
+
+RELEASE_KEYSTORE=""
+RELEASE_KEY_ALIAS=""
+RELEASE_PASSWORD_MODE=""
+RELEASE_STORE_PASSWORD_FILE=""
+RELEASE_KEY_PASSWORD_FILE=""
+EXPECTED_RELEASE_CERT_SHA256=""
+if [ "$BUILD_VARIANT" = "release" ]; then
+  RELEASE_KEYSTORE="$(validate_external_private_file \
+    AGENTCODI_RELEASE_KEYSTORE "${AGENTCODI_RELEASE_KEYSTORE:-}")"
+  RELEASE_PASSWORD_MODE="${AGENTCODI_RELEASE_PASSWORD_MODE:-file}"
+  case "$RELEASE_PASSWORD_MODE" in
+    file)
+      RELEASE_STORE_PASSWORD_FILE="$(validate_external_private_file \
+        AGENTCODI_RELEASE_STORE_PASSWORD_FILE "${AGENTCODI_RELEASE_STORE_PASSWORD_FILE:-}")"
+      RELEASE_KEY_PASSWORD_FILE="$(validate_external_private_file \
+        AGENTCODI_RELEASE_KEY_PASSWORD_FILE "${AGENTCODI_RELEASE_KEY_PASSWORD_FILE:-}")"
+      ;;
+    prompt)
+      if [ ! -t 0 ]; then
+        echo "Interactive release password mode requires a terminal." >&2
+        exit 1
+      fi
+      ;;
+    *)
+      echo "AGENTCODI_RELEASE_PASSWORD_MODE must be file or prompt." >&2
+      exit 1
+      ;;
+  esac
+  RELEASE_KEY_ALIAS="${AGENTCODI_RELEASE_KEY_ALIAS:-}"
+  if [ -z "$RELEASE_KEY_ALIAS" ] \
+      || [ "${#RELEASE_KEY_ALIAS}" -gt 128 ] \
+      || [[ "$RELEASE_KEY_ALIAS" == *[!A-Za-z0-9._-]* ]]; then
+    echo "AGENTCODI_RELEASE_KEY_ALIAS must contain 1-128 safe alias characters." >&2
+    exit 1
+  fi
+  EXPECTED_RELEASE_CERT_SHA256="${AGENTCODI_RELEASE_CERT_SHA256:-}"
+  if ! printf '%s\n' "$EXPECTED_RELEASE_CERT_SHA256" | grep -Eq '^[0-9A-Fa-f]{64}$'; then
+    echo "AGENTCODI_RELEASE_CERT_SHA256 must be exactly 64 hexadecimal characters." >&2
+    exit 1
+  fi
+  EXPECTED_RELEASE_CERT_SHA256="$(printf '%s' "$EXPECTED_RELEASE_CERT_SHA256" | tr '[:upper:]' '[:lower:]')"
+fi
 
 download_verified() {
   url="$1"
@@ -334,7 +428,11 @@ for native_file in "$NATIVE_DIR/libagentcodi.so" "$NATIVE_DIR/libc++_shared.so" 
 done
 
 echo "Creating DEX and APK..."
-"$JAVA" -cp "$R8_JAR" com.android.tools.r8.D8 --debug --min-api "$MIN_SDK" --lib "$ANDROID_JAR" --output "$DEX_DIR" "$CORE_JAR" "$STORAGE_JAR" "$RUNTIME_JAR" "$APP_JAR"
+DEX_MODE="--debug"
+if [ "$BUILD_VARIANT" = "release" ]; then
+  DEX_MODE="--release"
+fi
+"$JAVA" -cp "$R8_JAR" com.android.tools.r8.D8 "$DEX_MODE" --min-api "$MIN_SDK" --lib "$ANDROID_JAR" --output "$DEX_DIR" "$CORE_JAR" "$STORAGE_JAR" "$RUNTIME_JAR" "$APP_JAR"
 cp "$DEX_DIR/classes.dex" "$ADDITIONS/classes.dex"
 
 UNALIGNED_APK="$WORK_DIR/unaligned.apk"
@@ -346,19 +444,49 @@ cp "$UNSIGNED_APK" "$UNALIGNED_APK"
 )
 zipalign -f -p 4 "$UNALIGNED_APK" "$ALIGNED_APK"
 
-DEBUG_KEYSTORE="$CACHE_DIR/agentcodi-debug.keystore"
-if [ ! -f "$DEBUG_KEYSTORE" ]; then
-  "$KEYTOOL" -genkeypair -noprompt -keystore "$DEBUG_KEYSTORE" -storepass android -keypass android -alias androiddebugkey -dname "CN=AGENTCODI Android Debug,O=AGENTCODI,C=DE" -keyalg RSA -keysize 2048 -validity 10000
+if [ "$BUILD_VARIANT" = "debug" ]; then
+  DEBUG_KEYSTORE="$CACHE_DIR/agentcodi-debug.keystore"
+  if [ ! -f "$DEBUG_KEYSTORE" ]; then
+    "$KEYTOOL" -genkeypair -noprompt -keystore "$DEBUG_KEYSTORE" -storepass android -keypass android -alias androiddebugkey -dname "CN=AGENTCODI Android Debug,O=AGENTCODI,C=DE" -keyalg RSA -keysize 2048 -validity 10000
+  fi
+  chmod 600 "$DEBUG_KEYSTORE"
+  VERSIONED_APK="$OUTPUT_DIR/$APP_NAME-$APP_VERSION-$ABI-debug.apk"
+  NAMED_APK="$OUTPUT_DIR/$APP_NAME-debug.apk"
+  apksigner sign --min-sdk-version "$MIN_SDK" --ks "$DEBUG_KEYSTORE" --ks-key-alias androiddebugkey --ks-pass pass:android --key-pass pass:android --out "$VERSIONED_APK" "$ALIGNED_APK"
+else
+  VERSIONED_APK="$OUTPUT_DIR/$APP_NAME-$APP_VERSION-$ABI-release.apk"
+  NAMED_APK="$OUTPUT_DIR/$APP_NAME-release.apk"
+  if [ "$RELEASE_PASSWORD_MODE" = "file" ]; then
+    apksigner sign --min-sdk-version "$MIN_SDK" --ks "$RELEASE_KEYSTORE" --ks-key-alias "$RELEASE_KEY_ALIAS" --ks-pass "file:$RELEASE_STORE_PASSWORD_FILE" --key-pass "file:$RELEASE_KEY_PASSWORD_FILE" --out "$VERSIONED_APK" "$ALIGNED_APK"
+  else
+    apksigner sign --min-sdk-version "$MIN_SDK" --ks "$RELEASE_KEYSTORE" --ks-key-alias "$RELEASE_KEY_ALIAS" --out "$VERSIONED_APK" "$ALIGNED_APK"
+  fi
 fi
-
-VERSIONED_APK="$OUTPUT_DIR/$APP_NAME-$APP_VERSION-$ABI-debug.apk"
-NAMED_APK="$OUTPUT_DIR/$APP_NAME-debug.apk"
-apksigner sign --min-sdk-version "$MIN_SDK" --ks "$DEBUG_KEYSTORE" --ks-key-alias androiddebugkey --ks-pass pass:android --key-pass pass:android --out "$VERSIONED_APK" "$ALIGNED_APK"
 cp "$VERSIONED_APK" "$NAMED_APK"
 
 echo "Verifying APK identity, signature, alignment, ABI, and payload..."
 zipalign -c -p 4 "$VERSIONED_APK"
-apksigner verify --verbose --print-certs "$VERSIONED_APK"
+certificate_report="$(apksigner verify --verbose --print-certs "$VERSIONED_APK")"
+printf '%s\n' "$certificate_report"
+signer_count="$(printf '%s\n' "$certificate_report" | awk '/^Signer #[0-9]+ certificate SHA-256 digest:/ { count++ } END { print count + 0 }')"
+actual_signer_cert_sha256="$(printf '%s\n' "$certificate_report" | awk -F': ' '/^Signer #1 certificate SHA-256 digest:/ { print $2; exit }' | tr '[:upper:]' '[:lower:]')"
+if [ "$signer_count" -ne 1 ] || ! printf '%s\n' "$actual_signer_cert_sha256" | grep -Eq '^[0-9a-f]{64}$'; then
+  echo "APK must contain exactly one signer with a valid SHA-256 certificate digest." >&2
+  exit 1
+fi
+if [ "$BUILD_VARIANT" = "release" ]; then
+  if [ "$actual_signer_cert_sha256" != "$EXPECTED_RELEASE_CERT_SHA256" ]; then
+    echo "Release signer certificate does not match AGENTCODI_RELEASE_CERT_SHA256." >&2
+    exit 1
+  fi
+  if printf '%s\n' "$certificate_report" | grep -Fiq 'android debug'; then
+    echo "Release APK must not use an Android debug certificate." >&2
+    exit 1
+  fi
+elif ! printf '%s\n' "$certificate_report" | grep -Fq 'Signer #1 certificate DN: CN=AGENTCODI Android Debug, O=AGENTCODI, C=DE'; then
+  echo "Debug APK was not signed by the local AGENTCODI test signer." >&2
+  exit 1
+fi
 badging="$(env LD_LIBRARY_PATH="$AAPT2_LIBRARY_PATH" "$AAPT2_BIN" dump badging "$VERSIONED_APK")"
 printf '%s\n' "$badging" | grep -Fq "package: name='$APP_ID'"
 printf '%s\n' "$badging" | grep -Fq "versionCode='$VERSION_CODE'"
@@ -368,6 +496,10 @@ printf '%s\n' "$badging" | grep -Fq "targetSdkVersion:'$TARGET_SDK'"
 printf '%s\n' "$badging" | grep -Fq "application-label:'$APP_NAME'"
 printf '%s\n' "$badging" | grep -Fq "launchable-activity: name='de.agentcodi.app.MainActivity'"
 printf '%s\n' "$badging" | grep -Fq "native-code: '$ABI'"
+if printf '%s\n' "$badging" | grep -Fq 'application-debuggable'; then
+  echo "Refusing an Android-debuggable APK." >&2
+  exit 1
+fi
 printf '%s\n' "$badging" | grep -F "package: name='$APP_ID'"
 printf '%s\n' "$badging" | grep -F "application-label:'$APP_NAME'"
 
@@ -444,7 +576,7 @@ sha256sum "$VERSIONED_APK" > "$VERSIONED_APK.sha256"
 sha256sum "$NAMED_APK" > "$NAMED_APK.sha256"
 
 echo
-echo "Built $APP_NAME $APP_VERSION (debug, $ABI)"
+echo "Built $APP_NAME $APP_VERSION ($BUILD_VARIANT-signed, non-debuggable, $ABI)"
 echo "APK: $NAMED_APK"
 echo "Versioned APK: $VERSIONED_APK"
 echo "SHA-256: $(sha256sum "$VERSIONED_APK" | awk '{print $1}')"

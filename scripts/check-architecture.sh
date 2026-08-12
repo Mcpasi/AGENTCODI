@@ -31,6 +31,33 @@ if rg -n '^import android\.webkit' "$PROJECT_ROOT/app/src/main/java" "$PROJECT_R
   exit 1
 fi
 
+manifest="$PROJECT_ROOT/app/src/main/AndroidManifest.xml"
+apk_builder="$PROJECT_ROOT/scripts/build-debug-apk.sh"
+release_builder="$PROJECT_ROOT/scripts/build-release-apk.sh"
+if rg -q 'android:debuggable="true"' "$manifest" \
+    || ! rg -q 'android:debuggable="false"' "$manifest"; then
+  echo "Every AGENTCODI APK must be explicitly non-debuggable." >&2
+  exit 1
+fi
+if [ ! -x "$release_builder" ] \
+    || ! rg -Fq 'AGENTCODI_BUILD_VARIANT=release' "$release_builder" \
+    || ! rg -Fq 'AGENTCODI_RELEASE_KEYSTORE' "$apk_builder" \
+    || ! rg -Fq 'AGENTCODI_RELEASE_PASSWORD_MODE' "$apk_builder" \
+    || ! rg -Fq 'AGENTCODI_RELEASE_STORE_PASSWORD_FILE' "$apk_builder" \
+    || ! rg -Fq 'AGENTCODI_RELEASE_KEY_PASSWORD_FILE' "$apk_builder" \
+    || ! rg -Fq 'AGENTCODI_RELEASE_CERT_SHA256' "$apk_builder" \
+    || ! rg -Fq -- '--ks-pass "file:$RELEASE_STORE_PASSWORD_FILE"' "$apk_builder" \
+    || ! rg -Fq -- '--key-pass "file:$RELEASE_KEY_PASSWORD_FILE"' "$apk_builder" \
+    || ! rg -Fq 'must remain outside the project tree.' "$apk_builder" \
+    || ! rg -Fq 'must not be hard-linked.' "$apk_builder" \
+    || ! rg -Fq 'Interactive release password mode requires a terminal.' "$apk_builder" \
+    || ! rg -Fq 'application-debuggable' "$apk_builder" \
+    || ! rg -Fq 'Release signer certificate does not match AGENTCODI_RELEASE_CERT_SHA256.' "$apk_builder" \
+    || ! rg -Fq 'Release APK must not use an Android debug certificate.' "$apk_builder"; then
+  echo "Non-debuggable APK and external release-signing gates are incomplete." >&2
+  exit 1
+fi
+
 if rg -n 'new[[:space:]]+ProcessBuilder|Runtime\.getRuntime\(\)\.exec' "$PROJECT_ROOT/app/src/main/java" "$PROJECT_ROOT/modules" --glob '*.java'; then
   echo "Child processes must be owned by the C++ process supervisor." >&2
   exit 1

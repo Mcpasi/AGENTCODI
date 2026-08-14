@@ -190,19 +190,18 @@
   <string name="security_section">SICHERHEIT UND STATUS</string>
   <string name="security_summary">• App-Server ausschließlich über begrenztes stdio, ohne Netzwerk-Listener\n• Eigenes Berechtigungsprofil mit privatem Workspace als Runtime-Root\n• Modelle und Denkstufen werden live vom App-Server geladen\n• Native Freigabe- und Rückfragedialoge ohne automatische Zustimmung\n\n%1$s · Codex %2$s</string>
 
-  <string name="licenses_section">OPEN-SOURCE-LIZENZEN</string>
-  <string name="licenses_settings_description">Die AGENTCODI-Lizenz sowie alle Lizenzen und Hinweise der tatsächlich in der APK mitgelieferten Komponenten stehen in einer eigenen Ansicht bereit.</string>
-  <string name="licenses_open">Lizenzen öffnen</string>
-  <string name="licenses_title">Open-Source-Lizenzen</string>
+  <string name="licenses_section">RECHTLICHE HINWEISE</string>
+  <string name="licenses_settings_description">Hier stehen der Urheberschaftshinweis für AGENTCODI sowie alle Lizenzen und Hinweise der tatsächlich in der APK mitgelieferten Komponenten.</string>
+  <string name="licenses_open">Rechtliche Hinweise öffnen</string>
+  <string name="licenses_title">Rechtliche Hinweise</string>
   <string name="licenses_subtitle">Urheber-, Lizenz- und Attributionsangaben für AGENTCODI und tatsächlich mitgelieferte APK-Komponenten. Codex Works ist kein Bestandteil der APK.</string>
   <string name="licenses_back">‹ Einstellungen</string>
-  <string name="license_agentcodi_title">AGENTCODI-Eigenentwicklung</string>
-  <string name="license_agentcodi_summary">Copyright 2026 Pascal (Mc Pasi) · Apache License 2.0</string>
+  <string name="license_agentcodi_title">AGENTCODI-Urheberschaft</string>
+  <string name="license_agentcodi_summary">Copyright 2026 Pascal (Mc Pasi) · Alle Rechte vorbehalten. Derzeit wird keine öffentliche Quellcodelizenz erteilt.</string>
   <string name="license_codex_runtime_title">Codex Android Community-Runtime</string>
   <string name="license_codex_runtime_summary">OpenAI Codex 0.147.2 und die Android-/Termux-Community-Distribution · Apache License 2.0. Dies ist keine offizielle OpenAI-Android-APK.</string>
   <string name="license_third_party_title">Weitere Drittanbieterhinweise</string>
   <string name="license_third_party_summary">Enthält unter anderem die LLVM-libc++-Runtime unter der University of Illinois/NCSA Open Source License.</string>
-  <string name="license_show_text">Vollständigen Lizenztext anzeigen</string>
   <string name="license_show_notice">LICENSE und NOTICE anzeigen</string>
   <string name="license_close">Schließen</string>
   <string name="license_load_failed">Der paketierte Lizenztext konnte nicht geladen werden.</string>
@@ -226,6 +225,7 @@
   <string name="user_input_answer">Antworten</string>
   <string name="user_input_without_answer">Ohne Antwort</string>
   <string name="user_input_answer_all">Bitte jede Frage beantworten.</string>
+  <string name="user_input_credential_warning">Gib hier niemals OpenAI-API-Schlüssel, Zugriffs-/Refresh-Tokens oder Bearer-Zugangsdaten ein. Nutze ausschließlich Einstellungen → Konto.</string>
   <string name="user_input_other">Andere Antwort</string>
   <string name="user_input_secret_hint">Vertrauliche Antwort</string>
   <string name="user_input_custom_hint">Eigene Antwort</string>

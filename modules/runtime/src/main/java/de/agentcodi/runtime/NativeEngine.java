@@ -43,8 +43,13 @@ public final class NativeEngine {
         return nativeReadAppServerLine(handle, maximumBytes);
     }
 
-    void writeAppServerLine(long handle, byte[] line, int maximumBytes) throws IOException {
-        nativeWriteAppServerLine(handle, line, maximumBytes);
+    void writeAppServerLine(
+        long handle,
+        byte[] line,
+        int length,
+        int maximumBytes
+    ) throws IOException {
+        nativeWriteAppServerLine(handle, line, length, maximumBytes);
     }
 
     int stopAppServer(long handle, int timeoutMilliseconds) {
@@ -75,6 +80,7 @@ public final class NativeEngine {
     private static native void nativeWriteAppServerLine(
         long handle,
         byte[] line,
+        int length,
         int maximumBytes
     ) throws IOException;
 

@@ -1199,6 +1199,35 @@ bool canonical_directory(
   return true;
 }
 
+bool validate_codex_configuration_files(
+    const std::string& codex_home,
+    std::string* error) {
+  constexpr const char* kConfigurationFiles[] = {
+      "config.toml",
+      "requirements.toml",
+      "hooks.json",
+  };
+  for (const char* name : kConfigurationFiles) {
+    const std::string path = codex_home + "/" + name;
+    struct stat metadata {};
+    if (lstat(path.c_str(), &metadata) == 0) {
+      if (!S_ISREG(metadata.st_mode)
+          || metadata.st_uid != geteuid()
+          || metadata.st_nlink != 1
+          || (metadata.st_mode & 077) != 0) {
+        *error = "Codex configuration must be a private regular file";
+        return false;
+      }
+      continue;
+    }
+    if (errno != ENOENT) {
+      *error = errno_message("Codex configuration metadata", errno);
+      return false;
+    }
+  }
+  return true;
+}
+
 bool contains_path(const std::string& parent, const std::string& child) {
   if (parent == child) {
     return true;
@@ -1213,6 +1242,57 @@ bool validate_argument(const std::string& value) {
       && value.find('\n') == std::string::npos
       && value.find('\r') == std::string::npos;
 }
+
+std::string toml_string(const std::string& value) {
+  std::string encoded;
+  encoded.reserve(value.size() + 2U);
+  encoded.push_back('"');
+  for (const unsigned char character : value) {
+    if (character == '"' || character == '\\') {
+      encoded.push_back('\\');
+      encoded.push_back(static_cast<char>(character));
+    } else if (character == '\b') {
+      encoded.append("\\b");
+    } else if (character == '\t') {
+      encoded.append("\\t");
+    } else if (character == '\n') {
+      encoded.append("\\n");
+    } else if (character == '\f') {
+      encoded.append("\\f");
+    } else if (character == '\r') {
+      encoded.append("\\r");
+    } else {
+      encoded.push_back(static_cast<char>(character));
+    }
+  }
+  encoded.push_back('"');
+  return encoded;
+}
+
+void wipe_bytes(std::vector<unsigned char>* bytes) {
+  if (bytes == nullptr || bytes->empty()) {
+    return;
+  }
+  volatile unsigned char* cursor = bytes->data();
+  for (std::size_t index = 0U; index < bytes->size(); ++index) {
+    cursor[index] = 0U;
+  }
+}
+
+class ScopedByteWiper final {
+ public:
+  explicit ScopedByteWiper(std::vector<unsigned char>* bytes) : bytes_(bytes) {}
+
+  ~ScopedByteWiper() {
+    wipe_bytes(bytes_);
+  }
+
+  ScopedByteWiper(const ScopedByteWiper&) = delete;
+  ScopedByteWiper& operator=(const ScopedByteWiper&) = delete;
+
+ private:
+  std::vector<unsigned char>* bytes_;
+};
 
 int decode_wait_status(int status) {
   if (WIFEXITED(status)) {
@@ -1244,21 +1324,20 @@ int decode_wait_status(int status) {
   _exit(127);
 }
 
-bool set_child_environment(const ProcessConfig& config) {
+std::vector<std::string> child_environment(const ProcessConfig& config) {
   const std::string path = config.library_directory + ":/system/bin:/system/xbin";
-  return setenv("HOME", config.home_directory.c_str(), 1) == 0
-      && setenv("CODEX_HOME", config.codex_home.c_str(), 1) == 0
-      && setenv("TMPDIR", config.temporary_directory.c_str(), 1) == 0
-      && setenv("TMP", config.temporary_directory.c_str(), 1) == 0
-      && setenv("TEMP", config.temporary_directory.c_str(), 1) == 0
-      && setenv("PATH", path.c_str(), 1) == 0
-      && setenv("SHELL", "/system/bin/sh", 1) == 0
-      && setenv("LD_LIBRARY_PATH", config.library_directory.c_str(), 1) == 0
-      && setenv("CODEX_SELF_EXE", config.executable.c_str(), 1) == 0
-      && setenv(
-          "CODEX_CODE_MODE_HOST_PATH",
-          config.code_mode_host_executable.c_str(),
-          1) == 0;
+  return {
+      "HOME=" + config.home_directory,
+      "CODEX_HOME=" + config.codex_home,
+      "TMPDIR=" + config.temporary_directory,
+      "TMP=" + config.temporary_directory,
+      "TEMP=" + config.temporary_directory,
+      "PATH=" + path,
+      "SHELL=/system/bin/sh",
+      "LD_LIBRARY_PATH=" + config.library_directory,
+      "CODEX_SELF_EXE=" + config.executable,
+      "CODEX_CODE_MODE_HOST_PATH=" + config.code_mode_host_executable,
+  };
 }
 
 }  // namespace
@@ -1412,7 +1491,17 @@ InboundLineCompactionStatus MaterializeAndCompactInboundImagePayloads(
   return InboundLineCompactionStatus::kCompacted;
 }
 
-std::vector<std::string> CodexAppServerArguments() {
+std::vector<std::string> CodexAppServerArguments(const ProcessConfig& config) {
+  const std::string child_path =
+      config.library_directory + ":/system/bin:/system/xbin";
+  const std::string shell_environment =
+      "shell_environment_policy={inherit=\"none\","
+      "ignore_default_excludes=false,set={PATH=" + toml_string(child_path)
+      + ",SHELL=\"/system/bin/sh\",HOME=" + toml_string(config.home_directory)
+      + ",TMPDIR=" + toml_string(config.temporary_directory)
+      + ",TMP=" + toml_string(config.temporary_directory)
+      + ",TEMP=" + toml_string(config.temporary_directory)
+      + ",LD_LIBRARY_PATH=" + toml_string(config.library_directory) + "}}";
   return {
       "app-server",
       "--stdio",
@@ -1421,6 +1510,20 @@ std::vector<std::string> CodexAppServerArguments() {
       "cli_auth_credentials_store=\"file\"",
       "-c",
       "approval_policy=\"on-request\"",
+      "-c",
+      shell_environment,
+      "-c",
+      "analytics.enabled=false",
+      "-c",
+      "otel.exporter=\"none\"",
+      "-c",
+      "otel.log_user_prompt=false",
+      "-c",
+      "feedback.enabled=false",
+      "-c",
+      "check_for_update_on_startup=false",
+      "-c",
+      "allow_login_shell=false",
       // The built-in OpenAI provider enables Responses-over-WebSocket. Some
       // ChatGPT sessions accept the upgrade and then close it by policy, so
       // Codex spends all five stream retries before falling back to HTTPS.
@@ -1500,10 +1603,16 @@ std::shared_ptr<AppServerProcess> AppServerProcess::Start(
     *error = "Codex home must remain separate from the workspace";
     return nullptr;
   }
+  if (!validate_codex_configuration_files(config.codex_home, error)) {
+    return nullptr;
+  }
   if (contains_path(config.working_directory, config.code_mode_host_executable)
       || contains_path(config.codex_home, config.code_mode_host_executable)) {
     *error = "Code-mode host must remain outside workspace and Codex home";
     return nullptr;
+  }
+  if (config.arguments.empty()) {
+    config.arguments = CodexAppServerArguments(config);
   }
   for (const std::string& argument : config.arguments) {
     if (!validate_argument(argument)) {
@@ -1552,6 +1661,19 @@ std::shared_ptr<AppServerProcess> AppServerProcess::Start(
   }
   arguments.push_back(nullptr);
 
+  // Android starts this supervisor from a multithreaded ART process. Build all
+  // storage before fork and pass an explicit environment to execve: clearenv
+  // and setenv may allocate or touch libc global state and are not safe in the
+  // post-fork child. The explicit envp keeps the same fail-closed allowlist
+  // without mutating inherited process state between fork and exec.
+  std::vector<std::string> environment_storage = child_environment(config);
+  std::vector<char*> environment;
+  environment.reserve(environment_storage.size() + 1U);
+  for (std::string& value : environment_storage) {
+    environment.push_back(const_cast<char*>(value.c_str()));
+  }
+  environment.push_back(nullptr);
+
   const pid_t pid = fork();
   if (pid == -1) {
     const int saved_errno = errno;
@@ -1576,11 +1698,11 @@ std::shared_ptr<AppServerProcess> AppServerProcess::Start(
     }
     close_if_open(null_output);
     close_if_open(communication[1]);
-    if (chdir(config.working_directory.c_str()) != 0
-        || !set_child_environment(config)) {
+    umask(0077);
+    if (chdir(config.working_directory.c_str()) != 0) {
       report_child_error_and_exit(exec_status[1], errno);
     }
-    execv(config.executable.c_str(), arguments.data());
+    execve(config.executable.c_str(), arguments.data(), environment.data());
     report_child_error_and_exit(exec_status[1], errno);
   }
 
@@ -1640,14 +1762,28 @@ bool AppServerProcess::WriteLine(
     const std::string& line,
     std::size_t maximum_bytes,
     std::string* error) {
+  std::vector<unsigned char> bytes(line.begin(), line.end());
+  return WriteBytes(&bytes, bytes.size(), maximum_bytes, error);
+}
+
+bool AppServerProcess::WriteBytes(
+    std::vector<unsigned char>* line,
+    std::size_t length,
+    std::size_t maximum_bytes,
+    std::string* error) {
+  ScopedByteWiper wipe_line(line);
   if (error == nullptr) {
     return false;
   }
   error->clear();
-  if (line.empty() || line.size() > maximum_bytes
-      || line.find('\0') != std::string::npos
-      || line.find('\n') != std::string::npos
-      || line.find('\r') != std::string::npos) {
+  if (line == nullptr || length == 0U || length > line->size()
+      || length > maximum_bytes
+      || std::find(line->begin(), line->begin() + length, 0U)
+          != line->begin() + length
+      || std::find(line->begin(), line->begin() + length, '\n')
+          != line->begin() + length
+      || std::find(line->begin(), line->begin() + length, '\r')
+          != line->begin() + length) {
     *error = "Outgoing app-server line violates the framing limit";
     return false;
   }
@@ -1657,13 +1793,12 @@ bool AppServerProcess::WriteLine(
   if (descriptor < 0) {
     return false;
   }
-  const std::string framed = line + '\n';
   std::size_t written = 0;
-  while (written < framed.size()) {
+  while (written < length) {
     const ssize_t count = send(
         descriptor,
-        framed.data() + written,
-        framed.size() - written,
+        line->data() + written,
+        length - written,
         MSG_NOSIGNAL);
     if (count > 0) {
       written += static_cast<std::size_t>(count);
@@ -1675,6 +1810,20 @@ bool AppServerProcess::WriteLine(
       *error = errno_message("App-server write", saved_errno);
       return false;
     }
+  }
+  const unsigned char newline = '\n';
+  while (true) {
+    const ssize_t count = send(descriptor, &newline, 1U, MSG_NOSIGNAL);
+    if (count == 1) {
+      break;
+    }
+    if (count == -1 && errno == EINTR) {
+      continue;
+    }
+    const int saved_errno = count == 0 ? EPIPE : errno;
+    close_if_open(descriptor);
+    *error = errno_message("App-server write", saved_errno);
+    return false;
   }
   close_if_open(descriptor);
   return true;
@@ -1768,7 +1917,14 @@ LineReadStatus AppServerProcess::ReadLine(
         *error = "App-server ended with an incomplete JSON line";
         return LineReadStatus::kError;
       }
-      return LineReadStatus::kEndOfStream;
+      const int exit_code = PollExitCode();
+      if (exit_code == kStillRunning) {
+        *error = "Codex app-server closed stdout while terminating";
+      } else {
+        *error = "Codex app-server exited with code "
+            + std::to_string(exit_code);
+      }
+      return LineReadStatus::kError;
     } else if (errno != EINTR) {
       const int saved_errno = errno;
       close_if_open(descriptor);

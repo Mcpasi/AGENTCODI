@@ -25,8 +25,7 @@ public final class CrashReportStore {
     }
 
     public static CrashReportStore open(File appFilesDirectory) throws IOException {
-        WorkspaceLayout layout = WorkspaceLayout.create(appFilesDirectory);
-        return new CrashReportStore(layout.getState());
+        return new CrashReportStore(WorkspaceLayout.createStateDirectory(appFilesDirectory));
     }
 
     public synchronized String read() throws IOException {
@@ -121,4 +120,3 @@ public final class CrashReportStore {
         file.setWritable(true, true);
     }
 }
-

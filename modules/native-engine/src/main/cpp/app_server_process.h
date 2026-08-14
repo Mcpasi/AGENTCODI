@@ -36,7 +36,7 @@ enum class InboundLineCompactionStatus {
   kInvalid,
 };
 
-std::vector<std::string> CodexAppServerArguments();
+std::vector<std::string> CodexAppServerArguments(const ProcessConfig& config);
 
 InboundLineCompactionStatus CompactInboundImagePayloads(
     const std::string& line,
@@ -64,6 +64,11 @@ class AppServerProcess final {
 
   bool WriteLine(
       const std::string& line,
+      std::size_t maximum_bytes,
+      std::string* error);
+  bool WriteBytes(
+      std::vector<unsigned char>* line,
+      std::size_t length,
       std::size_t maximum_bytes,
       std::string* error);
   LineReadStatus ReadLine(

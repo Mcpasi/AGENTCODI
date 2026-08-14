@@ -1,6 +1,6 @@
 # Provenance
 
-AGENTCODI original Java/C++ application code is Copyright 2026 Pascal (Mc Pasi) and licensed under Apache License 2.0. The named, complete license is included in the APK and source tree.
+AGENTCODI original Java/C++ application code is Copyright 2026 Pascal (Mc Pasi). All rights are reserved, and no public source-code license is currently granted. Distribution of the signed APK does not publish or license the source code; a separate license may accompany a future source release.
 
 Codex Works / `codex-mobile-main` is not a component, source dependency, or runtime dependency of AGENTCODI and is not bundled in the APK. AGENTCODI is a clean Java/C++ reimplementation of the relevant functionality. The upstream MIT copyright of Pavel Voronin and Igor Levochkin remains preserved in `LICENSE` solely as project provenance. No Codex Works source, credential, user data, generated web bundle, Node.js runtime, or JavaScript/TypeScript source is copied into the APK.
 

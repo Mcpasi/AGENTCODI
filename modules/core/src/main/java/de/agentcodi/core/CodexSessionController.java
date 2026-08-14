@@ -292,37 +292,30 @@ public final class CodexSessionController
             setUserError("Der API-Schlüssel hat eine ungültige Länge.");
             return;
         }
-        boolean accepted = submit("API-Schlüssel wird an Codex übergeben.", new Operation() {
+        submit("API-Schlüssel wird an Codex übergeben.", new Operation() {
             @Override
             public void run() throws Exception {
-                try {
-                    synchronized (CodexSessionController.this) {
-                        loginPending = true;
-                        loginUrl = "";
-                        loginId = "";
-                        publishLocked();
-                    }
-                    String transientKey = new String(apiKey);
-                    client.request(
-                        "account/login/start",
-                        JsonCodec.object("type", "apiKey", "apiKey", transientKey),
-                        NORMAL_TIMEOUT_MS
-                    );
-                    readAccountInternal();
-                    refreshModelsInternal();
-                    synchronized (CodexSessionController.this) {
-                        loginPending = false;
-                        operationMessage = "API-Schlüssel wurde im kanonischen Codex-Speicher abgelegt.";
-                        publishLocked();
-                    }
-                } finally {
-                    wipe(apiKey);
+                synchronized (CodexSessionController.this) {
+                    loginPending = true;
+                    loginUrl = "";
+                    loginId = "";
+                    publishLocked();
+                }
+                client.requestApiKeyLogin(apiKey, NORMAL_TIMEOUT_MS);
+                readAccountInternal();
+                refreshModelsInternal();
+                synchronized (CodexSessionController.this) {
+                    loginPending = false;
+                    operationMessage = "API-Schlüssel wurde im kanonischen Codex-Speicher abgelegt.";
+                    publishLocked();
                 }
             }
+
+            @Override
+            public void cancel() {
+                wipe(apiKey);
+            }
         });
-        if (!accepted) {
-            wipe(apiKey);
-        }
     }
 
     public void logout() {
@@ -412,6 +405,12 @@ public final class CodexSessionController
     }
 
     public void sendMessage(final String input) {
+        if (CredentialGuard.containsLikelyCredential(input)) {
+            setUserError(
+                "OpenAI-Zugangsdaten dürfen nur im geschützten Kontobereich eingegeben werden."
+            );
+            return;
+        }
         final String prompt = input == null ? "" : input.trim();
         if (prompt.isEmpty() || prompt.length() > MAX_PROMPT_CHARACTERS) {
             setUserError("Nachrichten müssen 1 bis 32768 Zeichen enthalten.");
@@ -729,7 +728,7 @@ public final class CodexSessionController
             notifyFailure = !connectionFailureReported;
             connectionFailureReported = true;
         }
-        operations.shutdownNow();
+        shutdownOperationsNow();
         interactiveResponses.shutdownNow();
         if (notifyFailure) {
             notifyConnectionFailure(error);
@@ -755,7 +754,7 @@ public final class CodexSessionController
             loginId = "";
             publishLocked();
         }
-        operations.shutdownNow();
+        shutdownOperationsNow();
         interactiveResponses.shutdownNow();
         client.close();
     }
@@ -2110,11 +2109,13 @@ public final class CodexSessionController
     private boolean submit(final String status, final Operation operation) {
         synchronized (this) {
             if (closed || !ready) {
+                operation.cancel();
                 errorMessage = "Codex App-Server ist nicht bereit.";
                 publishLocked();
                 return false;
             }
             if (operationActive) {
+                operation.cancel();
                 errorMessage = "Eine andere Codex-Aktion läuft bereits.";
                 publishLocked();
                 return false;
@@ -2124,29 +2125,12 @@ public final class CodexSessionController
             errorMessage = "";
             publishLocked();
         }
+        OperationTask task = new OperationTask(operation, true);
         try {
-            operations.execute(new Runnable() {
-                @Override
-                public void run() {
-                    try {
-                        operation.run();
-                    } catch (Throwable error) {
-                        synchronized (CodexSessionController.this) {
-                            errorMessage = safeError(error);
-                            if (loginPending && loginUrl.isEmpty()) {
-                                loginPending = false;
-                            }
-                        }
-                    } finally {
-                        synchronized (CodexSessionController.this) {
-                            operationActive = false;
-                            publishLocked();
-                        }
-                    }
-                }
-            });
+            operations.execute(task);
             return true;
         } catch (RejectedExecutionException error) {
+            task.cancelBeforeRun();
             synchronized (this) {
                 operationActive = false;
                 errorMessage = "Codex Runtime wird beendet.";
@@ -2159,25 +2143,15 @@ public final class CodexSessionController
     private void submitSilently(final Operation operation) {
         synchronized (this) {
             if (closed || !ready) {
+                operation.cancel();
                 return;
             }
         }
+        OperationTask task = new OperationTask(operation, false);
         try {
-            operations.execute(new Runnable() {
-                @Override
-                public void run() {
-                    try {
-                        operation.run();
-                    } catch (Throwable error) {
-                        synchronized (CodexSessionController.this) {
-                            errorMessage = safeError(error);
-                            publishLocked();
-                        }
-                    }
-                }
-            });
+            operations.execute(task);
         } catch (RejectedExecutionException ignored) {
-            // Shutdown won the race.
+            task.cancelBeforeRun();
         }
     }
 
@@ -2462,6 +2436,11 @@ public final class CodexSessionController
                 || value.length > MAX_USER_INPUT_ANSWER_CHARACTERS) {
                 throw new IllegalArgumentException("Bitte alle Fragen gültig beantworten.");
             }
+            if (CredentialGuard.containsLikelyCredential(value)) {
+                throw new IllegalArgumentException(
+                    "OpenAI-Zugangsdaten dürfen nur im geschützten Kontobereich eingegeben werden."
+                );
+            }
             answers.put(
                 question.getId(),
                 JsonCodec.object("answers", JsonCodec.array(new String(value)))
@@ -2600,7 +2579,7 @@ public final class CodexSessionController
             notifyFailure = !connectionFailureReported;
             connectionFailureReported = true;
         }
-        operations.shutdownNow();
+        shutdownOperationsNow();
         interactiveResponses.shutdownNow();
         client.close();
         if (notifyFailure) {
@@ -2952,6 +2931,15 @@ public final class CodexSessionController
             wipe(value);
         }
         answers.clear();
+    }
+
+    private void shutdownOperationsNow() {
+        List<Runnable> pending = operations.shutdownNow();
+        for (Runnable task : pending) {
+            if (task instanceof OperationTask) {
+                ((OperationTask) task).cancelBeforeRun();
+            }
+        }
     }
 
     private synchronized void setUserError(String message) {
@@ -3513,7 +3501,59 @@ public final class CodexSessionController
         }
     }
 
+    private final class OperationTask implements Runnable {
+        private final Operation operation;
+        private final boolean activeOperation;
+        private boolean started;
+
+        private OperationTask(Operation operation, boolean activeOperation) {
+            this.operation = operation;
+            this.activeOperation = activeOperation;
+        }
+
+        @Override
+        public void run() {
+            synchronized (this) {
+                if (started) {
+                    return;
+                }
+                started = true;
+            }
+            try {
+                operation.run();
+            } catch (Throwable error) {
+                synchronized (CodexSessionController.this) {
+                    errorMessage = safeError(error);
+                    if (activeOperation && loginPending && loginUrl.isEmpty()) {
+                        loginPending = false;
+                    }
+                    if (!activeOperation) {
+                        publishLocked();
+                    }
+                }
+            } finally {
+                operation.cancel();
+                if (activeOperation) {
+                    synchronized (CodexSessionController.this) {
+                        operationActive = false;
+                        publishLocked();
+                    }
+                }
+            }
+        }
+
+        private synchronized void cancelBeforeRun() {
+            if (!started) {
+                operation.cancel();
+                started = true;
+            }
+        }
+    }
+
     private interface Operation {
         void run() throws Exception;
+
+        default void cancel() {
+        }
     }
 }

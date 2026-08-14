@@ -12,7 +12,8 @@ public final class CrashReportFormatter {
     private static final int MAX_FRAMES_PER_CAUSE = 48;
     private static final Pattern NAMED_SECRET = Pattern.compile(
         "(?i)([\\\"']?(?:authorization|access[_-]?token|refresh[_-]?token|id[_-]?token|"
-            + "api[_-]?key|client[_-]?secret|password)[\\\"']?\\s*[:=]\\s*[\\\"']?)"
+            + "(?:openai[_\\s-]*)?api[_\\s-]?key|client[_-]?secret|password)"
+            + "[\\\"']?\\s*[:=]\\s*[\\\"']?)"
             + "[^\\\"'\\s,;&}]+"
     );
     private static final Pattern BEARER_SECRET = Pattern.compile(
@@ -81,6 +82,17 @@ public final class CrashReportFormatter {
         return redactVisibleText(value, MAX_MESSAGE_CHARS);
     }
 
+    public static String redactSecrets(String value) {
+        if (value == null) {
+            return "";
+        }
+        String redacted = NAMED_SECRET.matcher(value).replaceAll("$1<redacted>");
+        redacted = BEARER_SECRET.matcher(redacted).replaceAll("Bearer <redacted>");
+        redacted = OAUTH_QUERY_SECRET.matcher(redacted).replaceAll("$1<redacted>");
+        redacted = JWT_SHAPE.matcher(redacted).replaceAll("<redacted-token>");
+        return TOKEN_SHAPE.matcher(redacted).replaceAll("<redacted-token>");
+    }
+
     public static String redactVisibleText(String value, int maximumCharacters) {
         if (value == null) {
             return "";
@@ -88,11 +100,7 @@ public final class CrashReportFormatter {
         if (maximumCharacters <= 0) {
             return "";
         }
-        String redacted = NAMED_SECRET.matcher(value).replaceAll("$1<redacted>");
-        redacted = BEARER_SECRET.matcher(redacted).replaceAll("Bearer <redacted>");
-        redacted = OAUTH_QUERY_SECRET.matcher(redacted).replaceAll("$1<redacted>");
-        redacted = JWT_SHAPE.matcher(redacted).replaceAll("<redacted-token>");
-        redacted = TOKEN_SHAPE.matcher(redacted).replaceAll("<redacted-token>");
+        String redacted = redactSecrets(value);
         if (redacted.length() <= maximumCharacters) {
             return redacted;
         }

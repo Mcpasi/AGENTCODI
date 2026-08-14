@@ -106,6 +106,18 @@ if rg -n 'approvalPolicy", "never"' "$PROJECT_ROOT/modules/core/src/main/java/de
   exit 1
 fi
 
+if rg -n 'projects\..*trust_level' "$PROJECT_ROOT/modules/native-engine/src/main/cpp/app_server_process.cpp"; then
+  echo "Pinned Codex 0.147.2 rejects project trust CLI overrides under strict config." >&2
+  exit 1
+fi
+
+if rg -n 'rejectRuntimePolicyFiles|reject_codex_policy_files|Codex runtime policy must be supplied' \
+    "$PROJECT_ROOT/modules/storage/src/main/java/de/agentcodi/storage/WorkspaceLayout.java" \
+    "$PROJECT_ROOT/modules/native-engine/src/main/cpp/app_server_process.cpp"; then
+  echo "Normal private Codex configuration files must not be rejected as foreign policy." >&2
+  exit 1
+fi
+
 if ! rg -q 'item/commandExecution/requestApproval' "$PROJECT_ROOT/modules/core/src/main/java/de/agentcodi/core/CodexSessionController.java" \
     || ! rg -q 'item/fileChange/requestApproval' "$PROJECT_ROOT/modules/core/src/main/java/de/agentcodi/core/CodexSessionController.java" \
     || ! rg -q 'item/fileChange/patchUpdated' "$PROJECT_ROOT/modules/core/src/main/java/de/agentcodi/core/CodexSessionController.java" \
@@ -191,14 +203,20 @@ if [ "$default_names" != "$german_names" ] \
   exit 1
 fi
 
+licenses_activity="$PROJECT_ROOT/app/src/main/java/de/agentcodi/app/LicensesActivity.java"
+agentcodi_license_resource="$PROJECT_ROOT/app/src/main/res/raw/agentcodi_apache_2_0.txt"
 if ! rg -q 'LicensesActivity' "$PROJECT_ROOT/app/src/main/AndroidManifest.xml" \
-    || ! rg -q 'R\.raw\.agentcodi_apache_2_0' "$PROJECT_ROOT/app/src/main/java/de/agentcodi/app/LicensesActivity.java" \
-    || ! rg -q 'third-party/codex/LICENSE' "$PROJECT_ROOT/app/src/main/java/de/agentcodi/app/LicensesActivity.java" \
-    || ! rg -q 'Copyright 2026 Pascal \(Mc Pasi\)' "$PROJECT_ROOT/app/src/main/res/raw/agentcodi_apache_2_0.txt" \
-    || ! rg -q 'Apache License' "$PROJECT_ROOT/app/src/main/res/raw/agentcodi_apache_2_0.txt" \
+    || [ -e "$agentcodi_license_resource" ] \
+    || rg -q 'R\.raw\.agentcodi_apache_2_0|license_show_text' "$licenses_activity" "$default_strings" "$german_strings" \
+    || ! rg -q 'addAttributionCard' "$licenses_activity" \
+    || ! rg -q 'third-party/codex/LICENSE' "$licenses_activity" \
+    || ! rg -q 'third-party/codex/NOTICE' "$licenses_activity" \
+    || ! rg -q 'R\.raw\.third_party_notices' "$licenses_activity" \
+    || ! rg -q '<string name="license_agentcodi_summary">Copyright 2026 Pascal \(Mc Pasi\).*All rights reserved\.' "$default_strings" \
+    || ! rg -q '<string name="license_agentcodi_summary">Copyright 2026 Pascal \(Mc Pasi\).*Alle Rechte vorbehalten\.' "$german_strings" \
     || ! rg -q 'Codex Works is not an APK component' "$default_strings" \
     || find "$PROJECT_ROOT/app/src/main/res" -type f -iname '*codex*works*' | grep -q .; then
-  echo "The separate license screen or its license boundaries are incomplete." >&2
+  echo "The legal-notices screen or its first-/third-party license boundaries are incomplete." >&2
   exit 1
 fi
 
@@ -206,6 +224,31 @@ if ! rg -q 'CODEX_CODE_MODE_HOST_PATH' "$PROJECT_ROOT/modules/native-engine/src/
     || ! rg -q 'CODEX_CODE_MODE_HOST_LIBRARY' "$PROJECT_ROOT/modules/runtime/src/main/java/de/agentcodi/runtime/AgentRuntimeService.java" \
     || ! rg -q 'libcodex-codehost\.so' "$PROJECT_ROOT/modules/core/src/main/java/de/agentcodi/core/BuildIdentity.java"; then
   echo "The packaged code-mode host is not wired through the native supervisor." >&2
+  exit 1
+fi
+
+core_root="$PROJECT_ROOT/modules/core/src/main/java/de/agentcodi/core"
+native_process="$PROJECT_ROOT/modules/native-engine/src/main/cpp/app_server_process.cpp"
+storage_layout="$PROJECT_ROOT/modules/storage/src/main/java/de/agentcodi/storage/WorkspaceLayout.java"
+if ! rg -q 'containsLikelyCredential' "$core_root/CredentialGuard.java" \
+    || ! rg -q 'CredentialGuard\.containsLikelyCredential\(input\)' "$core_root/CodexSessionController.java" \
+    || ! rg -q 'CredentialGuard\.containsLikelyCredential\(editable\)' "$PROJECT_ROOT/app/src/main/java/de/agentcodi/app/MainActivity.java" \
+    || ! rg -q 'containsCredential\(answers\)' "$PROJECT_ROOT/app/src/main/java/de/agentcodi/app/InteractiveRequestDialog.java" \
+    || ! rg -q 'final char\[\] apiKey' "$core_root/CodexAppServerClient.java" \
+    || rg -q 'new String\(apiKey\)' "$core_root" "$PROJECT_ROOT/modules/runtime/src/main/java" \
+    || ! rg -q 'writeBytes\(byte\[\] line' "$core_root/CodexRpcTransport.java" \
+    || rg -q 'clearenv\(\)|set_child_environment' "$native_process" \
+    || ! rg -q 'child_environment\(const ProcessConfig& config\)' "$native_process" \
+    || ! rg -q 'execve\(config\.executable\.c_str\(\), arguments\.data\(\), environment\.data\(\)\)' "$native_process" \
+    || ! rg -q 'umask\(0077\)' "$native_process" \
+    || ! rg -q 'shell_environment_policy=\{inherit=\\"none\\"' "$native_process" \
+    || ! rg -q 'analytics\.enabled=false' "$native_process" \
+    || ! rg -q 'otel\.exporter=\\"none\\"' "$native_process" \
+    || ! rg -q 'feedback\.enabled=false' "$native_process" \
+    || ! rg -q '"config\.toml", "requirements\.toml", "hooks\.json"' "$storage_layout" \
+    || ! rg -q 'validateRuntimeConfigurationFiles' "$storage_layout" \
+    || ! rg -q 'createStateDirectory' "$PROJECT_ROOT/modules/storage/src/main/java/de/agentcodi/storage/CrashReportStore.java"; then
+  echo "Authentication and token-leak prevention boundaries are incomplete." >&2
   exit 1
 fi
 

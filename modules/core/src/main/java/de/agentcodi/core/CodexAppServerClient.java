@@ -3,6 +3,7 @@ package de.agentcodi.core;
 import java.io.EOFException;
 import java.io.IOException;
 import java.nio.charset.StandardCharsets;
+import java.util.Arrays;
 import java.util.Collections;
 import java.util.HashMap;
 import java.util.Map;
@@ -98,6 +99,33 @@ public final class CodexAppServerClient implements AutoCloseable {
         return requestInternal(method, params, timeoutMilliseconds, false);
     }
 
+    public Map<String, Object> requestApiKeyLogin(
+        final char[] apiKey,
+        long timeoutMilliseconds
+    ) throws Exception {
+        try {
+            if (apiKey == null || apiKey.length < 8 || apiKey.length > 16 * 1024) {
+                throw new IllegalArgumentException("API key length is outside the allowed range");
+            }
+            if (!initialized) {
+                throw new IllegalStateException("Codex app-server connection is not initialized");
+            }
+            return requestPrepared(
+                "account/login/start",
+                timeoutMilliseconds,
+                false,
+                new RequestWriter() {
+                    @Override
+                    public void write(long id) throws IOException {
+                        writeApiKeyLoginMessage(id, apiKey);
+                    }
+                }
+            );
+        } finally {
+            wipe(apiKey);
+        }
+    }
+
     public void sendNotification(String method, Map<String, Object> params) throws IOException {
         if (!initialized) {
             throw new IllegalStateException("Codex app-server connection is not initialized");
@@ -169,10 +197,36 @@ public final class CodexAppServerClient implements AutoCloseable {
     }
 
     private Map<String, Object> requestInternal(
-        String method,
-        Map<String, Object> params,
+        final String method,
+        final Map<String, Object> params,
         long timeoutMilliseconds,
         boolean initializationRequest
+    ) throws Exception {
+        return requestPrepared(
+            method,
+            timeoutMilliseconds,
+            initializationRequest,
+            new RequestWriter() {
+                @Override
+                public void write(long id) throws IOException {
+                    Map<String, Object> message = JsonCodec.object(
+                        "method", method,
+                        "id", Long.valueOf(id)
+                    );
+                    if (params != null) {
+                        message.put("params", params);
+                    }
+                    writeMessage(message);
+                }
+            }
+        );
+    }
+
+    private Map<String, Object> requestPrepared(
+        String method,
+        long timeoutMilliseconds,
+        boolean initializationRequest,
+        RequestWriter writer
     ) throws Exception {
         validateMethodAndTimeout(method, timeoutMilliseconds);
         if (closed.get()) {
@@ -191,12 +245,8 @@ public final class CodexAppServerClient implements AutoCloseable {
             pending.put(Long.valueOf(id), response);
         }
 
-        Map<String, Object> message = JsonCodec.object("method", method, "id", Long.valueOf(id));
-        if (params != null) {
-            message.put("params", params);
-        }
         try {
-            writeMessage(message);
+            writer.write(id);
         } catch (Throwable error) {
             synchronized (pendingLock) {
                 pending.remove(Long.valueOf(id));
@@ -259,11 +309,89 @@ public final class CodexAppServerClient implements AutoCloseable {
 
     private void writeMessage(Map<String, Object> message) throws IOException {
         String line = JsonCodec.stringify(message);
-        if (line.getBytes(StandardCharsets.UTF_8).length > MAX_OUTGOING_BYTES) {
-            throw new IOException("Outgoing Codex RPC message exceeds the byte limit");
+        byte[] encoded = line.getBytes(StandardCharsets.UTF_8);
+        try {
+            if (encoded.length > MAX_OUTGOING_BYTES) {
+                throw new IOException("Outgoing Codex RPC message exceeds the byte limit");
+            }
+            synchronized (writeLock) {
+                transport.writeBytes(encoded, encoded.length, MAX_OUTGOING_BYTES);
+            }
+        } finally {
+            Arrays.fill(encoded, (byte) 0);
         }
-        synchronized (writeLock) {
-            transport.writeLine(line, MAX_OUTGOING_BYTES);
+    }
+
+    private void writeApiKeyLoginMessage(long id, char[] apiKey) throws IOException {
+        byte[] prefix = (
+            "{\"method\":\"account/login/start\",\"id\":" + id
+                + ",\"params\":{\"type\":\"apiKey\",\"apiKey\":\""
+        ).getBytes(StandardCharsets.US_ASCII);
+        byte[] suffix = "\"}}".getBytes(StandardCharsets.US_ASCII);
+        byte[] encoded = new byte[prefix.length + apiKey.length * 6 + suffix.length];
+        int length = 0;
+        try {
+            System.arraycopy(prefix, 0, encoded, length, prefix.length);
+            length += prefix.length;
+            length = appendJsonStringUtf8(encoded, length, apiKey);
+            System.arraycopy(suffix, 0, encoded, length, suffix.length);
+            length += suffix.length;
+            if (length > MAX_OUTGOING_BYTES) {
+                throw new IOException("Outgoing Codex credential message exceeds the byte limit");
+            }
+            synchronized (writeLock) {
+                transport.writeBytes(encoded, length, MAX_OUTGOING_BYTES);
+            }
+        } finally {
+            Arrays.fill(encoded, (byte) 0);
+            wipe(apiKey);
+        }
+    }
+
+    private static int appendJsonStringUtf8(byte[] output, int offset, char[] value)
+        throws IOException {
+        final char[] hexadecimal = "0123456789abcdef".toCharArray();
+        int cursor = offset;
+        for (int index = 0; index < value.length; index++) {
+            char character = value[index];
+            if (character == '"' || character == '\\') {
+                output[cursor++] = (byte) '\\';
+                output[cursor++] = (byte) character;
+            } else if (character <= 0x1f) {
+                output[cursor++] = (byte) '\\';
+                output[cursor++] = (byte) 'u';
+                output[cursor++] = (byte) '0';
+                output[cursor++] = (byte) '0';
+                output[cursor++] = (byte) hexadecimal[(character >>> 4) & 0x0f];
+                output[cursor++] = (byte) hexadecimal[character & 0x0f];
+            } else if (character <= 0x7f) {
+                output[cursor++] = (byte) character;
+            } else if (character <= 0x7ff) {
+                output[cursor++] = (byte) (0xc0 | (character >>> 6));
+                output[cursor++] = (byte) (0x80 | (character & 0x3f));
+            } else if (Character.isHighSurrogate(character)) {
+                if (index + 1 >= value.length || !Character.isLowSurrogate(value[index + 1])) {
+                    throw new IOException("API key contains invalid UTF-16");
+                }
+                int codePoint = Character.toCodePoint(character, value[++index]);
+                output[cursor++] = (byte) (0xf0 | (codePoint >>> 18));
+                output[cursor++] = (byte) (0x80 | ((codePoint >>> 12) & 0x3f));
+                output[cursor++] = (byte) (0x80 | ((codePoint >>> 6) & 0x3f));
+                output[cursor++] = (byte) (0x80 | (codePoint & 0x3f));
+            } else if (Character.isLowSurrogate(character)) {
+                throw new IOException("API key contains invalid UTF-16");
+            } else {
+                output[cursor++] = (byte) (0xe0 | (character >>> 12));
+                output[cursor++] = (byte) (0x80 | ((character >>> 6) & 0x3f));
+                output[cursor++] = (byte) (0x80 | (character & 0x3f));
+            }
+        }
+        return cursor;
+    }
+
+    private static void wipe(char[] value) {
+        if (value != null) {
+            Arrays.fill(value, '\0');
         }
     }
 
@@ -467,5 +595,9 @@ public final class CodexAppServerClient implements AutoCloseable {
         private volatile Map<String, Object> result;
         private volatile Map<String, Object> error;
         private volatile Throwable failure;
+    }
+
+    private interface RequestWriter {
+        void write(long id) throws IOException;
     }
 }

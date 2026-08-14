@@ -108,8 +108,6 @@ Java_de_agentcodi_runtime_NativeEngine_nativeStartAppServer(
           &config.library_directory)) {
     return 0;
   }
-  config.arguments = agentcodi::CodexAppServerArguments();
-
   std::string error;
   std::shared_ptr<agentcodi::AppServerProcess> process =
       agentcodi::AppServerProcess::Start(config, &error);
@@ -172,19 +170,16 @@ Java_de_agentcodi_runtime_NativeEngine_nativeWriteAppServerLine(
     jclass,
     jlong handle,
     jbyteArray line,
+    jint line_length,
     jint maximum_bytes) {
   if (line == nullptr || maximum_bytes <= 0 || maximum_bytes > 256 * 1024) {
     throw_io_exception(environment, "Outgoing app-server byte limit is invalid");
     return;
   }
-  const jsize length = environment->GetArrayLength(line);
-  if (length <= 0 || length > maximum_bytes) {
+  const jsize array_length = environment->GetArrayLength(line);
+  if (line_length <= 0 || line_length > array_length
+      || line_length > maximum_bytes) {
     throw_io_exception(environment, "Outgoing app-server line exceeds the byte limit");
-    return;
-  }
-  std::vector<jbyte> bytes(static_cast<std::size_t>(length));
-  environment->GetByteArrayRegion(line, 0, length, bytes.data());
-  if (environment->ExceptionCheck()) {
     return;
   }
   std::shared_ptr<agentcodi::AppServerProcess> process = find_process(handle);
@@ -192,11 +187,25 @@ Java_de_agentcodi_runtime_NativeEngine_nativeWriteAppServerLine(
     throw_io_exception(environment, "App-server process is not running");
     return;
   }
-  const std::string value(
-      reinterpret_cast<const char*>(bytes.data()),
-      static_cast<std::size_t>(length));
+  std::vector<unsigned char> bytes(static_cast<std::size_t>(line_length));
+  environment->GetByteArrayRegion(
+      line,
+      0,
+      line_length,
+      reinterpret_cast<jbyte*>(bytes.data()));
+  if (environment->ExceptionCheck()) {
+    volatile unsigned char* cursor = bytes.data();
+    for (std::size_t index = 0U; index < bytes.size(); ++index) {
+      cursor[index] = 0U;
+    }
+    return;
+  }
   std::string error;
-  if (!process->WriteLine(value, static_cast<std::size_t>(maximum_bytes), &error)) {
+  if (!process->WriteBytes(
+          &bytes,
+          static_cast<std::size_t>(line_length),
+          static_cast<std::size_t>(maximum_bytes),
+          &error)) {
     throw_io_exception(environment, error);
   }
 }

@@ -1167,25 +1167,29 @@ public final class SettingsActivity extends Activity {
         clearButton.setOnClickListener(new View.OnClickListener() {
             @Override
             public void onClick(View view) {
-                clearCrashReport();
-                recreate();
+                if (clearCrashReport()) {
+                    recreate();
+                }
             }
         });
         theme.addWithTopMargin(card, clearButton, 12);
         theme.addWithTopMargin(page, card, 10);
     }
 
-    private void clearCrashReport() {
+    private boolean clearCrashReport() {
         try {
-            if (crashDiagnostics != null) {
-                crashDiagnostics.clear();
+            if (crashDiagnostics == null) {
+                crashDiagnostics = CrashDiagnostics.open(getFilesDir());
             }
-        } catch (Throwable ignored) {
+            crashDiagnostics.clear();
+            return true;
+        } catch (Throwable error) {
             Toast.makeText(
                 this,
                 R.string.crash_delete_failed,
                 Toast.LENGTH_SHORT
             ).show();
+            return false;
         }
     }
 

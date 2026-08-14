@@ -6,8 +6,8 @@ PROJECT_ROOT="$(cd -- "$SCRIPT_DIR/.." && pwd -P)"
 
 APP_NAME="AGENTCODI"
 APP_ID="de.agentcodi.app"
-APP_VERSION="0.4.1"
-VERSION_CODE="21"
+APP_VERSION="0.4.5"
+VERSION_CODE="25"
 MIN_SDK="29"
 TARGET_SDK="35"
 ABI="arm64-v8a"
@@ -75,7 +75,7 @@ require_command() {
   fi
 }
 
-for command_name in apksigner awk cmp curl dd dpkg-deb file grep readelf realpath rg sha256sum stat strings tar tr unzip wc zip zipalign zipinfo; do
+for command_name in apksigner awk cmp curl dd dpkg-deb file grep readelf realpath rg sha256sum stat strings tar timeout tr unzip wc zip zipalign zipinfo; do
   require_command "$command_name"
 done
 for executable in "$JAVA" "$JAVAC" "$JAR" "$KEYTOOL" "$CLANGXX" "$LLVM_STRIP"; do
@@ -378,6 +378,11 @@ if ! readelf -d "$NATIVE_DIR/libagentcodi.so" | grep -q 'Shared library: \[libc+
   echo "Native engine did not declare its packaged C++ runtime dependency." >&2
   exit 1
 fi
+if readelf -Ws "$NATIVE_DIR/libagentcodi.so" | grep -F ' clearenv' >/dev/null \
+    || ! readelf -Ws "$NATIVE_DIR/libagentcodi.so" | grep -F ' execve' >/dev/null; then
+  echo "Native supervisor must use explicit execve environment storage without post-fork clearenv." >&2
+  exit 1
+fi
 strings "$NATIVE_DIR/libagentcodi.so" > "$WORK_DIR/native-engine-strings.txt"
 if ! grep -Fq 'model_provider="agentcodi-openai-http"' "$WORK_DIR/native-engine-strings.txt"; then
   echo "Native engine is missing the HTTPS Responses provider selection." >&2
@@ -399,6 +404,13 @@ if ! grep -Fq 'CODEX_CODE_MODE_HOST_PATH' "$WORK_DIR/native-engine-strings.txt";
   echo "Native engine does not provide the packaged code-mode host path." >&2
   exit 1
 fi
+if ! grep -Fq 'shell_environment_policy={inherit="none"' "$WORK_DIR/native-engine-strings.txt" \
+    || ! grep -Fq 'analytics.enabled=false' "$WORK_DIR/native-engine-strings.txt" \
+    || ! grep -Fq 'otel.exporter="none"' "$WORK_DIR/native-engine-strings.txt" \
+    || ! grep -Fq 'feedback.enabled=false' "$WORK_DIR/native-engine-strings.txt"; then
+  echo "Native engine is missing the closed environment or telemetry policy." >&2
+  exit 1
+fi
 if ! grep -Fq 'generated_images' "$WORK_DIR/native-engine-strings.txt" \
     || ! grep -Fq 'Generated image does not have the required PNG signature' "$WORK_DIR/native-engine-strings.txt" \
     || ! grep -Fq 'Generated image could not be installed atomically in the workspace' "$WORK_DIR/native-engine-strings.txt"; then
@@ -413,6 +425,99 @@ fi
 app_server_help="$(env LD_LIBRARY_PATH="$NATIVE_DIR" "$NATIVE_DIR/libcodex.so" app-server --help)"
 if ! printf '%s\n' "$app_server_help" | grep -Fq 'Transport endpoint URL'; then
   echo "Android-adapted app-server did not pass its native startup smoke test." >&2
+  exit 1
+fi
+CONFIG_SMOKE_HOME="$WORK_DIR/config-smoke-home"
+CONFIG_SMOKE_CODEX_HOME="$WORK_DIR/config-smoke-codex-home"
+CONFIG_SMOKE_WORKSPACE="$WORK_DIR/config-smoke-workspace"
+CONFIG_SMOKE_TEMP="$WORK_DIR/config-smoke-temp"
+mkdir -p "$CONFIG_SMOKE_HOME" "$CONFIG_SMOKE_CODEX_HOME" "$CONFIG_SMOKE_WORKSPACE" "$CONFIG_SMOKE_TEMP"
+chmod 700 "$CONFIG_SMOKE_HOME" "$CONFIG_SMOKE_CODEX_HOME" "$CONFIG_SMOKE_WORKSPACE" "$CONFIG_SMOKE_TEMP"
+printf '%s\n' \
+  'approval_policy="never"' \
+  'shell_environment_policy={inherit="all"}' \
+  '[analytics]' \
+  'enabled=true' \
+  > "$CONFIG_SMOKE_CODEX_HOME/config.toml"
+chmod 600 "$CONFIG_SMOKE_CODEX_HOME/config.toml"
+config_smoke_status=0
+(
+    printf '%s\n' '{"method":"initialize","id":1,"params":{"clientInfo":{"name":"agentcodi_android","title":"AGENTCODI","version":"0.4.5"},"capabilities":{"experimentalApi":true,"optOutNotificationMethods":["rawResponseItem/completed","rawResponse/completed"]}}}'
+    sleep 15
+  ) | timeout 60s env -i \
+    HOME="$CONFIG_SMOKE_HOME" \
+    CODEX_HOME="$CONFIG_SMOKE_CODEX_HOME" \
+    TMPDIR="$CONFIG_SMOKE_TEMP" \
+    TMP="$CONFIG_SMOKE_TEMP" \
+    TEMP="$CONFIG_SMOKE_TEMP" \
+    LD_LIBRARY_PATH="$NATIVE_DIR" \
+    PATH="$NATIVE_DIR:/system/bin:/system/xbin" \
+    SHELL="/system/bin/sh" \
+    CODEX_SELF_EXE="$NATIVE_DIR/libcodex.so" \
+    CODEX_CODE_MODE_HOST_PATH="$NATIVE_DIR/$CODEX_PACKAGED_HOST_NAME" \
+    "$NATIVE_DIR/libcodex.so" app-server --stdio --strict-config \
+    -c 'cli_auth_credentials_store="file"' \
+    -c 'approval_policy="on-request"' \
+    -c "shell_environment_policy={inherit=\"none\",ignore_default_excludes=false,set={PATH=\"$NATIVE_DIR:/system/bin:/system/xbin\",SHELL=\"/system/bin/sh\",HOME=\"$CONFIG_SMOKE_HOME\",TMPDIR=\"$CONFIG_SMOKE_TEMP\",TMP=\"$CONFIG_SMOKE_TEMP\",TEMP=\"$CONFIG_SMOKE_TEMP\",LD_LIBRARY_PATH=\"$NATIVE_DIR\"}}" \
+    -c 'analytics.enabled=false' \
+    -c 'otel.exporter="none"' \
+    -c 'otel.log_user_prompt=false' \
+    -c 'feedback.enabled=false' \
+    -c 'check_for_update_on_startup=false' \
+    -c 'allow_login_shell=false' \
+    -c 'model_provider="agentcodi-openai-http"' \
+    -c 'model_providers.agentcodi-openai-http.name="OpenAI"' \
+    -c 'model_providers.agentcodi-openai-http.wire_api="responses"' \
+    -c 'model_providers.agentcodi-openai-http.requires_openai_auth=true' \
+    -c 'model_providers.agentcodi-openai-http.supports_websockets=false' \
+    -c 'model_providers.agentcodi-openai-http.supports_standalone_web_search=true' \
+    -c 'default_permissions="agentcodi-workspace"' \
+    -c 'permissions.agentcodi-workspace.description="AGENTCODI private workspace"' \
+    -c 'permissions.agentcodi-workspace.filesystem={":minimal"="read",":workspace_roots"={"."="write"}}' \
+    >"$WORK_DIR/config-smoke.stdout" 2>"$WORK_DIR/config-smoke.stderr" \
+    || config_smoke_status=$?
+if [ "$config_smoke_status" -ne 0 ]; then
+  echo "Packaged app-server rejected the closed runtime configuration or initialize request (status $config_smoke_status)." >&2
+  exit 1
+fi
+if ! grep -Fq '"id":1' "$WORK_DIR/config-smoke.stdout" \
+    || ! grep -Fq '"codexHome":' "$WORK_DIR/config-smoke.stdout"; then
+  echo "Packaged app-server did not complete the required initialize handshake." >&2
+  exit 1
+fi
+
+BOOTSTRAP_SMOKE_BIN="$WORK_DIR/android-app-server-bootstrap-smoke"
+"$CLANGXX" --target=aarch64-linux-android"$MIN_SDK" -std=c++17 -O2 -Wall -Wextra -Werror -pthread \
+  -I"$PROJECT_ROOT/modules/native-engine/src/main/cpp" \
+  "$PROJECT_ROOT/modules/native-engine/src/main/cpp/app_server_process.cpp" \
+  "$PROJECT_ROOT/tests/cpp/android_app_server_bootstrap_smoke.cpp" \
+  -o "$BOOTSTRAP_SMOKE_BIN"
+BOOTSTRAP_SMOKE_ROOT="$WORK_DIR/supervisor-bootstrap-smoke"
+BOOTSTRAP_SMOKE_WORKSPACE="$BOOTSTRAP_SMOKE_ROOT/workspace"
+BOOTSTRAP_SMOKE_CODEX_HOME="$BOOTSTRAP_SMOKE_ROOT/codex-home"
+BOOTSTRAP_SMOKE_HOME="$BOOTSTRAP_SMOKE_ROOT/home"
+BOOTSTRAP_SMOKE_TEMP="$BOOTSTRAP_SMOKE_ROOT/temp"
+mkdir -p "$BOOTSTRAP_SMOKE_WORKSPACE" "$BOOTSTRAP_SMOKE_CODEX_HOME" "$BOOTSTRAP_SMOKE_HOME" "$BOOTSTRAP_SMOKE_TEMP"
+chmod 700 "$BOOTSTRAP_SMOKE_ROOT" "$BOOTSTRAP_SMOKE_WORKSPACE" "$BOOTSTRAP_SMOKE_CODEX_HOME" "$BOOTSTRAP_SMOKE_HOME" "$BOOTSTRAP_SMOKE_TEMP"
+printf '%s\n' \
+  'approval_policy="never"' \
+  'shell_environment_policy={inherit="all"}' \
+  '[analytics]' \
+  'enabled=true' \
+  > "$BOOTSTRAP_SMOKE_CODEX_HOME/config.toml"
+chmod 600 "$BOOTSTRAP_SMOKE_CODEX_HOME/config.toml"
+if ! timeout 30s env -i \
+    LD_LIBRARY_PATH="$NATIVE_DIR" \
+    PATH="/system/bin:/system/xbin" \
+    "$BOOTSTRAP_SMOKE_BIN" \
+    "$NATIVE_DIR/libcodex.so" \
+    "$NATIVE_DIR/$CODEX_PACKAGED_HOST_NAME" \
+    "$BOOTSTRAP_SMOKE_WORKSPACE" \
+    "$BOOTSTRAP_SMOKE_CODEX_HOME" \
+    "$BOOTSTRAP_SMOKE_HOME" \
+    "$BOOTSTRAP_SMOKE_TEMP" \
+    "$NATIVE_DIR"; then
+  echo "Native supervisor failed the packaged app-server bootstrap sequence." >&2
   exit 1
 fi
 code_mode_host_help="$(env LD_LIBRARY_PATH="$NATIVE_DIR" "$NATIVE_DIR/$CODEX_PACKAGED_HOST_NAME" --help)"
@@ -511,14 +616,16 @@ grep -Fx "lib/$ABI/libcodex.so" "$WORK_DIR/apk-entries.txt"
 grep -Fx "lib/$ABI/$CODEX_PACKAGED_HOST_NAME" "$WORK_DIR/apk-entries.txt"
 grep -Fx 'assets/third-party/codex/LICENSE' "$WORK_DIR/apk-entries.txt"
 grep -Fx 'assets/third-party/codex/NOTICE' "$WORK_DIR/apk-entries.txt"
-grep -Fx 'res/raw/agentcodi_apache_2_0.txt' "$WORK_DIR/apk-entries.txt"
 grep -Fx 'res/raw/third_party_notices.txt' "$WORK_DIR/apk-entries.txt"
 grep -Fx 'res/xml/locales_config.xml' "$WORK_DIR/apk-entries.txt"
-if ! unzip -p "$VERSIONED_APK" res/raw/agentcodi_apache_2_0.txt \
-    | grep -Fq 'Copyright 2026 Pascal (Mc Pasi)'; then
-  echo "APK does not contain the named AGENTCODI Apache-2.0 license." >&2
+if grep -Fxq 'res/raw/agentcodi_apache_2_0.txt' "$WORK_DIR/apk-entries.txt"; then
+  echo "APK unexpectedly contains a public license for AGENTCODI original work." >&2
   exit 1
 fi
+unzip -p "$VERSIONED_APK" resources.arsc | strings > "$WORK_DIR/resource-strings.txt"
+grep -Fq 'Copyright 2026 Pascal (Mc Pasi)' "$WORK_DIR/resource-strings.txt"
+grep -Fq 'All rights reserved' "$WORK_DIR/resource-strings.txt"
+grep -Fq 'Alle Rechte vorbehalten' "$WORK_DIR/resource-strings.txt"
 packaged_app_server_sha="$(unzip -p "$VERSIONED_APK" "lib/$ABI/libcodex.so" | sha256sum | awk '{print $1}')"
 packaged_code_mode_host_sha="$(unzip -p "$VERSIONED_APK" "lib/$ABI/$CODEX_PACKAGED_HOST_NAME" | sha256sum | awk '{print $1}')"
 if [ "$packaged_app_server_sha" != "$CODEX_APP_SERVER_ANDROID_SHA256" ] \
@@ -534,6 +641,7 @@ grep -Fq 'Lde/agentcodi/app/AppLanguage;' "$WORK_DIR/dex-strings.txt"
 grep -Fq 'Lde/agentcodi/app/AgentCodiApplication;' "$WORK_DIR/dex-strings.txt"
 grep -Fq 'Lde/agentcodi/core/UiLanguage;' "$WORK_DIR/dex-strings.txt"
 grep -Fq 'Lde/agentcodi/core/CrashReportFormatter;' "$WORK_DIR/dex-strings.txt"
+grep -Fq 'Lde/agentcodi/core/CredentialGuard;' "$WORK_DIR/dex-strings.txt"
 grep -Fq 'Lde/agentcodi/core/CodexSessionController;' "$WORK_DIR/dex-strings.txt"
 grep -Fq 'Lde/agentcodi/core/CodexModelOption;' "$WORK_DIR/dex-strings.txt"
 grep -Fq 'Lde/agentcodi/core/CodexReasoningOption;' "$WORK_DIR/dex-strings.txt"
@@ -559,6 +667,7 @@ grep -Fq 'workspace_file_choose' "$WORK_DIR/dex-strings.txt"
 grep -Fq 'language_system' "$WORK_DIR/dex-strings.txt"
 grep -Fq 'licenses_open' "$WORK_DIR/dex-strings.txt"
 grep -Fq 'Hard-linked workspace files are not exportable' "$WORK_DIR/dex-strings.txt"
+grep -Fq 'Codex configuration must be a regular file' "$WORK_DIR/dex-strings.txt"
 if grep -Eq 'sk-[A-Za-z0-9_-]{20,}|eyJ[A-Za-z0-9_-]{16,}\.[A-Za-z0-9_-]{16,}' "$WORK_DIR/dex-strings.txt"; then
   echo "Credential-shaped value found in DEX strings." >&2
   exit 1

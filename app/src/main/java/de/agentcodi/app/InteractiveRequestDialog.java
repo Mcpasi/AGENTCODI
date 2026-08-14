@@ -25,6 +25,7 @@ import de.agentcodi.core.CodexNetworkPolicyAmendment;
 import de.agentcodi.core.CodexSessionSnapshot;
 import de.agentcodi.core.CodexUserInputOption;
 import de.agentcodi.core.CodexUserInputQuestion;
+import de.agentcodi.core.CredentialGuard;
 import de.agentcodi.runtime.AgentRuntimeService;
 
 import java.util.ArrayList;
@@ -271,9 +272,17 @@ final class InteractiveRequestDialog {
             ViewGroup.LayoutParams.WRAP_CONTENT
         ));
 
+        TextView credentialWarning = theme.text(
+            activity.getString(R.string.user_input_credential_warning),
+            13,
+            theme.danger
+        );
+        credentialWarning.setLineSpacing(0.0f, 1.15f);
+        content.addView(credentialWarning);
+
         for (int index = 0; index < request.getQuestions().size(); index++) {
             CodexUserInputQuestion question = request.getQuestions().get(index);
-            QuestionBinding binding = addQuestion(content, question, index != 0);
+            QuestionBinding binding = addQuestion(content, question, true);
             questionBindings.add(binding);
         }
 
@@ -300,6 +309,16 @@ final class InteractiveRequestDialog {
                                 activity,
                                 R.string.user_input_answer_all,
                                 Toast.LENGTH_SHORT
+                            ).show();
+                            return;
+                        }
+                        if (containsCredential(answers)) {
+                            clearQuestionInputs();
+                            wipeAnswers(answers);
+                            Toast.makeText(
+                                activity,
+                                R.string.user_input_credential_warning,
+                                Toast.LENGTH_LONG
                             ).show();
                             return;
                         }
@@ -655,6 +674,15 @@ final class InteractiveRequestDialog {
             }
         }
         answers.clear();
+    }
+
+    private static boolean containsCredential(Map<String, char[]> answers) {
+        for (char[] value : answers.values()) {
+            if (CredentialGuard.containsLikelyCredential(value)) {
+                return true;
+            }
+        }
+        return false;
     }
 
     private static final class ApprovalAction {

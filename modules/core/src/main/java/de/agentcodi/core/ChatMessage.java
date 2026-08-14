@@ -20,7 +20,7 @@ public final class ChatMessage {
         }
         this.id = id;
         this.role = Objects.requireNonNull(role, "role");
-        this.text = text == null ? "" : text;
+        this.text = CrashReportFormatter.redactSecrets(text);
         this.streaming = streaming;
     }
 

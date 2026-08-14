@@ -70,7 +70,19 @@ public final class AgentRuntimeService extends Service {
             }
             return;
         }
-        controller.startApiKeyLogin(apiKey);
+        try {
+            controller.startApiKeyLogin(apiKey);
+        } catch (RuntimeException error) {
+            if (apiKey != null) {
+                Arrays.fill(apiKey, '\0');
+            }
+            throw error;
+        } catch (Error error) {
+            if (apiKey != null) {
+                Arrays.fill(apiKey, '\0');
+            }
+            throw error;
+        }
     }
 
     public static void logout() {

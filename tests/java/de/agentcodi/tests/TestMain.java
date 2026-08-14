@@ -10,6 +10,7 @@ public final class TestMain {
         passed += JsonCodecTest.run();
         passed += CodexAppServerClientTest.run();
         passed += CodexSessionControllerTest.run();
+        passed += CredentialGuardTest.run();
         passed += CrashReportFormatterTest.run();
         passed += CrashReportStoreTest.run();
         passed += RuntimeStateMachineTest.run();

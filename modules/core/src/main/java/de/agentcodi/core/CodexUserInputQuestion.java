@@ -21,8 +21,8 @@ public final class CodexUserInputQuestion {
         boolean secret
     ) {
         this.id = id == null ? "" : id;
-        this.header = header == null ? "" : header;
-        this.question = question == null ? "" : question;
+        this.header = CrashReportFormatter.redactSecrets(header);
+        this.question = CrashReportFormatter.redactSecrets(question);
         this.options = Collections.unmodifiableList(new ArrayList<CodexUserInputOption>(
             options == null ? Collections.<CodexUserInputOption>emptyList() : options
         ));

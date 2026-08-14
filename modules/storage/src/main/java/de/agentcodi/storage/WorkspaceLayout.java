@@ -30,13 +30,7 @@ public final class WorkspaceLayout {
     }
 
     public static WorkspaceLayout create(File appFilesDirectory) throws IOException {
-        if (appFilesDirectory == null) {
-            throw new IllegalArgumentException("appFilesDirectory must not be null");
-        }
-        rejectSymbolicLink(appFilesDirectory);
-        ensureDirectory(appFilesDirectory);
-
-        File canonicalBase = appFilesDirectory.getCanonicalFile();
+        File canonicalBase = prepareCanonicalBase(appFilesDirectory);
         File root = secureChild(canonicalBase, "agentcodi");
         File workspace = secureChild(root, "workspace");
         File state = secureChild(root, "state");
@@ -44,8 +38,15 @@ public final class WorkspaceLayout {
         File home = secureChild(root, "home");
         File codexHome = secureChild(root, "codex-home");
         ensureSeparated(workspace, codexHome);
+        validateRuntimeConfigurationFiles(codexHome);
         validateCanonicalCredential(codexHome);
         return new WorkspaceLayout(root, workspace, state, logs, home, codexHome);
+    }
+
+    static File createStateDirectory(File appFilesDirectory) throws IOException {
+        File canonicalBase = prepareCanonicalBase(appFilesDirectory);
+        File root = secureChild(canonicalBase, "agentcodi");
+        return secureChild(root, "state");
     }
 
     public File getRoot() {
@@ -70,6 +71,15 @@ public final class WorkspaceLayout {
 
     public File getCodexHome() {
         return codexHome;
+    }
+
+    private static File prepareCanonicalBase(File appFilesDirectory) throws IOException {
+        if (appFilesDirectory == null) {
+            throw new IllegalArgumentException("appFilesDirectory must not be null");
+        }
+        rejectSymbolicLink(appFilesDirectory);
+        ensureDirectory(appFilesDirectory);
+        return appFilesDirectory.getCanonicalFile();
     }
 
     private static File secureChild(File parent, String name) throws IOException {
@@ -124,13 +134,40 @@ public final class WorkspaceLayout {
         if (!Files.isRegularFile(credential.toPath(), LinkOption.NOFOLLOW_LINKS)) {
             throw new IOException("Codex credential must be a regular file");
         }
-        if (!credential.setReadable(false, false)
-            || !credential.setWritable(false, false)
-            || !credential.setExecutable(false, false)
-            || !credential.setReadable(true, true)
-            || !credential.setWritable(true, true)) {
+        if (!restrictFileToOwner(credential)) {
             throw new IOException("Could not enforce owner-only Codex credential permissions");
         }
+    }
+
+    private static void validateRuntimeConfigurationFiles(File codexHome) throws IOException {
+        String[] names = {"config.toml", "requirements.toml", "hooks.json"};
+        for (String name : names) {
+            File configuration = new File(codexHome, name);
+            rejectSymbolicLink(configuration);
+            ensureContained(codexHome, configuration.getCanonicalFile());
+            if (!Files.exists(configuration.toPath(), LinkOption.NOFOLLOW_LINKS)) {
+                continue;
+            }
+            if (!Files.isRegularFile(
+                configuration.toPath(),
+                LinkOption.NOFOLLOW_LINKS
+            )) {
+                throw new IOException("Codex configuration must be a regular file");
+            }
+            if (!restrictFileToOwner(configuration)) {
+                throw new IOException(
+                    "Could not enforce owner-only Codex configuration permissions"
+                );
+            }
+        }
+    }
+
+    private static boolean restrictFileToOwner(File file) {
+        return file.setReadable(false, false)
+            && file.setWritable(false, false)
+            && file.setExecutable(false, false)
+            && file.setReadable(true, true)
+            && file.setWritable(true, true);
     }
 
     private static void rejectSymbolicLink(File path) throws IOException {

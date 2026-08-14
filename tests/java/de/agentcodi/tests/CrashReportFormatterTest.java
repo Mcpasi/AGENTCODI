@@ -30,11 +30,13 @@ public final class CrashReportFormatterTest {
 
     private static void redactsNamedAndBearerSecrets() {
         String redacted = CrashReportFormatter.redact(
-            "authorization=example-value Bearer another-example password=not-for-logs"
+            "authorization=example-value Bearer another-example password=not-for-logs "
+                + "OpenAI API Key: sk-fixture123456789"
         );
         TestSupport.assertFalse(redacted.contains("example-value"), "named secret removed");
         TestSupport.assertFalse(redacted.contains("another-example"), "bearer secret removed");
         TestSupport.assertFalse(redacted.contains("not-for-logs"), "password removed");
+        TestSupport.assertFalse(redacted.contains("sk-fixture123456789"), "spaced key removed");
         TestSupport.assertContains(redacted, "<redacted>", "redaction marker");
     }
 

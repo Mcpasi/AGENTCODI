@@ -1,18 +1,21 @@
-AGENTCODI LICENSE MAP
+AGENTCODI RIGHTS AND LICENSE MAP
 
 AGENTCODI original Java/C++ application code, tests, resources, build
 automation, and documentation:
 
 Copyright 2026 Pascal (Mc Pasi)
 
-Licensed under the Apache License, Version 2.0. The complete Apache-2.0
-license and the named copyright notice are kept in
-`app/src/main/res/raw/agentcodi_apache_2_0.txt` and are included in the APK.
+All rights reserved. The original AGENTCODI work is not currently offered
+under an open-source source-code license. Distribution of a signed APK does
+not publish or license its source code. A separate license may be provided
+with a future source release.
 
 Codex Works / codex-mobile-main is not a component, source dependency, or
 runtime dependency of AGENTCODI and is not bundled in the APK. AGENTCODI is a
 clean Java/C++ reimplementation. The following MIT attribution is retained
 solely as project provenance, as required by the migration history:
+
+RETAINED CODEX WORKS PROVENANCE — NOT A LICENSE FOR AGENTCODI
 
 MIT License
 

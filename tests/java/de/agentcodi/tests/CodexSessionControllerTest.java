@@ -13,6 +13,7 @@ import de.agentcodi.core.JsonCodec;
 import java.io.IOException;
 import java.nio.charset.StandardCharsets;
 import java.util.ArrayList;
+import java.util.Arrays;
 import java.util.Collections;
 import java.util.LinkedHashMap;
 import java.util.List;
@@ -36,6 +37,7 @@ public final class CodexSessionControllerTest {
         restoresCardsFromThreadHistory();
         reportsTransportFailureOnceAndReleasesTurn();
         keepsApiKeyOutOfSnapshotsAndWipesCallerBuffer();
+        blocksCredentialsInChatMessages();
         acceptsOnlyTrustedBrowserLoginUrl();
         usesAdvertisedModelEffortAndPermissionProfile();
         handlesCommandAndFileApprovals();
@@ -44,7 +46,7 @@ public final class CodexSessionControllerTest {
         rejectsIncompleteFileChangePreviews();
         handlesUserInputResolutionAndTimeout();
         rejectsUnavailableWorkspacePermissionProfile();
-        return 17;
+        return 18;
     }
 
     private static void loadsAccountThreadsAndHistory() throws Exception {
@@ -140,6 +142,34 @@ public final class CodexSessionControllerTest {
             + snapshot.getAccountEmail();
         TestSupport.assertFalse(visible.contains("temporary-test-value"), "key absent from state");
         TestSupport.assertEquals("apiKey", snapshot.getAuthMode(), "API key auth mode");
+        controller.close();
+        char[] rejectedAfterClose = "temporary-rejected-value".toCharArray();
+        controller.startApiKeyLogin(rejectedAfterClose);
+        for (char character : rejectedAfterClose) {
+            TestSupport.assertEquals(
+                Character.valueOf('\0'),
+                Character.valueOf(character),
+                "rejected key wipe"
+            );
+        }
+    }
+
+    private static void blocksCredentialsInChatMessages() throws Exception {
+        FixtureServer server = new FixtureServer(true);
+        CodexSessionController controller = new CodexSessionController(
+            server,
+            "/private/workspace"
+        );
+        controller.start();
+        controller.sendMessage("Bitte nutze sk-fixture123456789");
+        CodexSessionSnapshot snapshot = controller.snapshot();
+        TestSupport.assertContains(
+            snapshot.getErrorMessage(),
+            "Kontobereich",
+            "chat credential rejection"
+        );
+        TestSupport.assertTrue(snapshot.getMessages().isEmpty(), "credential not projected");
+        TestSupport.assertEquals(null, server.lastTurnStartParams, "credential not sent");
         controller.close();
     }
 
@@ -1540,6 +1570,42 @@ public final class CodexSessionControllerTest {
         );
 
         server.requestFromServer(
+            803L,
+            "item/tool/requestUserInput",
+            singleQuestionRequest("credential_fixture", null, true)
+        );
+        waitFor(new Condition() {
+            @Override
+            public boolean isTrue() {
+                return controller.snapshot().getInteractiveRequests().size() == 1;
+            }
+        }, "credential input projected");
+        final char[] credential = "sk-fixture123456789".toCharArray();
+        Map<String, char[]> credentialAnswer = new LinkedHashMap<String, char[]>();
+        credentialAnswer.put("choice", credential);
+        controller.answerUserInput(803L, credentialAnswer);
+        for (char character : credential) {
+            TestSupport.assertEquals(
+                Character.valueOf('\0'),
+                Character.valueOf(character),
+                "credential answer wipe"
+            );
+        }
+        TestSupport.assertEquals(null, server.responseFor(803L), "credential answer not sent");
+        TestSupport.assertEquals(
+            Integer.valueOf(1),
+            Integer.valueOf(controller.snapshot().getInteractiveRequests().size()),
+            "blocked credential request remains active"
+        );
+        controller.dismissUserInput(803L);
+        waitFor(new Condition() {
+            @Override
+            public boolean isTrue() {
+                return server.responseFor(803L) != null;
+            }
+        }, "blocked credential input dismissed empty");
+
+        server.requestFromServer(
             801L,
             "item/tool/requestUserInput",
             singleQuestionRequest("resolved_fixture", null, true)
@@ -1971,6 +2037,20 @@ public final class CodexSessionControllerTest {
             } else if ("account/logout".equals(method)
                 || "turn/interrupt".equals(method)) {
                 respond(request, JsonCodec.object());
+            }
+        }
+
+        @Override
+        public void writeBytes(byte[] line, int length, int maximumBytes) throws IOException {
+            if (line == null || length <= 0 || length > line.length || length > maximumBytes) {
+                throw new IOException("fixture outgoing bytes too large");
+            }
+            byte[] copy = Arrays.copyOf(line, length);
+            try {
+                writeLine(new String(copy, StandardCharsets.UTF_8), maximumBytes);
+            } finally {
+                Arrays.fill(copy, (byte) 0);
+                Arrays.fill(line, (byte) 0);
             }
         }
 

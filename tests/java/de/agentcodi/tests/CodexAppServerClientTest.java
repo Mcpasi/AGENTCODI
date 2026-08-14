@@ -7,6 +7,7 @@ import de.agentcodi.core.JsonCodec;
 import java.io.IOException;
 import java.nio.charset.StandardCharsets;
 import java.util.ArrayList;
+import java.util.Arrays;
 import java.util.Collections;
 import java.util.List;
 import java.util.Map;
@@ -24,7 +25,8 @@ public final class CodexAppServerClientTest {
         rejectsServerRequestsFailClosed();
         rejectsFractionalOrUnboundedIds();
         enforcesOutgoingLimitAndTimeout();
-        return 6;
+        writesApiKeyThroughMutableWipedTransportBuffer();
+        return 7;
     }
 
     private static void performsOrderedHandshakeAndCorrelatesResponse() throws Exception {
@@ -247,6 +249,40 @@ public final class CodexAppServerClientTest {
         unboundedClient.close();
     }
 
+    private static void writesApiKeyThroughMutableWipedTransportBuffer() throws Exception {
+        final String expected = "sk-fixture\\\"\\\\ä123456";
+        ScriptedTransport transport = new ScriptedTransport(new Script() {
+            @Override
+            public void onWrite(Map<String, Object> message, ScriptedTransport target) {
+                String method = JsonCodec.optionalString(message.get("method"));
+                if ("initialize".equals(method)) {
+                    target.enqueue(response(message, JsonCodec.object("userAgent", "fixture/1")));
+                } else if ("account/login/start".equals(method)) {
+                    Map<String, Object> params = JsonCodec.requireObject(
+                        message.get("params"),
+                        "login params"
+                    );
+                    TestSupport.assertEquals(expected, params.get("apiKey"), "encoded API key");
+                    target.enqueue(response(message, JsonCodec.object("type", "apiKey")));
+                }
+            }
+        });
+        CodexAppServerClient client = initializedClient(transport, new RecordingListener());
+        char[] caller = expected.toCharArray();
+        client.requestApiKeyLogin(caller, 1_000L);
+        for (char character : caller) {
+            TestSupport.assertEquals(Character.valueOf('\0'), Character.valueOf(character), "key wipe");
+        }
+        TestSupport.assertTrue(
+            transport.credentialBuffer != null,
+            "credential used mutable transport buffer"
+        );
+        for (byte value : transport.credentialBuffer) {
+            TestSupport.assertEquals(Byte.valueOf((byte) 0), Byte.valueOf(value), "wire wipe");
+        }
+        client.close();
+    }
+
     private static CodexAppServerClient initializedClient(
         ScriptedTransport transport,
         RecordingListener listener
@@ -338,6 +374,7 @@ public final class CodexAppServerClientTest {
             Collections.synchronizedList(new ArrayList<Map<String, Object>>());
         private final Script script;
         private volatile boolean closed;
+        private volatile byte[] credentialBuffer;
 
         private ScriptedTransport(Script script) {
             this.script = script;
@@ -372,6 +409,28 @@ public final class CodexAppServerClientTest {
             Map<String, Object> message = JsonCodec.parseObject(line);
             sent.add(message);
             script.onWrite(message, this);
+        }
+
+        @Override
+        public void writeBytes(byte[] line, int length, int maximumBytes) throws IOException {
+            if (line == null || length <= 0 || length > line.length || length > maximumBytes) {
+                throw new IOException("fixture outgoing bytes too large");
+            }
+            byte[] copy = Arrays.copyOf(line, length);
+            try {
+                Map<String, Object> message = JsonCodec.parseObject(
+                    new String(copy, StandardCharsets.UTF_8)
+                );
+                if ("account/login/start".equals(
+                        JsonCodec.optionalString(message.get("method")))) {
+                    credentialBuffer = line;
+                }
+                sent.add(message);
+                script.onWrite(message, this);
+            } finally {
+                Arrays.fill(copy, (byte) 0);
+                Arrays.fill(line, (byte) 0);
+            }
         }
 
         @Override

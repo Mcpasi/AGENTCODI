@@ -15,7 +15,8 @@ public final class CrashReportStoreTest {
         writesReadsAndClearsReport();
         boundsLargeReports();
         rejectsSymbolicReportPath();
-        return 3;
+        remainsAvailableWhenRuntimeLayoutIsInvalid();
+        return 4;
     }
 
     private static void writesReadsAndClearsReport() throws Exception {
@@ -72,6 +73,30 @@ public final class CrashReportStoreTest {
         } finally {
             deleteRecursively(base);
             Files.deleteIfExists(outside);
+        }
+    }
+
+    private static void remainsAvailableWhenRuntimeLayoutIsInvalid() throws Exception {
+        Path base = Files.createTempDirectory("agentcodi-crash-independent-");
+        try {
+            Path root = base.resolve("agentcodi");
+            Files.createDirectories(root);
+            Files.write(root.resolve("workspace"), new byte[] {'x'});
+            CrashReportStore store = CrashReportStore.open(base.toFile());
+            store.write("recoverable diagnostic");
+            TestSupport.assertEquals(
+                "recoverable diagnostic",
+                store.read(),
+                "diagnostics remain readable with invalid runtime siblings"
+            );
+            store.clear();
+            TestSupport.assertEquals(
+                "",
+                store.read(),
+                "diagnostics remain clearable with invalid runtime siblings"
+            );
+        } finally {
+            deleteRecursively(base);
         }
     }
 

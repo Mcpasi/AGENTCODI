@@ -7,6 +7,7 @@ import java.nio.ByteBuffer;
 import java.nio.charset.CharacterCodingException;
 import java.nio.charset.CodingErrorAction;
 import java.nio.charset.StandardCharsets;
+import java.util.Arrays;
 import java.util.concurrent.atomic.AtomicLong;
 
 final class NativeAppServerTransport implements CodexRpcTransport {
@@ -77,11 +78,27 @@ final class NativeAppServerTransport implements CodexRpcTransport {
         if (bytes.length == 0 || bytes.length > maximumBytes) {
             throw new IOException("Outgoing app-server line exceeds the Java byte limit");
         }
-        long current = handle.get();
-        if (current <= 0L) {
-            throw new IOException("App-server transport is closed");
+        try {
+            writeBytes(bytes, bytes.length, maximumBytes);
+        } finally {
+            Arrays.fill(bytes, (byte) 0);
         }
-        engine.writeAppServerLine(current, bytes, maximumBytes);
+    }
+
+    @Override
+    public void writeBytes(byte[] line, int length, int maximumBytes) throws IOException {
+        if (line == null || length <= 0 || length > line.length || length > maximumBytes) {
+            throw new IOException("Outgoing app-server bytes exceed the Java byte limit");
+        }
+        try {
+            long current = handle.get();
+            if (current <= 0L) {
+                throw new IOException("App-server transport is closed");
+            }
+            engine.writeAppServerLine(current, line, length, maximumBytes);
+        } finally {
+            Arrays.fill(line, (byte) 0);
+        }
     }
 
     @Override

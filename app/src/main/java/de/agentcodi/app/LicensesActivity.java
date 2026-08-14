@@ -75,17 +75,10 @@ public final class LicensesActivity extends Activity {
         TextView subtitle = theme.body(getString(R.string.licenses_subtitle));
         theme.addWithTopMargin(page, subtitle, 10);
 
-        addLicenseCard(
+        addAttributionCard(
             page,
             R.string.license_agentcodi_title,
-            R.string.license_agentcodi_summary,
-            R.string.license_show_text,
-            new LicenseLoader() {
-                @Override
-                public String load() throws IOException {
-                    return readRawResource(R.raw.agentcodi_apache_2_0);
-                }
-            }
+            R.string.license_agentcodi_summary
         );
         addLicenseCard(
             page,
@@ -117,6 +110,20 @@ public final class LicensesActivity extends Activity {
             }
         );
         return scroll;
+    }
+
+    private void addAttributionCard(
+        LinearLayout page,
+        int titleResource,
+        int summaryResource
+    ) {
+        LinearLayout card = theme.card();
+        TextView title = theme.text(getString(titleResource), 18, theme.primary);
+        title.setTypeface(Typeface.DEFAULT_BOLD);
+        card.addView(title);
+        TextView summary = theme.body(getString(summaryResource));
+        theme.addWithTopMargin(card, summary, 8);
+        theme.addWithTopMargin(page, card, 16);
     }
 
     private void addLicenseCard(

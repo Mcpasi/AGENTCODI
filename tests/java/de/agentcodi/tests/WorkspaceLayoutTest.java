@@ -23,6 +23,8 @@ public final class WorkspaceLayoutTest {
         keepsCodexHomeSeparateAndPrivate();
         rejectsSymbolicCanonicalCredential();
         preservesExistingCanonicalCredential();
+        preservesPrivateCodexConfigurationFiles();
+        rejectsSymbolicCodexConfigurationFile();
         acceptsSupportedWorkspaceImage();
         copiesValidatedWorkspaceImage();
         rejectsWorkspaceImageMutationDuringCopy();
@@ -32,7 +34,7 @@ public final class WorkspaceLayoutTest {
         rejectsSymbolicWorkspaceImage();
         rejectsUnsupportedWorkspaceFile();
         rejectsOversizedWorkspaceImage();
-        return 15;
+        return 17;
     }
 
     private static void createsStablePrivateLayout() throws Exception {
@@ -172,6 +174,60 @@ public final class WorkspaceLayoutTest {
             );
         } finally {
             deleteRecursively(base);
+        }
+    }
+
+    private static void preservesPrivateCodexConfigurationFiles() throws Exception {
+        String[] names = {"config.toml", "requirements.toml", "hooks.json"};
+        for (String name : names) {
+            Path base = Files.createTempDirectory("agentcodi-config-file-");
+            try {
+                Path codexHome = base.resolve("agentcodi").resolve("codex-home");
+                Files.createDirectories(codexHome);
+                Path configuration = codexHome.resolve(name);
+                byte[] marker = ("fixture=" + name).getBytes("UTF-8");
+                Files.write(configuration, marker);
+                WorkspaceLayout.create(base.toFile());
+                TestSupport.assertTrue(
+                    java.util.Arrays.equals(marker, Files.readAllBytes(configuration)),
+                    "Codex configuration content remains untouched: " + name
+                );
+                Set<PosixFilePermission> permissions = Files.getPosixFilePermissions(
+                    configuration
+                );
+                TestSupport.assertFalse(
+                    permissions.contains(PosixFilePermission.GROUP_READ)
+                        || permissions.contains(PosixFilePermission.GROUP_WRITE)
+                        || permissions.contains(PosixFilePermission.OTHERS_READ)
+                        || permissions.contains(PosixFilePermission.OTHERS_WRITE),
+                    "Codex configuration is owner-only: " + name
+                );
+            } finally {
+                deleteRecursively(base);
+            }
+        }
+    }
+
+    private static void rejectsSymbolicCodexConfigurationFile() throws Exception {
+        final Path base = Files.createTempDirectory("agentcodi-config-symlink-");
+        Path outside = Files.createTempFile("agentcodi-config-outside-", ".toml");
+        try {
+            Path codexHome = base.resolve("agentcodi").resolve("codex-home");
+            Files.createDirectories(codexHome);
+            Files.createSymbolicLink(codexHome.resolve("config.toml"), outside);
+            TestSupport.expectThrows(
+                IOException.class,
+                new TestSupport.ThrowingRunnable() {
+                    @Override
+                    public void run() throws Exception {
+                        WorkspaceLayout.create(base.toFile());
+                    }
+                },
+                "symbolic Codex configuration should be rejected"
+            );
+        } finally {
+            deleteRecursively(base);
+            Files.deleteIfExists(outside);
         }
     }
 

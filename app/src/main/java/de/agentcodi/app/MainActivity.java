@@ -10,6 +10,7 @@ import android.net.Uri;
 import android.os.Bundle;
 import android.os.Handler;
 import android.os.Looper;
+import android.text.Editable;
 import android.text.InputType;
 import android.view.Gravity;
 import android.view.View;
@@ -33,6 +34,7 @@ import de.agentcodi.core.CodexSessionSnapshot;
 import de.agentcodi.core.CodexThreadSummary;
 import de.agentcodi.core.CodexTranscriptItem;
 import de.agentcodi.core.CrashReportFormatter;
+import de.agentcodi.core.CredentialGuard;
 import de.agentcodi.core.RuntimePhase;
 import de.agentcodi.core.RuntimeSnapshot;
 import de.agentcodi.core.UiStartupState;
@@ -536,11 +538,21 @@ public final class MainActivity extends Activity {
         sendButton.setOnClickListener(new View.OnClickListener() {
             @Override
             public void onClick(View view) {
-                String prompt = composerInput.getText().toString();
+                Editable editable = composerInput.getText();
+                if (CredentialGuard.containsLikelyCredential(editable)) {
+                    editable.clear();
+                    Toast.makeText(
+                        MainActivity.this,
+                        R.string.user_input_credential_warning,
+                        Toast.LENGTH_LONG
+                    ).show();
+                    return;
+                }
+                String prompt = editable.toString();
                 if (prompt.trim().isEmpty()) {
                     return;
                 }
-                composerInput.getText().clear();
+                editable.clear();
                 AgentRuntimeService.sendMessage(prompt);
             }
         });

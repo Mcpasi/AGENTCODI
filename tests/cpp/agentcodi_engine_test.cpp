@@ -57,9 +57,12 @@ int main(int argc, char* argv[]) {
         << "\"id\":\"child_turn\",\"status\":\"completed\"}}}\n";
     return 0;
   }
+  if (argc == 2 && std::string(argv[1]) == "--exit-with-code") {
+    return 23;
+  }
 
   const std::string version = agentcodi::engine_version();
-  expect(version == "agentcodi-native/0.4.1", "engine version");
+  expect(version == "agentcodi-native/0.4.5", "engine version");
   expect(agentcodi::run_self_test() == 0, "native self-test");
 
   const std::string diagnostics = agentcodi::runtime_diagnostics();
@@ -76,7 +79,13 @@ int main(int argc, char* argv[]) {
       diagnostics.find("codeModeHost=android-sibling") != std::string::npos,
       "Android sibling code-mode host diagnostic");
 
-  const std::vector<std::string> codex_arguments = agentcodi::CodexAppServerArguments();
+  agentcodi::ProcessConfig argument_config;
+  argument_config.working_directory = "/private/workspace";
+  argument_config.home_directory = "/private/home";
+  argument_config.temporary_directory = "/private/temporary";
+  argument_config.library_directory = "/private/native";
+  const std::vector<std::string> codex_arguments =
+      agentcodi::CodexAppServerArguments(argument_config);
   const auto contains_argument = [&codex_arguments](const std::string& value) {
     return std::find(codex_arguments.begin(), codex_arguments.end(), value)
         != codex_arguments.end();
@@ -97,6 +106,24 @@ int main(int argc, char* argv[]) {
          "Codex native approval policy");
   expect(joined_arguments.find("approval_policy=\"never\"") == std::string::npos,
          "obsolete no-prompt policy removed");
+  expect(joined_arguments.find("shell_environment_policy={inherit=\"none\"")
+             != std::string::npos,
+         "Codex tool environment starts empty");
+  expect(joined_arguments.find("ignore_default_excludes=false")
+             != std::string::npos,
+         "Codex environment deny patterns remain enabled");
+  expect(joined_arguments.find("CODEX_HOME=") == std::string::npos,
+         "Codex home excluded from tool environment");
+  expect(joined_arguments.find("projects.") == std::string::npos,
+         "unsupported project trust override omitted under strict config");
+  expect(joined_arguments.find("analytics.enabled=false") != std::string::npos,
+         "Codex analytics disabled");
+  expect(joined_arguments.find("otel.exporter=\"none\"") != std::string::npos,
+         "Codex telemetry exporter disabled");
+  expect(joined_arguments.find("otel.log_user_prompt=false") != std::string::npos,
+         "Codex prompt telemetry disabled");
+  expect(joined_arguments.find("feedback.enabled=false") != std::string::npos,
+         "Codex feedback upload disabled");
   expect(joined_arguments.find("default_permissions=\"agentcodi-workspace\"")
              != std::string::npos,
          "Codex private permission profile default");
@@ -379,13 +406,30 @@ int main(int argc, char* argv[]) {
     config.library_directory = "/system/lib64";
     config.arguments = {
         "-c",
+        "printf '%s|%s|%s|%s\\n' \"${AGENTCODI_PARENT_SECRET-unset}\" "
+        "\"$CODEX_HOME\" \"$HOME\" \"$(umask)\"; "
         "printf '%s\\n' \"$CODEX_CODE_MODE_HOST_PATH\"; "
         "IFS= read -r line; printf '%s\\n' \"$line\"",
     };
+    expect(setenv("AGENTCODI_PARENT_SECRET", "must-not-leak", 1) == 0,
+           "set inherited-secret fixture");
     std::shared_ptr<agentcodi::AppServerProcess> process =
         agentcodi::AppServerProcess::Start(config, &error);
+    unsetenv("AGENTCODI_PARENT_SECRET");
     expect(process != nullptr, "spawn supervised process");
     if (process != nullptr) {
+      std::string child_security_state;
+      expect(
+          process->ReadLine(1024U, &child_security_state, &error)
+              == agentcodi::LineReadStatus::kLine,
+          "read child environment security state");
+      expect(
+          child_security_state.find("unset|" + codex_home + "|" + home + "|") == 0U,
+          "child inherits only explicit private environment");
+      expect(
+          child_security_state.find("|0077") != std::string::npos
+              || child_security_state.find("|077") != std::string::npos,
+          "child process owner-only umask");
       std::string host_path;
       expect(
           process->ReadLine(1024U, &host_path, &error)
@@ -393,7 +437,19 @@ int main(int argc, char* argv[]) {
           "read code-mode host environment");
       expect(host_path == "/system/bin/sh", "canonical code-mode host environment");
       const std::string probe = "{\"probe\":\"ok\"}";
-      expect(process->WriteLine(probe, 1024U, &error), "write framed process line");
+      std::vector<unsigned char> mutable_probe(probe.begin(), probe.end());
+      expect(
+          process->WriteBytes(&mutable_probe, mutable_probe.size(), 1024U, &error),
+          "write mutable framed process line");
+      expect(
+          std::find(mutable_probe.begin(), mutable_probe.end(), 0U)
+              == mutable_probe.begin()
+              && std::find_if(
+                     mutable_probe.begin(),
+                     mutable_probe.end(),
+                     [](unsigned char value) { return value != 0U; })
+                  == mutable_probe.end(),
+          "mutable process write buffer wiped");
       std::string response;
       expect(
           process->ReadLine(1024U, &response, &error)
@@ -471,6 +527,21 @@ int main(int argc, char* argv[]) {
         expect(unlink(child_materialized_path.c_str()) == 0,
                "remove child materialization fixture");
       }
+
+      config.arguments = {"--exit-with-code"};
+      error.clear();
+      process = agentcodi::AppServerProcess::Start(config, &error);
+      expect(process != nullptr, "spawn early-exit diagnostic fixture");
+      if (process != nullptr) {
+        std::string unexpected_output;
+        expect(
+            process->ReadLine(1024U, &unexpected_output, &error)
+                == agentcodi::LineReadStatus::kError
+                && error.find("exited with code 23") != std::string::npos,
+            "surface bounded app-server exit status instead of generic EOF");
+        expect(process->Stop(500) == 23,
+               "retain early app-server exit status during cleanup");
+      }
     }
 
     config.executable = "/system/bin/sh";
@@ -490,6 +561,36 @@ int main(int argc, char* argv[]) {
     process = agentcodi::AppServerProcess::Start(config, &error);
     expect(process == nullptr, "reject Codex home inside workspace");
     expect(error.find("separate") != std::string::npos, "auth boundary error");
+
+    config.codex_home = codex_home;
+    config.arguments = {"-c", "exit 0"};
+    const std::string configuration_path = codex_home + "/config.toml";
+    const int configuration_descriptor = open(
+        configuration_path.c_str(),
+        O_WRONLY | O_CREAT | O_EXCL | O_CLOEXEC,
+        0600);
+    expect(configuration_descriptor >= 0, "create Codex configuration fixture");
+    if (configuration_descriptor >= 0) {
+      expect(fchmod(configuration_descriptor, 0644) == 0,
+             "make Codex configuration fixture non-private");
+      close(configuration_descriptor);
+    }
+    error.clear();
+    process = agentcodi::AppServerProcess::Start(config, &error);
+    expect(process == nullptr, "reject non-private Codex configuration file");
+    expect(error.find("private regular file") != std::string::npos,
+           "non-private Codex configuration error");
+    expect(chmod(configuration_path.c_str(), 0600) == 0,
+           "make Codex configuration fixture private");
+    error.clear();
+    process = agentcodi::AppServerProcess::Start(config, &error);
+    expect(process != nullptr, "accept private Codex configuration file");
+    if (process != nullptr) {
+      expect(process->Stop(500) != INT_MIN,
+             "clean up with private Codex configuration file present");
+    }
+    expect(unlink(configuration_path.c_str()) == 0,
+           "remove Codex configuration fixture");
 
     if (!materialized_path.empty()) {
       expect(unlink(materialized_path.c_str()) == 0,

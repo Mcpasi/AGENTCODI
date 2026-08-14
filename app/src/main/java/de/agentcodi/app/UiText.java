@@ -410,6 +410,7 @@ final class UiText {
         if ("Chat wird geöffnet.".equals(raw)) return R.string.core_chat_opening;
         if ("Chat ist geöffnet.".equals(raw)) return R.string.core_chat_open;
         if ("Nachrichten müssen 1 bis 32768 Zeichen enthalten.".equals(raw)) return R.string.core_message_length;
+        if ("OpenAI-Zugangsdaten dürfen nur im geschützten Kontobereich eingegeben werden.".equals(raw)) return R.string.user_input_credential_warning;
         if ("Nachricht wird gesendet.".equals(raw)) return R.string.core_message_sending;
         if ("Bitte zuerst anmelden.".equals(raw)) return R.string.core_sign_in_first;
         if ("Der aktuelle Turn läuft noch.".equals(raw)) return R.string.core_turn_still_running;

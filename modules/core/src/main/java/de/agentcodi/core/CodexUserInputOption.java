@@ -5,8 +5,8 @@ public final class CodexUserInputOption {
     private final String description;
 
     public CodexUserInputOption(String label, String description) {
-        this.label = label == null ? "" : label;
-        this.description = description == null ? "" : description;
+        this.label = CrashReportFormatter.redactSecrets(label);
+        this.description = CrashReportFormatter.redactSecrets(description);
     }
 
     public String getLabel() {

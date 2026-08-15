@@ -1,5 +1,60 @@
-.build/
-.cache/
-output/apk/*.apk
-output/apk/*.idsig
-output/apk/*.sha256
+# Internal documentation and local project guidance
+/README.md
+/AGENTS.md
+/docs/
+/.editorconfig
+
+# Local build products and downloaded toolchains
+/.build/
+/.cache/
+/output/
+build/
+*.class
+*.o
+*.obj
+*.so
+*.a
+*.jar
+*.dex
+*.apk
+*.apks
+*.aab
+*.idsig
+
+# Android signing material and local secret configuration
+*.keystore
+*.jks
+*.p12
+*.pfx
+*.pem
+*.key
+*.pk8
+keystore.properties
+signing.properties
+secrets.properties
+local.properties
+.env
+.env.*
+*.password
+*.pass
+auth.json
+
+# Local Codex/runtime state
+codex-home/
+*.sqlite
+*.sqlite-shm
+*.sqlite-wal
+*.log
+
+# Editor, operating-system, and temporary files
+/.idea/
+/.vscode/
+*.iml
+.DS_Store
+Thumbs.db
+*.swp
+*.swo
+*~
+*.tmp
+*.temp
+*.bak

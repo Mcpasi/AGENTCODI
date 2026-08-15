@@ -12,6 +12,30 @@ The complete distributor LICENSE and NOTICE are packaged verbatim at:
 assets/third-party/codex/LICENSE
 assets/third-party/codex/NOTICE
 
+Node.js LTS 24.18.0 Android ARM64 toolchain
+
+AGENTCODI packages a SHA-256-pinned Node.js LTS 24.18.0 executable and its
+matching runtime libraries from verified Termux packages. Android executes
+these files from the app's private native-library directory. The toolchain is
+not downloaded at runtime; an explicit user action or a Codex command accepted
+in the native approval dialog creates only a private activation marker below
+workspace/toolchain.
+
+Included runtime components and primary license classifications:
+- Node.js 24.18.0: MIT License and the upstream third-party notices collected
+  in the Node.js LICENSE file.
+- c-ares 1.34.8: MIT-style license.
+- ICU 78.3: Unicode License v3 and the third-party notices in its LICENSE.
+- OpenSSL 3.6.3: Apache License 2.0.
+- SQLite 3.53.4: public domain.
+- zlib 1.3.2: zlib License.
+- LLVM libc++: University of Illinois/NCSA Open Source License, reproduced
+  below.
+
+The complete distributor or upstream license texts for Node.js, c-ares, ICU,
+OpenSSL, and zlib are packaged at:
+assets/third-party/node/
+
 LLVM libc++ shared runtime from the pinned Termux libc++ package.
 The following is the distributor-supplied license text.
 

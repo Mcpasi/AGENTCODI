@@ -1,5 +1,6 @@
 package de.agentcodi.core;
 
+import java.io.IOException;
 import java.net.URI;
 import java.net.URISyntaxException;
 import java.util.ArrayList;
@@ -76,6 +77,7 @@ public final class CodexSessionController
         "<generated-image-data-omitted>";
 
     private final CodexAppServerClient client;
+    private final CodexTerminalSession terminal;
     private final String workspacePath;
     private final ConnectionFailureListener connectionFailureListener;
     private final ExecutorService operations = Executors.newSingleThreadExecutor();
@@ -127,6 +129,15 @@ public final class CodexSessionController
         String workspacePath,
         ConnectionFailureListener connectionFailureListener
     ) {
+        this(transport, workspacePath, connectionFailureListener, null);
+    }
+
+    public CodexSessionController(
+        CodexRpcTransport transport,
+        String workspacePath,
+        ConnectionFailureListener connectionFailureListener,
+        String terminalShellPath
+    ) {
         if (workspacePath == null || workspacePath.trim().isEmpty()
             || !workspacePath.startsWith("/")) {
             throw new IllegalArgumentException("Workspace path must be absolute");
@@ -134,6 +145,9 @@ public final class CodexSessionController
         this.workspacePath = workspacePath;
         this.connectionFailureListener = connectionFailureListener;
         client = new CodexAppServerClient(transport, this);
+        terminal = terminalShellPath == null
+            ? null
+            : new CodexTerminalSession(client, workspacePath, terminalShellPath);
         synchronized (this) {
             publishLocked();
         }
@@ -193,6 +207,49 @@ public final class CodexSessionController
 
     public synchronized CodexSessionSnapshot snapshot() {
         return snapshot;
+    }
+
+    public TerminalSessionSnapshot terminalSnapshot() {
+        return terminal == null ? TerminalSessionSnapshot.stopped() : terminal.snapshot();
+    }
+
+    public void startTerminal(int rows, int columns) {
+        synchronized (this) {
+            if (closed || !ready || terminal == null) {
+                throw new IllegalStateException("Terminal runtime is not ready");
+            }
+        }
+        terminal.start(rows, columns);
+    }
+
+    public void sendTerminalInput(char[] input) throws IOException {
+        synchronized (this) {
+            if (closed || !ready || terminal == null) {
+                if (input != null) {
+                    Arrays.fill(input, '\0');
+                }
+                throw new IOException("Terminal runtime is not ready");
+            }
+        }
+        terminal.write(input);
+    }
+
+    public void resizeTerminal(int rows, int columns) {
+        if (terminal != null) {
+            terminal.resize(rows, columns);
+        }
+    }
+
+    public void stopTerminal() {
+        if (terminal != null) {
+            terminal.stop();
+        }
+    }
+
+    public void clearTerminalOutput() {
+        if (terminal != null) {
+            terminal.clearOutput();
+        }
     }
 
     public void refreshAccountAndThreads() {
@@ -671,6 +728,9 @@ public final class CodexSessionController
 
     @Override
     public void onNotification(String method, Map<String, Object> params) {
+        if (terminal != null && terminal.onNotification(method, params)) {
+            return;
+        }
         if ("item/agentMessage/delta".equals(method)) {
             handleAgentDelta(params);
         } else if (REASONING_SUMMARY_DELTA_METHOD.equals(method)) {
@@ -710,6 +770,9 @@ public final class CodexSessionController
 
     @Override
     public void onTransportClosed(Throwable error) {
+        if (terminal != null) {
+            terminal.onTransportClosed(error);
+        }
         boolean notifyFailure;
         synchronized (this) {
             if (closed) {
@@ -756,6 +819,9 @@ public final class CodexSessionController
         }
         shutdownOperationsNow();
         interactiveResponses.shutdownNow();
+        if (terminal != null) {
+            terminal.close();
+        }
         client.close();
     }
 
@@ -2581,6 +2647,9 @@ public final class CodexSessionController
         }
         shutdownOperationsNow();
         interactiveResponses.shutdownNow();
+        if (terminal != null) {
+            terminal.close();
+        }
         client.close();
         if (notifyFailure) {
             notifyConnectionFailure(error);

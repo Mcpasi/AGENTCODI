@@ -31,6 +31,8 @@ constexpr std::size_t kMaximumMaterializedImageBytes = 64U * 1024U * 1024U;
 constexpr std::size_t kMaximumImagesPerLine = 240U;
 constexpr std::size_t kMaximumDecodedMetadataBytes = 256U;
 constexpr unsigned int kRenameNoReplace = 1U;
+constexpr int kExitStatusObservationAttempts = 25;
+constexpr const char* kSystemShell = "/system/bin/sh";
 constexpr const char* kCompactedImageResult =
     "\"<generated-image-data-omitted>\"";
 constexpr const char* kGeneratedImagesDirectory = "generated_images";
@@ -1199,6 +1201,29 @@ bool canonical_directory(
   return true;
 }
 
+bool validate_tool_alias(
+    const std::string& directory,
+    const char* name,
+    const std::string& expected_executable,
+    std::string* error) {
+  const std::string alias = directory + "/" + name;
+  struct stat alias_metadata {};
+  if (lstat(alias.c_str(), &alias_metadata) != 0
+      || !S_ISLNK(alias_metadata.st_mode)
+      || alias_metadata.st_uid != geteuid()
+      || alias_metadata.st_nlink != 1) {
+    *error = std::string("Packaged tool alias is invalid: ") + name;
+    return false;
+  }
+  char resolved[PATH_MAX];
+  if (realpath(alias.c_str(), resolved) == nullptr
+      || expected_executable != resolved) {
+    *error = std::string("Packaged tool alias target is invalid: ") + name;
+    return false;
+  }
+  return true;
+}
+
 bool validate_codex_configuration_files(
     const std::string& codex_home,
     std::string* error) {
@@ -1325,7 +1350,8 @@ int decode_wait_status(int status) {
 }
 
 std::vector<std::string> child_environment(const ProcessConfig& config) {
-  const std::string path = config.library_directory + ":/system/bin:/system/xbin";
+  const std::string path = config.tool_binary_directory + ":"
+      + config.library_directory + ":/system/bin:/system/xbin";
   return {
       "HOME=" + config.home_directory,
       "CODEX_HOME=" + config.codex_home,
@@ -1333,8 +1359,17 @@ std::vector<std::string> child_environment(const ProcessConfig& config) {
       "TMP=" + config.temporary_directory,
       "TEMP=" + config.temporary_directory,
       "PATH=" + path,
-      "SHELL=/system/bin/sh",
+      "SHELL=" + std::string(kSystemShell),
       "LD_LIBRARY_PATH=" + config.library_directory,
+      "HISTFILE=/dev/null",
+      "NODE_REPL_HISTORY=/dev/null",
+      "SSL_CERT_DIR=/system/etc/security/cacerts",
+      "AGENTCODI_WORKSPACE=" + config.working_directory,
+      "AGENTCODI_TOOLCHAIN=" + config.toolchain_directory,
+      "AGENTCODI_TOOL_BIN=" + config.tool_binary_directory,
+      "AGENTCODI_NODE_VERSION=24.18.0",
+      "AGENTCODI_TOOLCHAIN_COMMAND=agentcodi-toolchain",
+      "AGENTCODI_TOOLCHAIN_PACKAGES=node",
       "CODEX_SELF_EXE=" + config.executable,
       "CODEX_CODE_MODE_HOST_PATH=" + config.code_mode_host_executable,
   };
@@ -1493,15 +1528,26 @@ InboundLineCompactionStatus MaterializeAndCompactInboundImagePayloads(
 
 std::vector<std::string> CodexAppServerArguments(const ProcessConfig& config) {
   const std::string child_path =
-      config.library_directory + ":/system/bin:/system/xbin";
+      config.tool_binary_directory + ":" + config.library_directory
+      + ":/system/bin:/system/xbin";
   const std::string shell_environment =
       "shell_environment_policy={inherit=\"none\","
       "ignore_default_excludes=false,set={PATH=" + toml_string(child_path)
-      + ",SHELL=\"/system/bin/sh\",HOME=" + toml_string(config.home_directory)
+      + ",SHELL=" + toml_string(kSystemShell)
+      + ",HOME=" + toml_string(config.home_directory)
       + ",TMPDIR=" + toml_string(config.temporary_directory)
       + ",TMP=" + toml_string(config.temporary_directory)
       + ",TEMP=" + toml_string(config.temporary_directory)
-      + ",LD_LIBRARY_PATH=" + toml_string(config.library_directory) + "}}";
+      + ",LD_LIBRARY_PATH=" + toml_string(config.library_directory)
+      + ",HISTFILE=\"/dev/null\""
+      + ",NODE_REPL_HISTORY=\"/dev/null\""
+      + ",SSL_CERT_DIR=\"/system/etc/security/cacerts\""
+      + ",AGENTCODI_WORKSPACE=" + toml_string(config.working_directory)
+      + ",AGENTCODI_TOOLCHAIN=" + toml_string(config.toolchain_directory)
+      + ",AGENTCODI_TOOL_BIN=" + toml_string(config.tool_binary_directory)
+      + ",AGENTCODI_NODE_VERSION=\"24.18.0\""
+      + ",AGENTCODI_TOOLCHAIN_COMMAND=\"agentcodi-toolchain\""
+      + ",AGENTCODI_TOOLCHAIN_PACKAGES=\"node\"}}";
   return {
       "app-server",
       "--stdio",
@@ -1548,6 +1594,7 @@ std::vector<std::string> CodexAppServerArguments(const ProcessConfig& config) {
       "permissions.agentcodi-workspace.description=\"AGENTCODI private workspace\"",
       "-c",
       "permissions.agentcodi-workspace.filesystem={\":minimal\"=\"read\","
+      + toml_string(config.tool_binary_directory) + "=\"read\","
       "\":workspace_roots\"={\".\"=\"write\"}}",
   };
 }
@@ -1571,10 +1618,30 @@ std::shared_ptr<AppServerProcess> AppServerProcess::Start(
           "Code-mode host executable",
           &config.code_mode_host_executable,
           error)
+      || !canonical_regular_executable(
+          requested_config.shell_executable,
+          "Terminal shell executable",
+          &config.shell_executable,
+          error)
+      || !canonical_regular_executable(
+          requested_config.node_executable,
+          "Node executable",
+          &config.node_executable,
+          error)
       || !canonical_directory(
           requested_config.working_directory,
           "Workspace",
           &config.working_directory,
+          error)
+      || !canonical_directory(
+          requested_config.toolchain_directory,
+          "Toolchain",
+          &config.toolchain_directory,
+          error)
+      || !canonical_directory(
+          requested_config.tool_binary_directory,
+          "Packaged tool binary",
+          &config.tool_binary_directory,
           error)
       || !canonical_directory(
           requested_config.codex_home,
@@ -1603,12 +1670,45 @@ std::shared_ptr<AppServerProcess> AppServerProcess::Start(
     *error = "Codex home must remain separate from the workspace";
     return nullptr;
   }
+  if (config.toolchain_directory == config.working_directory
+      || !contains_path(config.working_directory, config.toolchain_directory)) {
+    *error = "Toolchain must remain below the canonical workspace";
+    return nullptr;
+  }
+  struct stat tool_binary_metadata {};
+  if (lstat(config.tool_binary_directory.c_str(), &tool_binary_metadata) != 0
+      || !S_ISDIR(tool_binary_metadata.st_mode)
+      || tool_binary_metadata.st_uid != geteuid()
+      || (tool_binary_metadata.st_mode & 077) != 0
+      || contains_path(config.working_directory, config.tool_binary_directory)
+      || contains_path(config.tool_binary_directory, config.working_directory)
+      || contains_path(config.codex_home, config.tool_binary_directory)
+      || contains_path(config.tool_binary_directory, config.codex_home)) {
+    *error = "Packaged tool directory must be private and separate";
+    return nullptr;
+  }
+  if (!validate_tool_alias(
+          config.tool_binary_directory,
+          "node",
+          config.shell_executable,
+          error)
+      || !validate_tool_alias(
+          config.tool_binary_directory,
+          "agentcodi-toolchain",
+          config.shell_executable,
+          error)) {
+    return nullptr;
+  }
   if (!validate_codex_configuration_files(config.codex_home, error)) {
     return nullptr;
   }
   if (contains_path(config.working_directory, config.code_mode_host_executable)
-      || contains_path(config.codex_home, config.code_mode_host_executable)) {
-    *error = "Code-mode host must remain outside workspace and Codex home";
+      || contains_path(config.codex_home, config.code_mode_host_executable)
+      || contains_path(config.working_directory, config.shell_executable)
+      || contains_path(config.codex_home, config.shell_executable)
+      || contains_path(config.working_directory, config.node_executable)
+      || contains_path(config.codex_home, config.node_executable)) {
+    *error = "Packaged executables must remain outside workspace and Codex home";
     return nullptr;
   }
   if (config.arguments.empty()) {
@@ -1917,7 +2017,14 @@ LineReadStatus AppServerProcess::ReadLine(
         *error = "App-server ended with an incomplete JSON line";
         return LineReadStatus::kError;
       }
-      const int exit_code = PollExitCode();
+      int exit_code = PollExitCode();
+      for (int attempt = 0;
+           exit_code == kStillRunning
+               && attempt < kExitStatusObservationAttempts;
+           ++attempt) {
+        std::this_thread::sleep_for(std::chrono::milliseconds(10));
+        exit_code = PollExitCode();
+      }
       if (exit_code == kStillRunning) {
         *error = "Codex app-server closed stdout while terminating";
       } else {

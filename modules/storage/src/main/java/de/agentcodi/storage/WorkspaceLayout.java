@@ -2,12 +2,24 @@ package de.agentcodi.storage;
 
 import java.io.File;
 import java.io.IOException;
+import java.nio.charset.StandardCharsets;
+import java.nio.file.DirectoryStream;
 import java.nio.file.Files;
 import java.nio.file.LinkOption;
+import java.nio.file.Path;
+import java.nio.file.attribute.BasicFileAttributes;
+import java.nio.file.attribute.PosixFilePermission;
+import java.util.Arrays;
+import java.util.Set;
 
 public final class WorkspaceLayout {
+    public static final String NODE_TOOL_ALIAS = "node";
+    public static final String TOOLCHAIN_TOOL_ALIAS = "agentcodi-toolchain";
+
     private final File root;
     private final File workspace;
+    private final File toolchain;
+    private final File toolBin;
     private final File state;
     private final File logs;
     private final File home;
@@ -16,6 +28,8 @@ public final class WorkspaceLayout {
     private WorkspaceLayout(
         File root,
         File workspace,
+        File toolchain,
+        File toolBin,
         File state,
         File logs,
         File home,
@@ -23,6 +37,8 @@ public final class WorkspaceLayout {
     ) {
         this.root = root;
         this.workspace = workspace;
+        this.toolchain = toolchain;
+        this.toolBin = toolBin;
         this.state = state;
         this.logs = logs;
         this.home = home;
@@ -33,6 +49,8 @@ public final class WorkspaceLayout {
         File canonicalBase = prepareCanonicalBase(appFilesDirectory);
         File root = secureChild(canonicalBase, "agentcodi");
         File workspace = secureChild(root, "workspace");
+        File toolchain = secureChild(workspace, "toolchain");
+        File toolBin = secureChild(root, "tool-bin");
         File state = secureChild(root, "state");
         File logs = secureChild(root, "logs");
         File home = secureChild(root, "home");
@@ -40,7 +58,16 @@ public final class WorkspaceLayout {
         ensureSeparated(workspace, codexHome);
         validateRuntimeConfigurationFiles(codexHome);
         validateCanonicalCredential(codexHome);
-        return new WorkspaceLayout(root, workspace, state, logs, home, codexHome);
+        return new WorkspaceLayout(
+            root,
+            workspace,
+            toolchain,
+            toolBin,
+            state,
+            logs,
+            home,
+            codexHome
+        );
     }
 
     static File createStateDirectory(File appFilesDirectory) throws IOException {
@@ -57,8 +84,130 @@ public final class WorkspaceLayout {
         return workspace;
     }
 
+    public File getToolchain() {
+        return toolchain;
+    }
+
+    public File getToolBin() {
+        return toolBin;
+    }
+
+    public void preparePackagedToolAliases(File shellExecutable) throws IOException {
+        File canonicalShell = requirePackagedExecutable(shellExecutable);
+        prepareToolAlias(NODE_TOOL_ALIAS, canonicalShell);
+        prepareToolAlias(TOOLCHAIN_TOOL_ALIAS, canonicalShell);
+        requireOnlyPackagedToolAliases();
+    }
+
+    public boolean isNodeRuntimeEnabled(String version) throws IOException {
+        if (version == null || !version.matches("[0-9]+\\.[0-9]+\\.[0-9]+")) {
+            throw new IllegalArgumentException("Node.js version is invalid");
+        }
+        Path installed = toolchain.toPath().resolve("installed");
+        if (!Files.exists(installed, LinkOption.NOFOLLOW_LINKS)) {
+            return false;
+        }
+        if (Files.isSymbolicLink(installed)
+            || !Files.isDirectory(installed, LinkOption.NOFOLLOW_LINKS)
+            || !installed.toFile().getCanonicalFile().equals(installed.toFile())) {
+            return false;
+        }
+        Path marker = installed.resolve("node-" + version);
+        if (!Files.exists(marker, LinkOption.NOFOLLOW_LINKS)
+            || Files.isSymbolicLink(marker)) {
+            return false;
+        }
+        BasicFileAttributes attributes = Files.readAttributes(
+            marker,
+            BasicFileAttributes.class,
+            LinkOption.NOFOLLOW_LINKS
+        );
+        byte[] expected = ("enabled " + version + "\n").getBytes(StandardCharsets.US_ASCII);
+        if (!attributes.isRegularFile() || attributes.size() != expected.length) {
+            return false;
+        }
+        try {
+            WorkspaceFileBoundary.requireSingleLink(marker);
+            Set<PosixFilePermission> permissions = Files.getPosixFilePermissions(
+                marker,
+                LinkOption.NOFOLLOW_LINKS
+            );
+            if (!permissions.equals(java.util.EnumSet.of(
+                PosixFilePermission.OWNER_READ,
+                PosixFilePermission.OWNER_WRITE
+            ))) {
+                return false;
+            }
+            byte[] actual = Files.readAllBytes(marker);
+            try {
+                return Arrays.equals(expected, actual);
+            } finally {
+                Arrays.fill(actual, (byte) 0);
+            }
+        } catch (IOException error) {
+            return false;
+        }
+    }
+
     public File getState() {
         return state;
+    }
+
+    private File requirePackagedExecutable(File executable) throws IOException {
+        if (executable == null) {
+            throw new IllegalArgumentException("Packaged shell executable is required");
+        }
+        rejectSymbolicLink(executable);
+        File canonical = executable.getCanonicalFile();
+        if (!Files.isRegularFile(canonical.toPath(), LinkOption.NOFOLLOW_LINKS)
+            || !canonical.canExecute()) {
+            throw new IOException("Packaged shell is not a regular executable file");
+        }
+        if (contains(root.getCanonicalPath(), canonical.getCanonicalPath())) {
+            throw new IOException("Packaged shell must remain outside private writable storage");
+        }
+        return canonical;
+    }
+
+    private void prepareToolAlias(String name, File target) throws IOException {
+        Path alias = toolBin.toPath().resolve(name);
+        if (Files.exists(alias, LinkOption.NOFOLLOW_LINKS) || Files.isSymbolicLink(alias)) {
+            if (!Files.isSymbolicLink(alias)) {
+                throw new IOException("Packaged tool alias is not a symbolic link: " + name);
+            }
+            Path existingTarget = Files.readSymbolicLink(alias);
+            Path resolvedTarget = existingTarget.isAbsolute()
+                ? existingTarget.normalize()
+                : alias.getParent().resolve(existingTarget).normalize();
+            if (resolvedTarget.toFile().getCanonicalFile().equals(target)) {
+                return;
+            }
+            Files.delete(alias);
+        }
+        Files.createSymbolicLink(alias, target.toPath());
+        if (!Files.isSymbolicLink(alias)
+            || !alias.toRealPath().equals(target.toPath().toRealPath())) {
+            throw new IOException("Packaged tool alias failed canonical validation: " + name);
+        }
+    }
+
+    private void requireOnlyPackagedToolAliases() throws IOException {
+        int count = 0;
+        try (DirectoryStream<Path> entries = Files.newDirectoryStream(toolBin.toPath())) {
+            for (Path entry : entries) {
+                String name = entry.getFileName().toString();
+                if (!NODE_TOOL_ALIAS.equals(name) && !TOOLCHAIN_TOOL_ALIAS.equals(name)) {
+                    throw new IOException("Unexpected entry in packaged tool directory");
+                }
+                if (!Files.isSymbolicLink(entry)) {
+                    throw new IOException("Packaged tool entry is not a symbolic link");
+                }
+                count++;
+            }
+        }
+        if (count != 2) {
+            throw new IOException("Packaged tool aliases are incomplete");
+        }
     }
 
     public File getLogs() {

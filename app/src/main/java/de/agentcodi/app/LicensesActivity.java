@@ -96,6 +96,27 @@ public final class LicensesActivity extends Activity {
         );
         addLicenseCard(
             page,
+            R.string.license_node_runtime_title,
+            R.string.license_node_runtime_summary,
+            R.string.license_show_notice,
+            new LicenseLoader() {
+                @Override
+                public String load() throws IOException {
+                    return "NODE.JS\n\n"
+                        + readAsset("third-party/node/NODE-LICENSE")
+                        + "\n\nC-ARES\n\n"
+                        + readAsset("third-party/node/CARES-LICENSE")
+                        + "\n\nICU\n\n"
+                        + readAsset("third-party/node/ICU-LICENSE")
+                        + "\n\nOPENSSL\n\n"
+                        + readAsset("third-party/node/OPENSSL-LICENSE")
+                        + "\n\nZLIB\n\n"
+                        + readAsset("third-party/node/ZLIB-LICENSE");
+                }
+            }
+        );
+        addLicenseCard(
+            page,
             R.string.license_third_party_title,
             R.string.license_third_party_summary,
             R.string.license_show_notice,

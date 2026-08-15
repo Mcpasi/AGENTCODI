@@ -9,11 +9,13 @@ import de.agentcodi.core.CodexSessionController;
 import de.agentcodi.core.CodexSessionSnapshot;
 import de.agentcodi.core.CodexTranscriptItem;
 import de.agentcodi.core.JsonCodec;
+import de.agentcodi.core.TerminalSessionSnapshot;
 
 import java.io.IOException;
 import java.nio.charset.StandardCharsets;
 import java.util.ArrayList;
 import java.util.Arrays;
+import java.util.Base64;
 import java.util.Collections;
 import java.util.LinkedHashMap;
 import java.util.List;
@@ -46,7 +48,234 @@ public final class CodexSessionControllerTest {
         rejectsIncompleteFileChangePreviews();
         handlesUserInputResolutionAndTimeout();
         rejectsUnavailableWorkspacePermissionProfile();
-        return 18;
+        startsTerminalThroughSandboxedCommandExec();
+        streamsTerminalInputResizeAndTermination();
+        terminatesTerminalWhenOutputCapIsReached();
+        rejectsTerminalCredentialsAndMalformedOutput();
+        return 22;
+    }
+
+    private static void startsTerminalThroughSandboxedCommandExec() throws Exception {
+        final FixtureServer server = new FixtureServer(true);
+        final CodexSessionController controller = terminalController(server);
+        controller.start();
+        controller.startTerminal(31, 101);
+        waitFor(new Condition() {
+            @Override
+            public boolean isTrue() {
+                TerminalSessionSnapshot terminal = controller.terminalSnapshot();
+                return terminal.isRunning()
+                    && terminal.getOutput().contains("terminal-ready ✓");
+            }
+        }, "sandboxed terminal starts and streams output");
+
+        Map<String, Object> params = server.lastCommandExecParams;
+        TestSupport.assertTrue(params != null, "command/exec request captured");
+        List<Object> command = JsonCodec.requireArray(params.get("command"), "terminal command");
+        TestSupport.assertEquals(Integer.valueOf(2), Integer.valueOf(command.size()), "terminal argv");
+        TestSupport.assertEquals(
+            "/private/lib/libagentcodi-shell.so",
+            command.get(0),
+            "packaged shell path"
+        );
+        TestSupport.assertEquals("--interactive", command.get(1), "interactive shell mode");
+        TestSupport.assertEquals("/private/workspace", params.get("cwd"), "terminal cwd");
+        TestSupport.assertEquals(
+            "agentcodi-workspace",
+            params.get("permissionProfile"),
+            "terminal permission profile"
+        );
+        TestSupport.assertEquals(Boolean.TRUE, params.get("tty"), "PTY enabled");
+        TestSupport.assertFalse(params.containsKey("sandboxPolicy"), "no policy override");
+        TestSupport.assertFalse(params.containsKey("env"), "no terminal environment override");
+        TestSupport.assertFalse(params.containsKey("disableTimeout"), "finite timeout retained");
+        TestSupport.assertFalse(params.containsKey("disableOutputCap"), "output cap retained");
+        TestSupport.assertEquals(
+            Long.valueOf(30L * 60L * 1000L),
+            params.get("timeoutMs"),
+            "terminal timeout"
+        );
+        TestSupport.assertEquals(
+            Long.valueOf(8L * 1024L * 1024L),
+            params.get("outputBytesCap"),
+            "terminal output cap"
+        );
+        Map<String, Object> size = JsonCodec.requireObject(params.get("size"), "terminal size");
+        TestSupport.assertEquals(Long.valueOf(31L), size.get("rows"), "terminal rows");
+        TestSupport.assertEquals(Long.valueOf(101L), size.get("cols"), "terminal columns");
+        TestSupport.assertFalse(
+            controller.terminalSnapshot().getOutput().contains("\u001b"),
+            "terminal ANSI controls removed"
+        );
+        controller.stopTerminal();
+        waitForTerminalExit(controller);
+        controller.close();
+    }
+
+    private static void streamsTerminalInputResizeAndTermination() throws Exception {
+        final FixtureServer server = new FixtureServer(true);
+        final CodexSessionController controller = terminalController(server);
+        controller.start();
+        controller.startTerminal(24, 80);
+        waitFor(new Condition() {
+            @Override
+            public boolean isTrue() {
+                return controller.terminalSnapshot().isRunning();
+            }
+        }, "terminal running before input");
+
+        final char[] input = "printf Grüß\\n\n".toCharArray();
+        controller.sendTerminalInput(input);
+        for (char character : input) {
+            TestSupport.assertEquals(
+                Character.valueOf('\0'),
+                Character.valueOf(character),
+                "terminal caller input wipe"
+            );
+        }
+        waitFor(new Condition() {
+            @Override
+            public boolean isTrue() {
+                return server.lastTerminalInput != null
+                    && server.terminalInputWireBufferWiped;
+            }
+        }, "terminal input reaches command/exec/write");
+        TestSupport.assertEquals(
+            "printf Grüß\\n\n",
+            new String(server.lastTerminalInput, StandardCharsets.UTF_8),
+            "terminal input bytes"
+        );
+        TestSupport.assertTrue(server.terminalInputWireBuffer != null, "mutable input buffer used");
+        for (byte value : server.terminalInputWireBuffer) {
+            TestSupport.assertEquals(Byte.valueOf((byte) 0), Byte.valueOf(value), "wire input wipe");
+        }
+
+        controller.resizeTerminal(40, 120);
+        waitFor(new Condition() {
+            @Override
+            public boolean isTrue() {
+                return server.lastTerminalResizeParams != null;
+            }
+        }, "terminal resize request");
+        Map<String, Object> resized = JsonCodec.requireObject(
+            server.lastTerminalResizeParams.get("size"),
+            "resized terminal size"
+        );
+        TestSupport.assertEquals(Long.valueOf(40L), resized.get("rows"), "resized rows");
+        TestSupport.assertEquals(Long.valueOf(120L), resized.get("cols"), "resized columns");
+
+        controller.stopTerminal();
+        waitForTerminalExit(controller);
+        TestSupport.assertTrue(server.lastTerminalTerminateParams != null, "terminal terminated");
+        TestSupport.assertEquals(
+            Integer.valueOf(130),
+            Integer.valueOf(controller.terminalSnapshot().getExitCode()),
+            "terminal exit code"
+        );
+        controller.clearTerminalOutput();
+        TestSupport.assertEquals("", controller.terminalSnapshot().getOutput(), "terminal clear");
+        controller.close();
+    }
+
+    private static void rejectsTerminalCredentialsAndMalformedOutput() throws Exception {
+        final FixtureServer server = new FixtureServer(true);
+        final CodexSessionController controller = terminalController(server);
+        controller.start();
+        controller.startTerminal(24, 80);
+        waitFor(new Condition() {
+            @Override
+            public boolean isTrue() {
+                return controller.terminalSnapshot().isRunning();
+            }
+        }, "terminal running before rejection tests");
+
+        final char[] credential = "sk-fixture123456789\n".toCharArray();
+        TestSupport.expectThrows(
+            IOException.class,
+            new TestSupport.ThrowingRunnable() {
+                @Override
+                public void run() throws Exception {
+                    controller.sendTerminalInput(credential);
+                }
+            },
+            "credential-shaped terminal input"
+        );
+        for (char character : credential) {
+            TestSupport.assertEquals(
+                Character.valueOf('\0'),
+                Character.valueOf(character),
+                "rejected terminal input wipe"
+            );
+        }
+        TestSupport.assertEquals(null, server.lastTerminalInput, "credential not sent");
+
+        String processId = JsonCodec.optionalString(server.lastCommandExecParams.get("processId"));
+        server.notifyMessage("command/exec/outputDelta", JsonCodec.object(
+            "processId", processId,
+            "stream", "stdout",
+            "deltaBase64", "***not-base64***",
+            "capReached", Boolean.FALSE
+        ));
+        waitFor(new Condition() {
+            @Override
+            public boolean isTrue() {
+                return !controller.terminalSnapshot().getFailure().isEmpty();
+            }
+        }, "malformed terminal output fails session");
+        TestSupport.assertFalse(controller.terminalSnapshot().isRunning(), "failed terminal stopped");
+        waitForTerminalExit(controller);
+        controller.close();
+    }
+
+    private static void terminatesTerminalWhenOutputCapIsReached() throws Exception {
+        final FixtureServer server = new FixtureServer(true);
+        final CodexSessionController controller = terminalController(server);
+        controller.start();
+        controller.startTerminal(24, 80);
+        waitFor(new Condition() {
+            @Override
+            public boolean isTrue() {
+                return controller.terminalSnapshot().isRunning();
+            }
+        }, "terminal running before output cap");
+        String processId = JsonCodec.optionalString(server.lastCommandExecParams.get("processId"));
+        server.notifyMessage("command/exec/outputDelta", JsonCodec.object(
+            "processId", processId,
+            "stream", "stdout",
+            "deltaBase64", "",
+            "capReached", Boolean.TRUE
+        ));
+        waitFor(new Condition() {
+            @Override
+            public boolean isTrue() {
+                return controller.terminalSnapshot().getFailure().contains("capture limit");
+            }
+        }, "terminal output cap fails closed");
+        waitForTerminalExit(controller);
+        TestSupport.assertTrue(server.lastTerminalTerminateParams != null, "capped terminal killed");
+        controller.close();
+    }
+
+    private static CodexSessionController terminalController(FixtureServer server) {
+        return new CodexSessionController(
+            server,
+            "/private/workspace",
+            null,
+            "/private/lib/libagentcodi-shell.so"
+        );
+    }
+
+    private static void waitForTerminalExit(final CodexSessionController controller)
+        throws Exception {
+        waitFor(new Condition() {
+            @Override
+            public boolean isTrue() {
+                TerminalSessionSnapshot terminal = controller.terminalSnapshot();
+                return !terminal.isRunning()
+                    && !terminal.isStarting()
+                    && terminal.getExitCode() != Integer.MIN_VALUE;
+            }
+        }, "terminal completion response");
     }
 
     private static void loadsAccountThreadsAndHistory() throws Exception {
@@ -762,9 +991,17 @@ public final class CodexSessionControllerTest {
                     failedController.set(value);
                     failures.incrementAndGet();
                 }
-            }
+            },
+            "/private/lib/libagentcodi-shell.so"
         );
         startHeldTurn(server, controller);
+        controller.startTerminal(24, 80);
+        waitFor(new Condition() {
+            @Override
+            public boolean isTrue() {
+                return controller.terminalSnapshot().isRunning();
+            }
+        }, "terminal active before transport failure");
         server.close();
         waitFor(new Condition() {
             @Override
@@ -780,6 +1017,14 @@ public final class CodexSessionControllerTest {
         TestSupport.assertFalse(
             controller.snapshot().isOperationActive(),
             "transport failure releases active operation"
+        );
+        TestSupport.assertFalse(
+            controller.terminalSnapshot().isRunning(),
+            "transport failure releases active terminal"
+        );
+        TestSupport.assertFalse(
+            controller.terminalSnapshot().getFailure().isEmpty(),
+            "transport failure is visible in terminal state"
         );
         controller.close();
         TestSupport.assertEquals(
@@ -1818,6 +2063,13 @@ public final class CodexSessionControllerTest {
         private volatile Map<String, Object> lastThreadResumeParams;
         private volatile Map<String, Object> lastThreadStartParams;
         private volatile Map<String, Object> lastTurnStartParams;
+        private volatile Map<String, Object> lastCommandExecParams;
+        private volatile Map<String, Object> lastTerminalResizeParams;
+        private volatile Map<String, Object> lastTerminalTerminateParams;
+        private volatile Map<String, Object> pendingTerminalRequest;
+        private volatile byte[] lastTerminalInput;
+        private volatile byte[] terminalInputWireBuffer;
+        private volatile boolean terminalInputWireBufferWiped;
         private volatile boolean reorderStreamingEvents;
         private volatile boolean holdTurnOpen;
         private volatile boolean richHistory;
@@ -2034,6 +2286,42 @@ public final class CodexSessionControllerTest {
                         "error", null
                     )
                 ));
+            } else if ("command/exec".equals(method)) {
+                lastCommandExecParams = JsonCodec.requireObject(request.get("params"), "params");
+                pendingTerminalRequest = request;
+                notifyMessage("command/exec/outputDelta", JsonCodec.object(
+                    "processId", lastCommandExecParams.get("processId"),
+                    "stream", "stdout",
+                    "deltaBase64", Base64.getEncoder().encodeToString(
+                        "\u001b[32mterminal-ready ✓\u001b[0m\r\n"
+                            .getBytes(StandardCharsets.UTF_8)
+                    ),
+                    "capReached", Boolean.FALSE
+                ));
+            } else if ("command/exec/write".equals(method)) {
+                Map<String, Object> params = JsonCodec.requireObject(request.get("params"), "params");
+                lastTerminalInput = Base64.getDecoder().decode(
+                    JsonCodec.requireString(params.get("deltaBase64"), "terminal input")
+                );
+                respond(request, JsonCodec.object());
+            } else if ("command/exec/resize".equals(method)) {
+                lastTerminalResizeParams = JsonCodec.requireObject(request.get("params"), "params");
+                respond(request, JsonCodec.object());
+            } else if ("command/exec/terminate".equals(method)) {
+                lastTerminalTerminateParams = JsonCodec.requireObject(
+                    request.get("params"),
+                    "params"
+                );
+                respond(request, JsonCodec.object());
+                Map<String, Object> pending = pendingTerminalRequest;
+                pendingTerminalRequest = null;
+                if (pending != null) {
+                    respond(pending, JsonCodec.object(
+                        "exitCode", Long.valueOf(130L),
+                        "stdout", "",
+                        "stderr", ""
+                    ));
+                }
             } else if ("account/logout".equals(method)
                 || "turn/interrupt".equals(method)) {
                 respond(request, JsonCodec.object());
@@ -2047,10 +2335,20 @@ public final class CodexSessionControllerTest {
             }
             byte[] copy = Arrays.copyOf(line, length);
             try {
-                writeLine(new String(copy, StandardCharsets.UTF_8), maximumBytes);
+                String json = new String(copy, StandardCharsets.UTF_8);
+                Map<String, Object> message = JsonCodec.parseObject(json);
+                if ("command/exec/write".equals(
+                        JsonCodec.optionalString(message.get("method")))) {
+                    terminalInputWireBuffer = line;
+                    terminalInputWireBufferWiped = false;
+                }
+                writeLine(json, maximumBytes);
             } finally {
                 Arrays.fill(copy, (byte) 0);
                 Arrays.fill(line, (byte) 0);
+                if (terminalInputWireBuffer == line) {
+                    terminalInputWireBufferWiped = true;
+                }
             }
         }
 

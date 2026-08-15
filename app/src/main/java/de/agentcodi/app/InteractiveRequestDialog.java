@@ -26,6 +26,7 @@ import de.agentcodi.core.CodexSessionSnapshot;
 import de.agentcodi.core.CodexUserInputOption;
 import de.agentcodi.core.CodexUserInputQuestion;
 import de.agentcodi.core.CredentialGuard;
+import de.agentcodi.core.ToolchainCommand;
 import de.agentcodi.runtime.AgentRuntimeService;
 
 import java.util.ArrayList;
@@ -178,16 +179,33 @@ final class InteractiveRequestDialog {
         content.setOrientation(LinearLayout.VERTICAL);
         content.setPadding(theme.dp(22), theme.dp(8), theme.dp(22), theme.dp(12));
 
+        if (ToolchainCommand.requestsNodeInstallation(request.getCommand())) {
+            TextView toolchainWarning = theme.text(
+                activity.getString(
+                    R.string.approval_toolchain_install_detail,
+                    de.agentcodi.core.BuildIdentity.NODE_RUNTIME_VERSION
+                ),
+                14,
+                theme.danger
+            );
+            toolchainWarning.setLineSpacing(0.0f, 1.15f);
+            content.addView(toolchainWarning);
+        }
+
         TextView details = theme.text(approvalDetails(request), 14, theme.primary);
         details.setTextIsSelectable(true);
         details.setLineSpacing(0.0f, 1.15f);
         if (!request.getCommand().isEmpty() || !request.getFileChanges().isEmpty()) {
             details.setTypeface(Typeface.MONOSPACE);
         }
-        content.addView(details, new LinearLayout.LayoutParams(
+        LinearLayout.LayoutParams detailParams = new LinearLayout.LayoutParams(
             ViewGroup.LayoutParams.MATCH_PARENT,
             ViewGroup.LayoutParams.WRAP_CONTENT
-        ));
+        );
+        if (ToolchainCommand.requestsNodeInstallation(request.getCommand())) {
+            detailParams.topMargin = theme.dp(14);
+        }
+        content.addView(details, detailParams);
 
         boolean headingAdded = false;
         for (ApprovalAction action : actions) {
@@ -556,6 +574,9 @@ final class InteractiveRequestDialog {
     }
 
     private String approvalTitle(CodexInteractiveRequest request) {
+        if (ToolchainCommand.requestsNodeInstallation(request.getCommand())) {
+            return activity.getString(R.string.approval_toolchain_install_title);
+        }
         if (!request.getNetworkHost().isEmpty()) {
             return activity.getString(R.string.approval_network_title);
         }

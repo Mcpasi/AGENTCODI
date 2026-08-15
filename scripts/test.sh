@@ -28,8 +28,14 @@ find "$PROJECT_ROOT/modules/core/src/main/java" "$PROJECT_ROOT/modules/storage/s
 "$JAVAC" -encoding UTF-8 -source 8 -target 8 -Xlint:-options -d "$TEST_BUILD/java-classes" @"$TEST_BUILD/java-sources.txt"
 "$JAVA" -cp "$TEST_BUILD/java-classes" de.agentcodi.tests.TestMain
 
+"$CLANGXX" -std=c++17 -O2 -Wall -Wextra -Werror -pthread \
+  "$PROJECT_ROOT/modules/native-engine/src/main/cpp/toolchain_shell_main.cpp" \
+  -o "$TEST_BUILD/cpp/libagentcodi-shell.so"
+ln -s /system/bin/sh "$TEST_BUILD/cpp/libnode.so"
+
 "$CLANGXX" -std=c++17 -O2 -Wall -Wextra -Werror -pthread -I"$PROJECT_ROOT/modules/native-engine/src/main/cpp" "$PROJECT_ROOT/modules/native-engine/src/main/cpp/agentcodi_engine.cpp" "$PROJECT_ROOT/modules/native-engine/src/main/cpp/app_server_process.cpp" "$PROJECT_ROOT/tests/cpp/agentcodi_engine_test.cpp" -o "$TEST_BUILD/cpp/agentcodi-engine-test"
 
-env LD_LIBRARY_PATH="$TERMUX_PREFIX/lib" "$TEST_BUILD/cpp/agentcodi-engine-test"
+env LD_LIBRARY_PATH="$TERMUX_PREFIX/lib" "$TEST_BUILD/cpp/agentcodi-engine-test" \
+  "$TEST_BUILD/cpp/libagentcodi-shell.so"
 
 echo "All host tests passed."

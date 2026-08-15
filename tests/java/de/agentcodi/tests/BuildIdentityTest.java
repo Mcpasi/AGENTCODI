@@ -12,8 +12,8 @@ public final class BuildIdentityTest {
     }
 
     private static void pinsCompleteCodeModeRuntime() {
-        TestSupport.assertEquals("0.4.5", BuildIdentity.VERSION_NAME, "app version");
-        TestSupport.assertEquals(25, BuildIdentity.VERSION_CODE, "app version code");
+        TestSupport.assertEquals("0.4.8", BuildIdentity.VERSION_NAME, "app version");
+        TestSupport.assertEquals(28, BuildIdentity.VERSION_CODE, "app version code");
         TestSupport.assertEquals(
             "0.147.2",
             BuildIdentity.CODEX_RUNTIME_VERSION,
@@ -28,6 +28,21 @@ public final class BuildIdentityTest {
             "libcodex-codehost.so",
             BuildIdentity.CODEX_CODE_MODE_HOST_LIBRARY,
             "Codex code-mode host library"
+        );
+        TestSupport.assertEquals(
+            "libagentcodi-shell.so",
+            BuildIdentity.TERMINAL_SHELL_LIBRARY,
+            "terminal shell library"
+        );
+        TestSupport.assertEquals(
+            "24.18.0",
+            BuildIdentity.NODE_RUNTIME_VERSION,
+            "Node.js runtime version"
+        );
+        TestSupport.assertEquals(
+            "libnode.so",
+            BuildIdentity.NODE_RUNTIME_LIBRARY,
+            "Node.js runtime library"
         );
     }
 }

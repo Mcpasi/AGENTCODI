@@ -15,7 +15,11 @@ namespace agentcodi {
 struct ProcessConfig {
   std::string executable;
   std::string code_mode_host_executable;
+  std::string shell_executable;
+  std::string node_executable;
   std::string working_directory;
+  std::string toolchain_directory;
+  std::string tool_binary_directory;
   std::string codex_home;
   std::string home_directory;
   std::string temporary_directory;

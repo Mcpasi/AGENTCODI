@@ -4,6 +4,7 @@ import java.io.EOFException;
 import java.io.IOException;
 import java.nio.charset.StandardCharsets;
 import java.util.Arrays;
+import java.util.Base64;
 import java.util.Collections;
 import java.util.HashMap;
 import java.util.Map;
@@ -18,6 +19,7 @@ public final class CodexAppServerClient implements AutoCloseable {
     public static final int MAX_OUTGOING_BYTES = 256 * 1024;
     public static final long MAX_REQUEST_ID = Integer.MAX_VALUE;
     public static final int MAX_PENDING_SERVER_REQUESTS = 16;
+    static final long MAX_STREAMING_REQUEST_TIMEOUT_MS = 31L * 60L * 1000L;
 
     public interface Listener {
         boolean onServerRequest(
@@ -97,6 +99,68 @@ public final class CodexAppServerClient implements AutoCloseable {
             throw new IllegalStateException("Codex app-server connection is not initialized");
         }
         return requestInternal(method, params, timeoutMilliseconds, false);
+    }
+
+    Map<String, Object> requestStreaming(
+        final String method,
+        final Map<String, Object> params,
+        long timeoutMilliseconds,
+        Runnable afterWrite
+    ) throws Exception {
+        if (!initialized) {
+            throw new IllegalStateException("Codex app-server connection is not initialized");
+        }
+        return requestPrepared(
+            method,
+            timeoutMilliseconds,
+            false,
+            new RequestWriter() {
+                @Override
+                public void write(long id) throws IOException {
+                    Map<String, Object> message = JsonCodec.object(
+                        "method", method,
+                        "id", Long.valueOf(id)
+                    );
+                    if (params != null) {
+                        message.put("params", params);
+                    }
+                    writeMessage(message);
+                }
+            },
+            MAX_STREAMING_REQUEST_TIMEOUT_MS,
+            afterWrite
+        );
+    }
+
+    Map<String, Object> requestTerminalInput(
+        final String processId,
+        final byte[] input,
+        long timeoutMilliseconds
+    ) throws Exception {
+        try {
+            validateTerminalProcessId(processId);
+            if (input == null || input.length == 0 || input.length > 16 * 1024) {
+                throw new IllegalArgumentException("Terminal input is outside the byte limit");
+            }
+            if (!initialized) {
+                throw new IllegalStateException("Codex app-server connection is not initialized");
+            }
+            return requestPrepared(
+                "command/exec/write",
+                timeoutMilliseconds,
+                false,
+                new RequestWriter() {
+                    @Override
+                    public void write(long id) throws IOException {
+                        writeTerminalInputMessage(id, processId, input);
+                    }
+                }
+            );
+        } finally {
+            if (input != null) {
+                Arrays.fill(input, (byte) 0);
+            }
+        }
     }
 
     public Map<String, Object> requestApiKeyLogin(
@@ -228,7 +292,29 @@ public final class CodexAppServerClient implements AutoCloseable {
         boolean initializationRequest,
         RequestWriter writer
     ) throws Exception {
-        validateMethodAndTimeout(method, timeoutMilliseconds);
+        return requestPrepared(
+            method,
+            timeoutMilliseconds,
+            initializationRequest,
+            writer,
+            120_000L,
+            null
+        );
+    }
+
+    private Map<String, Object> requestPrepared(
+        String method,
+        long timeoutMilliseconds,
+        boolean initializationRequest,
+        RequestWriter writer,
+        long maximumTimeoutMilliseconds,
+        Runnable afterWrite
+    ) throws Exception {
+        validateMethodAndTimeout(
+            method,
+            timeoutMilliseconds,
+            maximumTimeoutMilliseconds
+        );
         if (closed.get()) {
             throw new EOFException("Codex app-server connection is closed");
         }
@@ -247,6 +333,9 @@ public final class CodexAppServerClient implements AutoCloseable {
 
         try {
             writer.write(id);
+            if (afterWrite != null) {
+                afterWrite.run();
+            }
         } catch (Throwable error) {
             synchronized (pendingLock) {
                 pending.remove(Long.valueOf(id));
@@ -345,6 +434,39 @@ public final class CodexAppServerClient implements AutoCloseable {
         } finally {
             Arrays.fill(encoded, (byte) 0);
             wipe(apiKey);
+        }
+    }
+
+    private void writeTerminalInputMessage(long id, String processId, byte[] input)
+        throws IOException {
+        byte[] encodedInput = Base64.getEncoder().encode(input);
+        byte[] prefix = (
+            "{\"method\":\"command/exec/write\",\"id\":" + id
+                + ",\"params\":{\"processId\":\"" + processId
+                + "\",\"deltaBase64\":\""
+        ).getBytes(StandardCharsets.US_ASCII);
+        byte[] suffix = "\"}}".getBytes(StandardCharsets.US_ASCII);
+        byte[] message = new byte[prefix.length + encodedInput.length + suffix.length];
+        try {
+            System.arraycopy(prefix, 0, message, 0, prefix.length);
+            System.arraycopy(encodedInput, 0, message, prefix.length, encodedInput.length);
+            System.arraycopy(
+                suffix,
+                0,
+                message,
+                prefix.length + encodedInput.length,
+                suffix.length
+            );
+            if (message.length > MAX_OUTGOING_BYTES) {
+                throw new IOException("Outgoing terminal input exceeds the message limit");
+            }
+            synchronized (writeLock) {
+                transport.writeBytes(message, message.length, MAX_OUTGOING_BYTES);
+            }
+        } finally {
+            Arrays.fill(encodedInput, (byte) 0);
+            Arrays.fill(message, (byte) 0);
+            Arrays.fill(input, (byte) 0);
         }
     }
 
@@ -581,11 +703,34 @@ public final class CodexAppServerClient implements AutoCloseable {
         }
     }
 
-    private static void validateMethodAndTimeout(String method, long timeoutMilliseconds) {
+    private static void validateTerminalProcessId(String processId) {
+        if (processId == null || processId.isEmpty() || processId.length() > 128) {
+            throw new IllegalArgumentException("Terminal process ID is invalid");
+        }
+        for (int index = 0; index < processId.length(); index++) {
+            char character = processId.charAt(index);
+            boolean allowed = (character >= 'a' && character <= 'z')
+                || (character >= 'A' && character <= 'Z')
+                || (character >= '0' && character <= '9')
+                || character == '-'
+                || character == '_'
+                || character == '.';
+            if (!allowed) {
+                throw new IllegalArgumentException("Terminal process ID is invalid");
+            }
+        }
+    }
+
+    private static void validateMethodAndTimeout(
+        String method,
+        long timeoutMilliseconds,
+        long maximumTimeoutMilliseconds
+    ) {
         if (method == null || method.trim().isEmpty()) {
             throw new IllegalArgumentException("RPC method must not be blank");
         }
-        if (timeoutMilliseconds <= 0L || timeoutMilliseconds > 120_000L) {
+        if (timeoutMilliseconds <= 0L
+            || timeoutMilliseconds > maximumTimeoutMilliseconds) {
             throw new IllegalArgumentException("RPC timeout is outside the allowed range");
         }
     }

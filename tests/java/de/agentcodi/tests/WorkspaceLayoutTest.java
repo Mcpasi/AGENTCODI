@@ -10,6 +10,7 @@ import java.io.OutputStream;
 import java.nio.file.Files;
 import java.nio.file.Path;
 import java.nio.file.attribute.PosixFilePermission;
+import java.util.EnumSet;
 import java.util.Set;
 
 public final class WorkspaceLayoutTest {
@@ -18,8 +19,12 @@ public final class WorkspaceLayoutTest {
 
     public static int run() throws Exception {
         createsStablePrivateLayout();
+        preparesPackagedToolAliases();
+        rejectsUnexpectedPackagedToolEntries();
+        reportsValidatedNodeActivationState();
         rejectsFileAsBaseDirectory();
         rejectsSymbolicWorkspaceRoot();
+        rejectsSymbolicToolchainRoot();
         keepsCodexHomeSeparateAndPrivate();
         rejectsSymbolicCanonicalCredential();
         preservesExistingCanonicalCredential();
@@ -34,7 +39,7 @@ public final class WorkspaceLayoutTest {
         rejectsSymbolicWorkspaceImage();
         rejectsUnsupportedWorkspaceFile();
         rejectsOversizedWorkspaceImage();
-        return 17;
+        return 21;
     }
 
     private static void createsStablePrivateLayout() throws Exception {
@@ -44,6 +49,8 @@ public final class WorkspaceLayoutTest {
             WorkspaceLayout second = WorkspaceLayout.create(temporary.toFile());
             TestSupport.assertTrue(first.getRoot().isDirectory(), "root directory");
             TestSupport.assertTrue(first.getWorkspace().isDirectory(), "workspace directory");
+            TestSupport.assertTrue(first.getToolchain().isDirectory(), "toolchain directory");
+            TestSupport.assertTrue(first.getToolBin().isDirectory(), "tool binary directory");
             TestSupport.assertTrue(first.getState().isDirectory(), "state directory");
             TestSupport.assertTrue(first.getLogs().isDirectory(), "logs directory");
             TestSupport.assertEquals(
@@ -57,8 +64,155 @@ public final class WorkspaceLayoutTest {
                 ),
                 "workspace must remain below app files"
             );
+            TestSupport.assertTrue(
+                first.getToolchain().getCanonicalPath().startsWith(
+                    first.getWorkspace().getCanonicalPath() + File.separator
+                ),
+                "toolchain must remain below workspace"
+            );
+            TestSupport.assertFalse(
+                first.getToolBin().getCanonicalPath().startsWith(
+                    first.getWorkspace().getCanonicalPath() + File.separator
+                ),
+                "tool aliases must remain outside the writable workspace"
+            );
         } finally {
             deleteRecursively(temporary);
+        }
+    }
+
+    private static void preparesPackagedToolAliases() throws Exception {
+        Path base = Files.createTempDirectory("agentcodi-tool-alias-base-");
+        Path firstShell = Files.createTempFile("agentcodi-shell-first-", ".bin");
+        Path secondShell = Files.createTempFile("agentcodi-shell-second-", ".bin");
+        try {
+            TestSupport.assertTrue(firstShell.toFile().setExecutable(true, true), "first shell mode");
+            TestSupport.assertTrue(secondShell.toFile().setExecutable(true, true), "second shell mode");
+            WorkspaceLayout layout = WorkspaceLayout.create(base.toFile());
+            layout.preparePackagedToolAliases(firstShell.toFile());
+            Path node = layout.getToolBin().toPath().resolve(WorkspaceLayout.NODE_TOOL_ALIAS);
+            Path toolchain = layout.getToolBin().toPath().resolve(
+                WorkspaceLayout.TOOLCHAIN_TOOL_ALIAS
+            );
+            TestSupport.assertTrue(Files.isSymbolicLink(node), "Node tool alias");
+            TestSupport.assertTrue(Files.isSymbolicLink(toolchain), "toolchain command alias");
+            TestSupport.assertEquals(
+                firstShell.toRealPath(),
+                node.toRealPath(),
+                "Node alias target"
+            );
+            layout.preparePackagedToolAliases(firstShell.toFile());
+            layout.preparePackagedToolAliases(secondShell.toFile());
+            TestSupport.assertEquals(
+                secondShell.toRealPath(),
+                node.toRealPath(),
+                "stale aliases are replaced during a verified app update"
+            );
+        } finally {
+            deleteRecursively(base);
+            Files.deleteIfExists(firstShell);
+            Files.deleteIfExists(secondShell);
+        }
+    }
+
+    private static void rejectsUnexpectedPackagedToolEntries() throws Exception {
+        final Path base = Files.createTempDirectory("agentcodi-tool-entry-base-");
+        Path shell = Files.createTempFile("agentcodi-tool-entry-shell-", ".bin");
+        try {
+            TestSupport.assertTrue(shell.toFile().setExecutable(true, true), "tool entry shell mode");
+            final WorkspaceLayout layout = WorkspaceLayout.create(base.toFile());
+            Files.write(layout.getToolBin().toPath().resolve("unexpected"), new byte[] {1});
+            TestSupport.expectThrows(
+                IOException.class,
+                new TestSupport.ThrowingRunnable() {
+                    @Override
+                    public void run() throws Exception {
+                        layout.preparePackagedToolAliases(shell.toFile());
+                    }
+                },
+                "unexpected packaged tool entry"
+            );
+        } finally {
+            deleteRecursively(base);
+            Files.deleteIfExists(shell);
+        }
+    }
+
+    private static void reportsValidatedNodeActivationState() throws Exception {
+        Path base = Files.createTempDirectory("agentcodi-node-state-base-");
+        try {
+            WorkspaceLayout layout = WorkspaceLayout.create(base.toFile());
+            TestSupport.assertFalse(
+                layout.isNodeRuntimeEnabled("24.18.0"),
+                "Node is disabled without marker"
+            );
+            Path installed = layout.getToolchain().toPath().resolve("installed");
+            Files.createDirectory(installed);
+            installed.toFile().setReadable(false, false);
+            installed.toFile().setWritable(false, false);
+            installed.toFile().setExecutable(false, false);
+            installed.toFile().setReadable(true, true);
+            installed.toFile().setWritable(true, true);
+            installed.toFile().setExecutable(true, true);
+            Path marker = installed.resolve("node-24.18.0");
+            Files.write(marker, "enabled 24.18.0\n".getBytes("US-ASCII"));
+            Files.setPosixFilePermissions(marker, EnumSet.of(
+                PosixFilePermission.OWNER_READ,
+                PosixFilePermission.OWNER_WRITE
+            ));
+            TestSupport.assertTrue(
+                layout.isNodeRuntimeEnabled("24.18.0"),
+                "exact private Node marker enables UI state"
+            );
+            Files.write(marker, "not-enabled\n".getBytes("US-ASCII"));
+            TestSupport.assertFalse(
+                layout.isNodeRuntimeEnabled("24.18.0"),
+                "marker content is authoritative"
+            );
+            Files.write(marker, "enabled 24.18.0\n".getBytes("US-ASCII"));
+            Files.setPosixFilePermissions(marker, EnumSet.of(
+                PosixFilePermission.OWNER_READ,
+                PosixFilePermission.OWNER_WRITE,
+                PosixFilePermission.GROUP_READ
+            ));
+            TestSupport.assertFalse(
+                layout.isNodeRuntimeEnabled("24.18.0"),
+                "non-private Node marker is rejected"
+            );
+            Files.setPosixFilePermissions(marker, EnumSet.of(
+                PosixFilePermission.OWNER_READ,
+                PosixFilePermission.OWNER_WRITE,
+                PosixFilePermission.OWNER_EXECUTE
+            ));
+            TestSupport.assertFalse(
+                layout.isNodeRuntimeEnabled("24.18.0"),
+                "Node marker permissions must be exactly 0600"
+            );
+        } finally {
+            deleteRecursively(base);
+        }
+    }
+
+    private static void rejectsSymbolicToolchainRoot() throws Exception {
+        final Path base = Files.createTempDirectory("agentcodi-toolchain-base-");
+        Path target = Files.createTempDirectory("agentcodi-toolchain-target-");
+        try {
+            Path workspace = base.resolve("agentcodi").resolve("workspace");
+            Files.createDirectories(workspace);
+            Files.createSymbolicLink(workspace.resolve("toolchain"), target);
+            TestSupport.expectThrows(
+                IOException.class,
+                new TestSupport.ThrowingRunnable() {
+                    @Override
+                    public void run() throws Exception {
+                        WorkspaceLayout.create(base.toFile());
+                    }
+                },
+                "symbolic toolchain root should be rejected"
+            );
+        } finally {
+            deleteRecursively(base);
+            deleteRecursively(target);
         }
     }
 

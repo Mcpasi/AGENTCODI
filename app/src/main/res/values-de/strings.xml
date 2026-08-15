@@ -4,6 +4,7 @@
 
   <string name="navigation_chats">‹ Chats</string>
   <string name="navigation_settings">Einstellungen</string>
+  <string name="navigation_terminal">Terminal</string>
   <string name="common_open">Öffnen</string>
   <string name="common_cancel">Abbrechen</string>
   <string name="common_error_prefix">Fehler: %1$s</string>
@@ -41,6 +42,34 @@
   <string name="chat_streaming_response">Codex arbeitet und streamt die Antwort…</string>
   <string name="chat_update_failed">Die Chat-Oberfläche konnte nicht aktualisiert werden: %1$s</string>
   <string name="chat_initialization_failed">AGENTCODI konnte die Chat-Oberfläche nicht initialisieren.</string>
+
+  <string name="terminal_title">Terminal</string>
+  <string name="terminal_back">‹ Chats</string>
+  <string name="terminal_description">Eine private interaktive Shell im kanonischen Workspace. Terminalausgabe bleibt ausschließlich im Speicher. Tool-Aktivierungen liegen unter workspace/toolchain; CODEX_HOME und Zugangsdaten bleiben getrennt. Füge niemals Zugangsdaten in Befehle ein.</string>
+  <string name="terminal_status_checking">Terminal-Laufzeit wird geprüft…</string>
+  <string name="terminal_status_runtime_required">Starte zuerst die Codex-Laufzeit in den Einstellungen.</string>
+  <string name="terminal_status_starting">Begrenzte PTY-Shell wird gestartet…</string>
+  <string name="terminal_status_running">Terminal läuft · das paketierte Node.js %1$s kann ausdrücklich aktiviert werden.</string>
+  <string name="terminal_status_running_node_enabled">Terminal läuft · das paketierte Node.js %1$s ist aktiviert.</string>
+  <string name="terminal_status_failed">Terminal fehlgeschlagen: %1$s</string>
+  <string name="terminal_status_exited">Terminal wurde mit Code %1$d beendet.</string>
+  <string name="terminal_status_stopped">Terminal ist gestoppt.</string>
+  <string name="terminal_start">Starten</string>
+  <string name="terminal_stop">Stoppen</string>
+  <string name="terminal_enable_node">Node %1$s aktivieren</string>
+  <string name="terminal_node_enabled">Node %1$s aktiviert</string>
+  <string name="terminal_output_empty">Die Terminalausgabe erscheint hier.</string>
+  <string name="terminal_clear">Leeren</string>
+  <string name="terminal_control_c" translatable="false">Ctrl-C</string>
+  <string name="terminal_tab" translatable="false">Tab</string>
+  <string name="terminal_escape" translatable="false">Esc</string>
+  <string name="terminal_input_hint">Befehl…</string>
+  <string name="terminal_send">Senden</string>
+  <string name="terminal_input_too_long">Der Befehl überschreitet die begrenzte Terminal-Eingabe.</string>
+  <string name="terminal_credential_warning">Eine nach Zugangsdaten aussehende Eingabe wurde abgewiesen und gelöscht. Nutze ausschließlich die Anmeldung in den Einstellungen.</string>
+  <string name="terminal_send_failed">Die Eingabe konnte nicht an das Terminal gesendet werden.</string>
+  <string name="terminal_start_failed">Die Terminal-Laufzeit ist nicht mehr bereit. Starte sie in den Einstellungen neu.</string>
+  <string name="terminal_initialization_failed">AGENTCODI konnte die Terminal-Oberfläche nicht initialisieren.</string>
 
   <string name="model_section">MODELL</string>
   <string name="reasoning_effort_section">DENKSTUFE</string>
@@ -200,6 +229,8 @@
   <string name="license_agentcodi_summary">Copyright 2026 Pascal (Mc Pasi) · Alle Rechte vorbehalten. Derzeit wird keine öffentliche Quellcodelizenz erteilt.</string>
   <string name="license_codex_runtime_title">Codex Android Community-Runtime</string>
   <string name="license_codex_runtime_summary">OpenAI Codex 0.147.2 und die Android-/Termux-Community-Distribution · Apache License 2.0. Dies ist keine offizielle OpenAI-Android-APK.</string>
+  <string name="license_node_runtime_title">Mitgelieferte Node.js-Toolchain</string>
+  <string name="license_node_runtime_summary">Node.js LTS 24.18.0 und seine gepinnten Android-Runtime-Abhängigkeiten · in der APK enthalten und nur durch eine ausdrückliche Nutzeraktion oder einen genehmigten Codex-Befehl aktiviert. Enthält Komponenten unter MIT-, Unicode-3.0-, Apache-2.0- und zlib-Lizenz sowie gemeinfreie Komponenten.</string>
   <string name="license_third_party_title">Weitere Drittanbieterhinweise</string>
   <string name="license_third_party_summary">Enthält unter anderem die LLVM-libc++-Runtime unter der University of Illinois/NCSA Open Source License.</string>
   <string name="license_show_notice">LICENSE und NOTICE anzeigen</string>
@@ -237,6 +268,8 @@
   <string name="approval_decline_cancel">Ablehnen und Turn abbrechen</string>
   <string name="approval_network_title">Netzwerkzugriff freigeben?</string>
   <string name="approval_command_title">Befehl freigeben?</string>
+  <string name="approval_toolchain_install_title">Tool für Codex aktivieren?</string>
+  <string name="approval_toolchain_install_detail">Codex möchte die mit AGENTCODI paketierte und geprüfte Node.js-Laufzeit %1$s aktivieren. Dabei ändert sich nur die Aktivierungsmarke unter workspace/toolchain. Es wird kein ungeprüftes Programm heruntergeladen oder ausgeführt.</string>
   <string name="approval_file_title">Dateiänderungen freigeben?</string>
   <string name="approval_target">Ziel</string>
   <string name="approval_command">Befehl</string>

@@ -4,6 +4,7 @@
 
   <string name="navigation_chats">‹ Chats</string>
   <string name="navigation_settings">Settings</string>
+  <string name="navigation_terminal">Terminal</string>
   <string name="common_open">Open</string>
   <string name="common_cancel">Cancel</string>
   <string name="common_error_prefix">Error: %1$s</string>
@@ -41,6 +42,34 @@
   <string name="chat_streaming_response">Codex is working and streaming the response…</string>
   <string name="chat_update_failed">The chat interface could not be updated: %1$s</string>
   <string name="chat_initialization_failed">AGENTCODI could not initialize the chat interface.</string>
+
+  <string name="terminal_title">Terminal</string>
+  <string name="terminal_back">‹ Chats</string>
+  <string name="terminal_description">A private interactive shell in the canonical workspace. Terminal output is kept only in memory. Tool activation data lives under workspace/toolchain; CODEX_HOME and credentials stay separate. Never paste credentials into commands.</string>
+  <string name="terminal_status_checking">Checking terminal runtime…</string>
+  <string name="terminal_status_runtime_required">Start the Codex runtime in Settings before opening a terminal.</string>
+  <string name="terminal_status_starting">Starting the bounded PTY shell…</string>
+  <string name="terminal_status_running">Terminal is running · packaged Node.js %1$s is available for explicit activation.</string>
+  <string name="terminal_status_running_node_enabled">Terminal is running · packaged Node.js %1$s is enabled.</string>
+  <string name="terminal_status_failed">Terminal failed: %1$s</string>
+  <string name="terminal_status_exited">Terminal exited with code %1$d.</string>
+  <string name="terminal_status_stopped">Terminal is stopped.</string>
+  <string name="terminal_start">Start</string>
+  <string name="terminal_stop">Stop</string>
+  <string name="terminal_enable_node">Enable Node %1$s</string>
+  <string name="terminal_node_enabled">Node %1$s enabled</string>
+  <string name="terminal_output_empty">Terminal output will appear here.</string>
+  <string name="terminal_clear">Clear</string>
+  <string name="terminal_control_c" translatable="false">Ctrl-C</string>
+  <string name="terminal_tab" translatable="false">Tab</string>
+  <string name="terminal_escape" translatable="false">Esc</string>
+  <string name="terminal_input_hint">Command…</string>
+  <string name="terminal_send">Send</string>
+  <string name="terminal_input_too_long">The command exceeds the bounded terminal input limit.</string>
+  <string name="terminal_credential_warning">Credential-shaped input was rejected and cleared. Use only the dedicated sign-in controls in Settings.</string>
+  <string name="terminal_send_failed">The input could not be sent to the terminal.</string>
+  <string name="terminal_start_failed">The terminal runtime is no longer ready. Restart it from Settings.</string>
+  <string name="terminal_initialization_failed">AGENTCODI could not initialize the terminal interface.</string>
 
   <string name="model_section">MODEL</string>
   <string name="reasoning_effort_section">REASONING EFFORT</string>
@@ -200,6 +229,8 @@
   <string name="license_agentcodi_summary">Copyright 2026 Pascal (Mc Pasi) · All rights reserved. No public source-code license is currently granted.</string>
   <string name="license_codex_runtime_title">Codex Android community runtime</string>
   <string name="license_codex_runtime_summary">OpenAI Codex 0.147.2 and the Android/Termux community distribution · Apache License 2.0. This is not an official OpenAI Android APK.</string>
+  <string name="license_node_runtime_title">Packaged Node.js toolchain</string>
+  <string name="license_node_runtime_summary">Node.js LTS 24.18.0 and its pinned Android runtime dependencies · bundled in the APK and enabled only by an explicit user action or approved Codex command. Includes MIT, Unicode-3.0, Apache-2.0, zlib, and public-domain components.</string>
   <string name="license_third_party_title">Additional third-party notices</string>
   <string name="license_third_party_summary">Includes the LLVM libc++ runtime under the University of Illinois/NCSA Open Source License.</string>
   <string name="license_show_notice">Show LICENSE and NOTICE</string>
@@ -237,6 +268,8 @@
   <string name="approval_decline_cancel">Decline and cancel turn</string>
   <string name="approval_network_title">Allow network access?</string>
   <string name="approval_command_title">Allow command?</string>
+  <string name="approval_toolchain_install_title">Enable tool for Codex?</string>
+  <string name="approval_toolchain_install_detail">Codex is asking to enable the verified Node.js %1$s runtime packaged with AGENTCODI. This changes only the activation marker below workspace/toolchain. It does not download or execute an unverified binary.</string>
   <string name="approval_file_title">Allow file changes?</string>
   <string name="approval_target">Target</string>
   <string name="approval_command">Command</string>

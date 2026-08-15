@@ -2,13 +2,17 @@
 #include "app_server_process.h"
 
 #include <algorithm>
+#include <cerrno>
 #include <climits>
+#include <csignal>
 #include <cstdlib>
 #include <iostream>
 #include <string>
+#include <vector>
 
 #include <fcntl.h>
 #include <sys/stat.h>
+#include <sys/wait.h>
 #include <unistd.h>
 
 namespace {
@@ -38,6 +42,78 @@ std::string saved_path_from_event(const std::string& event) {
   return event.substr(value_begin, end - value_begin);
 }
 
+bool run_toolchain_shell(
+    const std::string& executable,
+    const std::vector<std::string>& arguments,
+    const std::string& workspace,
+    const std::string& toolchain,
+    std::string* output,
+    int* exit_code) {
+  int descriptors[2] {-1, -1};
+  if (pipe(descriptors) != 0) {
+    return false;
+  }
+  const pid_t child = fork();
+  if (child < 0) {
+    close(descriptors[0]);
+    close(descriptors[1]);
+    return false;
+  }
+  if (child == 0) {
+    close(descriptors[0]);
+    if (dup2(descriptors[1], STDOUT_FILENO) < 0
+        || dup2(descriptors[1], STDERR_FILENO) < 0
+        || chdir(workspace.c_str()) != 0
+        || setenv("AGENTCODI_WORKSPACE", workspace.c_str(), 1) != 0
+        || setenv("AGENTCODI_TOOLCHAIN", toolchain.c_str(), 1) != 0
+        || setenv("AGENTCODI_SHELL_PATH", "/system/bin/false", 1) != 0
+        || setenv("AGENTCODI_NODE_PATH", "/system/bin/false", 1) != 0) {
+      _exit(126);
+    }
+    close(descriptors[1]);
+    std::vector<char*> mutable_arguments;
+    mutable_arguments.reserve(arguments.size() + 2U);
+    mutable_arguments.push_back(const_cast<char*>(executable.c_str()));
+    for (const std::string& argument : arguments) {
+      mutable_arguments.push_back(const_cast<char*>(argument.c_str()));
+    }
+    mutable_arguments.push_back(nullptr);
+    execv(executable.c_str(), mutable_arguments.data());
+    _exit(127);
+  }
+  close(descriptors[1]);
+  output->clear();
+  char buffer[4096];
+  while (true) {
+    const ssize_t count = read(descriptors[0], buffer, sizeof(buffer));
+    if (count > 0) {
+      output->append(buffer, static_cast<std::size_t>(count));
+      if (output->size() > 128U * 1024U) {
+        close(descriptors[0]);
+        kill(child, SIGKILL);
+        waitpid(child, nullptr, 0);
+        return false;
+      }
+    } else if (count == 0) {
+      break;
+    } else if (errno != EINTR) {
+      close(descriptors[0]);
+      kill(child, SIGKILL);
+      waitpid(child, nullptr, 0);
+      return false;
+    }
+  }
+  close(descriptors[0]);
+  int status = 0;
+  if (waitpid(child, &status, 0) != child) {
+    return false;
+  }
+  *exit_code = WIFEXITED(status)
+      ? WEXITSTATUS(status)
+      : (WIFSIGNALED(status) ? 128 + WTERMSIG(status) : -1);
+  return true;
+}
+
 }  // namespace
 
 int main(int argc, char* argv[]) {
@@ -62,7 +138,7 @@ int main(int argc, char* argv[]) {
   }
 
   const std::string version = agentcodi::engine_version();
-  expect(version == "agentcodi-native/0.4.5", "engine version");
+  expect(version == "agentcodi-native/0.4.8", "engine version");
   expect(agentcodi::run_self_test() == 0, "native self-test");
 
   const std::string diagnostics = agentcodi::runtime_diagnostics();
@@ -80,7 +156,11 @@ int main(int argc, char* argv[]) {
       "Android sibling code-mode host diagnostic");
 
   agentcodi::ProcessConfig argument_config;
+  argument_config.shell_executable = "/private/native/libagentcodi-shell.so";
+  argument_config.node_executable = "/private/native/libnode.so";
   argument_config.working_directory = "/private/workspace";
+  argument_config.toolchain_directory = "/private/workspace/toolchain";
+  argument_config.tool_binary_directory = "/private/tool-bin";
   argument_config.home_directory = "/private/home";
   argument_config.temporary_directory = "/private/temporary";
   argument_config.library_directory = "/private/native";
@@ -114,6 +194,31 @@ int main(int argc, char* argv[]) {
          "Codex environment deny patterns remain enabled");
   expect(joined_arguments.find("CODEX_HOME=") == std::string::npos,
          "Codex home excluded from tool environment");
+  expect(joined_arguments.find("SHELL=\"/system/bin/sh\"")
+             != std::string::npos,
+         "Codex reports the actual Android system shell");
+  expect(joined_arguments.find(
+             "PATH=\"/private/tool-bin:/private/native:/system/bin:/system/xbin\"")
+             != std::string::npos,
+         "Codex tools resolve packaged command aliases before system commands");
+  expect(joined_arguments.find("AGENTCODI_TOOLCHAIN=\"/private/workspace/toolchain\"")
+             != std::string::npos,
+         "Codex tools receive the bounded workspace toolchain path");
+  expect(joined_arguments.find("AGENTCODI_TOOLCHAIN_COMMAND=\"agentcodi-toolchain\"")
+             != std::string::npos,
+         "Codex tools receive the installation interface name");
+  expect(joined_arguments.find("AGENTCODI_TOOL_BIN=\"/private/tool-bin\"")
+             != std::string::npos,
+         "Codex tools receive the dedicated packaged tool path");
+  expect(joined_arguments.find("AGENTCODI_SHELL_PATH") == std::string::npos
+             && joined_arguments.find("AGENTCODI_NODE_PATH") == std::string::npos,
+         "mutable executable path overrides are excluded from tool commands");
+  expect(joined_arguments.find("\"/private/tool-bin\"=\"read\"")
+             != std::string::npos,
+         "packaged tool aliases are read-only in the permission profile");
+  expect(joined_arguments.find("NODE_REPL_HISTORY=\"/dev/null\"")
+             != std::string::npos,
+         "Node REPL history persistence disabled");
   expect(joined_arguments.find("projects.") == std::string::npos,
          "unsupported project trust override omitted under strict config");
   expect(joined_arguments.find("analytics.enabled=false") != std::string::npos,
@@ -245,10 +350,20 @@ int main(int argc, char* argv[]) {
   if (temporary_root != nullptr) {
     const std::string root = temporary_root;
     const std::string workspace = root + "/workspace";
+    const std::string toolchain = workspace + "/toolchain";
+    const std::string tool_binary = root + "/tool-bin";
     const std::string codex_home = root + "/codex-home";
     const std::string home = root + "/home";
     const std::string temporary = root + "/temporary";
     expect(mkdir(workspace.c_str(), 0700) == 0, "process-test workspace");
+    expect(mkdir(toolchain.c_str(), 0700) == 0, "process-test toolchain");
+    expect(mkdir(tool_binary.c_str(), 0700) == 0, "process-test tool binary directory");
+    const std::string supervised_node_alias = tool_binary + "/node";
+    const std::string supervised_toolchain_alias = tool_binary + "/agentcodi-toolchain";
+    expect(symlink("/system/bin/sh", supervised_node_alias.c_str()) == 0,
+           "process-test Node alias");
+    expect(symlink("/system/bin/sh", supervised_toolchain_alias.c_str()) == 0,
+           "process-test toolchain alias");
     expect(mkdir(codex_home.c_str(), 0700) == 0, "process-test Codex home");
     expect(mkdir(home.c_str(), 0700) == 0, "process-test home");
     expect(mkdir(temporary.c_str(), 0700) == 0, "process-test temporary directory");
@@ -399,7 +514,11 @@ int main(int argc, char* argv[]) {
     agentcodi::ProcessConfig config;
     config.executable = "/system/bin/sh";
     config.code_mode_host_executable = "/system/bin/sh";
+    config.shell_executable = "/system/bin/sh";
+    config.node_executable = "/system/bin/sh";
     config.working_directory = workspace;
+    config.toolchain_directory = toolchain;
+    config.tool_binary_directory = tool_binary;
     config.codex_home = codex_home;
     config.home_directory = home;
     config.temporary_directory = temporary;
@@ -472,6 +591,147 @@ int main(int argc, char* argv[]) {
         && realpath(argv[0], self_executable) != nullptr;
     expect(self_resolved && !test_library_directory.empty(),
            "resolve framing fixture executable");
+    const bool shell_fixture_available = argc >= 2 && access(argv[1], X_OK) == 0;
+    expect(shell_fixture_available, "resolve packaged shell fixture executable");
+    if (shell_fixture_available) {
+      std::string shell_output;
+      int shell_exit = -1;
+      expect(
+          run_toolchain_shell(
+              argv[1], {"--toolchain", "list"}, workspace, toolchain,
+              &shell_output, &shell_exit)
+              && shell_exit == 0
+              && shell_output.find("available, not enabled") != std::string::npos,
+          "toolchain reports packaged Node before activation");
+      expect(
+          run_toolchain_shell(
+              argv[1], {"--node", "--version"}, workspace, toolchain,
+              &shell_output, &shell_exit)
+              && shell_exit == 127
+              && shell_output.find("Ask the user for permission") != std::string::npos,
+          "missing Node directs Codex to the approval-backed installer");
+      expect(
+          run_toolchain_shell(
+              argv[1], {"--toolchain", "install", "node"}, workspace, toolchain,
+              &shell_output, &shell_exit)
+              && shell_exit == 0
+              && shell_output.find("Enabled packaged Node.js 24.18.0")
+                  != std::string::npos,
+          "activate packaged Node through shared toolchain interface");
+      const std::string node_marker = toolchain + "/installed/node-24.18.0";
+      struct stat marker_metadata {};
+      expect(
+          lstat(node_marker.c_str(), &marker_metadata) == 0
+              && S_ISREG(marker_metadata.st_mode)
+              && marker_metadata.st_nlink == 1
+              && (marker_metadata.st_mode & 0777) == 0600,
+          "Node activation marker is private and simply linked");
+      const int corrupt_marker = open(
+          node_marker.c_str(),
+          O_WRONLY | O_TRUNC | O_CLOEXEC | O_NOFOLLOW);
+      const char invalid_marker[] = "invalid\n";
+      expect(
+          corrupt_marker >= 0
+              && write(
+                  corrupt_marker,
+                  invalid_marker,
+                  sizeof(invalid_marker) - 1U)
+                  == static_cast<ssize_t>(sizeof(invalid_marker) - 1U),
+          "corrupt Node marker fixture");
+      if (corrupt_marker >= 0) {
+        close(corrupt_marker);
+      }
+      expect(
+          run_toolchain_shell(
+              argv[1], {"--node", "-c", "printf unexpected"},
+              workspace, toolchain, &shell_output, &shell_exit)
+              && shell_exit == 126
+              && shell_output.find("unsafe metadata") != std::string::npos,
+          "reject a private marker with forged contents");
+      expect(
+          run_toolchain_shell(
+              argv[1], {"--toolchain", "install", "node"}, workspace,
+              toolchain, &shell_output, &shell_exit)
+              && shell_exit == 0
+              && shell_output.find("Enabled packaged Node.js 24.18.0")
+                  != std::string::npos,
+          "repair an interrupted or corrupted Node activation marker");
+      expect(
+          run_toolchain_shell(
+              argv[1], {"--node", "-c", "printf 'node-%s' ready"},
+              workspace, toolchain, &shell_output, &shell_exit)
+              && shell_exit == 0
+              && shell_output.find("node-ready") != std::string::npos,
+          "activated Node command routes through packaged executable");
+      expect(
+          run_toolchain_shell(
+              argv[1], {"--toolchain", "remove", "node"}, workspace, toolchain,
+              &shell_output, &shell_exit)
+              && shell_exit == 0
+              && shell_output.find("Disabled Node.js 24.18.0") != std::string::npos,
+          "deactivate packaged Node through shared toolchain interface");
+      expect(access(node_marker.c_str(), F_OK) != 0, "remove Node activation marker");
+      expect(mkfifo(node_marker.c_str(), 0600) == 0,
+             "create non-blocking special marker fixture");
+      expect(
+          run_toolchain_shell(
+              argv[1], {"--node", "--version"}, workspace, toolchain,
+              &shell_output, &shell_exit)
+              && shell_exit == 126
+              && shell_output.find("unsafe metadata") != std::string::npos,
+          "reject special activation marker without blocking");
+      expect(
+          run_toolchain_shell(
+              argv[1], {"--toolchain", "install", "node"}, workspace,
+              toolchain, &shell_output, &shell_exit)
+              && shell_exit == 0,
+          "replace a non-directory special marker during explicit activation");
+      expect(
+          run_toolchain_shell(
+              argv[1], {"--toolchain", "remove", "node"}, workspace, toolchain,
+              &shell_output, &shell_exit)
+              && shell_exit == 0,
+          "remove repaired special-marker activation");
+      expect(access(node_marker.c_str(), F_OK) != 0,
+             "remove repaired Node activation marker");
+      expect(rmdir((toolchain + "/installed").c_str()) == 0,
+             "remove toolchain activation directory");
+
+      const std::string bridge_tool_binary = root + "/bridge-tool-bin";
+      const std::string bridge_node_alias = bridge_tool_binary + "/node";
+      const std::string bridge_toolchain_alias =
+          bridge_tool_binary + "/agentcodi-toolchain";
+      expect(mkdir(bridge_tool_binary.c_str(), 0700) == 0,
+             "create bridge alias fixture directory");
+      expect(symlink(argv[1], bridge_node_alias.c_str()) == 0,
+             "create packaged Node command alias");
+      expect(symlink(argv[1], bridge_toolchain_alias.c_str()) == 0,
+             "create packaged toolchain command alias");
+      expect(
+          run_toolchain_shell(
+              bridge_toolchain_alias, {"install", "node"}, workspace, toolchain,
+              &shell_output, &shell_exit)
+              && shell_exit == 0,
+          "PATH-style toolchain alias dispatches by invocation name");
+      expect(
+          run_toolchain_shell(
+              bridge_node_alias, {"-c", "printf 'alias-%s' ready"},
+              workspace, toolchain, &shell_output, &shell_exit)
+              && shell_exit == 0
+              && shell_output.find("alias-ready") != std::string::npos,
+          "PATH-style Node alias reaches the packaged runtime");
+      expect(
+          run_toolchain_shell(
+              bridge_toolchain_alias, {"remove", "node"}, workspace, toolchain,
+              &shell_output, &shell_exit)
+              && shell_exit == 0,
+          "PATH-style toolchain alias removes activation");
+      expect(unlink(bridge_node_alias.c_str()) == 0, "remove Node alias fixture");
+      expect(unlink(bridge_toolchain_alias.c_str()) == 0,
+             "remove toolchain alias fixture");
+      expect(rmdir(bridge_tool_binary.c_str()) == 0,
+             "remove bridge alias fixture directory");
+    }
     if (self_resolved && !test_library_directory.empty()) {
       config.executable = self_executable;
       config.library_directory = test_library_directory;
@@ -606,6 +866,10 @@ int main(int argc, char* argv[]) {
            "image materialization leaves private temporary directory empty");
     rmdir(home.c_str());
     rmdir(codex_home.c_str());
+    unlink(supervised_node_alias.c_str());
+    unlink(supervised_toolchain_alias.c_str());
+    rmdir(tool_binary.c_str());
+    rmdir(toolchain.c_str());
     rmdir(workspace.c_str());
     rmdir(root.c_str());
   }

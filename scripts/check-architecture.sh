@@ -230,6 +230,103 @@ fi
 core_root="$PROJECT_ROOT/modules/core/src/main/java/de/agentcodi/core"
 native_process="$PROJECT_ROOT/modules/native-engine/src/main/cpp/app_server_process.cpp"
 storage_layout="$PROJECT_ROOT/modules/storage/src/main/java/de/agentcodi/storage/WorkspaceLayout.java"
+terminal_activity="$PROJECT_ROOT/app/src/main/java/de/agentcodi/app/TerminalActivity.java"
+terminal_session="$core_root/CodexTerminalSession.java"
+session_controller="$core_root/CodexSessionController.java"
+app_server_client="$core_root/CodexAppServerClient.java"
+runtime_service="$PROJECT_ROOT/modules/runtime/src/main/java/de/agentcodi/runtime/AgentRuntimeService.java"
+toolchain_shell="$PROJECT_ROOT/modules/native-engine/src/main/cpp/toolchain_shell_main.cpp"
+if ! rg -Uq 'android:name="\.TerminalActivity"[[:space:][:print:]]{0,220}android:exported="false"' "$manifest" \
+    || ! rg -q 'openTerminal' "$PROJECT_ROOT/app/src/main/java/de/agentcodi/app/MainActivity.java" \
+    || ! rg -q 'AgentRuntimeService\.startTerminal' "$terminal_activity" \
+    || ! rg -q 'AgentRuntimeService\.sendTerminalInput' "$terminal_activity" \
+    || ! rg -q 'controller\.startTerminal' "$runtime_service" \
+    || ! rg -q 'new CodexTerminalSession' "$session_controller" \
+    || ! rg -q 'terminal\.onNotification' "$session_controller" \
+    || ! rg -q '"command/exec"' "$terminal_session" \
+    || ! rg -q '"command/exec/write"' "$app_server_client" \
+    || ! rg -q '"command/exec/resize"' "$terminal_session" \
+    || ! rg -q '"command/exec/terminate"' "$terminal_session" \
+    || ! rg -q 'command/exec/outputDelta' "$terminal_session" \
+    || ! rg -q 'PERMISSION_PROFILE = "agentcodi-workspace"' "$terminal_session" \
+    || ! rg -q '"permissionProfile", PERMISSION_PROFILE' "$terminal_session" \
+    || ! rg -q '"tty", Boolean\.TRUE' "$terminal_session" \
+    || ! rg -q 'OUTPUT_BYTES_CAP = 8L \* 1024L \* 1024L' "$terminal_session" \
+    || ! rg -q 'SERVER_TIMEOUT_MS = 30L \* 60L \* 1000L' "$terminal_session"; then
+  echo "The sandboxed app-server PTY, runtime facade, or non-exported UI route is incomplete." >&2
+  exit 1
+fi
+
+if [ -e "$PROJECT_ROOT/modules/runtime/src/main/java/de/agentcodi/runtime/TerminalController.java" ] \
+    || [ -e "$PROJECT_ROOT/modules/native-engine/src/main/cpp/terminal_process.cpp" ] \
+    || [ -e "$PROJECT_ROOT/modules/native-engine/src/main/cpp/terminal_process.h" ] \
+    || rg -q 'native(Start|Read|Write|Resize|Poll|Stop)Terminal|forkpty' \
+      "$PROJECT_ROOT/modules/runtime/src/main/java/de/agentcodi/runtime/NativeEngine.java" \
+      "$PROJECT_ROOT/modules/native-engine/src/main/cpp/jni_bridge.cpp"; then
+  echo "A separate same-UID terminal process path bypasses the app-server sandbox." >&2
+  exit 1
+fi
+
+if ! rg -q 'getToolchain\(\)' "$storage_layout" \
+    || ! rg -q 'secureChild\(workspace, "toolchain"\)' "$storage_layout" \
+    || ! rg -q 'getToolBin\(\)' "$storage_layout" \
+    || ! rg -q 'secureChild\(root, "tool-bin"\)' "$storage_layout" \
+    || ! rg -q 'preparePackagedToolAliases' "$storage_layout" \
+    || ! rg -q 'isNodeRuntimeEnabled' "$storage_layout" \
+    || ! rg -q 'agentcodi-toolchain install node' "$toolchain_shell" \
+    || ! rg -q 'Ask the user for permission' "$toolchain_shell" \
+    || ! rg -q 'node-24\.18\.0' "$toolchain_shell" \
+    || ! rg -q 'kPackagedNodeName = "libnode\.so"' "$toolchain_shell" \
+    || ! rg -q 'realpath\("/proc/self/exe"' "$toolchain_shell" \
+    || rg -q 'required_environment\("AGENTCODI_NODE_PATH"\)' "$toolchain_shell" \
+    || rg -q 'AGENTCODI_(SHELL|NODE)_PATH=' "$native_process" \
+    || ! rg -q 'ToolchainCommand\.requestsNodeInstallation' "$approval_dialog" \
+    || ! rg -q 'layout\.preparePackagedToolAliases' "$runtime_service" \
+    || ! rg -q 'layout\.getToolBin\(\)' "$runtime_service" \
+    || ! rg -q 'isNodeRuntimeEnabled' "$terminal_activity" \
+    || ! rg -q 'terminal_node_enabled' "$terminal_activity" \
+    || ! rg -q 'AGENTCODI_TOOLCHAIN_PACKAGES=node' "$native_process" \
+    || ! rg -q 'AGENTCODI_TOOL_BIN=' "$native_process" \
+    || ! rg -q 'SHELL=" \+ std::string\(kSystemShell\)' "$native_process" \
+    || ! rg -q 'config\.tool_binary_directory \+ ":"' "$native_process" \
+    || ! rg -q 'validate_tool_alias' "$native_process"; then
+  echo "The user-mediated Node.js toolchain activation path is incomplete." >&2
+  exit 1
+fi
+
+if rg -n 'workspace/console|SharedPreferences|onSaveInstanceState' "$terminal_activity" "$terminal_session" "$toolchain_shell" \
+    || rg -n 'CODEX_HOME|auth\.json|"sandboxPolicy"' "$terminal_activity" "$terminal_session" "$toolchain_shell"; then
+  echo "Terminal output/input must remain transient and outside the authentication boundary." >&2
+  exit 1
+fi
+
+if ! rg -q 'NODE_VERSION="24\.18\.0"' "$apk_builder" \
+    || ! rg -q 'NODE_SHA256="6456b78aba9e0007de7a4c580d2b34bb3865145bebe06e75273152f8dcba4236"' "$apk_builder" \
+    || ! rg -q 'NODE_RUNTIME_SHA256="e31cd5c7f5db279d638c3ad773e04f12842077f0559f4da4f369440a6f4195c3"' "$apk_builder" \
+    || ! rg -q 'Compiling packaged terminal shell bridge' "$apk_builder" \
+    || ! rg -q "toolchain_smoke -c 'node --version'" "$apk_builder" \
+    || ! rg -q 'toolchain_model_smoke' "$apk_builder" \
+    || ! rg -q 'command -v agentcodi-toolchain' "$apk_builder" \
+    || ! rg -q 'command/exec/outputDelta' "$PROJECT_ROOT/tests/cpp/android_app_server_bootstrap_smoke.cpp" \
+    || ! rg -q 'command/exec/write' "$PROJECT_ROOT/tests/cpp/android_app_server_bootstrap_smoke.cpp" \
+    || ! rg -q 'command/exec/resize' "$PROJECT_ROOT/tests/cpp/android_app_server_bootstrap_smoke.cpp" \
+    || ! rg -q 'command/exec/terminate' "$PROJECT_ROOT/tests/cpp/android_app_server_bootstrap_smoke.cpp" \
+    || ! rg -q 'third-party/node/NODE-LICENSE' "$licenses_activity" \
+    || ! rg -q 'assets/third-party/node/' "$PROJECT_ROOT/app/src/main/res/raw/third_party_notices.txt"; then
+  echo "Pinned Node.js packaging, execution smoke, or legal notices are incomplete." >&2
+  exit 1
+fi
+
+if ! rg -q 'VERSION_NAME = "0\.4\.8"' "$core_root/BuildIdentity.java" \
+    || ! rg -q 'VERSION_CODE = 28' "$core_root/BuildIdentity.java" \
+    || ! rg -q 'android:versionName="0\.4\.8"' "$manifest" \
+    || ! rg -q 'android:versionCode="28"' "$manifest" \
+    || ! rg -q 'APP_VERSION="0\.4\.8"' "$apk_builder" \
+    || ! rg -q 'VERSION_CODE="28"' "$apk_builder"; then
+  echo "The 0.4.8 identity is inconsistent." >&2
+  exit 1
+fi
+
 if ! rg -q 'containsLikelyCredential' "$core_root/CredentialGuard.java" \
     || ! rg -q 'CredentialGuard\.containsLikelyCredential\(input\)' "$core_root/CodexSessionController.java" \
     || ! rg -q 'CredentialGuard\.containsLikelyCredential\(editable\)' "$PROJECT_ROOT/app/src/main/java/de/agentcodi/app/MainActivity.java" \

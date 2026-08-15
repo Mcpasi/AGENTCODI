@@ -19,9 +19,11 @@ import de.agentcodi.core.CodexSessionSnapshot;
 import de.agentcodi.core.RuntimePhase;
 import de.agentcodi.core.RuntimeSnapshot;
 import de.agentcodi.core.RuntimeStateMachine;
+import de.agentcodi.core.TerminalSessionSnapshot;
 import de.agentcodi.storage.WorkspaceLayout;
 
 import java.io.File;
+import java.io.IOException;
 import java.util.Arrays;
 import java.util.Map;
 import java.util.concurrent.atomic.AtomicBoolean;
@@ -33,8 +35,11 @@ public final class AgentRuntimeService extends Service {
     private static final RuntimeStateMachine STATE = new RuntimeStateMachine();
     private static final AtomicBoolean BOOTSTRAP_ACTIVE = new AtomicBoolean(false);
     private static final CodexSessionSnapshot STOPPED_SESSION = CodexSessionSnapshot.stopped();
+    private static final TerminalSessionSnapshot STOPPED_TERMINAL =
+        TerminalSessionSnapshot.stopped();
     private static final Object SESSION_LOCK = new Object();
     private static volatile CodexSessionController sessionController;
+    private static volatile WorkspaceLayout activeWorkspaceLayout;
     private static volatile AgentRuntimeService activeService;
     private volatile Thread bootstrapThread;
     private volatile String notificationTextKey = RuntimeText.NOTIFICATION_STARTING;
@@ -46,6 +51,68 @@ public final class AgentRuntimeService extends Service {
     public static CodexSessionSnapshot sessionSnapshot() {
         CodexSessionController controller = sessionController;
         return controller == null ? STOPPED_SESSION : controller.snapshot();
+    }
+
+    public static TerminalSessionSnapshot terminalSnapshot() {
+        CodexSessionController controller = sessionController;
+        return controller == null ? STOPPED_TERMINAL : controller.terminalSnapshot();
+    }
+
+    public static boolean startTerminal(int rows, int columns) {
+        CodexSessionController controller = sessionController;
+        if (controller == null) {
+            return false;
+        }
+        try {
+            controller.startTerminal(rows, columns);
+            return true;
+        } catch (RuntimeException error) {
+            return false;
+        }
+    }
+
+    public static boolean isNodeRuntimeEnabled() {
+        WorkspaceLayout layout = activeWorkspaceLayout;
+        if (layout == null) {
+            return false;
+        }
+        try {
+            return layout.isNodeRuntimeEnabled(BuildIdentity.NODE_RUNTIME_VERSION);
+        } catch (IOException error) {
+            return false;
+        }
+    }
+
+    public static void sendTerminalInput(char[] input) throws java.io.IOException {
+        CodexSessionController controller = sessionController;
+        if (controller == null) {
+            if (input != null) {
+                Arrays.fill(input, '\0');
+            }
+            throw new java.io.IOException("Terminal runtime is not ready");
+        }
+        controller.sendTerminalInput(input);
+    }
+
+    public static void resizeTerminal(int rows, int columns) {
+        CodexSessionController controller = sessionController;
+        if (controller != null) {
+            controller.resizeTerminal(rows, columns);
+        }
+    }
+
+    public static void stopTerminal() {
+        CodexSessionController controller = sessionController;
+        if (controller != null) {
+            controller.stopTerminal();
+        }
+    }
+
+    public static void clearTerminalOutput() {
+        CodexSessionController controller = sessionController;
+        if (controller != null) {
+            controller.clearTerminalOutput();
+        }
     }
 
     public static void refreshAccountAndThreads() {
@@ -216,6 +283,7 @@ public final class AgentRuntimeService extends Service {
         synchronized (SESSION_LOCK) {
             controller = sessionController;
             sessionController = null;
+            activeWorkspaceLayout = null;
         }
         if (controller != null) {
             controller.close();
@@ -268,15 +336,30 @@ public final class AgentRuntimeService extends Service {
                         nativeLibraryDirectory,
                         BuildIdentity.CODEX_CODE_MODE_HOST_LIBRARY
                     );
+                    File shellExecutable = new File(
+                        nativeLibraryDirectory,
+                        BuildIdentity.TERMINAL_SHELL_LIBRARY
+                    );
+                    File nodeExecutable = new File(
+                        nativeLibraryDirectory,
+                        BuildIdentity.NODE_RUNTIME_LIBRARY
+                    );
+                    layout.preparePackagedToolAliases(shellExecutable);
+                    String temporaryDirectory = getCacheDir().getCanonicalPath();
+                    String nativeLibraryPath = nativeLibraryDirectory.getCanonicalPath();
                     NativeAppServerTransport transport = new NativeAppServerTransport(
                         engine,
                         codexExecutable.getAbsolutePath(),
                         codeModeHostExecutable.getAbsolutePath(),
+                        shellExecutable.getAbsolutePath(),
+                        nodeExecutable.getAbsolutePath(),
                         layout.getWorkspace().getAbsolutePath(),
+                        layout.getToolchain().getAbsolutePath(),
+                        layout.getToolBin().getAbsolutePath(),
                         layout.getCodexHome().getAbsolutePath(),
                         layout.getHome().getAbsolutePath(),
-                        getCacheDir().getCanonicalPath(),
-                        nativeLibraryDirectory.getCanonicalPath()
+                        temporaryDirectory,
+                        nativeLibraryPath
                     );
                     startedController = new CodexSessionController(
                         transport,
@@ -293,13 +376,15 @@ public final class AgentRuntimeService extends Service {
                                     error
                                 );
                             }
-                        }
+                        },
+                        shellExecutable.getAbsolutePath()
                     );
                     startedController.start();
                     CodexSessionController previousController;
                     synchronized (SESSION_LOCK) {
                         previousController = sessionController;
                         sessionController = startedController;
+                        activeWorkspaceLayout = layout;
                     }
                     if (previousController != null
                         && previousController != startedController) {
@@ -322,6 +407,7 @@ public final class AgentRuntimeService extends Service {
                         synchronized (SESSION_LOCK) {
                             if (sessionController == startedController) {
                                 sessionController = null;
+                                activeWorkspaceLayout = null;
                             }
                         }
                     }
@@ -332,6 +418,7 @@ public final class AgentRuntimeService extends Service {
                         synchronized (SESSION_LOCK) {
                             if (sessionController == startedController) {
                                 sessionController = null;
+                                activeWorkspaceLayout = null;
                             }
                         }
                         startedController.close();
@@ -363,6 +450,7 @@ public final class AgentRuntimeService extends Service {
             owned = sessionController == failedController;
             if (owned) {
                 sessionController = null;
+                activeWorkspaceLayout = null;
             }
         }
         RuntimeSnapshot current = STATE.snapshot();

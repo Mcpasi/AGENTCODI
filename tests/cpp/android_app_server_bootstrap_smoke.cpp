@@ -4,6 +4,7 @@
 #include <iostream>
 #include <memory>
 #include <string>
+#include <vector>
 
 namespace {
 
@@ -54,27 +55,244 @@ bool safe_json_path(const std::string& value) {
       && value.find('\r') == std::string::npos;
 }
 
+bool extract_json_string(
+    const std::string& line,
+    const std::string& field,
+    std::string* value) {
+  const std::string marker = "\"" + field + "\":\"";
+  const std::size_t begin = line.find(marker);
+  if (begin == std::string::npos) {
+    return false;
+  }
+  const std::size_t value_begin = begin + marker.size();
+  const std::size_t end = line.find('"', value_begin);
+  if (end == std::string::npos) {
+    return false;
+  }
+  *value = line.substr(value_begin, end - value_begin);
+  return true;
+}
+
+int base64_value(char character) {
+  if (character >= 'A' && character <= 'Z') {
+    return character - 'A';
+  }
+  if (character >= 'a' && character <= 'z') {
+    return character - 'a' + 26;
+  }
+  if (character >= '0' && character <= '9') {
+    return character - '0' + 52;
+  }
+  if (character == '+') {
+    return 62;
+  }
+  if (character == '/') {
+    return 63;
+  }
+  return -1;
+}
+
+bool append_base64(const std::string& encoded, std::string* decoded) {
+  if (encoded.size() % 4U != 0U || encoded.size() > 88U * 1024U) {
+    return false;
+  }
+  for (std::size_t index = 0U; index < encoded.size(); index += 4U) {
+    const int first = base64_value(encoded[index]);
+    const int second = base64_value(encoded[index + 1U]);
+    const bool third_padding = encoded[index + 2U] == '=';
+    const bool fourth_padding = encoded[index + 3U] == '=';
+    const int third = third_padding ? 0 : base64_value(encoded[index + 2U]);
+    const int fourth = fourth_padding ? 0 : base64_value(encoded[index + 3U]);
+    if (first < 0 || second < 0 || third < 0 || fourth < 0
+        || (third_padding && !fourth_padding)
+        || ((third_padding || fourth_padding) && index + 4U != encoded.size())) {
+      return false;
+    }
+    decoded->push_back(static_cast<char>((first << 2) | (second >> 4)));
+    if (!third_padding) {
+      decoded->push_back(static_cast<char>((second << 4) | (third >> 2)));
+    }
+    if (!fourth_padding) {
+      decoded->push_back(static_cast<char>((third << 6) | fourth));
+    }
+    if (decoded->size() > 128U * 1024U) {
+      return false;
+    }
+  }
+  return true;
+}
+
+bool read_interactive_terminal_completion(
+    const std::shared_ptr<agentcodi::AppServerProcess>& process,
+    std::string* error) {
+  bool write_acknowledged = false;
+  bool command_completed = false;
+  std::string output;
+  for (int attempt = 0; attempt < 64; ++attempt) {
+    std::string line;
+    const agentcodi::LineReadStatus status = process->ReadLine(
+        kMaximumLineBytes,
+        &line,
+        error);
+    if (status != agentcodi::LineReadStatus::kLine) {
+      std::cerr << "Terminal protocol response failed: " << *error << '\n';
+      return false;
+    }
+    if (line.find("\"method\":\"command/exec/outputDelta\"")
+            != std::string::npos
+        && line.find("\"processId\":\"agentcodi-build-terminal\"")
+            != std::string::npos) {
+      std::string delta;
+      if (!extract_json_string(line, "deltaBase64", &delta)
+          || !append_base64(delta, &output)) {
+        std::cerr << "Terminal output notification was not bounded Base64\n";
+        return false;
+      }
+    } else if (line.find("\"id\":8") != std::string::npos) {
+      if (line.find("\"result\":{}") == std::string::npos) {
+        std::cerr << "Terminal input request failed\n";
+        return false;
+      }
+      write_acknowledged = true;
+    } else if (line.find("\"id\":6") != std::string::npos) {
+      if (line.find("\"exitCode\":0") == std::string::npos
+          || line.find("\"stdout\":\"\"") == std::string::npos
+          || line.find("\"stderr\":\"\"") == std::string::npos) {
+        std::cerr << "Terminal completion response was malformed\n";
+        return false;
+      }
+      command_completed = true;
+    }
+    if (write_acknowledged && command_completed
+        && output.find("terminal-protocol-smoke") != std::string::npos
+        && output.find("Enabled packaged Node.js 24.18.0") != std::string::npos
+        && output.find("v24.18.0") != std::string::npos) {
+      return true;
+    }
+  }
+  std::cerr << "Interactive terminal protocol did not complete all correlated events\n";
+  return false;
+}
+
+bool read_model_shell_completion(
+    const std::shared_ptr<agentcodi::AppServerProcess>& process,
+    const std::string& expected_node_alias,
+    std::string* error) {
+  bool command_completed = false;
+  std::string output;
+  for (int attempt = 0; attempt < 64; ++attempt) {
+    std::string line;
+    const agentcodi::LineReadStatus status = process->ReadLine(
+        kMaximumLineBytes,
+        &line,
+        error);
+    if (status != agentcodi::LineReadStatus::kLine) {
+      std::cerr << "Model shell response failed: " << *error << '\n';
+      return false;
+    }
+    if (line.find("\"method\":\"command/exec/outputDelta\"")
+            != std::string::npos
+        && line.find("\"processId\":\"agentcodi-build-model-shell\"")
+            != std::string::npos) {
+      std::string delta;
+      if (!extract_json_string(line, "deltaBase64", &delta)
+          || !append_base64(delta, &output)) {
+        std::cerr << "Model shell output was not bounded Base64\n";
+        return false;
+      }
+    } else if (line.find("\"id\":9") != std::string::npos) {
+      if (line.find("\"exitCode\":0") == std::string::npos
+          || line.find("\"stderr\":\"\"") == std::string::npos) {
+        std::cerr << "Model shell completion response was malformed\n";
+        return false;
+      }
+      if (line.find("\"stdout\":\"\"") == std::string::npos) {
+        if (line.find(expected_node_alias) == std::string::npos
+            || line.find("v24.18.0") == std::string::npos
+            || line.find("node 24.18.0") == std::string::npos
+            || line.find("enabled") == std::string::npos) {
+          std::cerr << "Inline model shell output omitted the packaged Node contract\n";
+          return false;
+        }
+        return true;
+      }
+      command_completed = true;
+    }
+    if (command_completed
+        && output.find(expected_node_alias) != std::string::npos
+        && output.find("v24.18.0") != std::string::npos
+        && output.find("node 24.18.0") != std::string::npos
+        && output.find("enabled") != std::string::npos) {
+      return true;
+    }
+  }
+  std::cerr << "Model shell could not resolve the activated packaged Node command\n";
+  return false;
+}
+
+bool read_terminated_terminal_completion(
+    const std::shared_ptr<agentcodi::AppServerProcess>& process,
+    std::string* error) {
+  bool terminate_acknowledged = false;
+  bool command_completed = false;
+  for (int attempt = 0; attempt < 64; ++attempt) {
+    std::string line;
+    const agentcodi::LineReadStatus status = process->ReadLine(
+        kMaximumLineBytes,
+        &line,
+        error);
+    if (status != agentcodi::LineReadStatus::kLine) {
+      std::cerr << "Terminal termination response failed: " << *error << '\n';
+      return false;
+    }
+    if (line.find("\"id\":12") != std::string::npos) {
+      if (line.find("\"result\":{}") == std::string::npos) {
+        std::cerr << "Terminal terminate request failed\n";
+        return false;
+      }
+      terminate_acknowledged = true;
+    } else if (line.find("\"id\":10") != std::string::npos) {
+      if (line.find("\"result\":{") == std::string::npos
+          || line.find("\"exitCode\":") == std::string::npos) {
+        std::cerr << "Terminated terminal completion was malformed\n";
+        return false;
+      }
+      command_completed = true;
+    }
+    if (terminate_acknowledged && command_completed) {
+      return true;
+    }
+  }
+  std::cerr << "Terminal termination did not produce both correlated responses\n";
+  return false;
+}
+
 }  // namespace
 
 int main(int argc, char* argv[]) {
-  if (argc != 8) {
-    std::cerr << "Expected executable, host, workspace, Codex home, home, temp and library paths\n";
+  if (argc != 12) {
+    std::cerr << "Expected app-server, host, shell, Node, workspace, toolchain, tool-bin, Codex home, home, temp and library paths\n";
     return 2;
   }
-  const std::string workspace = argv[3];
-  if (!safe_json_path(workspace)) {
-    std::cerr << "Workspace path is not safe for the bootstrap fixture\n";
+  const std::string workspace = argv[5];
+  const std::string shell = argv[3];
+  if (!safe_json_path(workspace) || !safe_json_path(shell)) {
+    std::cerr << "Workspace or shell path is not safe for the bootstrap fixture\n";
     return 2;
   }
 
   agentcodi::ProcessConfig config;
   config.executable = argv[1];
   config.code_mode_host_executable = argv[2];
+  config.shell_executable = argv[3];
+  config.node_executable = argv[4];
   config.working_directory = workspace;
-  config.codex_home = argv[4];
-  config.home_directory = argv[5];
-  config.temporary_directory = argv[6];
-  config.library_directory = argv[7];
+  config.toolchain_directory = argv[6];
+  config.tool_binary_directory = argv[7];
+  config.codex_home = argv[8];
+  config.home_directory = argv[9];
+  config.temporary_directory = argv[10];
+  config.library_directory = argv[11];
 
   std::string error;
   std::shared_ptr<agentcodi::AppServerProcess> process =
@@ -87,7 +305,7 @@ int main(int argc, char* argv[]) {
   const std::string initialize =
       "{\"method\":\"initialize\",\"id\":1,\"params\":{"
       "\"clientInfo\":{\"name\":\"agentcodi_android\","
-      "\"title\":\"AGENTCODI\",\"version\":\"0.4.5\"},"
+      "\"title\":\"AGENTCODI\",\"version\":\"0.4.8\"},"
       "\"capabilities\":{\"experimentalApi\":true,"
       "\"optOutNotificationMethods\":[\"rawResponseItem/completed\","
       "\"rawResponse/completed\"]}}}";
@@ -122,6 +340,78 @@ int main(int argc, char* argv[]) {
           "\"sourceKinds\":[\"cli\",\"vscode\",\"exec\",\"appServer\"]}}",
           &error)
       || !read_response(process, "\"id\":5", "\"data\":[", &error)) {
+    process->Stop(2'000);
+    return 1;
+  }
+
+  const std::string terminal_request =
+      "{\"method\":\"command/exec\",\"id\":6,\"params\":{"
+      "\"command\":[\"" + shell + "\",\"--interactive\"],"
+      "\"cwd\":\"" + workspace + "\","
+      "\"processId\":\"agentcodi-build-terminal\","
+      "\"permissionProfile\":\"agentcodi-workspace\","
+      "\"tty\":true,\"size\":{\"rows\":24,\"cols\":80},"
+      "\"outputBytesCap\":65536,\"timeoutMs\":10000}}";
+  if (!write_request(process, terminal_request, &error)
+      || !write_request(
+          process,
+          "{\"method\":\"command/exec/resize\",\"id\":7,\"params\":{"
+          "\"processId\":\"agentcodi-build-terminal\","
+          "\"size\":{\"rows\":32,\"cols\":96}}}",
+          &error)
+      || !read_response(process, "\"id\":7", "\"result\":{}", &error)
+      || !write_request(
+          process,
+          "{\"method\":\"command/exec/write\",\"id\":8,\"params\":{"
+          "\"processId\":\"agentcodi-build-terminal\","
+          "\"deltaBase64\":"
+          "\"cHJpbnRmIHRlcm1pbmFsLXByb3RvY29sLXNtb2tlCmFnZW50Y29kaS10b29sY2hhaW4gaW5zdGFsbCBub2RlCm5vZGUgLS12ZXJzaW9uCmV4aXQK\"}}",
+          &error)
+      || !read_interactive_terminal_completion(process, &error)) {
+    process->Stop(2'000);
+    return 1;
+  }
+
+  const std::string model_shell_request =
+      "{\"method\":\"command/exec\",\"id\":9,\"params\":{"
+      "\"command\":[\"/system/bin/sh\",\"-c\","
+      "\"command -v node && command -v agentcodi-toolchain && "
+      "node --version && agentcodi-toolchain status\"],"
+      "\"cwd\":\"" + workspace + "\","
+      "\"processId\":\"agentcodi-build-model-shell\","
+      "\"permissionProfile\":\"agentcodi-workspace\","
+      "\"tty\":false,\"outputBytesCap\":65536,\"timeoutMs\":10000}}";
+  if (!write_request(process, model_shell_request, &error)
+      || !read_model_shell_completion(
+          process,
+          config.tool_binary_directory + "/node",
+          &error)) {
+    process->Stop(2'000);
+    return 1;
+  }
+
+  const std::string terminated_terminal_request =
+      "{\"method\":\"command/exec\",\"id\":10,\"params\":{"
+      "\"command\":[\"" + shell + "\",\"--interactive\"],"
+      "\"cwd\":\"" + workspace + "\","
+      "\"processId\":\"agentcodi-build-terminal-stop\","
+      "\"permissionProfile\":\"agentcodi-workspace\","
+      "\"tty\":true,\"size\":{\"rows\":24,\"cols\":80},"
+      "\"outputBytesCap\":65536,\"timeoutMs\":10000}}";
+  if (!write_request(process, terminated_terminal_request, &error)
+      || !write_request(
+          process,
+          "{\"method\":\"command/exec/resize\",\"id\":11,\"params\":{"
+          "\"processId\":\"agentcodi-build-terminal-stop\","
+          "\"size\":{\"rows\":24,\"cols\":80}}}",
+          &error)
+      || !read_response(process, "\"id\":11", "\"result\":{}", &error)
+      || !write_request(
+          process,
+          "{\"method\":\"command/exec/terminate\",\"id\":12,\"params\":{"
+          "\"processId\":\"agentcodi-build-terminal-stop\"}}",
+          &error)
+      || !read_terminated_terminal_completion(process, &error)) {
     process->Stop(2'000);
     return 1;
   }

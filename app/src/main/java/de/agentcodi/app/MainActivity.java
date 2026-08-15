@@ -258,6 +258,20 @@ public final class MainActivity extends Activity {
         titleParams.rightMargin = theme.dp(10);
         topBar.addView(screenTitle, titleParams);
 
+        Button terminalButton = theme.compactButton(getString(R.string.navigation_terminal));
+        terminalButton.setOnClickListener(new View.OnClickListener() {
+            @Override
+            public void onClick(View view) {
+                openTerminal();
+            }
+        });
+        LinearLayout.LayoutParams terminalParams = new LinearLayout.LayoutParams(
+            ViewGroup.LayoutParams.WRAP_CONTENT,
+            ViewGroup.LayoutParams.WRAP_CONTENT
+        );
+        terminalParams.rightMargin = theme.dp(6);
+        topBar.addView(terminalButton, terminalParams);
+
         Button settingsButton = theme.compactButton(getString(R.string.navigation_settings));
         settingsButton.setOnClickListener(new View.OnClickListener() {
             @Override
@@ -1129,6 +1143,10 @@ public final class MainActivity extends Activity {
 
     private void openSettings() {
         startActivity(new Intent(this, SettingsActivity.class));
+    }
+
+    private void openTerminal() {
+        startActivity(new Intent(this, TerminalActivity.class));
     }
 
     private void showEmergencyStatus(Throwable error) {

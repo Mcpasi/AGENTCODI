@@ -226,7 +226,7 @@
   <string name="licenses_subtitle">Authorship, license, and attribution details for AGENTCODI and components actually bundled in the APK. Codex Works is not an APK component.</string>
   <string name="licenses_back">‹ Settings</string>
   <string name="license_agentcodi_title">AGENTCODI authorship</string>
-  <string name="license_agentcodi_summary">Copyright 2026 Pascal (Mc Pasi) · All rights reserved. No public source-code license is currently granted.</string>
+  <string name="license_agentcodi_summary">Copyright 2026 Pascal (Mc Pasi) · Apache License 2.0.</string>
   <string name="license_codex_runtime_title">Codex Android community runtime</string>
   <string name="license_codex_runtime_summary">OpenAI Codex 0.147.2 and the Android/Termux community distribution · Apache License 2.0. This is not an official OpenAI Android APK.</string>
   <string name="license_node_runtime_title">Packaged Node.js toolchain</string>

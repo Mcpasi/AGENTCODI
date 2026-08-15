@@ -924,8 +924,7 @@ if grep -Fxq 'res/raw/agentcodi_apache_2_0.txt' "$WORK_DIR/apk-entries.txt"; the
 fi
 unzip -p "$VERSIONED_APK" resources.arsc | strings > "$WORK_DIR/resource-strings.txt"
 grep -Fq 'Copyright 2026 Pascal (Mc Pasi)' "$WORK_DIR/resource-strings.txt"
-grep -Fq 'All rights reserved' "$WORK_DIR/resource-strings.txt"
-grep -Fq 'Alle Rechte vorbehalten' "$WORK_DIR/resource-strings.txt"
+grep -Fxq ' Apache License 2.0.' "$WORK_DIR/resource-strings.txt"
 packaged_app_server_sha="$(unzip -p "$VERSIONED_APK" "lib/$ABI/libcodex.so" | sha256sum | awk '{print $1}')"
 packaged_code_mode_host_sha="$(unzip -p "$VERSIONED_APK" "lib/$ABI/$CODEX_PACKAGED_HOST_NAME" | sha256sum | awk '{print $1}')"
 if [ "$packaged_app_server_sha" != "$CODEX_APP_SERVER_ANDROID_SHA256" ] \

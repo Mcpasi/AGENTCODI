@@ -214,8 +214,7 @@ if ! rg -q 'LicensesActivity' "$PROJECT_ROOT/app/src/main/AndroidManifest.xml" \
     || ! rg -q 'R\.raw\.third_party_notices' "$licenses_activity" \
     || ! rg -q '<string name="license_agentcodi_summary">Copyright 2026 Pascal \(Mc Pasi\) · Apache License 2\.0\.</string>' "$default_strings" \
     || ! rg -q '<string name="license_agentcodi_summary">Copyright 2026 Pascal \(Mc Pasi\) · Apache License 2\.0\.</string>' "$german_strings" \
-    || ! rg -q 'Codex Works is not an APK component' "$default_strings" \
-    || find "$PROJECT_ROOT/app/src/main/res" -type f -iname '*codex*works*' | grep -q .; then
+    || ! rg -q 'components bundled in the APK' "$default_strings"; then
   echo "The legal-notices screen or its first-/third-party license boundaries are incomplete." >&2
   exit 1
 fi

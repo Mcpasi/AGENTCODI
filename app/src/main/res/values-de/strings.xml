@@ -227,7 +227,7 @@
   <string name="licenses_settings_description">Hier stehen der Urheberschaftshinweis für AGENTCODI sowie alle Lizenzen und Hinweise der tatsächlich in der APK mitgelieferten Komponenten.</string>
   <string name="licenses_open">Rechtliche Hinweise öffnen</string>
   <string name="licenses_title">Rechtliche Hinweise</string>
-  <string name="licenses_subtitle">Urheber-, Lizenz- und Attributionsangaben für AGENTCODI und tatsächlich mitgelieferte APK-Komponenten. Codex Works ist kein Bestandteil der APK.</string>
+  <string name="licenses_subtitle">Urheber-, Lizenz- und Attributionsangaben für AGENTCODI und die in der APK mitgelieferten Komponenten.</string>
   <string name="licenses_back">‹ Einstellungen</string>
   <string name="license_agentcodi_title">AGENTCODI-Urheberschaft</string>
   <string name="license_agentcodi_summary">Copyright 2026 Pascal (Mc Pasi) · Apache License 2.0.</string>

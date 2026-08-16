@@ -227,7 +227,7 @@
   <string name="licenses_settings_description">Review AGENTCODI’s authorship notice and all licenses and notices for components that are actually bundled in the APK.</string>
   <string name="licenses_open">Open legal notices</string>
   <string name="licenses_title">Legal notices</string>
-  <string name="licenses_subtitle">Authorship, license, and attribution details for AGENTCODI and components actually bundled in the APK. Codex Works is not an APK component.</string>
+  <string name="licenses_subtitle">Authorship, license, and attribution details for AGENTCODI and the components bundled in the APK.</string>
   <string name="licenses_back">‹ Settings</string>
   <string name="license_agentcodi_title">AGENTCODI authorship</string>
   <string name="license_agentcodi_summary">Copyright 2026 Pascal (Mc Pasi) · Apache License 2.0.</string>

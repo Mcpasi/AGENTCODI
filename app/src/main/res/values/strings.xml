@@ -238,7 +238,7 @@
   <string name="license_npm_runtime_title">Packaged npm toolchain</string>
   <string name="license_npm_runtime_summary">npm 11.19.0 and its bundled dependency licenses · runs through the pinned Node.js runtime and uses only workspace/toolchain for writable cache and prefix data.</string>
   <string name="license_python_runtime_title">Packaged Python toolchain</string>
-  <string name="license_python_runtime_summary">Python 3.14.6, its bytecode standard library, native extension modules, and pinned Android dependencies · bundled in the APK and activated explicitly without runtime downloads.</string>
+  <string name="license_python_runtime_summary">Python 3.14.6 with its bytecode standard library and 72 native extension modules · SQLite-backed dbm/shelve and PyREPL remain available; GNU Readline and GNU dbm are not bundled. All retained Android dependencies use permissive terms.</string>
   <string name="license_third_party_title">Additional third-party notices</string>
   <string name="license_third_party_summary">Includes the LLVM libc++ runtime under the University of Illinois/NCSA Open Source License.</string>
   <string name="license_show_notice">Show LICENSE and NOTICE</string>

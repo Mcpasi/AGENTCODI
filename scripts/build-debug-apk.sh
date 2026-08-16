@@ -6,8 +6,8 @@ PROJECT_ROOT="$(cd -- "$SCRIPT_DIR/.." && pwd -P)"
 
 APP_NAME="AGENTCODI"
 APP_ID="de.agentcodi.app"
-APP_VERSION="0.4.9"
-VERSION_CODE="29"
+APP_VERSION="0.4.10"
+VERSION_CODE="30"
 MIN_SDK="29"
 TARGET_SDK="35"
 ABI="arm64-v8a"
@@ -71,8 +71,6 @@ PYTHON_VERSION="3.14.6"
 PYTHON_PACKAGE_VERSION="3.14.6-1"
 PYTHON_URL="https://packages.termux.dev/apt/termux-main/pool/main/p/python/python_${PYTHON_PACKAGE_VERSION}_aarch64.deb"
 PYTHON_SHA256="3166e56c2b6c03fff41191fbb9d736302978e7c484702814d9f6dc99dd6006bd"
-GDBM_URL="https://packages.termux.dev/apt/termux-main/pool/main/g/gdbm/gdbm_1.26-1_aarch64.deb"
-GDBM_SHA256="c378de833aae3cf41f3028491ea11836479d9833ab653edc27d0c0e0e691d5c5"
 ANDROID_POSIX_SEMAPHORE_URL="https://packages.termux.dev/apt/termux-main/pool/main/liba/libandroid-posix-semaphore/libandroid-posix-semaphore_0.1-4_aarch64.deb"
 ANDROID_POSIX_SEMAPHORE_SHA256="0efa8677a0166315ba4e685863712eba0ca0a1732827492f38226e2723730c7a"
 ANDROID_SUPPORT_URL="https://packages.termux.dev/apt/termux-main/pool/main/liba/libandroid-support/libandroid-support_29-1_aarch64.deb"
@@ -88,16 +86,21 @@ NCURSES_URL="https://packages.termux.dev/apt/termux-main/pool/main/n/ncurses/ncu
 NCURSES_SHA256="f44bbfdc3d42ec0217bffa978309390e59cea5a48a9a83226d4a496c42ad0b99"
 NCURSES_UI_URL="https://packages.termux.dev/apt/termux-main/pool/main/n/ncurses-ui-libs/ncurses-ui-libs_${NCURSES_VERSION}_aarch64.deb"
 NCURSES_UI_SHA256="7393f369009be189b3d4ec1f9b16ebd57621d6a1b22949ae07685573950d1f37"
-READLINE_URL="https://packages.termux.dev/apt/termux-main/pool/main/r/readline/readline_8.3.3_aarch64.deb"
-READLINE_SHA256="e50fb67f40753247dbb83efb17c7fbee0ac868ffcb5b5555d44d76ec8d90b4b1"
-ZSTD_URL="https://packages.termux.dev/apt/termux-main/pool/main/z/zstd/zstd_1.5.7-1_aarch64.deb"
+ZSTD_VERSION="1.5.7"
+ZSTD_URL="https://packages.termux.dev/apt/termux-main/pool/main/z/zstd/zstd_${ZSTD_VERSION}-1_aarch64.deb"
 ZSTD_SHA256="e1b4a5113648da8de189620ba1fce74c48b2d0833d9043391b9a1c91fb606fd3"
+ZSTD_LICENSE_URL="https://raw.githubusercontent.com/facebook/zstd/v${ZSTD_VERSION}/LICENSE"
+ZSTD_LICENSE_SHA256="7055266497633c9025b777c78eb7235af13922117480ed5c674677adc381c9d8"
+LIBLZMA_0BSD_LICENSE_SHA256="0b01625d853911cd0e2e088dcfb743261034a091bb379246cb25a14cc4c74bf1"
 TERMUX_LICENSES_URL="https://packages.termux.dev/apt/termux-main/pool/main/t/termux-licenses/termux-licenses_2.2_all.deb"
 TERMUX_LICENSES_SHA256="a3265cd1cf7d04754f2fb683eaf5b21918263792fd714457127900c1d6d9bcd9"
 PYTHON_LIBRARY_NAME="libpython-bin.so"
 TOOL_RUNTIME_NAME="python-${PYTHON_VERSION}-npm-${NPM_VERSION}"
-TOOL_RUNTIME_MANIFEST_SHA256="d616cfe67909c597a3a5d58c3db0ee6d498feae7c01c100f5ab8af407f7241ac"
-PYTHON_NATIVE_SET_SHA256="5bc6792dfee04cd2be22064a4031c5a4d2d047133737731dc586fd307e7b9f13"
+TOOL_RUNTIME_MANIFEST_SHA256="e7fa5752f739c96cde42b20b38ae57d7249eb535b1524b5fc5a7be73d1008e7a"
+PYTHON_NATIVE_SET_SHA256="415a1309d17f45bdb6ba1cf061f24d75e8b591430eda883e7e4e3f313a291b9a"
+PYTHON_LICENSES_SHA256="b25c84cf10f0797356b67dd6b27d5a2cdff1c2a2bc098b2ee678c60146392892"
+PYTHON_SOURCE_EXTENSION_COUNT="75"
+PYTHON_PACKAGED_EXTENSION_COUNT="72"
 
 PLATFORM_URL="https://dl.google.com/android/repository/platform-35_r02.zip"
 PLATFORM_SHA256="0988cacad01b38a18a47bac14a0695f246bc76c1b06c0eeb8eb0dc825ab0c8e0"
@@ -143,7 +146,7 @@ require_command() {
   fi
 }
 
-for command_name in apksigner awk cmp curl dd dpkg-deb file grep readelf realpath rg sha256sum stat strings tar timeout tr unzip wc xargs zip zipalign zipinfo; do
+for command_name in apksigner awk cmp curl dd dpkg-deb file grep readelf realpath rg script sha256sum stat strings tar timeout tr unzip wc xargs zip zipalign zipinfo; do
   require_command "$command_name"
 done
 for executable in "$JAVA" "$JAVAC" "$JAR" "$KEYTOOL" "$CLANGXX" "$LLVM_STRIP"; do
@@ -332,7 +335,6 @@ SQLITE_ARCHIVE="$CACHE_DIR/libsqlite-$SQLITE_VERSION-aarch64.deb"
 OPENSSL_ARCHIVE="$CACHE_DIR/openssl-$OPENSSL_VERSION-aarch64.deb"
 NPM_ARCHIVE="$CACHE_DIR/npm-$NPM_VERSION-all.deb"
 PYTHON_ARCHIVE="$CACHE_DIR/python-$PYTHON_PACKAGE_VERSION-aarch64.deb"
-GDBM_ARCHIVE="$CACHE_DIR/gdbm-1.26-1-aarch64.deb"
 ANDROID_POSIX_SEMAPHORE_ARCHIVE="$CACHE_DIR/libandroid-posix-semaphore-0.1-4-aarch64.deb"
 ANDROID_SUPPORT_ARCHIVE="$CACHE_DIR/libandroid-support-29-1-aarch64.deb"
 BZIP2_ARCHIVE="$CACHE_DIR/libbz2-1.0.8-8-aarch64.deb"
@@ -340,12 +342,12 @@ LIBFFI_ARCHIVE="$CACHE_DIR/libffi-3.5.2-aarch64.deb"
 LIBLZMA_ARCHIVE="$CACHE_DIR/liblzma-5.8.3-aarch64.deb"
 NCURSES_ARCHIVE="$CACHE_DIR/ncurses-$NCURSES_VERSION-aarch64.deb"
 NCURSES_UI_ARCHIVE="$CACHE_DIR/ncurses-ui-libs-$NCURSES_VERSION-aarch64.deb"
-READLINE_ARCHIVE="$CACHE_DIR/readline-8.3.3-aarch64.deb"
-ZSTD_ARCHIVE="$CACHE_DIR/zstd-1.5.7-1-aarch64.deb"
+ZSTD_ARCHIVE="$CACHE_DIR/zstd-$ZSTD_VERSION-1-aarch64.deb"
 TERMUX_LICENSES_ARCHIVE="$CACHE_DIR/termux-licenses-2.2-all.deb"
 NODE_LICENSE_FILE="$CACHE_DIR/node-$NODE_VERSION-LICENSE"
 ICU_LICENSE_FILE="$CACHE_DIR/icu-$ICU_VERSION-LICENSE"
 OPENSSL_LICENSE_FILE="$CACHE_DIR/openssl-$OPENSSL_VERSION-LICENSE"
+ZSTD_LICENSE_FILE="$CACHE_DIR/zstd-$ZSTD_VERSION-LICENSE"
 
 echo "Verifying pinned Android build inputs..."
 download_verified "$PLATFORM_URL" "$PLATFORM_SHA256" "$PLATFORM_ARCHIVE"
@@ -367,7 +369,6 @@ download_verified "$SQLITE_URL" "$SQLITE_SHA256" "$SQLITE_ARCHIVE"
 download_verified "$OPENSSL_URL" "$OPENSSL_SHA256" "$OPENSSL_ARCHIVE"
 download_verified "$NPM_URL" "$NPM_SHA256" "$NPM_ARCHIVE"
 download_verified "$PYTHON_URL" "$PYTHON_SHA256" "$PYTHON_ARCHIVE"
-download_verified "$GDBM_URL" "$GDBM_SHA256" "$GDBM_ARCHIVE"
 download_verified "$ANDROID_POSIX_SEMAPHORE_URL" "$ANDROID_POSIX_SEMAPHORE_SHA256" "$ANDROID_POSIX_SEMAPHORE_ARCHIVE"
 download_verified "$ANDROID_SUPPORT_URL" "$ANDROID_SUPPORT_SHA256" "$ANDROID_SUPPORT_ARCHIVE"
 download_verified "$BZIP2_URL" "$BZIP2_SHA256" "$BZIP2_ARCHIVE"
@@ -375,12 +376,12 @@ download_verified "$LIBFFI_URL" "$LIBFFI_SHA256" "$LIBFFI_ARCHIVE"
 download_verified "$LIBLZMA_URL" "$LIBLZMA_SHA256" "$LIBLZMA_ARCHIVE"
 download_verified "$NCURSES_URL" "$NCURSES_SHA256" "$NCURSES_ARCHIVE"
 download_verified "$NCURSES_UI_URL" "$NCURSES_UI_SHA256" "$NCURSES_UI_ARCHIVE"
-download_verified "$READLINE_URL" "$READLINE_SHA256" "$READLINE_ARCHIVE"
 download_verified "$ZSTD_URL" "$ZSTD_SHA256" "$ZSTD_ARCHIVE"
 download_verified "$TERMUX_LICENSES_URL" "$TERMUX_LICENSES_SHA256" "$TERMUX_LICENSES_ARCHIVE"
 download_verified "$NODE_LICENSE_URL" "$NODE_LICENSE_SHA256" "$NODE_LICENSE_FILE"
 download_verified "$ICU_LICENSE_URL" "$ICU_LICENSE_SHA256" "$ICU_LICENSE_FILE"
 download_verified "$OPENSSL_LICENSE_URL" "$OPENSSL_LICENSE_SHA256" "$OPENSSL_LICENSE_FILE"
+download_verified "$ZSTD_LICENSE_URL" "$ZSTD_LICENSE_SHA256" "$ZSTD_LICENSE_FILE"
 
 echo "Running Java, C++, and architecture tests..."
 "$SCRIPT_DIR/test.sh"
@@ -424,7 +425,7 @@ if [ ! -f "$ANDROID_JAR" ]; then
   exit 1
 fi
 
-for archive in "$AAPT2_ARCHIVE" "$ABSEIL_ARCHIVE" "$PROTOBUF_ARCHIVE" "$FMT_ARCHIVE" "$LIBCXX_ARCHIVE" "$EXPAT_ARCHIVE" "$PNG_ARCHIVE" "$ZOPFLI_ARCHIVE" "$ZLIB_ARCHIVE" "$NODE_ARCHIVE" "$CARES_ARCHIVE" "$ICU_ARCHIVE" "$SQLITE_ARCHIVE" "$OPENSSL_ARCHIVE" "$NPM_ARCHIVE" "$PYTHON_ARCHIVE" "$GDBM_ARCHIVE" "$ANDROID_POSIX_SEMAPHORE_ARCHIVE" "$ANDROID_SUPPORT_ARCHIVE" "$BZIP2_ARCHIVE" "$LIBFFI_ARCHIVE" "$LIBLZMA_ARCHIVE" "$NCURSES_ARCHIVE" "$NCURSES_UI_ARCHIVE" "$READLINE_ARCHIVE" "$ZSTD_ARCHIVE" "$TERMUX_LICENSES_ARCHIVE"; do
+for archive in "$AAPT2_ARCHIVE" "$ABSEIL_ARCHIVE" "$PROTOBUF_ARCHIVE" "$FMT_ARCHIVE" "$LIBCXX_ARCHIVE" "$EXPAT_ARCHIVE" "$PNG_ARCHIVE" "$ZOPFLI_ARCHIVE" "$ZLIB_ARCHIVE" "$NODE_ARCHIVE" "$CARES_ARCHIVE" "$ICU_ARCHIVE" "$SQLITE_ARCHIVE" "$OPENSSL_ARCHIVE" "$NPM_ARCHIVE" "$PYTHON_ARCHIVE" "$ANDROID_POSIX_SEMAPHORE_ARCHIVE" "$ANDROID_SUPPORT_ARCHIVE" "$BZIP2_ARCHIVE" "$LIBFFI_ARCHIVE" "$LIBLZMA_ARCHIVE" "$NCURSES_ARCHIVE" "$NCURSES_UI_ARCHIVE" "$ZSTD_ARCHIVE" "$TERMUX_LICENSES_ARCHIVE"; do
   dpkg-deb -x "$archive" "$AAPT2_EXTRACT"
 done
 tar -xzf "$CODEX_ANDROID_ARCHIVE" -C "$CODEX_EXTRACT"
@@ -462,12 +463,11 @@ ANDROID_SUPPORT_SOURCE_LIBRARY="$TERMUX_RUNTIME_PREFIX/lib/libandroid-support.so
 BZIP2_SOURCE_LIBRARY="$TERMUX_RUNTIME_PREFIX/lib/libbz2.so.1.0.8"
 EXPAT_SOURCE_LIBRARY="$TERMUX_RUNTIME_PREFIX/lib/libexpat.so.1.12.2"
 LIBFFI_SOURCE_LIBRARY="$TERMUX_RUNTIME_PREFIX/lib/libffi.so"
-GDBM_SOURCE_LIBRARY="$TERMUX_RUNTIME_PREFIX/lib/libgdbm.so"
-GDBM_COMPAT_SOURCE_LIBRARY="$TERMUX_RUNTIME_PREFIX/lib/libgdbm_compat.so"
 LIBLZMA_SOURCE_LIBRARY="$TERMUX_RUNTIME_PREFIX/lib/liblzma.so.5.8.3"
+LIBLZMA_LICENSE_SUMMARY_SOURCE="$TERMUX_RUNTIME_PREFIX/share/doc/liblzma/COPYING"
+LIBLZMA_0BSD_LICENSE_SOURCE="$TERMUX_RUNTIME_PREFIX/share/doc/xz/COPYING.0BSD"
 NCURSESW_SOURCE_LIBRARY="$TERMUX_RUNTIME_PREFIX/lib/libncursesw.so.6.5"
 PANELW_SOURCE_LIBRARY="$TERMUX_RUNTIME_PREFIX/lib/libpanelw.so.6.5"
-READLINE_SOURCE_LIBRARY="$TERMUX_RUNTIME_PREFIX/lib/libreadline.so.8.3"
 ZSTD_SOURCE_LIBRARY="$TERMUX_RUNTIME_PREFIX/lib/libzstd.so.1.5.7"
 if [ ! -f "$LIBCXX_SHARED" ] || ! file "$LIBCXX_SHARED" | grep -q 'ARM aarch64'; then
   echo "Pinned libc++ runtime is missing or not ARM64." >&2
@@ -479,17 +479,27 @@ for codex_file in "$CODEX_SOURCE_BINARY" "$CODEX_CODE_MODE_HOST_BINARY" "$CODEX_
     exit 1
   fi
 done
-for tool_file in "$NPM_SOURCE_DIRECTORY/bin/npm-cli.js" "$PYTHON_SOURCE_BINARY" "$PYTHON_SOURCE_LIBRARY" "$ANDROID_POSIX_SEMAPHORE_SOURCE_LIBRARY" "$ANDROID_SUPPORT_SOURCE_LIBRARY" "$BZIP2_SOURCE_LIBRARY" "$EXPAT_SOURCE_LIBRARY" "$LIBFFI_SOURCE_LIBRARY" "$GDBM_SOURCE_LIBRARY" "$GDBM_COMPAT_SOURCE_LIBRARY" "$LIBLZMA_SOURCE_LIBRARY" "$NCURSESW_SOURCE_LIBRARY" "$PANELW_SOURCE_LIBRARY" "$READLINE_SOURCE_LIBRARY" "$ZSTD_SOURCE_LIBRARY"; do
+for tool_file in "$NPM_SOURCE_DIRECTORY/bin/npm-cli.js" "$PYTHON_SOURCE_BINARY" "$PYTHON_SOURCE_LIBRARY" "$ANDROID_POSIX_SEMAPHORE_SOURCE_LIBRARY" "$ANDROID_SUPPORT_SOURCE_LIBRARY" "$BZIP2_SOURCE_LIBRARY" "$EXPAT_SOURCE_LIBRARY" "$LIBFFI_SOURCE_LIBRARY" "$LIBLZMA_SOURCE_LIBRARY" "$LIBLZMA_LICENSE_SUMMARY_SOURCE" "$LIBLZMA_0BSD_LICENSE_SOURCE" "$NCURSESW_SOURCE_LIBRARY" "$PANELW_SOURCE_LIBRARY" "$ZSTD_SOURCE_LIBRARY"; do
   if [ ! -f "$tool_file" ]; then
     echo "Pinned npm/Python runtime packages are missing: $tool_file" >&2
     exit 1
   fi
 done
 if [ ! -d "$PYTHON_DYNLOAD_SOURCE" ] \
-    || [ "$(find "$PYTHON_DYNLOAD_SOURCE" -type f -name '*.so' | wc -l)" -ne 75 ]; then
+    || [ "$(find "$PYTHON_DYNLOAD_SOURCE" -type f -name '*.so' | wc -l)" -ne "$PYTHON_SOURCE_EXTENSION_COUNT" ]; then
   echo "Pinned Python package does not contain the reviewed extension-module set." >&2
   exit 1
 fi
+for excluded_python_extension in \
+    _dbm.cpython-314-aarch64-linux-android.so \
+    _gdbm.cpython-314-aarch64-linux-android.so \
+    readline.cpython-314-aarch64-linux-android.so; do
+  if [ ! -f "$PYTHON_DYNLOAD_SOURCE/$excluded_python_extension" ]; then
+    echo "Pinned Python package is missing a reviewed optional extension: $excluded_python_extension" >&2
+    exit 1
+  fi
+done
+verify_file_sha256 "$LIBLZMA_0BSD_LICENSE_SOURCE" "$LIBLZMA_0BSD_LICENSE_SHA256"
 for node_file in "$NODE_SOURCE_BINARY" "$CARES_SOURCE_LIBRARY" "$SQLITE_SOURCE_LIBRARY" "$CRYPTO_SOURCE_LIBRARY" "$SSL_SOURCE_LIBRARY" "$ICUDATA_SOURCE_LIBRARY" "$ICUUC_SOURCE_LIBRARY" "$ICUI18N_SOURCE_LIBRARY" "$ZLIB_SOURCE_LIBRARY" "$CARES_LICENSE_SOURCE" "$ZLIB_LICENSE_SOURCE"; do
   if [ ! -f "$node_file" ]; then
     echo "Pinned Node.js runtime packages are missing: $node_file" >&2
@@ -625,12 +635,9 @@ cp -L "$ANDROID_SUPPORT_SOURCE_LIBRARY" "$NATIVE_DIR/libandroid-support.so"
 cp -L "$BZIP2_SOURCE_LIBRARY" "$NATIVE_DIR/libbz2_1_0.so"
 cp -L "$EXPAT_SOURCE_LIBRARY" "$NATIVE_DIR/libexpat_1.so"
 cp -L "$LIBFFI_SOURCE_LIBRARY" "$NATIVE_DIR/libffi.so"
-cp -L "$GDBM_SOURCE_LIBRARY" "$NATIVE_DIR/libgdbm.so"
-cp -L "$GDBM_COMPAT_SOURCE_LIBRARY" "$NATIVE_DIR/libgdbm_compat.so"
 cp -L "$LIBLZMA_SOURCE_LIBRARY" "$NATIVE_DIR/liblzma_5.so"
 cp -L "$NCURSESW_SOURCE_LIBRARY" "$NATIVE_DIR/libncursesw_6.so"
 cp -L "$PANELW_SOURCE_LIBRARY" "$NATIVE_DIR/libpanelw_6.so"
-cp -L "$READLINE_SOURCE_LIBRARY" "$NATIVE_DIR/libreadline_8.so"
 cp -L "$ZSTD_SOURCE_LIBRARY" "$NATIVE_DIR/libzstd_1.so"
 
 patch_elf_name "$NATIVE_DIR/$NODE_LIBRARY_NAME" 'libz.so.1' 'libz_1.so' 1
@@ -652,9 +659,20 @@ patch_elf_name "$NATIVE_DIR/libsqlite3.so" 'libz.so.1' 'libz_1.so' 1
 RUNTIME_LINK_RECORDS="$WORK_DIR/runtime-link-records.txt"
 : > "$RUNTIME_LINK_RECORDS"
 python_extension_index=0
+python_packaged_extension_count=0
+python_excluded_extension_count=0
 while IFS= read -r python_extension; do
   python_extension_name="$(printf 'libpython_ext_%03d.so' "$python_extension_index")"
   python_extension_relative="${python_extension#"$PYTHON_STDLIB_SOURCE"/}"
+  case "$python_extension_relative" in
+    lib-dynload/_dbm.cpython-314-aarch64-linux-android.so|\
+    lib-dynload/_gdbm.cpython-314-aarch64-linux-android.so|\
+    lib-dynload/readline.cpython-314-aarch64-linux-android.so)
+      python_excluded_extension_count=$((python_excluded_extension_count + 1))
+      python_extension_index=$((python_extension_index + 1))
+      continue
+      ;;
+  esac
   cp -L "$python_extension" "$NATIVE_DIR/$python_extension_name"
   for relocation in \
       'libbz2.so.1.0:libbz2_1_0.so' \
@@ -663,7 +681,6 @@ while IFS= read -r python_extension; do
       'liblzma.so.5:liblzma_5.so' \
       'libncursesw.so.6:libncursesw_6.so' \
       'libpanelw.so.6:libpanelw_6.so' \
-      'libreadline.so.8:libreadline_8.so' \
       'libssl.so.3:libssl_3.so' \
       'libz.so.1:libz_1.so' \
       'libzstd.so.1:libzstd_1.so'; do
@@ -679,10 +696,24 @@ while IFS= read -r python_extension; do
     "$python_extension_sha" \
     "$python_extension_name" \
     "$python_extension_relative" >> "$RUNTIME_LINK_RECORDS"
+  python_packaged_extension_count=$((python_packaged_extension_count + 1))
   python_extension_index=$((python_extension_index + 1))
 done < <(find "$PYTHON_DYNLOAD_SOURCE" -type f -name '*.so' | sort)
-if [ "$python_extension_index" -ne 75 ]; then
+if [ "$python_extension_index" -ne "$PYTHON_SOURCE_EXTENSION_COUNT" ] \
+    || [ "$python_packaged_extension_count" -ne "$PYTHON_PACKAGED_EXTENSION_COUNT" ] \
+    || [ "$python_excluded_extension_count" -ne 3 ]; then
   echo "Unexpected packaged Python extension-module count." >&2
+  exit 1
+fi
+for excluded_python_native in \
+    libpython_ext_015.so libpython_ext_018.so libpython_ext_065.so; do
+  if [ -e "$NATIVE_DIR/$excluded_python_native" ]; then
+    echo "Excluded Python extension was packaged: $excluded_python_native" >&2
+    exit 1
+  fi
+done
+if grep -Eq 'lib-dynload/(_dbm|_gdbm|readline)\.cpython-' "$RUNTIME_LINK_RECORDS"; then
+  echo "Excluded Python extension leaked into the runtime manifest inputs." >&2
   exit 1
 fi
 
@@ -694,12 +725,9 @@ for python_native in \
     "$NATIVE_DIR/libbz2_1_0.so" \
     "$NATIVE_DIR/libexpat_1.so" \
     "$NATIVE_DIR/libffi.so" \
-    "$NATIVE_DIR/libgdbm.so" \
-    "$NATIVE_DIR/libgdbm_compat.so" \
     "$NATIVE_DIR/liblzma_5.so" \
     "$NATIVE_DIR/libncursesw_6.so" \
     "$NATIVE_DIR/libpanelw_6.so" \
-    "$NATIVE_DIR/libreadline_8.so" \
     "$NATIVE_DIR/libzstd_1.so"; do
   for relocation in \
       'libbz2.so.1.0:libbz2_1_0.so' \
@@ -708,7 +736,6 @@ for python_native in \
       'liblzma.so.5:liblzma_5.so' \
       'libncursesw.so.6:libncursesw_6.so' \
       'libpanelw.so.6:libpanelw_6.so' \
-      'libreadline.so.8:libreadline_8.so' \
       'libssl.so.3:libssl_3.so' \
       'libz.so.1:libz_1.so' \
       'libzstd.so.1:libzstd_1.so'; do
@@ -750,28 +777,68 @@ done < <(
   } | sort -u
 )
 PYTHON_LICENSES="$PYTHON_THIRD_PARTY_ASSETS/PYTHON-LICENSES"
-: > "$PYTHON_LICENSES"
-for documentation_directory in \
-    python gdbm libandroid-posix-semaphore libandroid-support libbz2 libffi \
-    liblzma ncurses readline zstd openssl libexpat libsqlite zlib; do
-  documentation_path="$TERMUX_RUNTIME_PREFIX/share/doc/$documentation_directory"
-  if [ ! -d "$documentation_path" ]; then
-    echo "Pinned Python dependency license directory is missing: $documentation_directory" >&2
+printf '%s\n' \
+  'AGENTCODI packaged Python runtime license inventory' \
+  '' \
+  'This bundle covers only files actually shipped for the Python runtime.' \
+  'The optional native _dbm, _gdbm, and readline extension modules and their' \
+  'GNU runtime libraries are deliberately excluded from the APK.' \
+  > "$PYTHON_LICENSES"
+append_python_license() {
+  local component="$1"
+  local license_path="$2"
+  if [ ! -f "$license_path" ]; then
+    echo "Pinned Python dependency license file is missing: $component" >&2
     exit 1
   fi
-  while IFS= read -r license_path; do
-    printf '\n===== %s =====\n\n' "${license_path#"$TERMUX_RUNTIME_PREFIX"/}" \
-      >> "$PYTHON_LICENSES"
-    cat "$license_path" >> "$PYTHON_LICENSES"
-  done < <(find "$documentation_path" \( -type f -o -type l \) \
-    \( -iname 'LICENSE*' -o -iname 'COPYING*' -o -iname 'copyright' \) | sort)
-done
+  printf '\n===== %s =====\n\n' "$component" >> "$PYTHON_LICENSES"
+  cat "$license_path" >> "$PYTHON_LICENSES"
+}
+append_python_license 'Python 3.14.6 / PSF license' \
+  "$TERMUX_RUNTIME_PREFIX/share/doc/python/LICENSE"
+append_python_license 'libandroid-posix-semaphore / copyright' \
+  "$TERMUX_RUNTIME_PREFIX/share/doc/libandroid-posix-semaphore/copyright"
+append_python_license 'libandroid-support / Apache-2.0' \
+  "$TERMUX_RUNTIME_PREFIX/share/doc/libandroid-support/LICENSE.txt"
+append_python_license 'libandroid-support / MIT' \
+  "$TERMUX_RUNTIME_PREFIX/share/doc/libandroid-support/LICENSE.txt.1"
+append_python_license 'libbz2 / bzip2 license' \
+  "$TERMUX_RUNTIME_PREFIX/share/doc/libbz2/copyright"
+append_python_license 'libffi / MIT-style license' \
+  "$TERMUX_RUNTIME_PREFIX/share/doc/libffi/copyright"
+append_python_license 'liblzma / upstream license map' \
+  "$LIBLZMA_LICENSE_SUMMARY_SOURCE"
+append_python_license 'liblzma / BSD Zero Clause License (0BSD)' \
+  "$LIBLZMA_0BSD_LICENSE_SOURCE"
+append_python_license 'ncurses and ncurses-ui-libs / MIT-style license' \
+  "$TERMUX_RUNTIME_PREFIX/share/doc/ncurses/copyright"
+append_python_license 'OpenSSL 3.6.3 / Apache-2.0' \
+  "$OPENSSL_LICENSE_FILE"
+append_python_license 'Expat / MIT license' \
+  "$TERMUX_RUNTIME_PREFIX/share/doc/libexpat/copyright"
+append_python_license 'SQLite / public-domain dedication' \
+  "$TERMUX_RUNTIME_PREFIX/share/doc/libsqlite/copyright"
+append_python_license 'zlib / zlib license' \
+  "$TERMUX_RUNTIME_PREFIX/share/doc/zlib/copyright"
+append_python_license "Zstandard $ZSTD_VERSION / BSD license" \
+  "$ZSTD_LICENSE_FILE"
 if [ ! -s "$NPM_LICENSES" ] || [ ! -s "$PYTHON_LICENSES" ] \
     || [ "$(wc -c < "$NPM_LICENSES")" -gt 524288 ] \
-    || [ "$(wc -c < "$PYTHON_LICENSES")" -gt 524288 ]; then
+    || [ "$(wc -c < "$PYTHON_LICENSES")" -gt 131072 ]; then
   echo "Packaged npm/Python license bundle is missing or exceeds the UI bound." >&2
   exit 1
 fi
+if grep -Fq 'GNU GENERAL PUBLIC LICENSE' "$PYTHON_LICENSES"; then
+  echo "Python license bundle unexpectedly contains a full GNU license text." >&2
+  exit 1
+fi
+actual_python_licenses_sha="$(sha256sum "$PYTHON_LICENSES" | awk '{print $1}')"
+if [ -n "$PYTHON_LICENSES_SHA256" ] \
+    && [ "$actual_python_licenses_sha" != "$PYTHON_LICENSES_SHA256" ]; then
+  echo "Derived Python license inventory hash mismatch." >&2
+  exit 1
+fi
+echo "Derived Python license inventory SHA-256: $actual_python_licenses_sha"
 
 RUNTIME_RECORDS="$WORK_DIR/runtime-records.txt"
 RUNTIME_FILE_LIST="$WORK_DIR/runtime-file-list.txt"
@@ -904,14 +971,26 @@ for packaged_executable in "$NATIVE_DIR/$TERMINAL_SHELL_NAME" "$NATIVE_DIR/$NODE
     exit 1
   fi
 done
-for dependency in libcares.so libcrypto_3.so libicudata_78.so libicui18n_78.so libicuuc_78.so libsqlite3.so libssl_3.so libz_1.so libpython3.14.so libandroid-posix-semaphore.so libandroid-support.so libbz2_1_0.so libexpat_1.so libffi.so libgdbm.so libgdbm_compat.so liblzma_5.so libncursesw_6.so libpanelw_6.so libreadline_8.so libzstd_1.so; do
+for dependency in libcares.so libcrypto_3.so libicudata_78.so libicui18n_78.so libicuuc_78.so libsqlite3.so libssl_3.so libz_1.so libpython3.14.so libandroid-posix-semaphore.so libandroid-support.so libbz2_1_0.so libexpat_1.so libffi.so liblzma_5.so libncursesw_6.so libpanelw_6.so libzstd_1.so; do
   if ! file "$NATIVE_DIR/$dependency" | grep -q 'ARM aarch64'; then
     echo "Packaged Node.js dependency is not ARM64: $dependency" >&2
     exit 1
   fi
 done
-for python_native in "$NATIVE_DIR/$PYTHON_LIBRARY_NAME" "$NATIVE_DIR/libpython3.14.so" "$NATIVE_DIR"/libpython_ext_*.so "$NATIVE_DIR/libbz2_1_0.so" "$NATIVE_DIR/libexpat_1.so" "$NATIVE_DIR/liblzma_5.so" "$NATIVE_DIR/libncursesw_6.so" "$NATIVE_DIR/libpanelw_6.so" "$NATIVE_DIR/libreadline_8.so" "$NATIVE_DIR/libzstd_1.so"; do
-  if readelf -d "$python_native" | grep -Eq 'Shared library: \[lib(bz2\.so\.1\.0|crypto\.so\.3|expat\.so\.1|lzma\.so\.5|ncursesw\.so\.6|panelw\.so\.6|readline\.so\.8|ssl\.so\.3|z\.so\.1|zstd\.so\.1)\]'; then
+if find "$NATIVE_DIR" -maxdepth 1 -type f \
+    \( -name 'libgdbm*.so' -o -name 'libreadline*.so' \) -print -quit | grep -q .; then
+  echo "A forbidden GNU database or line-editing library was packaged." >&2
+  exit 1
+fi
+for packaged_native in "$NATIVE_DIR"/*.so; do
+  if readelf -d "$packaged_native" 2>/dev/null \
+      | grep -Eq 'Shared library: \[lib(gdbm(_compat)?|readline)(\.so|_)'; then
+    echo "Packaged native file retains a forbidden GNU dependency: $packaged_native" >&2
+    exit 1
+  fi
+done
+for python_native in "$NATIVE_DIR/$PYTHON_LIBRARY_NAME" "$NATIVE_DIR/libpython3.14.so" "$NATIVE_DIR"/libpython_ext_*.so "$NATIVE_DIR/libbz2_1_0.so" "$NATIVE_DIR/libexpat_1.so" "$NATIVE_DIR/liblzma_5.so" "$NATIVE_DIR/libncursesw_6.so" "$NATIVE_DIR/libpanelw_6.so" "$NATIVE_DIR/libzstd_1.so"; do
+  if readelf -d "$python_native" | grep -Eq 'Shared library: \[lib(bz2\.so\.1\.0|crypto\.so\.3|expat\.so\.1|lzma\.so\.5|ncursesw\.so\.6|panelw\.so\.6|ssl\.so\.3|z\.so\.1|zstd\.so\.1)\]'; then
     echo "Packaged Python dependency relocation is incomplete: $python_native" >&2
     exit 1
   fi
@@ -927,12 +1006,9 @@ PYTHON_NATIVE_SET="$WORK_DIR/python-native-set.sha256"
     "$NATIVE_DIR/libcrypto_3.so" \
     "$NATIVE_DIR/libexpat_1.so" \
     "$NATIVE_DIR/libffi.so" \
-    "$NATIVE_DIR/libgdbm.so" \
-    "$NATIVE_DIR/libgdbm_compat.so" \
     "$NATIVE_DIR/liblzma_5.so" \
     "$NATIVE_DIR/libncursesw_6.so" \
     "$NATIVE_DIR/libpanelw_6.so" \
-    "$NATIVE_DIR/libreadline_8.so" \
     "$NATIVE_DIR/libsqlite3.so" \
     "$NATIVE_DIR/libssl_3.so" \
     "$NATIVE_DIR/libz_1.so" \
@@ -1037,6 +1113,31 @@ if ! toolchain_smoke --toolchain list | grep -Fq "python $PYTHON_VERSION — ava
     || [ "$(toolchain_smoke --python --version 2>&1 | tr -d '\r')" != "Python $PYTHON_VERSION" ] \
     || [ "$(toolchain_smoke --python -c "import json, ssl, sqlite3, zlib; print('python-imports-ok')" | tr -d '\r')" != "python-imports-ok" ]; then
   echo "Packaged terminal shell and npm/Python activation smoke test failed." >&2
+  exit 1
+fi
+python_dbm_output="$(toolchain_smoke --python -c \
+  'import dbm, importlib.util, os, shelve; assert importlib.util.find_spec("_dbm") is None; assert importlib.util.find_spec("_gdbm") is None; assert importlib.util.find_spec("readline") is None; db_path = os.path.join(os.environ["TMPDIR"], "dbm-smoke"); database = dbm.open(db_path, "n"); assert database.__class__.__module__ == "dbm.sqlite3"; database[b"key"] = b"value"; database.close(); database = dbm.open(db_path, "r"); assert database[b"key"] == b"value"; database.close(); shelf = shelve.open(os.path.join(os.environ["TMPDIR"], "shelve-smoke")); shelf["answer"] = 42; shelf.close(); shelf = shelve.open(os.path.join(os.environ["TMPDIR"], "shelve-smoke")); assert shelf["answer"] == 42; shelf.close(); print("python-sqlite-dbm-shelve-ok")' \
+  | tr -d '\r')"
+if [ "$python_dbm_output" != "python-sqlite-dbm-shelve-ok" ]; then
+  echo "Packaged Python SQLite dbm/shelve compatibility smoke test failed." >&2
+  exit 1
+fi
+printf -v python_repl_command \
+  'env -i HOME=%q TMPDIR=%q TMP=%q TEMP=%q PATH=%q SHELL=%q LD_LIBRARY_PATH=%q HISTFILE=%q NODE_REPL_HISTORY=%q SSL_CERT_DIR=%q AGENTCODI_WORKSPACE=%q AGENTCODI_TOOLCHAIN=%q AGENTCODI_TOOL_BIN=%q AGENTCODI_TOOL_RUNTIME=%q AGENTCODI_NODE_VERSION=%q AGENTCODI_NPM_VERSION=%q AGENTCODI_PYTHON_VERSION=%q AGENTCODI_TOOLCHAIN_COMMAND=%q AGENTCODI_TOOLCHAIN_PACKAGES=%q %q --python' \
+  "$TOOLCHAIN_SMOKE_HOME" "$TOOLCHAIN_SMOKE_TEMP" "$TOOLCHAIN_SMOKE_TEMP" \
+  "$TOOLCHAIN_SMOKE_TEMP" "$TOOLCHAIN_SMOKE_TOOL_BIN:$NATIVE_DIR:/system/bin:/system/xbin" \
+  '/system/bin/sh' "$NATIVE_DIR" '/dev/null' '/dev/null' \
+  '/system/etc/security/cacerts' "$TOOLCHAIN_SMOKE_WORKSPACE" \
+  "$TOOLCHAIN_SMOKE_DIRECTORY" "$TOOLCHAIN_SMOKE_TOOL_BIN" \
+  "$TOOLCHAIN_SMOKE_RUNTIME" "$NODE_VERSION" "$NPM_VERSION" "$PYTHON_VERSION" \
+  'agentcodi-toolchain' 'node,npm,python' "$NATIVE_DIR/$TERMINAL_SHELL_NAME"
+if ! python_repl_output="$(
+    printf '%s\n' 'print(__import__("_pyrepl").__name__ + "-ok")' 'exit()' \
+      | timeout 30s script -qfec "$python_repl_command" /dev/null \
+      | tr -d '\r'
+  )" \
+    || ! printf '%s\n' "$python_repl_output" | grep -Fq '_pyrepl-ok'; then
+  echo "Packaged Python interactive PyREPL smoke test failed." >&2
   exit 1
 fi
 toolchain_model_output="$(toolchain_model_smoke 'command -v node; command -v npm; command -v python; command -v agentcodi-toolchain; node --version; npm --version; python --version; agentcodi-toolchain status' 2>&1 | tr -d '\r')"
@@ -1295,13 +1396,25 @@ grep -Fx "lib/$ABI/$CODEX_PACKAGED_HOST_NAME" "$WORK_DIR/apk-entries.txt"
 grep -Fx "lib/$ABI/$TERMINAL_SHELL_NAME" "$WORK_DIR/apk-entries.txt"
 grep -Fx "lib/$ABI/$NODE_LIBRARY_NAME" "$WORK_DIR/apk-entries.txt"
 grep -Fx "lib/$ABI/$PYTHON_LIBRARY_NAME" "$WORK_DIR/apk-entries.txt"
-for dependency in libcares.so libcrypto_3.so libicudata_78.so libicui18n_78.so libicuuc_78.so libsqlite3.so libssl_3.so libz_1.so libpython3.14.so libandroid-posix-semaphore.so libandroid-support.so libbz2_1_0.so libexpat_1.so libffi.so libgdbm.so libgdbm_compat.so liblzma_5.so libncursesw_6.so libpanelw_6.so libreadline_8.so libzstd_1.so; do
+for dependency in libcares.so libcrypto_3.so libicudata_78.so libicui18n_78.so libicuuc_78.so libsqlite3.so libssl_3.so libz_1.so libpython3.14.so libandroid-posix-semaphore.so libandroid-support.so libbz2_1_0.so libexpat_1.so libffi.so liblzma_5.so libncursesw_6.so libpanelw_6.so libzstd_1.so; do
   grep -Fx "lib/$ABI/$dependency" "$WORK_DIR/apk-entries.txt"
 done
-if [ "$(grep -Ec "^lib/$ABI/libpython_ext_[0-9]{3}\.so$" "$WORK_DIR/apk-entries.txt")" -ne 75 ]; then
+if [ "$(grep -Ec "^lib/$ABI/libpython_ext_[0-9]{3}\.so$" "$WORK_DIR/apk-entries.txt")" -ne "$PYTHON_PACKAGED_EXTENSION_COUNT" ]; then
   echo "APK does not contain the reviewed Python extension-module set." >&2
   exit 1
 fi
+for forbidden_apk_entry in \
+    "lib/$ABI/libgdbm.so" \
+    "lib/$ABI/libgdbm_compat.so" \
+    "lib/$ABI/libreadline_8.so" \
+    "lib/$ABI/libpython_ext_015.so" \
+    "lib/$ABI/libpython_ext_018.so" \
+    "lib/$ABI/libpython_ext_065.so"; do
+  if grep -Fxq "$forbidden_apk_entry" "$WORK_DIR/apk-entries.txt"; then
+    echo "APK contains a deliberately excluded Python/GNU payload: $forbidden_apk_entry" >&2
+    exit 1
+  fi
+done
 grep -Fx 'assets/third-party/codex/LICENSE' "$WORK_DIR/apk-entries.txt"
 grep -Fx 'assets/third-party/codex/NOTICE' "$WORK_DIR/apk-entries.txt"
 for license_file in NODE-LICENSE CARES-LICENSE ICU-LICENSE OPENSSL-LICENSE ZLIB-LICENSE; do
@@ -1318,6 +1431,18 @@ unzip -p "$VERSIONED_APK" 'assets/third-party/toolchain/RUNTIME-MANIFEST' \
   > "$WORK_DIR/apk-runtime-manifest"
 if ! cmp -s "$TOOL_RUNTIME_MANIFEST" "$WORK_DIR/apk-runtime-manifest"; then
   echo "APK tool-runtime manifest differs from the reviewed build output." >&2
+  exit 1
+fi
+if grep -Eq 'lib-dynload/(_dbm|_gdbm|readline)\.cpython-' "$WORK_DIR/apk-runtime-manifest"; then
+  echo "APK tool-runtime manifest references an excluded Python extension." >&2
+  exit 1
+fi
+unzip -p "$VERSIONED_APK" 'assets/third-party/python/PYTHON-LICENSES' \
+  > "$WORK_DIR/apk-python-licenses"
+if ! cmp -s "$PYTHON_LICENSES" "$WORK_DIR/apk-python-licenses" \
+    || grep -Fq 'GNU GENERAL PUBLIC LICENSE' "$WORK_DIR/apk-python-licenses" \
+    || [ "$(wc -c < "$WORK_DIR/apk-python-licenses")" -gt 131072 ]; then
+  echo "APK Python license inventory is stale, overbroad, or oversized." >&2
   exit 1
 fi
 unzip -p "$VERSIONED_APK" 'assets/third-party/toolchain/RUNTIME.zip' \

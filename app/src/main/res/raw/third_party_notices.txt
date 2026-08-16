@@ -48,12 +48,30 @@ assets/third-party/npm/NPM-LICENSES
 Python 3.14.6 Android ARM64 toolchain
 
 AGENTCODI packages the SHA-256-pinned Termux Python 3.14.6-1 runtime. The
-standard library is compiled to bytecode during the verified build; its 75
-native extension modules and required shared libraries remain executable
-payloads in the app's private native-library directory. The signed runtime
-manifest binds every regular file and native link by size and SHA-256 before
-owner-only materialization. Python and dependency license texts are packaged
-at:
+standard library is compiled to bytecode during the verified build. Exactly
+72 native extension modules and their required shared libraries remain
+executable payloads in the app's private native-library directory. The
+optional _dbm, _gdbm, and readline extensions and the GNU dbm and GNU Readline
+libraries are not bundled. Python's SQLite-backed dbm implementation, shelve,
+and the modern PyREPL interactive shell remain available and are covered by
+build-time execution smokes.
+
+Included Python runtime components and primary license classifications:
+- Python 3.14.6: Python Software Foundation License.
+- libandroid-posix-semaphore and libffi: MIT-style licenses.
+- libandroid-support: Apache License 2.0 and MIT License.
+- libbz2: bzip2 License.
+- liblzma from XZ Utils: BSD Zero Clause License (0BSD).
+- ncurses and ncurses-ui-libs: MIT-style ncurses license.
+- OpenSSL 3.6.3: Apache License 2.0.
+- Expat: MIT License.
+- SQLite: public domain.
+- zlib: zlib License.
+- Zstandard 1.5.7: BSD License.
+
+The signed runtime manifest binds every regular file and native link by size
+and SHA-256 before owner-only materialization. The narrowly selected Python
+and dependency license texts for files actually bundled are packaged at:
 assets/third-party/python/PYTHON-LICENSES
 
 LLVM libc++ shared runtime from the pinned Termux libc++ package.

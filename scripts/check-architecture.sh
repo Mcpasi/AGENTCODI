@@ -328,13 +328,36 @@ if ! rg -q 'NODE_VERSION="24\.18\.0"' "$apk_builder" \
   exit 1
 fi
 
-if ! rg -q 'VERSION_NAME = "0\.4\.9"' "$core_root/BuildIdentity.java" \
-    || ! rg -q 'VERSION_CODE = 29' "$core_root/BuildIdentity.java" \
-    || ! rg -q 'android:versionName="0\.4\.9"' "$manifest" \
-    || ! rg -q 'android:versionCode="29"' "$manifest" \
-    || ! rg -q 'APP_VERSION="0\.4\.9"' "$apk_builder" \
-    || ! rg -q 'VERSION_CODE="29"' "$apk_builder"; then
-  echo "The 0.4.9 identity is inconsistent." >&2
+if rg -q '^(GDBM|READLINE)_(URL|SHA256|ARCHIVE|SOURCE)' "$apk_builder" \
+    || rg -q 'cp -L .*lib(gdbm|readline)' "$apk_builder"; then
+  echo "The APK builder must not fetch or package GNU dbm/readline runtimes." >&2
+  exit 1
+fi
+if ! rg -q 'PYTHON_SOURCE_EXTENSION_COUNT="75"' "$apk_builder" \
+    || ! rg -q 'PYTHON_PACKAGED_EXTENSION_COUNT="72"' "$apk_builder" \
+    || ! rg -q 'lib-dynload/_dbm\.cpython-314-aarch64-linux-android\.so' "$apk_builder" \
+    || ! rg -q 'lib-dynload/_gdbm\.cpython-314-aarch64-linux-android\.so' "$apk_builder" \
+    || ! rg -q 'lib-dynload/readline\.cpython-314-aarch64-linux-android\.so' "$apk_builder" \
+    || ! rg -q 'database\.__class__\.__module__ == "dbm\.sqlite3"' "$apk_builder" \
+    || ! rg -q 'python-sqlite-dbm-shelve-ok' "$apk_builder" \
+    || ! rg -q '_pyrepl-ok' "$apk_builder" \
+    || ! rg -q 'ZSTD_LICENSE_SHA256="7055266497633c9025b777c78eb7235af13922117480ed5c674677adc381c9d8"' "$apk_builder" \
+    || ! rg -q 'LIBLZMA_0BSD_LICENSE_SHA256="0b01625d853911cd0e2e088dcfb743261034a091bb379246cb25a14cc4c74bf1"' "$apk_builder" \
+    || ! rg -q 'GNU runtime libraries are deliberately excluded' "$apk_builder" \
+    || ! rg -q 'GNU Readline and GNU dbm are not bundled' "$PROJECT_ROOT/app/src/main/res/values/strings.xml" \
+    || ! rg -q 'GNU Readline und GNU dbm sind nicht enthalten' "$PROJECT_ROOT/app/src/main/res/values-de/strings.xml" \
+    || ! rg -q '72 native extension modules' "$PROJECT_ROOT/app/src/main/res/raw/third_party_notices.txt"; then
+  echo "The reduced Python runtime, compatibility smokes, or precise license inventory is incomplete." >&2
+  exit 1
+fi
+
+if ! rg -q 'VERSION_NAME = "0\.4\.10"' "$core_root/BuildIdentity.java" \
+    || ! rg -q 'VERSION_CODE = 30' "$core_root/BuildIdentity.java" \
+    || ! rg -q 'android:versionName="0\.4\.10"' "$manifest" \
+    || ! rg -q 'android:versionCode="30"' "$manifest" \
+    || ! rg -q 'APP_VERSION="0\.4\.10"' "$apk_builder" \
+    || ! rg -q 'VERSION_CODE="30"' "$apk_builder"; then
+  echo "The 0.4.10 identity is inconsistent." >&2
   exit 1
 fi
 

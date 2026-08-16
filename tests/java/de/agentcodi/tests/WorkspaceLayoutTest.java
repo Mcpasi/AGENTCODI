@@ -3,6 +3,7 @@ package de.agentcodi.tests;
 import de.agentcodi.storage.WorkspaceLayout;
 import de.agentcodi.storage.WorkspaceImageFile;
 
+import java.io.ByteArrayInputStream;
 import java.io.ByteArrayOutputStream;
 import java.io.File;
 import java.io.IOException;
@@ -10,8 +11,11 @@ import java.io.OutputStream;
 import java.nio.file.Files;
 import java.nio.file.Path;
 import java.nio.file.attribute.PosixFilePermission;
+import java.security.MessageDigest;
 import java.util.EnumSet;
 import java.util.Set;
+import java.util.zip.ZipEntry;
+import java.util.zip.ZipOutputStream;
 
 public final class WorkspaceLayoutTest {
     private WorkspaceLayoutTest() {
@@ -21,6 +25,8 @@ public final class WorkspaceLayoutTest {
         createsStablePrivateLayout();
         preparesPackagedToolAliases();
         rejectsUnexpectedPackagedToolEntries();
+        preparesVerifiedPackagedToolRuntime();
+        rejectsUnsafePackagedToolManifest();
         reportsValidatedNodeActivationState();
         rejectsFileAsBaseDirectory();
         rejectsSymbolicWorkspaceRoot();
@@ -39,7 +45,7 @@ public final class WorkspaceLayoutTest {
         rejectsSymbolicWorkspaceImage();
         rejectsUnsupportedWorkspaceFile();
         rejectsOversizedWorkspaceImage();
-        return 21;
+        return 23;
     }
 
     private static void createsStablePrivateLayout() throws Exception {
@@ -51,6 +57,7 @@ public final class WorkspaceLayoutTest {
             TestSupport.assertTrue(first.getWorkspace().isDirectory(), "workspace directory");
             TestSupport.assertTrue(first.getToolchain().isDirectory(), "toolchain directory");
             TestSupport.assertTrue(first.getToolBin().isDirectory(), "tool binary directory");
+            TestSupport.assertTrue(first.getToolRuntime().isDirectory(), "tool runtime directory");
             TestSupport.assertTrue(first.getState().isDirectory(), "state directory");
             TestSupport.assertTrue(first.getLogs().isDirectory(), "logs directory");
             TestSupport.assertEquals(
@@ -76,6 +83,12 @@ public final class WorkspaceLayoutTest {
                 ),
                 "tool aliases must remain outside the writable workspace"
             );
+            TestSupport.assertFalse(
+                first.getToolRuntime().getCanonicalPath().startsWith(
+                    first.getWorkspace().getCanonicalPath() + File.separator
+                ),
+                "packaged tool runtime must remain outside the writable workspace"
+            );
         } finally {
             deleteRecursively(temporary);
         }
@@ -91,15 +104,36 @@ public final class WorkspaceLayoutTest {
             WorkspaceLayout layout = WorkspaceLayout.create(base.toFile());
             layout.preparePackagedToolAliases(firstShell.toFile());
             Path node = layout.getToolBin().toPath().resolve(WorkspaceLayout.NODE_TOOL_ALIAS);
+            Path npm = layout.getToolBin().toPath().resolve(WorkspaceLayout.NPM_TOOL_ALIAS);
+            Path python = layout.getToolBin().toPath().resolve(
+                WorkspaceLayout.PYTHON_TOOL_ALIAS
+            );
+            Path python3 = layout.getToolBin().toPath().resolve(
+                WorkspaceLayout.PYTHON3_TOOL_ALIAS
+            );
             Path toolchain = layout.getToolBin().toPath().resolve(
                 WorkspaceLayout.TOOLCHAIN_TOOL_ALIAS
             );
             TestSupport.assertTrue(Files.isSymbolicLink(node), "Node tool alias");
+            TestSupport.assertTrue(Files.isSymbolicLink(npm), "npm tool alias");
+            TestSupport.assertTrue(Files.isSymbolicLink(python), "Python tool alias");
+            TestSupport.assertTrue(Files.isSymbolicLink(python3), "Python 3 tool alias");
             TestSupport.assertTrue(Files.isSymbolicLink(toolchain), "toolchain command alias");
             TestSupport.assertEquals(
                 firstShell.toRealPath(),
                 node.toRealPath(),
                 "Node alias target"
+            );
+            TestSupport.assertEquals(firstShell.toRealPath(), npm.toRealPath(), "npm alias target");
+            TestSupport.assertEquals(
+                firstShell.toRealPath(),
+                python.toRealPath(),
+                "Python alias target"
+            );
+            TestSupport.assertEquals(
+                firstShell.toRealPath(),
+                python3.toRealPath(),
+                "Python 3 alias target"
             );
             layout.preparePackagedToolAliases(firstShell.toFile());
             layout.preparePackagedToolAliases(secondShell.toFile());
@@ -113,6 +147,142 @@ public final class WorkspaceLayoutTest {
             Files.deleteIfExists(firstShell);
             Files.deleteIfExists(secondShell);
         }
+    }
+
+    private static void preparesVerifiedPackagedToolRuntime() throws Exception {
+        Path base = Files.createTempDirectory("agentcodi-packaged-runtime-base-");
+        Path nativeDirectory = Files.createTempDirectory("agentcodi-packaged-runtime-native-");
+        try {
+            Path nativeExtension = nativeDirectory.resolve("libpython_ext_000.so");
+            byte[] nativeBytes = "verified-native-extension".getBytes("US-ASCII");
+            Files.write(nativeExtension, nativeBytes);
+            TestSupport.assertTrue(
+                nativeExtension.toFile().setExecutable(true, true),
+                "native extension executable mode"
+            );
+            byte[] npmBytes = "verified npm runtime".getBytes("UTF-8");
+            byte[] pythonBytes = new byte[] {0x42, 0x0d, 0x0d, 0x0a};
+            String manifest = "AGENTCODI_TOOL_RUNTIME_V1\n"
+                + "F\t" + npmBytes.length + "\t" + sha256(npmBytes)
+                + "\tnpm/node_modules/npm/bin/npm-cli.js\n"
+                + "F\t" + pythonBytes.length + "\t" + sha256(pythonBytes)
+                + "\tpython/lib/python3.14/encodings/__init__.pyc\n"
+                + "L\t" + sha256(nativeBytes) + "\tlibpython_ext_000.so"
+                + "\tpython/lib/python3.14/lib-dynload/"
+                + "_ssl.cpython-314-aarch64-linux-android.so\n";
+            byte[] archive = runtimeArchive(npmBytes, pythonBytes);
+            WorkspaceLayout layout = WorkspaceLayout.create(base.toFile());
+            File runtime = layout.preparePackagedToolRuntime(
+                "python-3.14.6-npm-11.19.0",
+                new ByteArrayInputStream(archive),
+                new ByteArrayInputStream(manifest.getBytes("UTF-8")),
+                nativeDirectory.toFile()
+            );
+            Path npmCli = runtime.toPath().resolve("npm/node_modules/npm/bin/npm-cli.js");
+            Path pythonEncoding = runtime.toPath().resolve(
+                "python/lib/python3.14/encodings/__init__.pyc"
+            );
+            Path extension = runtime.toPath().resolve(
+                "python/lib/python3.14/lib-dynload/"
+                    + "_ssl.cpython-314-aarch64-linux-android.so"
+            );
+            TestSupport.assertTrue(Files.isRegularFile(npmCli), "verified npm runtime file");
+            TestSupport.assertTrue(
+                Files.getPosixFilePermissions(npmCli).equals(
+                    EnumSet.of(
+                        PosixFilePermission.OWNER_READ,
+                        PosixFilePermission.OWNER_WRITE
+                    )
+                ),
+                "runtime files are owner-only"
+            );
+            TestSupport.assertTrue(Files.isSymbolicLink(extension), "native extension alias");
+            TestSupport.assertEquals(
+                nativeExtension.toRealPath(),
+                extension.toRealPath(),
+                "native extension target"
+            );
+            Files.setPosixFilePermissions(
+                pythonEncoding,
+                EnumSet.of(
+                    PosixFilePermission.OWNER_READ,
+                    PosixFilePermission.OWNER_WRITE
+                )
+            );
+            Files.write(pythonEncoding, new byte[] {1, 2, 3});
+            File repaired = layout.preparePackagedToolRuntime(
+                "python-3.14.6-npm-11.19.0",
+                new ByteArrayInputStream(archive),
+                new ByteArrayInputStream(manifest.getBytes("UTF-8")),
+                nativeDirectory.toFile()
+            );
+            TestSupport.assertEquals(
+                sha256(pythonBytes),
+                sha256(Files.readAllBytes(repaired.toPath().resolve(
+                    "python/lib/python3.14/encodings/__init__.pyc"
+                ))),
+                "corrupt packaged runtime is replaced from the verified archive"
+            );
+        } finally {
+            deleteRecursively(base);
+            deleteRecursively(nativeDirectory);
+        }
+    }
+
+    private static void rejectsUnsafePackagedToolManifest() throws Exception {
+        final Path base = Files.createTempDirectory("agentcodi-runtime-manifest-base-");
+        final Path nativeDirectory = Files.createTempDirectory(
+            "agentcodi-runtime-manifest-native-"
+        );
+        try {
+            final WorkspaceLayout layout = WorkspaceLayout.create(base.toFile());
+            final byte[] payload = new byte[] {1};
+            final String manifest = "AGENTCODI_TOOL_RUNTIME_V1\nF\t1\t"
+                + sha256(payload) + "\t../escaped\n";
+            TestSupport.expectThrows(
+                IOException.class,
+                new TestSupport.ThrowingRunnable() {
+                    @Override
+                    public void run() throws Exception {
+                        layout.preparePackagedToolRuntime(
+                            "unsafe-runtime",
+                            new ByteArrayInputStream(payload),
+                            new ByteArrayInputStream(manifest.getBytes("UTF-8")),
+                            nativeDirectory.toFile()
+                        );
+                    }
+                },
+                "unsafe packaged runtime manifest path"
+            );
+        } finally {
+            deleteRecursively(base);
+            deleteRecursively(nativeDirectory);
+        }
+    }
+
+    private static byte[] runtimeArchive(byte[] npmBytes, byte[] pythonBytes)
+        throws IOException {
+        ByteArrayOutputStream bytes = new ByteArrayOutputStream();
+        try (ZipOutputStream zip = new ZipOutputStream(bytes)) {
+            zip.putNextEntry(new ZipEntry("npm/node_modules/npm/bin/npm-cli.js"));
+            zip.write(npmBytes);
+            zip.closeEntry();
+            zip.putNextEntry(new ZipEntry(
+                "python/lib/python3.14/encodings/__init__.pyc"
+            ));
+            zip.write(pythonBytes);
+            zip.closeEntry();
+        }
+        return bytes.toByteArray();
+    }
+
+    private static String sha256(byte[] bytes) throws Exception {
+        byte[] digest = MessageDigest.getInstance("SHA-256").digest(bytes);
+        StringBuilder encoded = new StringBuilder(digest.length * 2);
+        for (byte value : digest) {
+            encoded.append(String.format("%02x", Integer.valueOf(value & 0xff)));
+        }
+        return encoded.toString();
     }
 
     private static void rejectsUnexpectedPackagedToolEntries() throws Exception {

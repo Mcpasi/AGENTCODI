@@ -36,6 +36,26 @@ The complete distributor or upstream license texts for Node.js, c-ares, ICU,
 OpenSSL, and zlib are packaged at:
 assets/third-party/node/
 
+npm 11.19.0 Android package
+
+AGENTCODI packages npm from the SHA-256-pinned Termux package and runs its
+verified CLI through the packaged Node.js executable. npm source and bundled
+dependency data are stored only inside the signed APK runtime archive; npm is
+never fetched or replaced at runtime. Its license and the detected license
+texts for its bundled dependencies are packaged at:
+assets/third-party/npm/NPM-LICENSES
+
+Python 3.14.6 Android ARM64 toolchain
+
+AGENTCODI packages the SHA-256-pinned Termux Python 3.14.6-1 runtime. The
+standard library is compiled to bytecode during the verified build; its 75
+native extension modules and required shared libraries remain executable
+payloads in the app's private native-library directory. The signed runtime
+manifest binds every regular file and native link by size and SHA-256 before
+owner-only materialization. Python and dependency license texts are packaged
+at:
+assets/third-party/python/PYTHON-LICENSES
+
 LLVM libc++ shared runtime from the pinned Termux libc++ package.
 The following is the distributor-supplied license text.
 

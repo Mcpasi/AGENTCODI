@@ -31,7 +31,8 @@ find "$PROJECT_ROOT/modules/core/src/main/java" "$PROJECT_ROOT/modules/storage/s
 "$CLANGXX" -std=c++17 -O2 -Wall -Wextra -Werror -pthread \
   "$PROJECT_ROOT/modules/native-engine/src/main/cpp/toolchain_shell_main.cpp" \
   -o "$TEST_BUILD/cpp/libagentcodi-shell.so"
-ln -s /system/bin/sh "$TEST_BUILD/cpp/libnode.so"
+cp /system/bin/sh "$TEST_BUILD/cpp/libnode.so"
+cp /system/bin/sh "$TEST_BUILD/cpp/libpython-bin.so"
 
 "$CLANGXX" -std=c++17 -O2 -Wall -Wextra -Werror -pthread -I"$PROJECT_ROOT/modules/native-engine/src/main/cpp" "$PROJECT_ROOT/modules/native-engine/src/main/cpp/agentcodi_engine.cpp" "$PROJECT_ROOT/modules/native-engine/src/main/cpp/app_server_process.cpp" "$PROJECT_ROOT/tests/cpp/agentcodi_engine_test.cpp" -o "$TEST_BUILD/cpp/agentcodi-engine-test"
 

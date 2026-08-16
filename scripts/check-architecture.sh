@@ -206,9 +206,9 @@ fi
 licenses_activity="$PROJECT_ROOT/app/src/main/java/de/agentcodi/app/LicensesActivity.java"
 agentcodi_license_resource="$PROJECT_ROOT/app/src/main/res/raw/agentcodi_apache_2_0.txt"
 if ! rg -q 'LicensesActivity' "$PROJECT_ROOT/app/src/main/AndroidManifest.xml" \
-    || [ -e "$agentcodi_license_resource" ] \
-    || rg -q 'R\.raw\.agentcodi_apache_2_0|license_show_text' "$licenses_activity" "$default_strings" "$german_strings" \
-    || ! rg -q 'addAttributionCard' "$licenses_activity" \
+    || [ ! -f "$agentcodi_license_resource" ] \
+    || ! rg -q 'R\.raw\.agentcodi_apache_2_0' "$licenses_activity" \
+    || ! rg -q 'license_show_text' "$licenses_activity" "$default_strings" "$german_strings" \
     || ! rg -q 'third-party/codex/LICENSE' "$licenses_activity" \
     || ! rg -q 'third-party/codex/NOTICE' "$licenses_activity" \
     || ! rg -q 'R\.raw\.third_party_notices' "$licenses_activity" \
@@ -273,24 +273,33 @@ if ! rg -q 'getToolchain\(\)' "$storage_layout" \
     || ! rg -q 'secureChild\(root, "tool-bin"\)' "$storage_layout" \
     || ! rg -q 'preparePackagedToolAliases' "$storage_layout" \
     || ! rg -q 'isNodeRuntimeEnabled' "$storage_layout" \
-    || ! rg -q 'agentcodi-toolchain install node' "$toolchain_shell" \
+    || ! rg -q 'isNpmRuntimeEnabled' "$storage_layout" \
+    || ! rg -q 'isPythonRuntimeEnabled' "$storage_layout" \
+    || ! rg -q 'preparePackagedToolRuntime' "$storage_layout" \
+    || ! rg -q 'install <node|npm|python>' "$toolchain_shell" \
     || ! rg -q 'Ask the user for permission' "$toolchain_shell" \
     || ! rg -q 'node-24\.18\.0' "$toolchain_shell" \
+    || ! rg -q 'npm-11\.19\.0' "$toolchain_shell" \
+    || ! rg -q 'python-3\.14\.6' "$toolchain_shell" \
     || ! rg -q 'kPackagedNodeName = "libnode\.so"' "$toolchain_shell" \
     || ! rg -q 'realpath\("/proc/self/exe"' "$toolchain_shell" \
     || rg -q 'required_environment\("AGENTCODI_NODE_PATH"\)' "$toolchain_shell" \
     || rg -q 'AGENTCODI_(SHELL|NODE)_PATH=' "$native_process" \
-    || ! rg -q 'ToolchainCommand\.requestsNodeInstallation' "$approval_dialog" \
+    || ! rg -q 'ToolchainCommand\.requestedInstallationPackage' "$approval_dialog" \
     || ! rg -q 'layout\.preparePackagedToolAliases' "$runtime_service" \
+    || ! rg -q 'layout\.preparePackagedToolRuntime' "$runtime_service" \
     || ! rg -q 'layout\.getToolBin\(\)' "$runtime_service" \
     || ! rg -q 'isNodeRuntimeEnabled' "$terminal_activity" \
     || ! rg -q 'terminal_node_enabled' "$terminal_activity" \
-    || ! rg -q 'AGENTCODI_TOOLCHAIN_PACKAGES=node' "$native_process" \
+    || ! rg -q 'terminal_npm_enabled' "$terminal_activity" \
+    || ! rg -q 'terminal_python_enabled' "$terminal_activity" \
+    || ! rg -q 'AGENTCODI_TOOLCHAIN_PACKAGES=node,npm,python' "$native_process" \
     || ! rg -q 'AGENTCODI_TOOL_BIN=' "$native_process" \
+    || ! rg -q 'AGENTCODI_TOOL_RUNTIME=' "$native_process" \
     || ! rg -q 'SHELL=" \+ std::string\(kSystemShell\)' "$native_process" \
     || ! rg -q 'config\.tool_binary_directory \+ ":"' "$native_process" \
     || ! rg -q 'validate_tool_alias' "$native_process"; then
-  echo "The user-mediated Node.js toolchain activation path is incomplete." >&2
+  echo "The user-mediated Node.js, npm, or Python toolchain activation path is incomplete." >&2
   exit 1
 fi
 
@@ -303,6 +312,9 @@ fi
 if ! rg -q 'NODE_VERSION="24\.18\.0"' "$apk_builder" \
     || ! rg -q 'NODE_SHA256="6456b78aba9e0007de7a4c580d2b34bb3865145bebe06e75273152f8dcba4236"' "$apk_builder" \
     || ! rg -q 'NODE_RUNTIME_SHA256="e31cd5c7f5db279d638c3ad773e04f12842077f0559f4da4f369440a6f4195c3"' "$apk_builder" \
+    || ! rg -q 'NPM_SHA256="385a051111f66c56d0564e6809244f1740427805a78d2e5a5dc470fb420832f8"' "$apk_builder" \
+    || ! rg -q 'PYTHON_SHA256="3166e56c2b6c03fff41191fbb9d736302978e7c484702814d9f6dc99dd6006bd"' "$apk_builder" \
+    || ! rg -q 'AGENTCODI_TOOL_RUNTIME_V1' "$apk_builder" \
     || ! rg -q 'Compiling packaged terminal shell bridge' "$apk_builder" \
     || ! rg -q "toolchain_smoke -c 'node --version'" "$apk_builder" \
     || ! rg -q 'toolchain_model_smoke' "$apk_builder" \
@@ -317,13 +329,13 @@ if ! rg -q 'NODE_VERSION="24\.18\.0"' "$apk_builder" \
   exit 1
 fi
 
-if ! rg -q 'VERSION_NAME = "0\.4\.8"' "$core_root/BuildIdentity.java" \
-    || ! rg -q 'VERSION_CODE = 28' "$core_root/BuildIdentity.java" \
-    || ! rg -q 'android:versionName="0\.4\.8"' "$manifest" \
-    || ! rg -q 'android:versionCode="28"' "$manifest" \
-    || ! rg -q 'APP_VERSION="0\.4\.8"' "$apk_builder" \
-    || ! rg -q 'VERSION_CODE="28"' "$apk_builder"; then
-  echo "The 0.4.8 identity is inconsistent." >&2
+if ! rg -q 'VERSION_NAME = "0\.4\.9"' "$core_root/BuildIdentity.java" \
+    || ! rg -q 'VERSION_CODE = 29' "$core_root/BuildIdentity.java" \
+    || ! rg -q 'android:versionName="0\.4\.9"' "$manifest" \
+    || ! rg -q 'android:versionCode="29"' "$manifest" \
+    || ! rg -q 'APP_VERSION="0\.4\.9"' "$apk_builder" \
+    || ! rg -q 'VERSION_CODE="29"' "$apk_builder"; then
+  echo "The 0.4.9 identity is inconsistent." >&2
   exit 1
 fi
 

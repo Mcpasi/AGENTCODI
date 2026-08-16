@@ -66,8 +66,10 @@ bool run_toolchain_shell(
         || chdir(workspace.c_str()) != 0
         || setenv("AGENTCODI_WORKSPACE", workspace.c_str(), 1) != 0
         || setenv("AGENTCODI_TOOLCHAIN", toolchain.c_str(), 1) != 0
-        || setenv("AGENTCODI_SHELL_PATH", "/system/bin/false", 1) != 0
-        || setenv("AGENTCODI_NODE_PATH", "/system/bin/false", 1) != 0) {
+        || setenv(
+            "AGENTCODI_TOOL_RUNTIME",
+            (workspace.substr(0U, workspace.rfind('/')) + "/tool-runtime").c_str(),
+            1) != 0) {
       _exit(126);
     }
     close(descriptors[1]);
@@ -114,6 +116,21 @@ bool run_toolchain_shell(
   return true;
 }
 
+bool write_fixture_file(const std::string& path, const std::string& contents) {
+  const int descriptor = open(
+      path.c_str(),
+      O_WRONLY | O_CREAT | O_EXCL | O_CLOEXEC | O_NOFOLLOW,
+      0600);
+  if (descriptor < 0) {
+    return false;
+  }
+  const ssize_t written = write(descriptor, contents.data(), contents.size());
+  const bool result = written == static_cast<ssize_t>(contents.size())
+      && fsync(descriptor) == 0;
+  close(descriptor);
+  return result;
+}
+
 }  // namespace
 
 int main(int argc, char* argv[]) {
@@ -138,7 +155,7 @@ int main(int argc, char* argv[]) {
   }
 
   const std::string version = agentcodi::engine_version();
-  expect(version == "agentcodi-native/0.4.8", "engine version");
+  expect(version == "agentcodi-native/0.4.9", "engine version");
   expect(agentcodi::run_self_test() == 0, "native self-test");
 
   const std::string diagnostics = agentcodi::runtime_diagnostics();
@@ -158,9 +175,11 @@ int main(int argc, char* argv[]) {
   agentcodi::ProcessConfig argument_config;
   argument_config.shell_executable = "/private/native/libagentcodi-shell.so";
   argument_config.node_executable = "/private/native/libnode.so";
+  argument_config.python_executable = "/private/native/libpython-bin.so";
   argument_config.working_directory = "/private/workspace";
   argument_config.toolchain_directory = "/private/workspace/toolchain";
   argument_config.tool_binary_directory = "/private/tool-bin";
+  argument_config.tool_runtime_directory = "/private/tool-runtime";
   argument_config.home_directory = "/private/home";
   argument_config.temporary_directory = "/private/temporary";
   argument_config.library_directory = "/private/native";
@@ -210,12 +229,21 @@ int main(int argc, char* argv[]) {
   expect(joined_arguments.find("AGENTCODI_TOOL_BIN=\"/private/tool-bin\"")
              != std::string::npos,
          "Codex tools receive the dedicated packaged tool path");
+  expect(joined_arguments.find("AGENTCODI_TOOL_RUNTIME=\"/private/tool-runtime\"")
+             != std::string::npos,
+         "Codex tools receive the verified packaged runtime path");
+  expect(joined_arguments.find("AGENTCODI_TOOLCHAIN_PACKAGES=\"node,npm,python\"")
+             != std::string::npos,
+         "Codex tools receive all packaged tool names");
   expect(joined_arguments.find("AGENTCODI_SHELL_PATH") == std::string::npos
              && joined_arguments.find("AGENTCODI_NODE_PATH") == std::string::npos,
          "mutable executable path overrides are excluded from tool commands");
   expect(joined_arguments.find("\"/private/tool-bin\"=\"read\"")
              != std::string::npos,
          "packaged tool aliases are read-only in the permission profile");
+  expect(joined_arguments.find("\"/private/tool-runtime\"=\"read\"")
+             != std::string::npos,
+         "packaged runtime is read-only in the permission profile");
   expect(joined_arguments.find("NODE_REPL_HISTORY=\"/dev/null\"")
              != std::string::npos,
          "Node REPL history persistence disabled");
@@ -352,16 +380,55 @@ int main(int argc, char* argv[]) {
     const std::string workspace = root + "/workspace";
     const std::string toolchain = workspace + "/toolchain";
     const std::string tool_binary = root + "/tool-bin";
+    const std::string tool_runtime = root + "/tool-runtime";
     const std::string codex_home = root + "/codex-home";
     const std::string home = root + "/home";
     const std::string temporary = root + "/temporary";
     expect(mkdir(workspace.c_str(), 0700) == 0, "process-test workspace");
     expect(mkdir(toolchain.c_str(), 0700) == 0, "process-test toolchain");
     expect(mkdir(tool_binary.c_str(), 0700) == 0, "process-test tool binary directory");
+    expect(mkdir(tool_runtime.c_str(), 0700) == 0,
+           "process-test packaged runtime directory");
+    expect(mkdir((tool_runtime + "/npm").c_str(), 0700) == 0,
+           "process-test npm runtime directory");
+    expect(mkdir((tool_runtime + "/npm/node_modules").c_str(), 0700) == 0,
+           "process-test npm modules directory");
+    expect(mkdir((tool_runtime + "/npm/node_modules/npm").c_str(), 0700) == 0,
+           "process-test npm package directory");
+    expect(mkdir((tool_runtime + "/npm/node_modules/npm/bin").c_str(), 0700) == 0,
+           "process-test npm binary directory");
+    expect(write_fixture_file(
+               tool_runtime + "/npm/node_modules/npm/bin/npm-cli.js",
+               "printf 'npm-fixture\\n'\n"),
+           "process-test npm CLI fixture");
+    expect(mkdir((tool_runtime + "/python").c_str(), 0700) == 0,
+           "process-test Python home");
+    expect(mkdir((tool_runtime + "/python/lib").c_str(), 0700) == 0,
+           "process-test Python library directory");
+    expect(mkdir((tool_runtime + "/python/lib/python3.14").c_str(), 0700) == 0,
+           "process-test Python standard library directory");
+    expect(mkdir(
+               (tool_runtime + "/python/lib/python3.14/encodings").c_str(),
+               0700) == 0,
+           "process-test Python encodings directory");
+    expect(write_fixture_file(
+               tool_runtime
+                   + "/python/lib/python3.14/encodings/__init__.pyc",
+               "python-fixture\n"),
+           "process-test Python standard-library fixture");
     const std::string supervised_node_alias = tool_binary + "/node";
+    const std::string supervised_npm_alias = tool_binary + "/npm";
+    const std::string supervised_python_alias = tool_binary + "/python";
+    const std::string supervised_python3_alias = tool_binary + "/python3";
     const std::string supervised_toolchain_alias = tool_binary + "/agentcodi-toolchain";
     expect(symlink("/system/bin/sh", supervised_node_alias.c_str()) == 0,
            "process-test Node alias");
+    expect(symlink("/system/bin/sh", supervised_npm_alias.c_str()) == 0,
+           "process-test npm alias");
+    expect(symlink("/system/bin/sh", supervised_python_alias.c_str()) == 0,
+           "process-test Python alias");
+    expect(symlink("/system/bin/sh", supervised_python3_alias.c_str()) == 0,
+           "process-test Python 3 alias");
     expect(symlink("/system/bin/sh", supervised_toolchain_alias.c_str()) == 0,
            "process-test toolchain alias");
     expect(mkdir(codex_home.c_str(), 0700) == 0, "process-test Codex home");
@@ -516,9 +583,11 @@ int main(int argc, char* argv[]) {
     config.code_mode_host_executable = "/system/bin/sh";
     config.shell_executable = "/system/bin/sh";
     config.node_executable = "/system/bin/sh";
+    config.python_executable = "/system/bin/sh";
     config.working_directory = workspace;
     config.toolchain_directory = toolchain;
     config.tool_binary_directory = tool_binary;
+    config.tool_runtime_directory = tool_runtime;
     config.codex_home = codex_home;
     config.home_directory = home;
     config.temporary_directory = temporary;
@@ -665,12 +734,30 @@ int main(int argc, char* argv[]) {
           "activated Node command routes through packaged executable");
       expect(
           run_toolchain_shell(
+              argv[1], {"--toolchain", "install", "npm"}, workspace, toolchain,
+              &shell_output, &shell_exit)
+              && shell_exit == 0
+              && shell_output.find("Enabled packaged npm 11.19.0")
+                  != std::string::npos,
+          "activate packaged npm and its Node dependency");
+      const std::string npm_marker = toolchain + "/installed/npm-11.19.0";
+      expect(
+          run_toolchain_shell(
+              argv[1], {"--npm", "--version"}, workspace, toolchain,
+              &shell_output, &shell_exit)
+              && shell_exit == 0
+              && shell_output.find("npm-fixture") != std::string::npos,
+          "activated npm routes its verified CLI through packaged Node");
+      expect(
+          run_toolchain_shell(
               argv[1], {"--toolchain", "remove", "node"}, workspace, toolchain,
               &shell_output, &shell_exit)
               && shell_exit == 0
               && shell_output.find("Disabled Node.js 24.18.0") != std::string::npos,
           "deactivate packaged Node through shared toolchain interface");
       expect(access(node_marker.c_str(), F_OK) != 0, "remove Node activation marker");
+      expect(access(npm_marker.c_str(), F_OK) != 0,
+             "removing Node also disables dependent npm");
       expect(mkfifo(node_marker.c_str(), 0600) == 0,
              "create non-blocking special marker fixture");
       expect(
@@ -694,17 +781,47 @@ int main(int argc, char* argv[]) {
           "remove repaired special-marker activation");
       expect(access(node_marker.c_str(), F_OK) != 0,
              "remove repaired Node activation marker");
+      expect(
+          run_toolchain_shell(
+              argv[1], {"--toolchain", "install", "python"}, workspace,
+              toolchain, &shell_output, &shell_exit)
+              && shell_exit == 0
+              && shell_output.find("Enabled packaged Python 3.14.6")
+                  != std::string::npos,
+          "activate packaged Python through shared toolchain interface");
+      expect(
+          run_toolchain_shell(
+              argv[1], {"--python", "-c", "printf 'python-ready'"},
+              workspace, toolchain, &shell_output, &shell_exit)
+              && shell_exit == 0
+              && shell_output.find("python-ready") != std::string::npos,
+          "activated Python command routes through packaged executable");
+      expect(
+          run_toolchain_shell(
+              argv[1], {"--toolchain", "remove", "python"}, workspace,
+              toolchain, &shell_output, &shell_exit)
+              && shell_exit == 0,
+          "deactivate packaged Python through shared toolchain interface");
       expect(rmdir((toolchain + "/installed").c_str()) == 0,
              "remove toolchain activation directory");
 
       const std::string bridge_tool_binary = root + "/bridge-tool-bin";
       const std::string bridge_node_alias = bridge_tool_binary + "/node";
+      const std::string bridge_npm_alias = bridge_tool_binary + "/npm";
+      const std::string bridge_python_alias = bridge_tool_binary + "/python";
+      const std::string bridge_python3_alias = bridge_tool_binary + "/python3";
       const std::string bridge_toolchain_alias =
           bridge_tool_binary + "/agentcodi-toolchain";
       expect(mkdir(bridge_tool_binary.c_str(), 0700) == 0,
              "create bridge alias fixture directory");
       expect(symlink(argv[1], bridge_node_alias.c_str()) == 0,
              "create packaged Node command alias");
+      expect(symlink(argv[1], bridge_npm_alias.c_str()) == 0,
+             "create packaged npm command alias");
+      expect(symlink(argv[1], bridge_python_alias.c_str()) == 0,
+             "create packaged Python command alias");
+      expect(symlink(argv[1], bridge_python3_alias.c_str()) == 0,
+             "create packaged Python 3 command alias");
       expect(symlink(argv[1], bridge_toolchain_alias.c_str()) == 0,
              "create packaged toolchain command alias");
       expect(
@@ -727,6 +844,11 @@ int main(int argc, char* argv[]) {
               && shell_exit == 0,
           "PATH-style toolchain alias removes activation");
       expect(unlink(bridge_node_alias.c_str()) == 0, "remove Node alias fixture");
+      expect(unlink(bridge_npm_alias.c_str()) == 0, "remove npm alias fixture");
+      expect(unlink(bridge_python_alias.c_str()) == 0,
+             "remove Python alias fixture");
+      expect(unlink(bridge_python3_alias.c_str()) == 0,
+             "remove Python 3 alias fixture");
       expect(unlink(bridge_toolchain_alias.c_str()) == 0,
              "remove toolchain alias fixture");
       expect(rmdir(bridge_tool_binary.c_str()) == 0,
@@ -867,8 +989,23 @@ int main(int argc, char* argv[]) {
     rmdir(home.c_str());
     rmdir(codex_home.c_str());
     unlink(supervised_node_alias.c_str());
+    unlink(supervised_npm_alias.c_str());
+    unlink(supervised_python_alias.c_str());
+    unlink(supervised_python3_alias.c_str());
     unlink(supervised_toolchain_alias.c_str());
     rmdir(tool_binary.c_str());
+    unlink((tool_runtime + "/npm/node_modules/npm/bin/npm-cli.js").c_str());
+    rmdir((tool_runtime + "/npm/node_modules/npm/bin").c_str());
+    rmdir((tool_runtime + "/npm/node_modules/npm").c_str());
+    rmdir((tool_runtime + "/npm/node_modules").c_str());
+    rmdir((tool_runtime + "/npm").c_str());
+    unlink((tool_runtime
+        + "/python/lib/python3.14/encodings/__init__.pyc").c_str());
+    rmdir((tool_runtime + "/python/lib/python3.14/encodings").c_str());
+    rmdir((tool_runtime + "/python/lib/python3.14").c_str());
+    rmdir((tool_runtime + "/python/lib").c_str());
+    rmdir((tool_runtime + "/python").c_str());
+    rmdir(tool_runtime.c_str());
     rmdir(toolchain.c_str());
     rmdir(workspace.c_str());
     rmdir(root.c_str());

@@ -75,10 +75,18 @@ public final class LicensesActivity extends Activity {
         TextView subtitle = theme.body(getString(R.string.licenses_subtitle));
         theme.addWithTopMargin(page, subtitle, 10);
 
-        addAttributionCard(
+        addLicenseCard(
             page,
             R.string.license_agentcodi_title,
-            R.string.license_agentcodi_summary
+            R.string.license_agentcodi_summary,
+            R.string.license_show_text,
+            new LicenseLoader() {
+                @Override
+                public String load() throws IOException {
+                    return "Copyright 2026 Pascal (Mc Pasi)\n\n"
+                        + readRawResource(R.raw.agentcodi_apache_2_0);
+                }
+            }
         );
         addLicenseCard(
             page,
@@ -117,6 +125,30 @@ public final class LicensesActivity extends Activity {
         );
         addLicenseCard(
             page,
+            R.string.license_npm_runtime_title,
+            R.string.license_npm_runtime_summary,
+            R.string.license_show_notice,
+            new LicenseLoader() {
+                @Override
+                public String load() throws IOException {
+                    return readAsset("third-party/npm/NPM-LICENSES");
+                }
+            }
+        );
+        addLicenseCard(
+            page,
+            R.string.license_python_runtime_title,
+            R.string.license_python_runtime_summary,
+            R.string.license_show_notice,
+            new LicenseLoader() {
+                @Override
+                public String load() throws IOException {
+                    return readAsset("third-party/python/PYTHON-LICENSES");
+                }
+            }
+        );
+        addLicenseCard(
+            page,
             R.string.license_third_party_title,
             R.string.license_third_party_summary,
             R.string.license_show_notice,
@@ -131,20 +163,6 @@ public final class LicensesActivity extends Activity {
             }
         );
         return scroll;
-    }
-
-    private void addAttributionCard(
-        LinearLayout page,
-        int titleResource,
-        int summaryResource
-    ) {
-        LinearLayout card = theme.card();
-        TextView title = theme.text(getString(titleResource), 18, theme.primary);
-        title.setTypeface(Typeface.DEFAULT_BOLD);
-        card.addView(title);
-        TextView summary = theme.body(getString(summaryResource));
-        theme.addWithTopMargin(card, summary, 8);
-        theme.addWithTopMargin(page, card, 16);
     }
 
     private void addLicenseCard(

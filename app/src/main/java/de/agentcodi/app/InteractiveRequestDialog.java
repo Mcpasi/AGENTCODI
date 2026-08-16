@@ -179,11 +179,15 @@ final class InteractiveRequestDialog {
         content.setOrientation(LinearLayout.VERTICAL);
         content.setPadding(theme.dp(22), theme.dp(8), theme.dp(22), theme.dp(12));
 
-        if (ToolchainCommand.requestsNodeInstallation(request.getCommand())) {
+        String requestedPackage = ToolchainCommand.requestedInstallationPackage(
+            request.getCommand()
+        );
+        if (!requestedPackage.isEmpty()) {
             TextView toolchainWarning = theme.text(
                 activity.getString(
                     R.string.approval_toolchain_install_detail,
-                    de.agentcodi.core.BuildIdentity.NODE_RUNTIME_VERSION
+                    packagedToolDisplayName(requestedPackage),
+                    packagedToolVersion(requestedPackage)
                 ),
                 14,
                 theme.danger
@@ -202,7 +206,7 @@ final class InteractiveRequestDialog {
             ViewGroup.LayoutParams.MATCH_PARENT,
             ViewGroup.LayoutParams.WRAP_CONTENT
         );
-        if (ToolchainCommand.requestsNodeInstallation(request.getCommand())) {
+        if (!requestedPackage.isEmpty()) {
             detailParams.topMargin = theme.dp(14);
         }
         content.addView(details, detailParams);
@@ -574,7 +578,7 @@ final class InteractiveRequestDialog {
     }
 
     private String approvalTitle(CodexInteractiveRequest request) {
-        if (ToolchainCommand.requestsNodeInstallation(request.getCommand())) {
+        if (ToolchainCommand.requestsPackageInstallation(request.getCommand())) {
             return activity.getString(R.string.approval_toolchain_install_title);
         }
         if (!request.getNetworkHost().isEmpty()) {
@@ -583,6 +587,32 @@ final class InteractiveRequestDialog {
         return request.getKind() == CodexInteractiveRequest.Kind.COMMAND_APPROVAL
             ? activity.getString(R.string.approval_command_title)
             : activity.getString(R.string.approval_file_title);
+    }
+
+    private static String packagedToolDisplayName(String packageName) {
+        if ("node".equals(packageName)) {
+            return "Node.js";
+        }
+        if ("npm".equals(packageName)) {
+            return "npm";
+        }
+        if ("python".equals(packageName)) {
+            return "Python";
+        }
+        return packageName;
+    }
+
+    private static String packagedToolVersion(String packageName) {
+        if ("node".equals(packageName)) {
+            return de.agentcodi.core.BuildIdentity.NODE_RUNTIME_VERSION;
+        }
+        if ("npm".equals(packageName)) {
+            return de.agentcodi.core.BuildIdentity.NPM_RUNTIME_VERSION;
+        }
+        if ("python".equals(packageName)) {
+            return de.agentcodi.core.BuildIdentity.PYTHON_RUNTIME_VERSION;
+        }
+        return "";
     }
 
     private String approvalDetails(CodexInteractiveRequest request) {

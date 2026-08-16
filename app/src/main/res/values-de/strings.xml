@@ -49,8 +49,8 @@
   <string name="terminal_status_checking">Terminal-Laufzeit wird geprüft…</string>
   <string name="terminal_status_runtime_required">Starte zuerst die Codex-Laufzeit in den Einstellungen.</string>
   <string name="terminal_status_starting">Begrenzte PTY-Shell wird gestartet…</string>
-  <string name="terminal_status_running">Terminal läuft · das paketierte Node.js %1$s kann ausdrücklich aktiviert werden.</string>
-  <string name="terminal_status_running_node_enabled">Terminal läuft · das paketierte Node.js %1$s ist aktiviert.</string>
+  <string name="terminal_status_running">Terminal läuft · paketiertes Node.js, npm und Python können ausdrücklich aktiviert werden.</string>
+  <string name="terminal_status_running_tools_enabled">Terminal läuft · aktiviert: %1$s.</string>
   <string name="terminal_status_failed">Terminal fehlgeschlagen: %1$s</string>
   <string name="terminal_status_exited">Terminal wurde mit Code %1$d beendet.</string>
   <string name="terminal_status_stopped">Terminal ist gestoppt.</string>
@@ -58,6 +58,10 @@
   <string name="terminal_stop">Stoppen</string>
   <string name="terminal_enable_node">Node %1$s aktivieren</string>
   <string name="terminal_node_enabled">Node %1$s aktiviert</string>
+  <string name="terminal_enable_npm">npm %1$s aktivieren</string>
+  <string name="terminal_npm_enabled">npm %1$s aktiviert</string>
+  <string name="terminal_enable_python">Python %1$s aktivieren</string>
+  <string name="terminal_python_enabled">Python %1$s aktiviert</string>
   <string name="terminal_output_empty">Die Terminalausgabe erscheint hier.</string>
   <string name="terminal_clear">Leeren</string>
   <string name="terminal_control_c" translatable="false">Ctrl-C</string>
@@ -231,9 +235,14 @@
   <string name="license_codex_runtime_summary">OpenAI Codex 0.147.2 und die Android-/Termux-Community-Distribution · Apache License 2.0. Dies ist keine offizielle OpenAI-Android-APK.</string>
   <string name="license_node_runtime_title">Mitgelieferte Node.js-Toolchain</string>
   <string name="license_node_runtime_summary">Node.js LTS 24.18.0 und seine gepinnten Android-Runtime-Abhängigkeiten · in der APK enthalten und nur durch eine ausdrückliche Nutzeraktion oder einen genehmigten Codex-Befehl aktiviert. Enthält Komponenten unter MIT-, Unicode-3.0-, Apache-2.0- und zlib-Lizenz sowie gemeinfreie Komponenten.</string>
+  <string name="license_npm_runtime_title">Paketierte npm-Toolchain</string>
+  <string name="license_npm_runtime_summary">npm 11.19.0 und die Lizenztexte seiner enthaltenen Abhängigkeiten · läuft über die gepinnte Node.js-Laufzeit und nutzt ausschließlich workspace/toolchain für schreibbare Cache- und Präfixdaten.</string>
+  <string name="license_python_runtime_title">Paketierte Python-Toolchain</string>
+  <string name="license_python_runtime_summary">Python 3.14.6, seine Bytecode-Standardbibliothek, nativen Erweiterungsmodule und gepinnten Android-Abhängigkeiten · in der APK enthalten und ohne Laufzeit-Downloads ausdrücklich aktivierbar.</string>
   <string name="license_third_party_title">Weitere Drittanbieterhinweise</string>
   <string name="license_third_party_summary">Enthält unter anderem die LLVM-libc++-Runtime unter der University of Illinois/NCSA Open Source License.</string>
   <string name="license_show_notice">LICENSE und NOTICE anzeigen</string>
+  <string name="license_show_text">Lizenz anzeigen</string>
   <string name="license_close">Schließen</string>
   <string name="license_load_failed">Der paketierte Lizenztext konnte nicht geladen werden.</string>
 
@@ -269,7 +278,7 @@
   <string name="approval_network_title">Netzwerkzugriff freigeben?</string>
   <string name="approval_command_title">Befehl freigeben?</string>
   <string name="approval_toolchain_install_title">Tool für Codex aktivieren?</string>
-  <string name="approval_toolchain_install_detail">Codex möchte die mit AGENTCODI paketierte und geprüfte Node.js-Laufzeit %1$s aktivieren. Dabei ändert sich nur die Aktivierungsmarke unter workspace/toolchain. Es wird kein ungeprüftes Programm heruntergeladen oder ausgeführt.</string>
+  <string name="approval_toolchain_install_detail">Codex möchte die geprüfte, paketierte %1$s-Laufzeit %2$s aktivieren. Dabei ändern sich nur owner-only Aktivierungsdaten unter workspace/toolchain; npm aktiviert zusätzlich seine paketierte Node.js-Abhängigkeit. Die Laufzeit selbst wird weder heruntergeladen noch ersetzt.</string>
   <string name="approval_file_title">Dateiänderungen freigeben?</string>
   <string name="approval_target">Ziel</string>
   <string name="approval_command">Befehl</string>

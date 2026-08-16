@@ -24,6 +24,7 @@ import de.agentcodi.storage.WorkspaceLayout;
 
 import java.io.File;
 import java.io.IOException;
+import java.io.InputStream;
 import java.util.Arrays;
 import java.util.Map;
 import java.util.concurrent.atomic.AtomicBoolean;
@@ -78,6 +79,30 @@ public final class AgentRuntimeService extends Service {
         }
         try {
             return layout.isNodeRuntimeEnabled(BuildIdentity.NODE_RUNTIME_VERSION);
+        } catch (IOException error) {
+            return false;
+        }
+    }
+
+    public static boolean isNpmRuntimeEnabled() {
+        WorkspaceLayout layout = activeWorkspaceLayout;
+        if (layout == null) {
+            return false;
+        }
+        try {
+            return layout.isNpmRuntimeEnabled(BuildIdentity.NPM_RUNTIME_VERSION);
+        } catch (IOException error) {
+            return false;
+        }
+    }
+
+    public static boolean isPythonRuntimeEnabled() {
+        WorkspaceLayout layout = activeWorkspaceLayout;
+        if (layout == null) {
+            return false;
+        }
+        try {
+            return layout.isPythonRuntimeEnabled(BuildIdentity.PYTHON_RUNTIME_VERSION);
         } catch (IOException error) {
             return false;
         }
@@ -344,7 +369,27 @@ public final class AgentRuntimeService extends Service {
                         nativeLibraryDirectory,
                         BuildIdentity.NODE_RUNTIME_LIBRARY
                     );
+                    File pythonExecutable = new File(
+                        nativeLibraryDirectory,
+                        BuildIdentity.PYTHON_RUNTIME_LIBRARY
+                    );
                     layout.preparePackagedToolAliases(shellExecutable);
+                    File toolRuntimeDirectory;
+                    try (
+                        InputStream archive = getAssets().open(
+                            BuildIdentity.TOOL_RUNTIME_ARCHIVE_ASSET
+                        );
+                        InputStream manifest = getAssets().open(
+                            BuildIdentity.TOOL_RUNTIME_MANIFEST_ASSET
+                        )
+                    ) {
+                        toolRuntimeDirectory = layout.preparePackagedToolRuntime(
+                            BuildIdentity.TOOL_RUNTIME_NAME,
+                            archive,
+                            manifest,
+                            nativeLibraryDirectory
+                        );
+                    }
                     String temporaryDirectory = getCacheDir().getCanonicalPath();
                     String nativeLibraryPath = nativeLibraryDirectory.getCanonicalPath();
                     NativeAppServerTransport transport = new NativeAppServerTransport(
@@ -353,9 +398,11 @@ public final class AgentRuntimeService extends Service {
                         codeModeHostExecutable.getAbsolutePath(),
                         shellExecutable.getAbsolutePath(),
                         nodeExecutable.getAbsolutePath(),
+                        pythonExecutable.getAbsolutePath(),
                         layout.getWorkspace().getAbsolutePath(),
                         layout.getToolchain().getAbsolutePath(),
                         layout.getToolBin().getAbsolutePath(),
+                        toolRuntimeDirectory.getAbsolutePath(),
                         layout.getCodexHome().getAbsolutePath(),
                         layout.getHome().getAbsolutePath(),
                         temporaryDirectory,

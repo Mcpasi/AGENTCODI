@@ -1,16 +1,29 @@
 package de.agentcodi.core;
 
 public final class ToolchainCommand {
+    private static final String[] PACKAGES = {"node", "npm", "python"};
+
     private ToolchainCommand() {
     }
 
-    public static boolean requestsNodeInstallation(String command) {
+    public static String requestedInstallationPackage(String command) {
         if (command == null || command.isEmpty()) {
-            return false;
+            return "";
         }
         String normalized = normalizeWhitespace(command);
-        return containsCommand(normalized, "agentcodi-toolchain install node")
-            || containsDirectBridgeCommand(normalized);
+        for (String packageName : PACKAGES) {
+            if (containsCommand(
+                normalized,
+                "agentcodi-toolchain install " + packageName
+            ) || containsDirectBridgeCommand(normalized, packageName)) {
+                return packageName;
+            }
+        }
+        return "";
+    }
+
+    public static boolean requestsPackageInstallation(String command) {
+        return !requestedInstallationPackage(command).isEmpty();
     }
 
     private static String normalizeWhitespace(String value) {
@@ -45,8 +58,11 @@ public final class ToolchainCommand {
         return false;
     }
 
-    private static boolean containsDirectBridgeCommand(String value) {
-        String expected = "--toolchain install node";
+    private static boolean containsDirectBridgeCommand(
+        String value,
+        String packageName
+    ) {
+        String expected = "--toolchain install " + packageName;
         int offset = value.indexOf(expected);
         while (offset >= 0) {
             int executableEnd = offset;

@@ -270,11 +270,11 @@ bool read_terminated_terminal_completion(
 }  // namespace
 
 int main(int argc, char* argv[]) {
-  if (argc != 12) {
-    std::cerr << "Expected app-server, host, shell, Node, workspace, toolchain, tool-bin, Codex home, home, temp and library paths\n";
+  if (argc != 14) {
+    std::cerr << "Expected app-server, host, shell, Node, Python, workspace, toolchain, tool-bin, tool-runtime, Codex home, home, temp and library paths\n";
     return 2;
   }
-  const std::string workspace = argv[5];
+  const std::string workspace = argv[6];
   const std::string shell = argv[3];
   if (!safe_json_path(workspace) || !safe_json_path(shell)) {
     std::cerr << "Workspace or shell path is not safe for the bootstrap fixture\n";
@@ -286,13 +286,15 @@ int main(int argc, char* argv[]) {
   config.code_mode_host_executable = argv[2];
   config.shell_executable = argv[3];
   config.node_executable = argv[4];
+  config.python_executable = argv[5];
   config.working_directory = workspace;
-  config.toolchain_directory = argv[6];
-  config.tool_binary_directory = argv[7];
-  config.codex_home = argv[8];
-  config.home_directory = argv[9];
-  config.temporary_directory = argv[10];
-  config.library_directory = argv[11];
+  config.toolchain_directory = argv[7];
+  config.tool_binary_directory = argv[8];
+  config.tool_runtime_directory = argv[9];
+  config.codex_home = argv[10];
+  config.home_directory = argv[11];
+  config.temporary_directory = argv[12];
+  config.library_directory = argv[13];
 
   std::string error;
   std::shared_ptr<agentcodi::AppServerProcess> process =
@@ -305,7 +307,7 @@ int main(int argc, char* argv[]) {
   const std::string initialize =
       "{\"method\":\"initialize\",\"id\":1,\"params\":{"
       "\"clientInfo\":{\"name\":\"agentcodi_android\","
-      "\"title\":\"AGENTCODI\",\"version\":\"0.4.8\"},"
+      "\"title\":\"AGENTCODI\",\"version\":\"0.4.9\"},"
       "\"capabilities\":{\"experimentalApi\":true,"
       "\"optOutNotificationMethods\":[\"rawResponseItem/completed\","
       "\"rawResponse/completed\"]}}}";

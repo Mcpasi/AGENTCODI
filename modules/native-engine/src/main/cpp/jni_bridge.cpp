@@ -83,9 +83,11 @@ Java_de_agentcodi_runtime_NativeEngine_nativeStartAppServer(
     jstring code_mode_host_executable,
     jstring shell_executable,
     jstring node_executable,
+    jstring python_executable,
     jstring workspace,
     jstring toolchain,
     jstring tool_binary_directory,
+    jstring tool_runtime_directory,
     jstring codex_home,
     jstring home,
     jstring temporary_directory,
@@ -107,6 +109,11 @@ Java_de_agentcodi_runtime_NativeEngine_nativeStartAppServer(
           node_executable,
           "Node executable",
           &config.node_executable)
+      || !from_java_string(
+          environment,
+          python_executable,
+          "Python executable",
+          &config.python_executable)
       || !from_java_string(environment, workspace, "Workspace", &config.working_directory)
       || !from_java_string(
           environment,
@@ -118,6 +125,11 @@ Java_de_agentcodi_runtime_NativeEngine_nativeStartAppServer(
           tool_binary_directory,
           "Packaged tool directory",
           &config.tool_binary_directory)
+      || !from_java_string(
+          environment,
+          tool_runtime_directory,
+          "Packaged tool runtime",
+          &config.tool_runtime_directory)
       || !from_java_string(environment, codex_home, "Codex home", &config.codex_home)
       || !from_java_string(environment, home, "Home", &config.home_directory)
       || !from_java_string(

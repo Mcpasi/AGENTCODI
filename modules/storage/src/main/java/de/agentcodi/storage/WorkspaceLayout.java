@@ -2,6 +2,7 @@ package de.agentcodi.storage;
 
 import java.io.File;
 import java.io.IOException;
+import java.io.InputStream;
 import java.nio.charset.StandardCharsets;
 import java.nio.file.DirectoryStream;
 import java.nio.file.Files;
@@ -14,12 +15,16 @@ import java.util.Set;
 
 public final class WorkspaceLayout {
     public static final String NODE_TOOL_ALIAS = "node";
+    public static final String NPM_TOOL_ALIAS = "npm";
+    public static final String PYTHON_TOOL_ALIAS = "python";
+    public static final String PYTHON3_TOOL_ALIAS = "python3";
     public static final String TOOLCHAIN_TOOL_ALIAS = "agentcodi-toolchain";
 
     private final File root;
     private final File workspace;
     private final File toolchain;
     private final File toolBin;
+    private final File toolRuntime;
     private final File state;
     private final File logs;
     private final File home;
@@ -30,6 +35,7 @@ public final class WorkspaceLayout {
         File workspace,
         File toolchain,
         File toolBin,
+        File toolRuntime,
         File state,
         File logs,
         File home,
@@ -39,6 +45,7 @@ public final class WorkspaceLayout {
         this.workspace = workspace;
         this.toolchain = toolchain;
         this.toolBin = toolBin;
+        this.toolRuntime = toolRuntime;
         this.state = state;
         this.logs = logs;
         this.home = home;
@@ -51,6 +58,7 @@ public final class WorkspaceLayout {
         File workspace = secureChild(root, "workspace");
         File toolchain = secureChild(workspace, "toolchain");
         File toolBin = secureChild(root, "tool-bin");
+        File toolRuntime = secureChild(root, "tool-runtime");
         File state = secureChild(root, "state");
         File logs = secureChild(root, "logs");
         File home = secureChild(root, "home");
@@ -63,6 +71,7 @@ public final class WorkspaceLayout {
             workspace,
             toolchain,
             toolBin,
+            toolRuntime,
             state,
             logs,
             home,
@@ -92,16 +101,54 @@ public final class WorkspaceLayout {
         return toolBin;
     }
 
+    public File getToolRuntime() {
+        return toolRuntime;
+    }
+
     public void preparePackagedToolAliases(File shellExecutable) throws IOException {
         File canonicalShell = requirePackagedExecutable(shellExecutable);
         prepareToolAlias(NODE_TOOL_ALIAS, canonicalShell);
+        prepareToolAlias(NPM_TOOL_ALIAS, canonicalShell);
+        prepareToolAlias(PYTHON_TOOL_ALIAS, canonicalShell);
+        prepareToolAlias(PYTHON3_TOOL_ALIAS, canonicalShell);
         prepareToolAlias(TOOLCHAIN_TOOL_ALIAS, canonicalShell);
         requireOnlyPackagedToolAliases();
     }
 
+    public File preparePackagedToolRuntime(
+        String runtimeName,
+        InputStream archive,
+        InputStream manifest,
+        File nativeLibraryDirectory
+    ) throws IOException {
+        return PackagedToolRuntime.prepare(
+            toolRuntime,
+            runtimeName,
+            archive,
+            manifest,
+            nativeLibraryDirectory
+        );
+    }
+
     public boolean isNodeRuntimeEnabled(String version) throws IOException {
+        return isPackagedToolEnabled("node", version);
+    }
+
+    public boolean isNpmRuntimeEnabled(String version) throws IOException {
+        return isPackagedToolEnabled("npm", version);
+    }
+
+    public boolean isPythonRuntimeEnabled(String version) throws IOException {
+        return isPackagedToolEnabled("python", version);
+    }
+
+    private boolean isPackagedToolEnabled(String packageName, String version)
+        throws IOException {
+        if (!packageName.matches("[a-z][a-z0-9-]{0,31}")) {
+            throw new IllegalArgumentException("Tool package name is invalid");
+        }
         if (version == null || !version.matches("[0-9]+\\.[0-9]+\\.[0-9]+")) {
-            throw new IllegalArgumentException("Node.js version is invalid");
+            throw new IllegalArgumentException("Tool package version is invalid");
         }
         Path installed = toolchain.toPath().resolve("installed");
         if (!Files.exists(installed, LinkOption.NOFOLLOW_LINKS)) {
@@ -112,7 +159,7 @@ public final class WorkspaceLayout {
             || !installed.toFile().getCanonicalFile().equals(installed.toFile())) {
             return false;
         }
-        Path marker = installed.resolve("node-" + version);
+        Path marker = installed.resolve(packageName + "-" + version);
         if (!Files.exists(marker, LinkOption.NOFOLLOW_LINKS)
             || Files.isSymbolicLink(marker)) {
             return false;
@@ -196,7 +243,11 @@ public final class WorkspaceLayout {
         try (DirectoryStream<Path> entries = Files.newDirectoryStream(toolBin.toPath())) {
             for (Path entry : entries) {
                 String name = entry.getFileName().toString();
-                if (!NODE_TOOL_ALIAS.equals(name) && !TOOLCHAIN_TOOL_ALIAS.equals(name)) {
+                if (!NODE_TOOL_ALIAS.equals(name)
+                    && !NPM_TOOL_ALIAS.equals(name)
+                    && !PYTHON_TOOL_ALIAS.equals(name)
+                    && !PYTHON3_TOOL_ALIAS.equals(name)
+                    && !TOOLCHAIN_TOOL_ALIAS.equals(name)) {
                     throw new IOException("Unexpected entry in packaged tool directory");
                 }
                 if (!Files.isSymbolicLink(entry)) {
@@ -205,7 +256,7 @@ public final class WorkspaceLayout {
                 count++;
             }
         }
-        if (count != 2) {
+        if (count != 5) {
             throw new IOException("Packaged tool aliases are incomplete");
         }
     }

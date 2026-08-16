@@ -12,8 +12,8 @@ public final class BuildIdentityTest {
     }
 
     private static void pinsCompleteCodeModeRuntime() {
-        TestSupport.assertEquals("0.4.8", BuildIdentity.VERSION_NAME, "app version");
-        TestSupport.assertEquals(28, BuildIdentity.VERSION_CODE, "app version code");
+        TestSupport.assertEquals("0.4.9", BuildIdentity.VERSION_NAME, "app version");
+        TestSupport.assertEquals(29, BuildIdentity.VERSION_CODE, "app version code");
         TestSupport.assertEquals(
             "0.147.2",
             BuildIdentity.CODEX_RUNTIME_VERSION,
@@ -43,6 +43,21 @@ public final class BuildIdentityTest {
             "libnode.so",
             BuildIdentity.NODE_RUNTIME_LIBRARY,
             "Node.js runtime library"
+        );
+        TestSupport.assertEquals(
+            "11.19.0",
+            BuildIdentity.NPM_RUNTIME_VERSION,
+            "npm runtime version"
+        );
+        TestSupport.assertEquals(
+            "3.14.6",
+            BuildIdentity.PYTHON_RUNTIME_VERSION,
+            "Python runtime version"
+        );
+        TestSupport.assertEquals(
+            "libpython-bin.so",
+            BuildIdentity.PYTHON_RUNTIME_LIBRARY,
+            "Python runtime library"
         );
     }
 }

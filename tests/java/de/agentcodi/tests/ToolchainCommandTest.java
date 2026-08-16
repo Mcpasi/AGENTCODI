@@ -7,35 +7,46 @@ public final class ToolchainCommandTest {
     }
 
     public static int run() {
-        recognizesNodeActivationRequests();
+        recognizesPackageActivationRequests();
         rejectsUnrelatedOrEmbeddedText();
         rejectsArgumentsAndQuotedDescriptions();
         return 3;
     }
 
-    private static void recognizesNodeActivationRequests() {
-        TestSupport.assertTrue(
-            ToolchainCommand.requestsNodeInstallation(
+    private static void recognizesPackageActivationRequests() {
+        TestSupport.assertEquals(
+            "node",
+            ToolchainCommand.requestedInstallationPackage(
                 "agentcodi-toolchain   install\tnode"
             ),
             "shell function activation"
         );
-        TestSupport.assertTrue(
-            ToolchainCommand.requestsNodeInstallation(
-                "/private/native/libagentcodi-shell.so --toolchain install node"
-                    + " && node --version"
+        TestSupport.assertEquals(
+            "npm",
+            ToolchainCommand.requestedInstallationPackage(
+                "agentcodi-toolchain install npm"
             ),
-            "direct shell bridge activation"
+            "npm activation"
+        );
+        TestSupport.assertEquals(
+            "python",
+            ToolchainCommand.requestedInstallationPackage(
+                "/private/native/libagentcodi-shell.so --toolchain install python"
+                    + " && python --version"
+            ),
+            "direct Python shell bridge activation"
         );
     }
 
     private static void rejectsUnrelatedOrEmbeddedText() {
-        TestSupport.assertFalse(
-            ToolchainCommand.requestsNodeInstallation("node --version"),
+        TestSupport.assertEquals(
+            "",
+            ToolchainCommand.requestedInstallationPackage("node --version"),
             "ordinary Node command"
         );
-        TestSupport.assertFalse(
-            ToolchainCommand.requestsNodeInstallation(
+        TestSupport.assertEquals(
+            "",
+            ToolchainCommand.requestedInstallationPackage(
                 "echo xagentcodi-toolchain install node-suffix"
             ),
             "embedded activation text"
@@ -43,20 +54,23 @@ public final class ToolchainCommandTest {
     }
 
     private static void rejectsArgumentsAndQuotedDescriptions() {
-        TestSupport.assertFalse(
-            ToolchainCommand.requestsNodeInstallation(
+        TestSupport.assertEquals(
+            "",
+            ToolchainCommand.requestedInstallationPackage(
                 "echo agentcodi-toolchain install node"
             ),
             "installer text used as an argument"
         );
-        TestSupport.assertFalse(
-            ToolchainCommand.requestsNodeInstallation(
+        TestSupport.assertEquals(
+            "",
+            ToolchainCommand.requestedInstallationPackage(
                 "agentcodi-toolchain install node unexpected"
             ),
             "invalid installer arguments"
         );
-        TestSupport.assertFalse(
-            ToolchainCommand.requestsNodeInstallation(
+        TestSupport.assertEquals(
+            "",
+            ToolchainCommand.requestedInstallationPackage(
                 "echo /private/native/libagentcodi-shell.so --toolchain install node"
             ),
             "direct bridge text used as an argument"

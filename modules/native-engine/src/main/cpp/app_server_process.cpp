@@ -1367,9 +1367,12 @@ std::vector<std::string> child_environment(const ProcessConfig& config) {
       "AGENTCODI_WORKSPACE=" + config.working_directory,
       "AGENTCODI_TOOLCHAIN=" + config.toolchain_directory,
       "AGENTCODI_TOOL_BIN=" + config.tool_binary_directory,
+      "AGENTCODI_TOOL_RUNTIME=" + config.tool_runtime_directory,
       "AGENTCODI_NODE_VERSION=24.18.0",
+      "AGENTCODI_NPM_VERSION=11.19.0",
+      "AGENTCODI_PYTHON_VERSION=3.14.6",
       "AGENTCODI_TOOLCHAIN_COMMAND=agentcodi-toolchain",
-      "AGENTCODI_TOOLCHAIN_PACKAGES=node",
+      "AGENTCODI_TOOLCHAIN_PACKAGES=node,npm,python",
       "CODEX_SELF_EXE=" + config.executable,
       "CODEX_CODE_MODE_HOST_PATH=" + config.code_mode_host_executable,
   };
@@ -1545,9 +1548,12 @@ std::vector<std::string> CodexAppServerArguments(const ProcessConfig& config) {
       + ",AGENTCODI_WORKSPACE=" + toml_string(config.working_directory)
       + ",AGENTCODI_TOOLCHAIN=" + toml_string(config.toolchain_directory)
       + ",AGENTCODI_TOOL_BIN=" + toml_string(config.tool_binary_directory)
+      + ",AGENTCODI_TOOL_RUNTIME=" + toml_string(config.tool_runtime_directory)
       + ",AGENTCODI_NODE_VERSION=\"24.18.0\""
+      + ",AGENTCODI_NPM_VERSION=\"11.19.0\""
+      + ",AGENTCODI_PYTHON_VERSION=\"3.14.6\""
       + ",AGENTCODI_TOOLCHAIN_COMMAND=\"agentcodi-toolchain\""
-      + ",AGENTCODI_TOOLCHAIN_PACKAGES=\"node\"}}";
+      + ",AGENTCODI_TOOLCHAIN_PACKAGES=\"node,npm,python\"}}";
   return {
       "app-server",
       "--stdio",
@@ -1595,6 +1601,7 @@ std::vector<std::string> CodexAppServerArguments(const ProcessConfig& config) {
       "-c",
       "permissions.agentcodi-workspace.filesystem={\":minimal\"=\"read\","
       + toml_string(config.tool_binary_directory) + "=\"read\","
+      + toml_string(config.tool_runtime_directory) + "=\"read\","
       "\":workspace_roots\"={\".\"=\"write\"}}",
   };
 }
@@ -1628,6 +1635,11 @@ std::shared_ptr<AppServerProcess> AppServerProcess::Start(
           "Node executable",
           &config.node_executable,
           error)
+      || !canonical_regular_executable(
+          requested_config.python_executable,
+          "Python executable",
+          &config.python_executable,
+          error)
       || !canonical_directory(
           requested_config.working_directory,
           "Workspace",
@@ -1642,6 +1654,11 @@ std::shared_ptr<AppServerProcess> AppServerProcess::Start(
           requested_config.tool_binary_directory,
           "Packaged tool binary",
           &config.tool_binary_directory,
+          error)
+      || !canonical_directory(
+          requested_config.tool_runtime_directory,
+          "Packaged tool runtime",
+          &config.tool_runtime_directory,
           error)
       || !canonical_directory(
           requested_config.codex_home,
@@ -1687,9 +1704,38 @@ std::shared_ptr<AppServerProcess> AppServerProcess::Start(
     *error = "Packaged tool directory must be private and separate";
     return nullptr;
   }
+  struct stat tool_runtime_metadata {};
+  if (lstat(config.tool_runtime_directory.c_str(), &tool_runtime_metadata) != 0
+      || !S_ISDIR(tool_runtime_metadata.st_mode)
+      || tool_runtime_metadata.st_uid != geteuid()
+      || (tool_runtime_metadata.st_mode & 077) != 0
+      || contains_path(config.working_directory, config.tool_runtime_directory)
+      || contains_path(config.tool_runtime_directory, config.working_directory)
+      || contains_path(config.codex_home, config.tool_runtime_directory)
+      || contains_path(config.tool_runtime_directory, config.codex_home)
+      || contains_path(config.tool_binary_directory, config.tool_runtime_directory)
+      || contains_path(config.tool_runtime_directory, config.tool_binary_directory)) {
+    *error = "Packaged tool runtime must be private and separate";
+    return nullptr;
+  }
   if (!validate_tool_alias(
           config.tool_binary_directory,
           "node",
+          config.shell_executable,
+          error)
+      || !validate_tool_alias(
+          config.tool_binary_directory,
+          "npm",
+          config.shell_executable,
+          error)
+      || !validate_tool_alias(
+          config.tool_binary_directory,
+          "python",
+          config.shell_executable,
+          error)
+      || !validate_tool_alias(
+          config.tool_binary_directory,
+          "python3",
           config.shell_executable,
           error)
       || !validate_tool_alias(
@@ -1708,6 +1754,11 @@ std::shared_ptr<AppServerProcess> AppServerProcess::Start(
       || contains_path(config.codex_home, config.shell_executable)
       || contains_path(config.working_directory, config.node_executable)
       || contains_path(config.codex_home, config.node_executable)) {
+    *error = "Packaged executables must remain outside workspace and Codex home";
+    return nullptr;
+  }
+  if (contains_path(config.working_directory, config.python_executable)
+      || contains_path(config.codex_home, config.python_executable)) {
     *error = "Packaged executables must remain outside workspace and Codex home";
     return nullptr;
   }

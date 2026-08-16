@@ -35,7 +35,7 @@ import java.util.Arrays;
 public final class TerminalActivity extends Activity {
     private static final long ACTIVE_REFRESH_MILLISECONDS = 180L;
     private static final long IDLE_REFRESH_MILLISECONDS = 700L;
-    private static final long NODE_STATUS_REFRESH_MILLISECONDS = 650L;
+    private static final long TOOL_STATUS_REFRESH_MILLISECONDS = 650L;
     private static final int MAXIMUM_COMMAND_CHARACTERS = 4095;
 
     private final Handler handler = new Handler(Looper.getMainLooper());
@@ -64,12 +64,16 @@ public final class TerminalActivity extends Activity {
     private Button stopButton;
     private Button sendButton;
     private Button nodeButton;
+    private Button npmButton;
+    private Button pythonButton;
     private Button controlCButton;
     private Button tabButton;
     private Button escapeButton;
     private long renderedRevision = Long.MIN_VALUE;
-    private long nodeStatusCheckedAt = Long.MIN_VALUE;
+    private long toolStatusCheckedAt = Long.MIN_VALUE;
     private boolean renderedNodeEnabled;
+    private boolean renderedNpmEnabled;
+    private boolean renderedPythonEnabled;
     private boolean refreshActive;
     private boolean uiReady;
     private boolean destroyed;
@@ -204,8 +208,34 @@ public final class TerminalActivity extends Activity {
                 sendLiteral("agentcodi-toolchain install node\n");
             }
         });
-        actions.addView(nodeButton, weightedButtonParams(1.35f, 6));
         theme.addWithTopMargin(root, actions, 8);
+
+        LinearLayout toolActions = new LinearLayout(this);
+        toolActions.setOrientation(LinearLayout.HORIZONTAL);
+        toolActions.addView(nodeButton, weightedButtonParams(1.0f, 0));
+        npmButton = theme.compactButton(getString(
+            R.string.terminal_enable_npm,
+            BuildIdentity.NPM_RUNTIME_VERSION
+        ));
+        npmButton.setOnClickListener(new View.OnClickListener() {
+            @Override
+            public void onClick(View view) {
+                sendLiteral("agentcodi-toolchain install npm\n");
+            }
+        });
+        toolActions.addView(npmButton, weightedButtonParams(1.0f, 6));
+        pythonButton = theme.compactButton(getString(
+            R.string.terminal_enable_python,
+            BuildIdentity.PYTHON_RUNTIME_VERSION
+        ));
+        pythonButton.setOnClickListener(new View.OnClickListener() {
+            @Override
+            public void onClick(View view) {
+                sendLiteral("agentcodi-toolchain install python\n");
+            }
+        });
+        toolActions.addView(pythonButton, weightedButtonParams(1.0f, 6));
+        theme.addWithTopMargin(root, toolActions, 6);
 
         outputScroll = new ScrollView(this);
         outputScroll.setFillViewport(true);
@@ -372,12 +402,16 @@ public final class TerminalActivity extends Activity {
         TerminalSessionSnapshot terminal = AgentRuntimeService.terminalSnapshot();
         boolean runtimeReady = runtime.getPhase() == RuntimePhase.READY;
         long now = SystemClock.elapsedRealtime();
-        if (nodeStatusCheckedAt == Long.MIN_VALUE
-            || now - nodeStatusCheckedAt >= NODE_STATUS_REFRESH_MILLISECONDS) {
+        if (toolStatusCheckedAt == Long.MIN_VALUE
+            || now - toolStatusCheckedAt >= TOOL_STATUS_REFRESH_MILLISECONDS) {
             renderedNodeEnabled = AgentRuntimeService.isNodeRuntimeEnabled();
-            nodeStatusCheckedAt = now;
+            renderedNpmEnabled = AgentRuntimeService.isNpmRuntimeEnabled();
+            renderedPythonEnabled = AgentRuntimeService.isPythonRuntimeEnabled();
+            toolStatusCheckedAt = now;
         }
         boolean nodeEnabled = renderedNodeEnabled;
+        boolean npmEnabled = renderedNpmEnabled;
+        boolean pythonEnabled = renderedPythonEnabled;
         if (!runtimeReady) {
             statusView.setText(R.string.terminal_status_runtime_required);
             statusView.setTextColor(theme.danger);
@@ -391,12 +425,10 @@ public final class TerminalActivity extends Activity {
             ));
             statusView.setTextColor(theme.danger);
         } else if (terminal.isRunning()) {
-            statusView.setText(getString(
-                nodeEnabled
-                    ? R.string.terminal_status_running_node_enabled
-                    : R.string.terminal_status_running,
-                BuildIdentity.NODE_RUNTIME_VERSION
-            ));
+            String enabledTools = enabledTools(nodeEnabled, npmEnabled, pythonEnabled);
+            statusView.setText(enabledTools.isEmpty()
+                ? getString(R.string.terminal_status_running)
+                : getString(R.string.terminal_status_running_tools_enabled, enabledTools));
             statusView.setTextColor(theme.accent);
         } else if (terminal.getExitCode() != Integer.MIN_VALUE) {
             statusView.setText(getString(
@@ -414,10 +446,20 @@ public final class TerminalActivity extends Activity {
             nodeEnabled ? R.string.terminal_node_enabled : R.string.terminal_enable_node,
             BuildIdentity.NODE_RUNTIME_VERSION
         ));
+        npmButton.setText(getString(
+            npmEnabled ? R.string.terminal_npm_enabled : R.string.terminal_enable_npm,
+            BuildIdentity.NPM_RUNTIME_VERSION
+        ));
+        pythonButton.setText(getString(
+            pythonEnabled ? R.string.terminal_python_enabled : R.string.terminal_enable_python,
+            BuildIdentity.PYTHON_RUNTIME_VERSION
+        ));
         theme.setEnabled(startButton, runtimeReady && !running && !terminal.isStarting());
         theme.setEnabled(stopButton, running || terminal.isStarting());
         theme.setEnabled(sendButton, running);
         theme.setEnabled(nodeButton, running && !nodeEnabled);
+        theme.setEnabled(npmButton, running && !npmEnabled);
+        theme.setEnabled(pythonButton, running && !pythonEnabled);
         theme.setEnabled(controlCButton, running);
         theme.setEnabled(tabButton, running);
         theme.setEnabled(escapeButton, running);
@@ -437,6 +479,27 @@ public final class TerminalActivity extends Activity {
                 }
             });
         }
+    }
+
+    private String enabledTools(boolean nodeEnabled, boolean npmEnabled, boolean pythonEnabled) {
+        StringBuilder enabled = new StringBuilder();
+        if (nodeEnabled) {
+            enabled.append("Node.js ").append(BuildIdentity.NODE_RUNTIME_VERSION);
+        }
+        if (npmEnabled) {
+            appendEnabledTool(enabled, "npm " + BuildIdentity.NPM_RUNTIME_VERSION);
+        }
+        if (pythonEnabled) {
+            appendEnabledTool(enabled, "Python " + BuildIdentity.PYTHON_RUNTIME_VERSION);
+        }
+        return enabled.toString();
+    }
+
+    private static void appendEnabledTool(StringBuilder enabled, String tool) {
+        if (enabled.length() > 0) {
+            enabled.append(", ");
+        }
+        enabled.append(tool);
     }
 
     private void resizeTerminal() {

@@ -21,7 +21,8 @@ import java.util.concurrent.TimeUnit;
 import java.util.concurrent.atomic.AtomicLong;
 
 public final class CodexSessionController
-    implements CodexAppServerClient.Listener, CodexCatalogRpc, AutoCloseable {
+    implements CodexAppServerClient.Listener, CodexCatalogRpc, CodexMcpConfigurationRpc,
+    AutoCloseable {
     public interface ConnectionFailureListener {
         void onConnectionFailed(CodexSessionController controller, Throwable error);
     }
@@ -241,6 +242,58 @@ public final class CodexSessionController
             || "app/installed".equals(method)
             || "app/read".equals(method)
             || "plugin/list".equals(method);
+    }
+
+    @Override
+    public Map<String, Object> readMcpConfiguration(long timeoutMilliseconds)
+        throws Exception {
+        validateMcpConfigurationTimeout(timeoutMilliseconds);
+        requireReadyMcpConfigurationClient();
+        return client.request(
+            "config/read",
+            JsonCodec.object(
+                "cwd", workspacePath,
+                "includeLayers", Boolean.FALSE
+            ),
+            timeoutMilliseconds
+        );
+    }
+
+    @Override
+    public Map<String, Object> writeMcpConfiguration(
+        Map<String, Object> parameters,
+        long timeoutMilliseconds
+    ) throws Exception {
+        validateMcpConfigurationTimeout(timeoutMilliseconds);
+        if (!CodexMcpConfigurationRequestValidator.isValidWrite(parameters)) {
+            throw new IllegalArgumentException("MCP configuration write is outside the boundary");
+        }
+        requireReadyMcpConfigurationClient();
+        return client.request("config/batchWrite", parameters, timeoutMilliseconds);
+    }
+
+    @Override
+    public Map<String, Object> reloadMcpConfiguration(long timeoutMilliseconds)
+        throws Exception {
+        validateMcpConfigurationTimeout(timeoutMilliseconds);
+        requireReadyMcpConfigurationClient();
+        return client.request("config/mcpServer/reload", null, timeoutMilliseconds);
+    }
+
+    private static void validateMcpConfigurationTimeout(long timeoutMilliseconds) {
+        if (timeoutMilliseconds <= 0L || timeoutMilliseconds > NORMAL_TIMEOUT_MS) {
+            throw new IllegalArgumentException(
+                "MCP configuration RPC timeout is outside the allowed range"
+            );
+        }
+    }
+
+    private void requireReadyMcpConfigurationClient() {
+        synchronized (this) {
+            if (closed || !ready) {
+                throw new IllegalStateException("Codex app-server is not ready");
+            }
+        }
     }
 
     public TerminalSessionSnapshot terminalSnapshot() {

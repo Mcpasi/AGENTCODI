@@ -41,17 +41,44 @@ if ! rg -q '"experimentalFeature/list"' "$mcp_client" \
     || ! rg -q 'forceReload", Boolean\.FALSE' "$mcp_client" \
     || ! rg -q 'forceRefetch", Boolean\.FALSE' "$mcp_client" \
     || ! rg -q 'marketplaceKinds", JsonCodec\.array\("local"\)' "$mcp_client"; then
-  echo "The MCP catalog must remain an app-server-owned, read-only projection." >&2
+  echo "The MCP capability catalog must remain an app-server-owned, read-only projection." >&2
+  exit 1
+fi
+
+mcp_rpc="$PROJECT_ROOT/modules/core/src/main/java/de/agentcodi/core/CodexMcpConfigurationRpc.java"
+mcp_session="$PROJECT_ROOT/modules/core/src/main/java/de/agentcodi/core/CodexSessionController.java"
+mcp_validator="$PROJECT_ROOT/modules/core/src/main/java/de/agentcodi/core/CodexMcpConfigurationRequestValidator.java"
+if ! rg -q 'CodexMcpConfigurationRpc' "$mcp_client" \
+    || ! rg -q 'McpConfigurationController' "$mcp_client" \
+    || ! rg -q '"config/read"' "$mcp_session" \
+    || ! rg -q '"config/batchWrite"' "$mcp_session" \
+    || ! rg -q '"config/mcpServer/reload"' "$mcp_session" \
+    || rg -n '"config/value/write"' "$PROJECT_ROOT/modules" "$PROJECT_ROOT/app/src/main/java" \
+    || ! rg -q 'isValidWriteRequest' "$mcp_rpc" \
+    || ! rg -q '!Boolean\.FALSE\.equals\(parameters\.get\("reloadUserConfig"\)\)' "$mcp_validator" \
+    || ! rg -q 'parameters\.containsKey\("filePath"\)' "$mcp_validator" \
+    || ! rg -q 'promptServers\.containsAll\(enabledServers\)' "$mcp_validator" \
+    || ! rg -q '!"prompt"\.equals\(server\.get\("default_tools_approval_mode"\)\)' "$mcp_validator" \
+    || ! rg -q '"mergeStrategy", "replace"' "$mcp_client" \
+    || ! rg -q '"reloadUserConfig", Boolean\.FALSE' "$mcp_client" \
+    || rg -n '"filePath"' "$mcp_client"; then
+  echo "MCP configuration must use only the typed, path-free, validated app-server RPC boundary." >&2
   exit 1
 fi
 
 mcp_activity="$PROJECT_ROOT/app/src/main/java/de/agentcodi/app/McpManagementActivity.java"
+mcp_editor="$PROJECT_ROOT/app/src/main/java/de/agentcodi/app/McpServerEditorDialog.java"
 if ! rg -Uq 'android:name="\.McpManagementActivity"[[:space:][:print:]]{0,220}android:exported="false"' "$manifest" \
     || ! rg -q 'McpManagementActivity' "$PROJECT_ROOT/app/src/main/java/de/agentcodi/app/SettingsActivity.java" \
     || ! rg -q 'mcpCatalogSnapshot' "$mcp_activity" \
     || ! rg -q 'refreshMcpCatalog' "$mcp_activity" \
+    || ! rg -q 'mcpConfigurationSnapshot' "$mcp_activity" \
+    || ! rg -q 'saveMcpServer' "$mcp_activity" \
+    || ! rg -q 'reloadMcpConfiguration' "$mcp_activity" \
+    || ! rg -q 'snapshot\.getPhase\(\) != McpConfigurationPhase\.READY' "$mcp_activity" \
+    || ! rg -q 'enabled\.setEnabled\(false\)' "$mcp_editor" \
     || rg -n '(config/read|mcpServer/tool/call|oauth|plugin/install|marketplace/add)' "$mcp_activity"; then
-  echo "The native MCP inventory activity must remain non-exported and read-only." >&2
+  echo "The native MCP activity must remain non-exported and use only runtime facades." >&2
   exit 1
 fi
 
@@ -355,6 +382,9 @@ if ! rg -q 'NODE_VERSION="24\.18\.0"' "$apk_builder" \
     || ! rg -q 'command/exec/write' "$PROJECT_ROOT/tests/cpp/android_app_server_bootstrap_smoke.cpp" \
     || ! rg -q 'command/exec/resize' "$PROJECT_ROOT/tests/cpp/android_app_server_bootstrap_smoke.cpp" \
     || ! rg -q 'command/exec/terminate' "$PROJECT_ROOT/tests/cpp/android_app_server_bootstrap_smoke.cpp" \
+    || ! rg -q 'config/read' "$PROJECT_ROOT/tests/cpp/android_app_server_bootstrap_smoke.cpp" \
+    || ! rg -q 'config/batchWrite' "$PROJECT_ROOT/tests/cpp/android_app_server_bootstrap_smoke.cpp" \
+    || ! rg -q 'config/mcpServer/reload' "$PROJECT_ROOT/tests/cpp/android_app_server_bootstrap_smoke.cpp" \
     || ! rg -q 'third-party/node/NODE-LICENSE' "$licenses_activity" \
     || ! rg -q 'assets/third-party/node/' "$PROJECT_ROOT/app/src/main/res/raw/third_party_notices.txt"; then
   echo "Pinned Node.js packaging, execution smoke, or legal notices are incomplete." >&2
@@ -384,13 +414,13 @@ if ! rg -q 'PYTHON_SOURCE_EXTENSION_COUNT="75"' "$apk_builder" \
   exit 1
 fi
 
-if ! rg -q 'VERSION_NAME = "0\.4\.11"' "$core_root/BuildIdentity.java" \
-    || ! rg -q 'VERSION_CODE = 31' "$core_root/BuildIdentity.java" \
-    || ! rg -q 'android:versionName="0\.4\.11"' "$manifest" \
-    || ! rg -q 'android:versionCode="31"' "$manifest" \
-    || ! rg -q 'APP_VERSION="0\.4\.11"' "$apk_builder" \
-    || ! rg -q 'VERSION_CODE="31"' "$apk_builder"; then
-  echo "The 0.4.11 identity is inconsistent." >&2
+if ! rg -q 'VERSION_NAME = "0\.4\.12"' "$core_root/BuildIdentity.java" \
+    || ! rg -q 'VERSION_CODE = 32' "$core_root/BuildIdentity.java" \
+    || ! rg -q 'android:versionName="0\.4\.12"' "$manifest" \
+    || ! rg -q 'android:versionCode="32"' "$manifest" \
+    || ! rg -q 'APP_VERSION="0\.4\.12"' "$apk_builder" \
+    || ! rg -q 'VERSION_CODE="32"' "$apk_builder"; then
+  echo "The 0.4.12 identity is inconsistent." >&2
   exit 1
 fi
 

@@ -52,7 +52,80 @@ public final class CodexSessionControllerTest {
         streamsTerminalInputResizeAndTermination();
         terminatesTerminalWhenOutputCapIsReached();
         rejectsTerminalCredentialsAndMalformedOutput();
-        return 22;
+        usesVettedMcpConfigurationRpcs();
+        return 23;
+    }
+
+    private static void usesVettedMcpConfigurationRpcs() throws Exception {
+        FixtureServer server = new FixtureServer(true);
+        CodexSessionController controller = new CodexSessionController(
+            server,
+            "/private/workspace"
+        );
+        controller.start();
+
+        Map<String, Object> read = controller.readMcpConfiguration(20_000L);
+        TestSupport.assertTrue(read.containsKey("config"), "config/read response returned");
+        TestSupport.assertEquals(
+            "/private/workspace",
+            server.lastMcpConfigurationReadParams.get("cwd"),
+            "config/read canonical workspace"
+        );
+        TestSupport.assertEquals(
+            Boolean.FALSE,
+            server.lastMcpConfigurationReadParams.get("includeLayers"),
+            "config/read omits raw layer bodies"
+        );
+
+        Map<String, Object> write = JsonCodec.object(
+            "edits", JsonCodec.array(JsonCodec.object(
+                "keyPath", "mcp_servers.protocol-fixture.enabled",
+                "value", Boolean.FALSE,
+                "mergeStrategy", "replace"
+            )),
+            "expectedVersion", configurationVersion('a'),
+            "reloadUserConfig", Boolean.FALSE
+        );
+        Map<String, Object> response = controller.writeMcpConfiguration(write, 20_000L);
+        TestSupport.assertEquals("ok", response.get("status"), "config/batchWrite response");
+        TestSupport.assertEquals(
+            write,
+            server.lastMcpConfigurationWriteParams,
+            "validated batch request forwarded unchanged"
+        );
+        TestSupport.assertFalse(
+            server.lastMcpConfigurationWriteParams.containsKey("filePath"),
+            "no configuration file path forwarded"
+        );
+
+        Map<String, Object> reload = controller.reloadMcpConfiguration(20_000L);
+        TestSupport.assertTrue(reload.isEmpty(), "config reload response");
+        TestSupport.assertFalse(
+            server.lastMcpConfigurationReloadHadParams,
+            "config reload request omits params"
+        );
+
+        final Map<String, Object> unsafe = new LinkedHashMap<String, Object>(write);
+        unsafe.put("filePath", "/private/codex-home/config.toml");
+        TestSupport.expectThrows(
+            IllegalArgumentException.class,
+            new TestSupport.ThrowingRunnable() {
+                @Override
+                public void run() throws Exception {
+                    controller.writeMcpConfiguration(unsafe, 20_000L);
+                }
+            },
+            "caller-selected config path rejected before transport"
+        );
+        controller.close();
+    }
+
+    private static String configurationVersion(char value) {
+        StringBuilder result = new StringBuilder("sha256:");
+        while (result.length() < 71) {
+            result.append(value);
+        }
+        return result.toString();
     }
 
     private static void startsTerminalThroughSandboxedCommandExec() throws Exception {
@@ -2066,6 +2139,9 @@ public final class CodexSessionControllerTest {
         private volatile Map<String, Object> lastCommandExecParams;
         private volatile Map<String, Object> lastTerminalResizeParams;
         private volatile Map<String, Object> lastTerminalTerminateParams;
+        private volatile Map<String, Object> lastMcpConfigurationReadParams;
+        private volatile Map<String, Object> lastMcpConfigurationWriteParams;
+        private volatile boolean lastMcpConfigurationReloadHadParams;
         private volatile Map<String, Object> pendingTerminalRequest;
         private volatile byte[] lastTerminalInput;
         private volatile byte[] terminalInputWireBuffer;
@@ -2322,6 +2398,30 @@ public final class CodexSessionControllerTest {
                         "stderr", ""
                     ));
                 }
+            } else if ("config/read".equals(method)) {
+                lastMcpConfigurationReadParams = JsonCodec.requireObject(
+                    request.get("params"),
+                    "config read params"
+                );
+                respond(request, JsonCodec.object(
+                    "config", JsonCodec.object("mcp_servers", JsonCodec.object()),
+                    "origins", JsonCodec.object(),
+                    "layers", null
+                ));
+            } else if ("config/batchWrite".equals(method)) {
+                lastMcpConfigurationWriteParams = JsonCodec.requireObject(
+                    request.get("params"),
+                    "config batch-write params"
+                );
+                respond(request, JsonCodec.object(
+                    "status", "ok",
+                    "version", configurationVersion('b'),
+                    "filePath", "/private/codex-home/config.toml",
+                    "overriddenMetadata", null
+                ));
+            } else if ("config/mcpServer/reload".equals(method)) {
+                lastMcpConfigurationReloadHadParams = request.containsKey("params");
+                respond(request, JsonCodec.object());
             } else if ("account/logout".equals(method)
                 || "turn/interrupt".equals(method)) {
                 respond(request, JsonCodec.object());

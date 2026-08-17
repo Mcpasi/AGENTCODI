@@ -162,9 +162,44 @@ int main(int argc, char* argv[]) {
         << "\"resources\":[],\"resourceTemplates\":[]}]}}\n";
     return 0;
   }
+  if (argc == 2 && std::string(argv[1]) == "--mcp-config-roundtrip") {
+    std::string request;
+    if (!std::getline(std::cin, request)
+        || request.find("\"method\":\"config/read\"") == std::string::npos
+        || request.find("\"includeLayers\":false") == std::string::npos) {
+      return 31;
+    }
+    std::cout
+        << "{\"id\":61,\"result\":{\"config\":{\"mcp_servers\":{}},"
+        << "\"origins\":{},\"layers\":null}}" << std::endl;
+
+    if (!std::getline(std::cin, request)
+        || request.find("\"method\":\"config/batchWrite\"")
+            == std::string::npos
+        || request.find("\"keyPath\":\"mcp_servers.fixture\"")
+            == std::string::npos
+        || request.find("\"reloadUserConfig\":false") == std::string::npos
+        || request.find("\"filePath\"") != std::string::npos) {
+      return 32;
+    }
+    std::cout
+        << "{\"id\":62,\"result\":{\"status\":\"ok\","
+        << "\"version\":\"sha256:bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb\","
+        << "\"filePath\":\"/private/codex-home/config.toml\","
+        << "\"overriddenMetadata\":null}}" << std::endl;
+
+    if (!std::getline(std::cin, request)
+        || request.find("\"method\":\"config/mcpServer/reload\"")
+            == std::string::npos
+        || request.find("\"params\"") != std::string::npos) {
+      return 33;
+    }
+    std::cout << "{\"id\":63,\"result\":{}}" << std::endl;
+    return 0;
+  }
 
   const std::string version = agentcodi::engine_version();
-  expect(version == "agentcodi-native/0.4.11", "engine version");
+  expect(version == "agentcodi-native/0.4.12", "engine version");
   expect(agentcodi::run_self_test() == 0, "native self-test");
 
   const std::string diagnostics = agentcodi::runtime_diagnostics();
@@ -937,6 +972,60 @@ int main(int argc, char* argv[]) {
             "supervisor preserves unrelated MCP inventory data for Java validation");
         expect(process->Stop(500) != INT_MIN,
                "stop MCP catalog framing fixture");
+      }
+
+      config.arguments = {"--mcp-config-roundtrip"};
+      error.clear();
+      process = agentcodi::AppServerProcess::Start(config, &error);
+      expect(process != nullptr, "spawn MCP configuration framing fixture");
+      if (process != nullptr) {
+        const std::string config_read =
+            "{\"id\":61,\"method\":\"config/read\",\"params\":{"
+            "\"cwd\":\"/private/workspace\",\"includeLayers\":false}}";
+        expect(
+            process->WriteLine(config_read, 16U * 1024U, &error),
+            "write bounded MCP configuration read request");
+        std::string config_response;
+        expect(
+            process->ReadLine(16U * 1024U, &config_response, &error)
+                == agentcodi::LineReadStatus::kLine
+                && config_response.find("\"mcp_servers\":{}")
+                    != std::string::npos,
+            "read bounded MCP configuration response");
+
+        const std::string config_write =
+            "{\"id\":62,\"method\":\"config/batchWrite\",\"params\":{"
+            "\"edits\":[{\"keyPath\":\"mcp_servers.fixture\","
+            "\"value\":{\"url\":\"https://example.com/mcp\","
+            "\"enabled\":false,\"required\":false},"
+            "\"mergeStrategy\":\"replace\"}],"
+            "\"reloadUserConfig\":false}}";
+        expect(
+            process->WriteLine(config_write, 16U * 1024U, &error),
+            "write bounded MCP batch request without a path");
+        std::string write_response;
+        expect(
+            process->ReadLine(16U * 1024U, &write_response, &error)
+                == agentcodi::LineReadStatus::kLine
+                && write_response.find("\"status\":\"ok\"")
+                    != std::string::npos
+                && write_response.find("/private/codex-home/config.toml")
+                    != std::string::npos,
+            "preserve write response for path-free Java projection");
+
+        const std::string reload =
+            "{\"id\":63,\"method\":\"config/mcpServer/reload\"}";
+        expect(
+            process->WriteLine(reload, 16U * 1024U, &error),
+            "write parameter-free MCP reload request");
+        std::string reload_response;
+        expect(
+            process->ReadLine(16U * 1024U, &reload_response, &error)
+                == agentcodi::LineReadStatus::kLine
+                && reload_response == "{\"id\":63,\"result\":{}}",
+            "read MCP reload response");
+        expect(process->Stop(500) == 0,
+               "stop MCP configuration framing fixture");
       }
 
       config.arguments = {"--exit-with-code"};

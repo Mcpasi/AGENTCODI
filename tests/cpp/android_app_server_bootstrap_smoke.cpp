@@ -25,6 +25,7 @@ bool read_response(
     const std::shared_ptr<agentcodi::AppServerProcess>& process,
     const std::string& id_marker,
     const std::string& required_marker,
+    const std::string& forbidden_marker,
     std::string* error) {
   for (int attempt = 0; attempt < 16; ++attempt) {
     std::string line;
@@ -41,11 +42,24 @@ bool read_response(
         std::cerr << "Bootstrap response omitted its required contract marker\n";
         return false;
       }
+      if (!forbidden_marker.empty()
+          && line.find(forbidden_marker) != std::string::npos) {
+        std::cerr << "Bootstrap response retained a forbidden contract marker\n";
+        return false;
+      }
       return true;
     }
   }
   std::cerr << "Bootstrap response was displaced by too many notifications\n";
   return false;
+}
+
+bool read_response(
+    const std::shared_ptr<agentcodi::AppServerProcess>& process,
+    const std::string& id_marker,
+    const std::string& required_marker,
+    std::string* error) {
+  return read_response(process, id_marker, required_marker, "", error);
 }
 
 bool safe_json_path(const std::string& value) {
@@ -307,7 +321,7 @@ int main(int argc, char* argv[]) {
   const std::string initialize =
       "{\"method\":\"initialize\",\"id\":1,\"params\":{"
       "\"clientInfo\":{\"name\":\"agentcodi_android\","
-      "\"title\":\"AGENTCODI\",\"version\":\"0.4.11\"},"
+      "\"title\":\"AGENTCODI\",\"version\":\"0.4.12\"},"
       "\"capabilities\":{\"experimentalApi\":true,"
       "\"optOutNotificationMethods\":[\"rawResponseItem/completed\","
       "\"rawResponse/completed\"]}}}";
@@ -414,6 +428,65 @@ int main(int argc, char* argv[]) {
           "\"processId\":\"agentcodi-build-terminal-stop\"}}",
           &error)
       || !read_terminated_terminal_completion(process, &error)) {
+    process->Stop(2'000);
+    return 1;
+  }
+
+  const std::string mcp_probe_name = "agentcodi_build_probe";
+  const std::string config_read =
+      "{\"method\":\"config/read\",\"id\":13,\"params\":{"
+      "\"cwd\":\"" + workspace + "\",\"includeLayers\":false}}";
+  const std::string config_add =
+      "{\"method\":\"config/batchWrite\",\"id\":14,\"params\":{"
+      "\"edits\":[{\"keyPath\":\"mcp_servers." + mcp_probe_name + "\","
+      "\"value\":{\"url\":\"https://example.invalid/mcp\","
+      "\"enabled\":false,\"required\":false,"
+      "\"startup_timeout_sec\":10,\"tool_timeout_sec\":60,"
+      "\"default_tools_approval_mode\":\"prompt\"},"
+      "\"mergeStrategy\":\"replace\"}],\"reloadUserConfig\":false}}";
+  const std::string config_delete =
+      "{\"method\":\"config/batchWrite\",\"id\":17,\"params\":{"
+      "\"edits\":[{\"keyPath\":\"mcp_servers." + mcp_probe_name + "\","
+      "\"value\":null,\"mergeStrategy\":\"replace\"}],"
+      "\"reloadUserConfig\":false}}";
+  if (!write_request(process, config_read, &error)
+      || !read_response(
+          process,
+          "\"id\":13",
+          "\"mcp_servers\":{",
+          mcp_probe_name,
+          &error)
+      || !write_request(process, config_add, &error)
+      || !read_response(process, "\"id\":14", "\"status\":\"ok\"", &error)
+      || !write_request(
+          process,
+          "{\"method\":\"config/mcpServer/reload\",\"id\":15}",
+          &error)
+      || !read_response(process, "\"id\":15", "\"result\":{}", &error)
+      || !write_request(
+          process,
+          "{\"method\":\"config/read\",\"id\":16,\"params\":{"
+          "\"cwd\":\"" + workspace + "\",\"includeLayers\":false}}",
+          &error)
+      || !read_response(process, "\"id\":16", mcp_probe_name, &error)
+      || !write_request(process, config_delete, &error)
+      || !read_response(process, "\"id\":17", "\"status\":\"ok\"", &error)
+      || !write_request(
+          process,
+          "{\"method\":\"config/mcpServer/reload\",\"id\":18}",
+          &error)
+      || !read_response(process, "\"id\":18", "\"result\":{}", &error)
+      || !write_request(
+          process,
+          "{\"method\":\"config/read\",\"id\":19,\"params\":{"
+          "\"cwd\":\"" + workspace + "\",\"includeLayers\":false}}",
+          &error)
+      || !read_response(
+          process,
+          "\"id\":19",
+          "\"mcp_servers\":{",
+          mcp_probe_name,
+          &error)) {
     process->Stop(2'000);
     return 1;
   }

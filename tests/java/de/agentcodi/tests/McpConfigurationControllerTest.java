@@ -1,0 +1,574 @@
+package de.agentcodi.tests;
+
+import de.agentcodi.core.CodexMcpConfigurationRpc;
+import de.agentcodi.core.JsonCodec;
+import de.agentcodi.mcp.McpConfigurationNotice;
+import de.agentcodi.mcp.McpConfigurationPhase;
+import de.agentcodi.mcp.McpConfigurationSnapshot;
+import de.agentcodi.mcp.McpServerConfiguration;
+import de.agentcodi.mcp.McpServerDraft;
+import de.agentcodi.mcp.McpServerOrigin;
+import de.agentcodi.mcp.McpTransport;
+import de.agentcodi.mcp.client.McpConfigurationController;
+import de.agentcodi.mcp.client.McpConfigurationLoader;
+
+import java.util.ArrayList;
+import java.util.Collections;
+import java.util.LinkedHashMap;
+import java.util.List;
+import java.util.Map;
+
+public final class McpConfigurationControllerTest {
+    private static final String VERSION_A = version('a');
+    private static final String VERSION_B = version('b');
+
+    private McpConfigurationControllerTest() {
+    }
+
+    public static int run() throws Exception {
+        loadsSecretFreeConfigurationAndClassifiesOrigins();
+        validatesTheNarrowWriteBoundary();
+        serializesAddEditEnableDeleteAndReload();
+        requiresPromptBeforeEnablingAnExistingServer();
+        reportsReloadFailureAfterAnAcceptedWrite();
+        return 5;
+    }
+
+    private static void loadsSecretFreeConfigurationAndClassifiesOrigins() throws Exception {
+        Map<String, Object> servers = new LinkedHashMap<String, Object>();
+        servers.put("local-safe", JsonCodec.object(
+            "command", "node",
+            "args", JsonCodec.array("server.js"),
+            "enabled", Boolean.FALSE,
+            "required", Boolean.FALSE,
+            "startup_timeout_sec", Long.valueOf(12L),
+            "tool_timeout_sec", Long.valueOf(80L),
+            "default_tools_approval_mode", "prompt",
+            "enabled_tools", JsonCodec.array("search")
+        ));
+        servers.put("project-safe", JsonCodec.object(
+            "url", "https://project.example/mcp",
+            "enabled", Boolean.TRUE
+        ));
+        servers.put("secret-user", JsonCodec.object(
+            "url", "https://secret.example/mcp?token=sk-private-value",
+            "enabled", Boolean.FALSE,
+            "http_headers", JsonCodec.object(
+                "Authorization", "Bearer private-header-value"
+            )
+        ));
+
+        Map<String, Object> origins = new LinkedHashMap<String, Object>();
+        addOrigin(origins, "mcp_servers.local-safe.command", "user", VERSION_A);
+        addOrigin(origins, "mcp_servers.local-safe.enabled", "user", VERSION_A);
+        addOrigin(origins, "mcp_servers.project-safe.url", "project", VERSION_B);
+        addOrigin(origins, "mcp_servers.secret-user.url", "user", VERSION_A);
+        addOrigin(origins, "mcp_servers.secret-user.http_headers", "user", VERSION_A);
+
+        McpConfigurationSnapshot snapshot = new McpConfigurationLoader(
+            new StaticRpc(JsonCodec.object(
+                "config", JsonCodec.object("mcp_servers", servers),
+                "origins", origins,
+                "layers", null
+            ))
+        ).load(9L, McpConfigurationNotice.NONE);
+
+        TestSupport.assertEquals(McpConfigurationPhase.READY, snapshot.getPhase(), "phase");
+        TestSupport.assertEquals(VERSION_A, snapshot.getExpectedVersion(), "user version");
+        TestSupport.assertEquals(Integer.valueOf(3), Integer.valueOf(snapshot.getServers().size()), "server count");
+
+        McpServerConfiguration local = find(snapshot, "local-safe");
+        TestSupport.assertEquals(McpServerOrigin.USER, local.getOrigin(), "user origin");
+        TestSupport.assertTrue(local.isEditable(), "safe user entry editable");
+        TestSupport.assertEquals(McpTransport.STDIO, local.getTransport(), "stdio transport");
+        TestSupport.assertEquals(Integer.valueOf(12), Integer.valueOf(local.getStartupTimeoutSeconds()), "startup timeout");
+
+        McpServerConfiguration project = find(snapshot, "project-safe");
+        TestSupport.assertEquals(McpServerOrigin.PROJECT, project.getOrigin(), "project origin");
+        TestSupport.assertFalse(project.isUserOwned(), "project entry not user owned");
+        TestSupport.assertFalse(project.isEditable(), "project entry view-only");
+
+        McpServerConfiguration secret = find(snapshot, "secret-user");
+        TestSupport.assertTrue(secret.isUserOwned(), "sensitive entry origin retained");
+        TestSupport.assertFalse(secret.isEditable(), "sensitive entry cannot open editor");
+        TestSupport.assertTrue(secret.hasSensitiveValuesHidden(), "sensitive values hidden");
+        TestSupport.assertEquals("", secret.getUrl(), "secret-bearing URL omitted");
+
+        String projected = flatten(snapshot);
+        TestSupport.assertFalse(projected.contains("sk-private"), "token omitted");
+        TestSupport.assertFalse(projected.contains("private-header"), "header value omitted");
+        TestSupport.assertFalse(projected.contains("/private/codex-home"), "origin path omitted");
+        TestSupport.assertFalse(projected.contains("config.toml"), "config filename omitted");
+    }
+
+    private static void validatesTheNarrowWriteBoundary() {
+        Map<String, Object> valid = writeParameters(
+            JsonCodec.object(
+                "keyPath", "mcp_servers.safe-server",
+                "value", JsonCodec.object(
+                    "url", "https://example.com/mcp",
+                    "enabled", Boolean.FALSE,
+                    "required", Boolean.FALSE,
+                    "startup_timeout_sec", Long.valueOf(10L),
+                    "tool_timeout_sec", Long.valueOf(60L),
+                    "default_tools_approval_mode", "prompt"
+                ),
+                "mergeStrategy", "replace"
+            )
+        );
+        TestSupport.assertTrue(
+            CodexMcpConfigurationRpc.isValidWriteRequest(valid),
+            "bounded whole-server add allowed"
+        );
+
+        Map<String, Object> withPath = copy(valid);
+        withPath.put("filePath", "/private/codex-home/config.toml");
+        TestSupport.assertFalse(
+            CodexMcpConfigurationRpc.isValidWriteRequest(withPath),
+            "caller-selected file path denied"
+        );
+        TestSupport.assertFalse(
+            CodexMcpConfigurationRpc.isValidWriteRequest(writeParameters(edit(
+                "mcp_servers.safe.url",
+                "https://example.com/mcp?token=secret"
+            ))),
+            "secret-bearing URL denied"
+        );
+        TestSupport.assertFalse(
+            CodexMcpConfigurationRpc.isValidWriteRequest(writeParameters(edit(
+                "mcp_servers.safe.env.API_KEY",
+                "fixture-secret"
+            ))),
+            "static environment write denied"
+        );
+        TestSupport.assertFalse(
+            CodexMcpConfigurationRpc.isValidWriteRequest(writeParameters(edit(
+                "mcp_servers.unsafe.name.enabled",
+                Boolean.TRUE
+            ))),
+            "ambiguous dotted server name denied"
+        );
+        TestSupport.assertFalse(
+            CodexMcpConfigurationRpc.isValidWriteRequest(writeParameters(edit(
+                "mcp_servers.safe.default_tools_approval_mode",
+                "approve"
+            ))),
+            "automatic MCP tool approval denied"
+        );
+        TestSupport.assertFalse(
+            CodexMcpConfigurationRpc.isValidWriteRequest(writeParameters(edit(
+                "mcp_servers.safe.enabled",
+                Boolean.TRUE
+            ))),
+            "enable without an atomic prompt edit denied"
+        );
+
+        Map<String, Object> autoReload = copy(valid);
+        autoReload.put("reloadUserConfig", Boolean.TRUE);
+        TestSupport.assertFalse(
+            CodexMcpConfigurationRpc.isValidWriteRequest(autoReload),
+            "implicit broad user-config reload denied"
+        );
+    }
+
+    private static void serializesAddEditEnableDeleteAndReload() throws Exception {
+        final StatefulRpc rpc = new StatefulRpc();
+        final McpConfigurationController controller = new McpConfigurationController(rpc);
+        TestSupport.assertTrue(controller.refresh(), "initial refresh accepted");
+        waitReady(controller, McpConfigurationNotice.NONE, "initial configuration");
+
+        McpServerDraft added = draft(
+            "expert-http",
+            "https://example.com/mcp",
+            false,
+            false,
+            10,
+            60,
+            "prompt"
+        );
+        TestSupport.assertTrue(controller.save(added), "disabled add accepted");
+        waitReady(controller, McpConfigurationNotice.SAVED, "added configuration");
+        TestSupport.assertFalse(find(controller.snapshot(), "expert-http").isEnabled(), "new entry remains disabled");
+        assertWriteHasNoPath(rpc.writes.get(0));
+        Map<String, Object> firstEdit = firstEdit(rpc.writes.get(0));
+        TestSupport.assertEquals("mcp_servers.expert-http", firstEdit.get("keyPath"), "whole add path");
+        Map<String, Object> addedValue = JsonCodec.requireObject(firstEdit.get("value"), "added server");
+        TestSupport.assertEquals(Boolean.FALSE, addedValue.get("enabled"), "add forced disabled");
+        TestSupport.assertEquals(Boolean.FALSE, addedValue.get("required"), "add forced optional");
+
+        TestSupport.assertTrue(controller.setEnabled("expert-http", true), "explicit enable accepted");
+        waitReady(controller, McpConfigurationNotice.ENABLED, "enabled configuration");
+        TestSupport.assertTrue(find(controller.snapshot(), "expert-http").isEnabled(), "entry enabled");
+
+        McpServerDraft edited = draft(
+            "expert-http",
+            "https://example.net/mcp",
+            true,
+            true,
+            25,
+            90,
+            "prompt"
+        );
+        TestSupport.assertTrue(controller.save(edited), "field-level edit accepted");
+        waitReady(controller, McpConfigurationNotice.SAVED, "edited configuration");
+        McpServerConfiguration saved = find(controller.snapshot(), "expert-http");
+        TestSupport.assertEquals("https://example.net/mcp", saved.getUrl(), "endpoint edited");
+        TestSupport.assertTrue(saved.isRequired(), "required edited");
+        TestSupport.assertEquals(Integer.valueOf(25), Integer.valueOf(saved.getStartupTimeoutSeconds()), "timeout edited");
+        for (Map<String, Object> change : edits(rpc.writes.get(2))) {
+            TestSupport.assertTrue(
+                ((String) change.get("keyPath")).startsWith("mcp_servers.expert-http."),
+                "edit stays field-level"
+            );
+        }
+
+        TestSupport.assertTrue(controller.delete("expert-http"), "delete accepted");
+        waitReady(controller, McpConfigurationNotice.DELETED, "deleted configuration");
+        TestSupport.assertTrue(controller.snapshot().getServers().isEmpty(), "entry removed");
+        TestSupport.assertEquals(Integer.valueOf(4), Integer.valueOf(rpc.reloadCount), "every write explicitly reloaded");
+        TestSupport.assertFalse(flatten(controller.snapshot()).contains("config.toml"), "write response path discarded");
+        controller.close();
+    }
+
+    private static void reportsReloadFailureAfterAnAcceptedWrite() throws Exception {
+        final StatefulRpc rpc = new StatefulRpc();
+        rpc.failReload = true;
+        final McpConfigurationController controller = new McpConfigurationController(rpc);
+        TestSupport.assertTrue(controller.refresh(), "failure fixture refresh accepted");
+        waitReady(controller, McpConfigurationNotice.NONE, "failure fixture ready");
+        TestSupport.assertTrue(controller.save(draft(
+            "reload-failure",
+            "https://example.com/mcp",
+            false,
+            false,
+            10,
+            60,
+            "prompt"
+        )), "failure fixture write accepted");
+        waitReady(controller, McpConfigurationNotice.RELOAD_REQUIRED, "reload failure surfaced");
+        TestSupport.assertEquals(Integer.valueOf(1), Integer.valueOf(rpc.writes.size()), "write happened once");
+        TestSupport.assertEquals(Integer.valueOf(1), Integer.valueOf(rpc.reloadCount), "reload not retried silently");
+        controller.close();
+    }
+
+    private static void requiresPromptBeforeEnablingAnExistingServer() throws Exception {
+        final StatefulRpc rpc = new StatefulRpc();
+        rpc.servers.put("legacy-auto", JsonCodec.object(
+            "url", "https://example.com/mcp",
+            "enabled", Boolean.FALSE,
+            "required", Boolean.FALSE,
+            "startup_timeout_sec", Long.valueOf(10L),
+            "tool_timeout_sec", Long.valueOf(60L),
+            "default_tools_approval_mode", "auto"
+        ));
+        final McpConfigurationController controller = new McpConfigurationController(rpc);
+        TestSupport.assertTrue(controller.refresh(), "legacy mode refresh accepted");
+        waitReady(controller, McpConfigurationNotice.NONE, "legacy mode ready");
+        TestSupport.assertFalse(
+            controller.setEnabled("legacy-auto", true),
+            "automatic approval mode cannot be enabled"
+        );
+        TestSupport.assertTrue(controller.save(draft(
+            "legacy-auto",
+            "https://example.com/mcp",
+            false,
+            false,
+            10,
+            60,
+            "prompt"
+        )), "legacy mode can be tightened through edit");
+        waitReady(controller, McpConfigurationNotice.SAVED, "legacy mode tightened");
+        TestSupport.assertEquals(
+            "prompt",
+            find(controller.snapshot(), "legacy-auto").getApprovalMode(),
+            "edit forces prompt approval"
+        );
+        TestSupport.assertTrue(
+            controller.setEnabled("legacy-auto", true),
+            "prompt-only server can be enabled"
+        );
+        waitReady(controller, McpConfigurationNotice.ENABLED, "prompt-only enable");
+        controller.close();
+    }
+
+    private static McpServerDraft draft(
+        String name,
+        String url,
+        boolean enabled,
+        boolean required,
+        int startup,
+        int tool,
+        String approval
+    ) {
+        return new McpServerDraft(
+            name,
+            McpTransport.STREAMABLE_HTTP,
+            "",
+            Collections.<String>emptyList(),
+            url,
+            enabled,
+            required,
+            startup,
+            tool,
+            approval,
+            Collections.<String>emptyList(),
+            Collections.<String>emptyList()
+        );
+    }
+
+    private static Map<String, Object> writeParameters(Map<String, Object> edit) {
+        return JsonCodec.object(
+            "edits", JsonCodec.array(edit),
+            "expectedVersion", VERSION_A,
+            "reloadUserConfig", Boolean.FALSE
+        );
+    }
+
+    private static Map<String, Object> edit(String path, Object value) {
+        return JsonCodec.object(
+            "keyPath", path,
+            "value", value,
+            "mergeStrategy", "replace"
+        );
+    }
+
+    private static Map<String, Object> copy(Map<String, Object> source) {
+        return new LinkedHashMap<String, Object>(source);
+    }
+
+    private static List<Map<String, Object>> edits(Map<String, Object> parameters) {
+        List<Map<String, Object>> result = new ArrayList<Map<String, Object>>();
+        for (Object value : JsonCodec.requireArray(parameters.get("edits"), "edits")) {
+            result.add(JsonCodec.requireObject(value, "edit"));
+        }
+        return result;
+    }
+
+    private static Map<String, Object> firstEdit(Map<String, Object> parameters) {
+        return edits(parameters).get(0);
+    }
+
+    private static void assertWriteHasNoPath(Map<String, Object> parameters) {
+        TestSupport.assertFalse(parameters.containsKey("filePath"), "no caller file path");
+        TestSupport.assertEquals(Boolean.FALSE, parameters.get("reloadUserConfig"), "bounded write reload flag");
+        TestSupport.assertTrue(
+            CodexMcpConfigurationRpc.isValidWriteRequest(parameters),
+            "emitted write passes core validator"
+        );
+    }
+
+    private static McpServerConfiguration find(McpConfigurationSnapshot snapshot, String name) {
+        for (McpServerConfiguration server : snapshot.getServers()) {
+            if (name.equals(server.getName())) {
+                return server;
+            }
+        }
+        throw new AssertionError("Missing MCP server: " + name);
+    }
+
+    private static String flatten(McpConfigurationSnapshot snapshot) {
+        StringBuilder output = new StringBuilder();
+        output.append(snapshot.getExpectedVersion());
+        for (McpServerConfiguration server : snapshot.getServers()) {
+            output.append(server.getName()).append(server.getCommand()).append(server.getUrl());
+            output.append(server.getArguments()).append(server.getEnabledTools());
+            output.append(server.getDisabledTools()).append(server.getApprovalMode());
+        }
+        return output.toString();
+    }
+
+    private static void waitReady(
+        final McpConfigurationController controller,
+        final McpConfigurationNotice notice,
+        String message
+    ) throws Exception {
+        long deadline = System.currentTimeMillis() + 3_000L;
+        while (System.currentTimeMillis() < deadline) {
+            McpConfigurationSnapshot snapshot = controller.snapshot();
+            if (!snapshot.isBusy() && snapshot.getPhase() == McpConfigurationPhase.READY
+                && snapshot.getNotice() == notice) {
+                return;
+            }
+            Thread.sleep(10L);
+        }
+        McpConfigurationSnapshot snapshot = controller.snapshot();
+        throw new AssertionError(
+            message + " phase=<" + snapshot.getPhase() + "> notice=<"
+                + snapshot.getNotice() + ">"
+        );
+    }
+
+    private static void addOrigin(
+        Map<String, Object> origins,
+        String key,
+        String type,
+        String version
+    ) {
+        Map<String, Object> name;
+        if ("user".equals(type)) {
+            name = JsonCodec.object(
+                "type", "user",
+                "file", "/private/codex-home/config.toml",
+                "profile", null
+            );
+        } else if ("project".equals(type)) {
+            name = JsonCodec.object(
+                "type", "project",
+                "dotCodexFolder", "/private/workspace/.codex"
+            );
+        } else {
+            name = JsonCodec.object("type", type);
+        }
+        origins.put(key, JsonCodec.object("name", name, "version", version));
+    }
+
+    private static String version(char value) {
+        StringBuilder output = new StringBuilder("sha256:");
+        while (output.length() < 71) {
+            output.append(value);
+        }
+        return output.toString();
+    }
+
+    private static final class StaticRpc implements CodexMcpConfigurationRpc {
+        private final Map<String, Object> response;
+
+        private StaticRpc(Map<String, Object> response) {
+            this.response = response;
+        }
+
+        @Override
+        public Map<String, Object> readMcpConfiguration(long timeoutMilliseconds) {
+            TestSupport.assertEquals(Long.valueOf(20_000L), Long.valueOf(timeoutMilliseconds), "read timeout");
+            return response;
+        }
+
+        @Override
+        public Map<String, Object> writeMcpConfiguration(
+            Map<String, Object> parameters,
+            long timeoutMilliseconds
+        ) {
+            throw new AssertionError("static loader fixture must not write");
+        }
+
+        @Override
+        public Map<String, Object> reloadMcpConfiguration(long timeoutMilliseconds) {
+            throw new AssertionError("static loader fixture must not reload");
+        }
+    }
+
+    private static final class StatefulRpc implements CodexMcpConfigurationRpc {
+        private final Map<String, Map<String, Object>> servers =
+            new LinkedHashMap<String, Map<String, Object>>();
+        private final List<Map<String, Object>> writes =
+            new ArrayList<Map<String, Object>>();
+        private int versionIndex;
+        private int reloadCount;
+        private boolean failReload;
+
+        @Override
+        public synchronized Map<String, Object> readMcpConfiguration(
+            long timeoutMilliseconds
+        ) {
+            TestSupport.assertEquals(Long.valueOf(20_000L), Long.valueOf(timeoutMilliseconds), "state read timeout");
+            Map<String, Object> projectedServers = new LinkedHashMap<String, Object>();
+            Map<String, Object> origins = new LinkedHashMap<String, Object>();
+            String currentVersion = currentVersion();
+            addOrigin(origins, "model", "user", currentVersion);
+            for (Map.Entry<String, Map<String, Object>> server : servers.entrySet()) {
+                projectedServers.put(
+                    server.getKey(),
+                    new LinkedHashMap<String, Object>(server.getValue())
+                );
+                for (String field : server.getValue().keySet()) {
+                    addOrigin(
+                        origins,
+                        "mcp_servers." + server.getKey() + "." + field,
+                        "user",
+                        currentVersion
+                    );
+                }
+            }
+            return JsonCodec.object(
+                "config", JsonCodec.object(
+                    "model", "fixture",
+                    "mcp_servers", projectedServers
+                ),
+                "origins", origins,
+                "layers", null
+            );
+        }
+
+        @Override
+        public synchronized Map<String, Object> writeMcpConfiguration(
+            Map<String, Object> parameters,
+            long timeoutMilliseconds
+        ) {
+            TestSupport.assertEquals(Long.valueOf(20_000L), Long.valueOf(timeoutMilliseconds), "state write timeout");
+            TestSupport.assertTrue(
+                CodexMcpConfigurationRpc.isValidWriteRequest(parameters),
+                "state fixture receives validated write"
+            );
+            TestSupport.assertEquals(currentVersion(), parameters.get("expectedVersion"), "optimistic version");
+            Map<String, Object> captured = new LinkedHashMap<String, Object>(parameters);
+            writes.add(captured);
+            for (Map<String, Object> change : edits(parameters)) {
+                apply(change);
+            }
+            versionIndex++;
+            return JsonCodec.object(
+                "status", "ok",
+                "version", currentVersion(),
+                "filePath", "/private/codex-home/config.toml",
+                "overriddenMetadata", null
+            );
+        }
+
+        @Override
+        public synchronized Map<String, Object> reloadMcpConfiguration(
+            long timeoutMilliseconds
+        ) throws Exception {
+            TestSupport.assertEquals(Long.valueOf(20_000L), Long.valueOf(timeoutMilliseconds), "reload timeout");
+            reloadCount++;
+            if (failReload) {
+                throw new Exception("fixture reload failure /private/codex-home/config.toml");
+            }
+            return JsonCodec.object();
+        }
+
+        private void apply(Map<String, Object> change) {
+            String path = (String) change.get("keyPath");
+            String remainder = path.substring("mcp_servers.".length());
+            int separator = remainder.indexOf('.');
+            if (separator < 0) {
+                if (change.get("value") == null) {
+                    servers.remove(remainder);
+                } else {
+                    servers.put(
+                        remainder,
+                        new LinkedHashMap<String, Object>(JsonCodec.requireObject(
+                            change.get("value"),
+                            "whole server"
+                        ))
+                    );
+                }
+                return;
+            }
+            String name = remainder.substring(0, separator);
+            String field = remainder.substring(separator + 1);
+            Map<String, Object> server = servers.get(name);
+            if (server == null) {
+                throw new AssertionError("Field edit without server fixture");
+            }
+            if (change.get("value") == null) {
+                server.remove(field);
+            } else {
+                server.put(field, change.get("value"));
+            }
+        }
+
+        private String currentVersion() {
+            return version((char) ('a' + versionIndex));
+        }
+    }
+}

@@ -21,7 +21,10 @@ import de.agentcodi.core.RuntimeSnapshot;
 import de.agentcodi.core.RuntimeStateMachine;
 import de.agentcodi.core.TerminalSessionSnapshot;
 import de.agentcodi.mcp.McpCatalogSnapshot;
+import de.agentcodi.mcp.McpConfigurationSnapshot;
+import de.agentcodi.mcp.McpServerDraft;
 import de.agentcodi.mcp.client.McpCatalogController;
+import de.agentcodi.mcp.client.McpConfigurationController;
 import de.agentcodi.storage.WorkspaceLayout;
 
 import java.io.File;
@@ -42,9 +45,12 @@ public final class AgentRuntimeService extends Service {
         TerminalSessionSnapshot.stopped();
     private static final McpCatalogSnapshot STOPPED_MCP_CATALOG =
         McpCatalogSnapshot.stopped();
+    private static final McpConfigurationSnapshot STOPPED_MCP_CONFIGURATION =
+        McpConfigurationSnapshot.stopped();
     private static final Object SESSION_LOCK = new Object();
     private static volatile CodexSessionController sessionController;
     private static volatile McpCatalogController mcpCatalogController;
+    private static volatile McpConfigurationController mcpConfigurationController;
     private static volatile WorkspaceLayout activeWorkspaceLayout;
     private static volatile AgentRuntimeService activeService;
     private volatile Thread bootstrapThread;
@@ -72,6 +78,36 @@ public final class AgentRuntimeService extends Service {
     public static boolean refreshMcpCatalog() {
         McpCatalogController controller = mcpCatalogController;
         return controller != null && controller.refresh();
+    }
+
+    public static McpConfigurationSnapshot mcpConfigurationSnapshot() {
+        McpConfigurationController controller = mcpConfigurationController;
+        return controller == null ? STOPPED_MCP_CONFIGURATION : controller.snapshot();
+    }
+
+    public static boolean refreshMcpConfiguration() {
+        McpConfigurationController controller = mcpConfigurationController;
+        return controller != null && controller.refresh();
+    }
+
+    public static boolean saveMcpServer(McpServerDraft draft) {
+        McpConfigurationController controller = mcpConfigurationController;
+        return controller != null && controller.save(draft);
+    }
+
+    public static boolean setMcpServerEnabled(String name, boolean enabled) {
+        McpConfigurationController controller = mcpConfigurationController;
+        return controller != null && controller.setEnabled(name, enabled);
+    }
+
+    public static boolean deleteMcpServer(String name) {
+        McpConfigurationController controller = mcpConfigurationController;
+        return controller != null && controller.delete(name);
+    }
+
+    public static boolean reloadMcpConfiguration() {
+        McpConfigurationController controller = mcpConfigurationController;
+        return controller != null && controller.reload();
     }
 
     public static boolean startTerminal(int rows, int columns) {
@@ -321,15 +357,21 @@ public final class AgentRuntimeService extends Service {
         }
         CodexSessionController controller;
         McpCatalogController catalogController;
+        McpConfigurationController configurationController;
         synchronized (SESSION_LOCK) {
             controller = sessionController;
             sessionController = null;
             catalogController = mcpCatalogController;
             mcpCatalogController = null;
+            configurationController = mcpConfigurationController;
+            mcpConfigurationController = null;
             activeWorkspaceLayout = null;
         }
         if (catalogController != null) {
             catalogController.close();
+        }
+        if (configurationController != null) {
+            configurationController.close();
         }
         if (controller != null) {
             controller.close();
@@ -367,6 +409,7 @@ public final class AgentRuntimeService extends Service {
             public void run() {
                 CodexSessionController startedController = null;
                 McpCatalogController startedCatalogController = null;
+                McpConfigurationController startedConfigurationController = null;
                 try {
                     WorkspaceLayout layout = WorkspaceLayout.create(getFilesDir());
                     NativeEngine engine = new NativeEngine();
@@ -453,18 +496,28 @@ public final class AgentRuntimeService extends Service {
                         startedController,
                         layout.getWorkspace().getAbsolutePath()
                     );
+                    startedConfigurationController = new McpConfigurationController(
+                        startedController
+                    );
                     CodexSessionController previousController;
                     McpCatalogController previousCatalogController;
+                    McpConfigurationController previousConfigurationController;
                     synchronized (SESSION_LOCK) {
                         previousController = sessionController;
                         previousCatalogController = mcpCatalogController;
+                        previousConfigurationController = mcpConfigurationController;
                         sessionController = startedController;
                         mcpCatalogController = startedCatalogController;
+                        mcpConfigurationController = startedConfigurationController;
                         activeWorkspaceLayout = layout;
                     }
                     if (previousCatalogController != null
                         && previousCatalogController != startedCatalogController) {
                         previousCatalogController.close();
+                    }
+                    if (previousConfigurationController != null
+                        && previousConfigurationController != startedConfigurationController) {
+                        previousConfigurationController.close();
                     }
                     if (previousController != null
                         && previousController != startedController) {
@@ -480,7 +533,9 @@ public final class AgentRuntimeService extends Service {
                     );
                     if (accepted) {
                         startedCatalogController.refresh();
+                        startedConfigurationController.refresh();
                         startedCatalogController = null;
+                        startedConfigurationController = null;
                         startedController = null;
                         clearStoredCrashReport();
                         updateNotificationSafely(RuntimeText.NOTIFICATION_READY);
@@ -490,6 +545,7 @@ public final class AgentRuntimeService extends Service {
                             if (sessionController == startedController) {
                                 sessionController = null;
                                 mcpCatalogController = null;
+                                mcpConfigurationController = null;
                                 activeWorkspaceLayout = null;
                             }
                         }
@@ -497,6 +553,14 @@ public final class AgentRuntimeService extends Service {
                 } catch (Throwable error) {
                     recordServiceFailure("runtime-bootstrap", generation, error);
                 } finally {
+                    if (startedConfigurationController != null) {
+                        synchronized (SESSION_LOCK) {
+                            if (mcpConfigurationController == startedConfigurationController) {
+                                mcpConfigurationController = null;
+                            }
+                        }
+                        startedConfigurationController.close();
+                    }
                     if (startedCatalogController != null) {
                         synchronized (SESSION_LOCK) {
                             if (mcpCatalogController == startedCatalogController) {
@@ -538,12 +602,15 @@ public final class AgentRuntimeService extends Service {
     ) {
         boolean owned;
         McpCatalogController catalogController = null;
+        McpConfigurationController configurationController = null;
         synchronized (SESSION_LOCK) {
             owned = sessionController == failedController;
             if (owned) {
                 sessionController = null;
                 catalogController = mcpCatalogController;
                 mcpCatalogController = null;
+                configurationController = mcpConfigurationController;
+                mcpConfigurationController = null;
                 activeWorkspaceLayout = null;
             }
         }
@@ -556,6 +623,9 @@ public final class AgentRuntimeService extends Service {
 
         if (catalogController != null) {
             catalogController.close();
+        }
+        if (configurationController != null) {
+            configurationController.close();
         }
         failedController.close();
         String message = "Codex App-Server-Verbindung fehlgeschlagen: "

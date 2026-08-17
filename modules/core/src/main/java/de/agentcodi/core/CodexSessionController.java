@@ -21,7 +21,7 @@ import java.util.concurrent.TimeUnit;
 import java.util.concurrent.atomic.AtomicLong;
 
 public final class CodexSessionController
-    implements CodexAppServerClient.Listener, AutoCloseable {
+    implements CodexAppServerClient.Listener, CodexCatalogRpc, AutoCloseable {
     public interface ConnectionFailureListener {
         void onConnectionFailed(CodexSessionController controller, Throwable error);
     }
@@ -207,6 +207,40 @@ public final class CodexSessionController
 
     public synchronized CodexSessionSnapshot snapshot() {
         return snapshot;
+    }
+
+    @Override
+    public synchronized String catalogThreadId() {
+        return activeThreadId;
+    }
+
+    @Override
+    public Map<String, Object> requestCatalog(
+        String method,
+        Map<String, Object> params,
+        long timeoutMilliseconds
+    ) throws Exception {
+        if (!isReadOnlyCatalogMethod(method)) {
+            throw new IllegalArgumentException("RPC is not part of the read-only catalog boundary");
+        }
+        if (timeoutMilliseconds <= 0L || timeoutMilliseconds > NORMAL_TIMEOUT_MS) {
+            throw new IllegalArgumentException("Catalog RPC timeout is outside the allowed range");
+        }
+        synchronized (this) {
+            if (closed || !ready) {
+                throw new IllegalStateException("Codex app-server is not ready");
+            }
+        }
+        return client.request(method, params, timeoutMilliseconds);
+    }
+
+    public static boolean isReadOnlyCatalogMethod(String method) {
+        return "experimentalFeature/list".equals(method)
+            || "skills/list".equals(method)
+            || "mcpServerStatus/list".equals(method)
+            || "app/installed".equals(method)
+            || "app/read".equals(method)
+            || "plugin/list".equals(method);
     }
 
     public TerminalSessionSnapshot terminalSnapshot() {

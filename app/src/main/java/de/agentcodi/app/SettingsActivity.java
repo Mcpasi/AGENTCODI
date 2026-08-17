@@ -447,6 +447,23 @@ public final class SettingsActivity extends Activity {
 
         theme.addWithTopMargin(
             page,
+            theme.sectionLabel(getString(R.string.mcp_settings_section)),
+            28
+        );
+        LinearLayout mcpCard = theme.card();
+        mcpCard.addView(theme.body(getString(R.string.mcp_settings_description)));
+        Button mcpButton = theme.secondaryButton(getString(R.string.mcp_settings_open));
+        mcpButton.setOnClickListener(new View.OnClickListener() {
+            @Override
+            public void onClick(View view) {
+                startActivity(new Intent(SettingsActivity.this, McpManagementActivity.class));
+            }
+        });
+        theme.addWithTopMargin(mcpCard, mcpButton, 14);
+        theme.addWithTopMargin(page, mcpCard, 10);
+
+        theme.addWithTopMargin(
+            page,
             theme.sectionLabel(getString(R.string.licenses_section)),
             28
         );

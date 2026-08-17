@@ -17,7 +17,7 @@ AGENTCODI is a native Android client that runs a pinned Codex app-server locally
 
 ## Platform and status
 
-The current release line is **0.4.10** for **Android 10+** on **ARM64**. Host tests and APK integrity gates cover the protocol, storage, native supervisor, toolchains, signing, and architecture boundaries. Installation and device-specific UI, lifecycle, and long-running behavior are validated separately on a physical test device.
+The current release line is **0.4.11** for **Android 10+** on **ARM64**. It adds a bounded, read-only MCP and Codex capability catalog sourced exclusively from the active app-server, including MCP tools, skills, installed connectors, runtime features, and experimental plugin marketplaces without reading or constructing Codex configuration paths. Host tests and APK integrity gates cover the protocol, storage, native supervisor, toolchains, signing, and architecture boundaries. Installation and device-specific UI, lifecycle, and long-running behavior are validated separately on a physical test device.
 
 ## Build
 

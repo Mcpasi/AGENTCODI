@@ -6,8 +6,8 @@ PROJECT_ROOT="$(cd -- "$SCRIPT_DIR/.." && pwd -P)"
 
 APP_NAME="AGENTCODI"
 APP_ID="de.agentcodi.app"
-APP_VERSION="0.4.10"
-VERSION_CODE="30"
+APP_VERSION="0.4.11"
+VERSION_CODE="31"
 MIN_SDK="29"
 TARGET_SDK="35"
 ABI="arm64-v8a"
@@ -584,9 +584,17 @@ env LD_LIBRARY_PATH="$AAPT2_LIBRARY_PATH" "$AAPT2_BIN" link -o "$UNSIGNED_APK" -
 echo "Compiling isolated Java modules..."
 CORE_CLASSES="$CLASSES_ROOT/core"
 STORAGE_CLASSES="$CLASSES_ROOT/storage"
+MCP_CONTRACTS_CLASSES="$CLASSES_ROOT/mcp-contracts"
+MCP_CLIENT_CLASSES="$CLASSES_ROOT/mcp-client"
 RUNTIME_CLASSES="$CLASSES_ROOT/runtime"
 APP_CLASSES="$CLASSES_ROOT/app"
-mkdir -p "$CORE_CLASSES" "$STORAGE_CLASSES" "$RUNTIME_CLASSES" "$APP_CLASSES"
+mkdir -p \
+  "$CORE_CLASSES" \
+  "$STORAGE_CLASSES" \
+  "$MCP_CONTRACTS_CLASSES" \
+  "$MCP_CLIENT_CLASSES" \
+  "$RUNTIME_CLASSES" \
+  "$APP_CLASSES"
 
 find "$PROJECT_ROOT/modules/core/src/main/java" -type f -name '*.java' -print | sort > "$WORK_DIR/core-sources.txt"
 "$JAVAC" -encoding UTF-8 -source 8 -target 8 -Xlint:-options -bootclasspath "$ANDROID_JAR" -d "$CORE_CLASSES" @"$WORK_DIR/core-sources.txt"
@@ -598,13 +606,23 @@ find "$PROJECT_ROOT/modules/storage/src/main/java" -type f -name '*.java' -print
 STORAGE_JAR="$JARS_ROOT/storage.jar"
 "$JAR" cf "$STORAGE_JAR" -C "$STORAGE_CLASSES" .
 
+find "$PROJECT_ROOT/modules/mcp-contracts/src/main/java" -type f -name '*.java' -print | sort > "$WORK_DIR/mcp-contracts-sources.txt"
+"$JAVAC" -encoding UTF-8 -source 8 -target 8 -Xlint:-options -bootclasspath "$ANDROID_JAR" -d "$MCP_CONTRACTS_CLASSES" @"$WORK_DIR/mcp-contracts-sources.txt"
+MCP_CONTRACTS_JAR="$JARS_ROOT/mcp-contracts.jar"
+"$JAR" cf "$MCP_CONTRACTS_JAR" -C "$MCP_CONTRACTS_CLASSES" .
+
+find "$PROJECT_ROOT/modules/mcp-client/src/main/java" -type f -name '*.java' -print | sort > "$WORK_DIR/mcp-client-sources.txt"
+"$JAVAC" -encoding UTF-8 -source 8 -target 8 -Xlint:-options -bootclasspath "$ANDROID_JAR" -classpath "$CORE_JAR:$MCP_CONTRACTS_JAR" -d "$MCP_CLIENT_CLASSES" @"$WORK_DIR/mcp-client-sources.txt"
+MCP_CLIENT_JAR="$JARS_ROOT/mcp-client.jar"
+"$JAR" cf "$MCP_CLIENT_JAR" -C "$MCP_CLIENT_CLASSES" .
+
 find "$PROJECT_ROOT/modules/runtime/src/main/java" -type f -name '*.java' -print | sort > "$WORK_DIR/runtime-sources.txt"
-"$JAVAC" -encoding UTF-8 -source 8 -target 8 -Xlint:-options -bootclasspath "$ANDROID_JAR" -classpath "$CORE_JAR:$STORAGE_JAR" -d "$RUNTIME_CLASSES" @"$WORK_DIR/runtime-sources.txt"
+"$JAVAC" -encoding UTF-8 -source 8 -target 8 -Xlint:-options -bootclasspath "$ANDROID_JAR" -classpath "$CORE_JAR:$STORAGE_JAR:$MCP_CONTRACTS_JAR:$MCP_CLIENT_JAR" -d "$RUNTIME_CLASSES" @"$WORK_DIR/runtime-sources.txt"
 RUNTIME_JAR="$JARS_ROOT/runtime.jar"
 "$JAR" cf "$RUNTIME_JAR" -C "$RUNTIME_CLASSES" .
 
 find "$PROJECT_ROOT/app/src/main/java" "$GENERATED_JAVA" -type f -name '*.java' -print | sort > "$WORK_DIR/app-sources.txt"
-"$JAVAC" -encoding UTF-8 -source 8 -target 8 -Xlint:-options -bootclasspath "$ANDROID_JAR" -classpath "$CORE_JAR:$STORAGE_JAR:$RUNTIME_JAR" -d "$APP_CLASSES" @"$WORK_DIR/app-sources.txt"
+"$JAVAC" -encoding UTF-8 -source 8 -target 8 -Xlint:-options -bootclasspath "$ANDROID_JAR" -classpath "$CORE_JAR:$STORAGE_JAR:$MCP_CONTRACTS_JAR:$MCP_CLIENT_JAR:$RUNTIME_JAR" -d "$APP_CLASSES" @"$WORK_DIR/app-sources.txt"
 APP_JAR="$JARS_ROOT/app.jar"
 "$JAR" cf "$APP_JAR" -C "$APP_CLASSES" .
 
@@ -1316,7 +1334,7 @@ DEX_MODE="--debug"
 if [ "$BUILD_VARIANT" = "release" ]; then
   DEX_MODE="--release"
 fi
-"$JAVA" -cp "$R8_JAR" com.android.tools.r8.D8 "$DEX_MODE" --min-api "$MIN_SDK" --lib "$ANDROID_JAR" --output "$DEX_DIR" "$CORE_JAR" "$STORAGE_JAR" "$RUNTIME_JAR" "$APP_JAR"
+"$JAVA" -cp "$R8_JAR" com.android.tools.r8.D8 "$DEX_MODE" --min-api "$MIN_SDK" --lib "$ANDROID_JAR" --output "$DEX_DIR" "$CORE_JAR" "$STORAGE_JAR" "$MCP_CONTRACTS_JAR" "$MCP_CLIENT_JAR" "$RUNTIME_JAR" "$APP_JAR"
 cp "$DEX_DIR/classes.dex" "$ADDITIONS/classes.dex"
 
 UNALIGNED_APK="$WORK_DIR/unaligned.apk"
@@ -1487,6 +1505,7 @@ grep -Fq 'Lde/agentcodi/app/MainActivity;' "$WORK_DIR/dex-strings.txt"
 grep -Fq 'Lde/agentcodi/app/SettingsActivity;' "$WORK_DIR/dex-strings.txt"
 grep -Fq 'Lde/agentcodi/app/TerminalActivity;' "$WORK_DIR/dex-strings.txt"
 grep -Fq 'Lde/agentcodi/app/LicensesActivity;' "$WORK_DIR/dex-strings.txt"
+grep -Fq 'Lde/agentcodi/app/McpManagementActivity;' "$WORK_DIR/dex-strings.txt"
 grep -Fq 'Lde/agentcodi/app/AppLanguage;' "$WORK_DIR/dex-strings.txt"
 grep -Fq 'Lde/agentcodi/app/AgentCodiApplication;' "$WORK_DIR/dex-strings.txt"
 grep -Fq 'Lde/agentcodi/core/UiLanguage;' "$WORK_DIR/dex-strings.txt"
@@ -1501,6 +1520,9 @@ grep -Fq 'Lde/agentcodi/core/CodexModelOption;' "$WORK_DIR/dex-strings.txt"
 grep -Fq 'Lde/agentcodi/core/CodexReasoningOption;' "$WORK_DIR/dex-strings.txt"
 grep -Fq 'Lde/agentcodi/core/CodexInteractiveRequest;' "$WORK_DIR/dex-strings.txt"
 grep -Fq 'Lde/agentcodi/core/CodexApprovalDecision;' "$WORK_DIR/dex-strings.txt"
+grep -Fq 'Lde/agentcodi/mcp/McpCatalogSnapshot;' "$WORK_DIR/dex-strings.txt"
+grep -Fq 'Lde/agentcodi/mcp/client/McpCatalogLoader;' "$WORK_DIR/dex-strings.txt"
+grep -Fq 'Lde/agentcodi/mcp/client/McpCatalogController;' "$WORK_DIR/dex-strings.txt"
 grep -Fq 'Lde/agentcodi/app/InteractiveRequestDialog;' "$WORK_DIR/dex-strings.txt"
 grep -Fq 'Lde/agentcodi/runtime/AgentRuntimeService;' "$WORK_DIR/dex-strings.txt"
 grep -Fq 'Lde/agentcodi/runtime/RuntimeText;' "$WORK_DIR/dex-strings.txt"

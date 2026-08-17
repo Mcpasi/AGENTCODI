@@ -153,9 +153,18 @@ int main(int argc, char* argv[]) {
   if (argc == 2 && std::string(argv[1]) == "--exit-with-code") {
     return 23;
   }
+  if (argc == 2 && std::string(argv[1]) == "--emit-mcp-catalog") {
+    std::cout
+        << "{\"id\":41,\"result\":{\"data\":[{"
+        << "\"name\":\"fixture-mcp\",\"authStatus\":\"unsupported\","
+        << "\"tools\":{\"search\":{\"name\":\"search\","
+        << "\"inputSchema\":{\"type\":\"object\"}}},"
+        << "\"resources\":[],\"resourceTemplates\":[]}]}}\n";
+    return 0;
+  }
 
   const std::string version = agentcodi::engine_version();
-  expect(version == "agentcodi-native/0.4.10", "engine version");
+  expect(version == "agentcodi-native/0.4.11", "engine version");
   expect(agentcodi::run_self_test() == 0, "native self-test");
 
   const std::string diagnostics = agentcodi::runtime_diagnostics();
@@ -908,6 +917,26 @@ int main(int argc, char* argv[]) {
       if (!child_materialized_path.empty()) {
         expect(unlink(child_materialized_path.c_str()) == 0,
                "remove child materialization fixture");
+      }
+
+      config.arguments = {"--emit-mcp-catalog"};
+      error.clear();
+      process = agentcodi::AppServerProcess::Start(config, &error);
+      expect(process != nullptr, "spawn MCP catalog framing fixture");
+      if (process != nullptr) {
+        std::string catalog_response;
+        expect(
+            process->ReadLine(16U * 1024U, &catalog_response, &error)
+                == agentcodi::LineReadStatus::kLine,
+            "read bounded MCP catalog response");
+        expect(
+            catalog_response.find("\"name\":\"fixture-mcp\"")
+                    != std::string::npos
+                && catalog_response.find("\"inputSchema\":{\"type\":\"object\"}")
+                    != std::string::npos,
+            "supervisor preserves unrelated MCP inventory data for Java validation");
+        expect(process->Stop(500) != INT_MIN,
+               "stop MCP catalog framing fixture");
       }
 
       config.arguments = {"--exit-with-code"};

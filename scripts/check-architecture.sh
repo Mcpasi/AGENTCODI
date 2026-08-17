@@ -4,7 +4,7 @@ set -Eeuo pipefail
 SCRIPT_DIR="$(cd -- "$(dirname -- "$0")" && pwd -P)"
 PROJECT_ROOT="$(cd -- "$SCRIPT_DIR/.." && pwd -P)"
 
-unexpected_source="$(find "$PROJECT_ROOT/app/src/main/java" "$PROJECT_ROOT/modules/core/src/main/java" "$PROJECT_ROOT/modules/storage/src/main/java" "$PROJECT_ROOT/modules/runtime/src/main/java" "$PROJECT_ROOT/modules/native-engine/src/main/cpp" "$PROJECT_ROOT/tests/java" "$PROJECT_ROOT/tests/cpp" -type f ! -name '*.java' ! -name '*.cpp' ! -name '*.h' -print)"
+unexpected_source="$(find "$PROJECT_ROOT/app/src/main/java" "$PROJECT_ROOT/modules/core/src/main/java" "$PROJECT_ROOT/modules/storage/src/main/java" "$PROJECT_ROOT/modules/mcp-contracts/src/main/java" "$PROJECT_ROOT/modules/mcp-client/src/main/java" "$PROJECT_ROOT/modules/runtime/src/main/java" "$PROJECT_ROOT/modules/native-engine/src/main/cpp" "$PROJECT_ROOT/tests/java" "$PROJECT_ROOT/tests/cpp" -type f ! -name '*.java' ! -name '*.cpp' ! -name '*.h' -print)"
 if [ -n "$unexpected_source" ]; then
   echo "Only Java and C++ source files are accepted in source roots." >&2
   printf '%s\n' "$unexpected_source" >&2
@@ -16,8 +16,42 @@ if find "$PROJECT_ROOT/app" "$PROJECT_ROOT/modules" "$PROJECT_ROOT/tests" -type 
   exit 1
 fi
 
-if rg -n '^import android\.' "$PROJECT_ROOT/modules/core/src/main/java" "$PROJECT_ROOT/modules/storage/src/main/java"; then
+if rg -n '^import android\.' "$PROJECT_ROOT/modules/core/src/main/java" "$PROJECT_ROOT/modules/storage/src/main/java" "$PROJECT_ROOT/modules/mcp-contracts/src/main/java" "$PROJECT_ROOT/modules/mcp-client/src/main/java"; then
   echo "Pure Java modules must not import Android APIs." >&2
+  exit 1
+fi
+
+mcp_contracts="$PROJECT_ROOT/modules/mcp-contracts/src/main/java"
+mcp_client="$PROJECT_ROOT/modules/mcp-client/src/main/java"
+manifest="$PROJECT_ROOT/app/src/main/AndroidManifest.xml"
+if rg -n '^import de\.agentcodi\.(core|mcp\.client|runtime|storage|app)\.' "$mcp_contracts" \
+    || rg -n '^import de\.agentcodi\.(runtime|storage|app)\.' "$mcp_client" \
+    || rg -n '^import de\.agentcodi\.mcp\.' "$PROJECT_ROOT/modules/core/src/main/java" \
+    || rg -n 'java\.(io\.File|nio\.file)|get\("(path|marketplacePath|inputSchema|outputSchema)"\)' "$mcp_client"; then
+  echo "MCP contracts, client dependencies, or opaque-path boundaries are invalid." >&2
+  exit 1
+fi
+if ! rg -q '"experimentalFeature/list"' "$mcp_client" \
+    || ! rg -q '"skills/list"' "$mcp_client" \
+    || ! rg -q '"mcpServerStatus/list"' "$mcp_client" \
+    || ! rg -q '"app/installed"' "$mcp_client" \
+    || ! rg -q '"app/read"' "$mcp_client" \
+    || ! rg -q '"plugin/list"' "$mcp_client" \
+    || rg -n '"(config/read|config/value/write|config/batchWrite|mcpServer/tool/call|mcpServer/oauth/login|plugin/install|plugin/uninstall|marketplace/add|marketplace/remove|marketplace/upgrade)"' "$mcp_client" \
+    || ! rg -q 'forceReload", Boolean\.FALSE' "$mcp_client" \
+    || ! rg -q 'forceRefetch", Boolean\.FALSE' "$mcp_client" \
+    || ! rg -q 'marketplaceKinds", JsonCodec\.array\("local"\)' "$mcp_client"; then
+  echo "The MCP catalog must remain an app-server-owned, read-only projection." >&2
+  exit 1
+fi
+
+mcp_activity="$PROJECT_ROOT/app/src/main/java/de/agentcodi/app/McpManagementActivity.java"
+if ! rg -Uq 'android:name="\.McpManagementActivity"[[:space:][:print:]]{0,220}android:exported="false"' "$manifest" \
+    || ! rg -q 'McpManagementActivity' "$PROJECT_ROOT/app/src/main/java/de/agentcodi/app/SettingsActivity.java" \
+    || ! rg -q 'mcpCatalogSnapshot' "$mcp_activity" \
+    || ! rg -q 'refreshMcpCatalog' "$mcp_activity" \
+    || rg -n '(config/read|mcpServer/tool/call|oauth|plugin/install|marketplace/add)' "$mcp_activity"; then
+  echo "The native MCP inventory activity must remain non-exported and read-only." >&2
   exit 1
 fi
 
@@ -31,7 +65,6 @@ if rg -n '^import android\.webkit' "$PROJECT_ROOT/app/src/main/java" "$PROJECT_R
   exit 1
 fi
 
-manifest="$PROJECT_ROOT/app/src/main/AndroidManifest.xml"
 apk_builder="$PROJECT_ROOT/scripts/build-debug-apk.sh"
 release_builder="$PROJECT_ROOT/scripts/build-release-apk.sh"
 if rg -q 'android:debuggable="true"' "$manifest" \
@@ -351,13 +384,13 @@ if ! rg -q 'PYTHON_SOURCE_EXTENSION_COUNT="75"' "$apk_builder" \
   exit 1
 fi
 
-if ! rg -q 'VERSION_NAME = "0\.4\.10"' "$core_root/BuildIdentity.java" \
-    || ! rg -q 'VERSION_CODE = 30' "$core_root/BuildIdentity.java" \
-    || ! rg -q 'android:versionName="0\.4\.10"' "$manifest" \
-    || ! rg -q 'android:versionCode="30"' "$manifest" \
-    || ! rg -q 'APP_VERSION="0\.4\.10"' "$apk_builder" \
-    || ! rg -q 'VERSION_CODE="30"' "$apk_builder"; then
-  echo "The 0.4.10 identity is inconsistent." >&2
+if ! rg -q 'VERSION_NAME = "0\.4\.11"' "$core_root/BuildIdentity.java" \
+    || ! rg -q 'VERSION_CODE = 31' "$core_root/BuildIdentity.java" \
+    || ! rg -q 'android:versionName="0\.4\.11"' "$manifest" \
+    || ! rg -q 'android:versionCode="31"' "$manifest" \
+    || ! rg -q 'APP_VERSION="0\.4\.11"' "$apk_builder" \
+    || ! rg -q 'VERSION_CODE="31"' "$apk_builder"; then
+  echo "The 0.4.11 identity is inconsistent." >&2
   exit 1
 fi
 

@@ -23,7 +23,13 @@ mkdir -p "$TEST_BUILD/java-classes" "$TEST_BUILD/cpp"
 
 "$SCRIPT_DIR/check-architecture.sh"
 
-find "$PROJECT_ROOT/modules/core/src/main/java" "$PROJECT_ROOT/modules/storage/src/main/java" "$PROJECT_ROOT/tests/java" -type f -name '*.java' -print | sort > "$TEST_BUILD/java-sources.txt"
+find \
+  "$PROJECT_ROOT/modules/core/src/main/java" \
+  "$PROJECT_ROOT/modules/storage/src/main/java" \
+  "$PROJECT_ROOT/modules/mcp-contracts/src/main/java" \
+  "$PROJECT_ROOT/modules/mcp-client/src/main/java" \
+  "$PROJECT_ROOT/tests/java" \
+  -type f -name '*.java' -print | sort > "$TEST_BUILD/java-sources.txt"
 
 "$JAVAC" -encoding UTF-8 -source 8 -target 8 -Xlint:-options -d "$TEST_BUILD/java-classes" @"$TEST_BUILD/java-sources.txt"
 "$JAVA" -cp "$TEST_BUILD/java-classes" de.agentcodi.tests.TestMain

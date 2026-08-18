@@ -11,13 +11,27 @@ AGENTCODI is a native Android client that runs a pinned Codex app-server locally
 - Thread listing, creation, resume, history recovery, interruption, and explicit runtime restart
 - Private app workspace with validated image, individual-file, and bounded ZIP export
 - Sandboxed interactive terminal backed by the same app-server session
+- MCP and Codex capability catalog with a guarded Expert mode for supported user MCP servers
 - Explicitly activated, packaged Node.js 24.18.0, npm 11.19.0, and Python 3.14.6 toolchains; Python retains SQLite-backed `dbm`/`shelve` and PyREPL without GNU dbm or Readline
 - English and German interfaces, device-language fallback, light and dark themes
 - Local, bounded, credential-redacted diagnostics
 
+## MCP management and Expert mode
+
+MCP (Model Context Protocol) lets Codex use tools provided by configured servers. In **Settings → MCP and Codex capabilities**, AGENTCODI shows the bounded catalog reported by the active Codex runtime, including MCP servers and tools, runtime features, skills, installed apps, and the experimental plugin marketplace inventory.
+
+The same screen includes an Expert mode for the supported, secret-free part of the Codex user MCP configuration:
+
+- Add or edit local stdio and remote HTTPS servers, timeouts, and optional tool allow/deny lists
+- Enable, disable, delete, or explicitly reload supported user-owned servers; project, managed, session, mixed, and unknown configuration layers remain view-only
+- Review every new server while it is still disabled, then enable it separately; editing or enabling enforces a native approval prompt for every MCP tool
+- Keep credentials and authentication settings out of the editor: tokens, passwords, environment variables, HTTP headers, OAuth, and direct `config.toml` access are intentionally unavailable
+
+Unsupported or sensitive values stay hidden, while unchanged advanced fields remain owned by Codex and are preserved. This mode changes real Codex user settings, so it is intended for people who understand the server they are configuring.
+
 ## Platform and status
 
-The current release line is **0.4.12** for **Android 10+** on **ARM64**. Alongside the MCP and Codex capability catalog, experienced users can now manage a safe subset of their MCP server settings in a native screen; new servers stay disabled until explicitly enabled, and AGENTCODI never exposes the underlying configuration file. Host tests and APK integrity gates cover the protocol, storage, native supervisor, toolchains, signing, and architecture boundaries. Installation and device-specific UI, lifecycle, and long-running behavior are validated separately on a physical test device.
+The current release line is **0.5.0** for **Android 10+** on **ARM64**. Host tests and APK integrity gates cover the protocol, storage, native supervisor, toolchains, signing, and architecture boundaries. Installation and device-specific UI, lifecycle, and long-running behavior are validated separately on a physical test device.
 
 ## Build
 

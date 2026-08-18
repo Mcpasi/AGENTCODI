@@ -426,13 +426,13 @@ if ! rg -q 'PYTHON_SOURCE_EXTENSION_COUNT="75"' "$apk_builder" \
   exit 1
 fi
 
-if ! rg -q 'VERSION_NAME = "0\.4\.16"' "$core_root/BuildIdentity.java" \
-    || ! rg -q 'VERSION_CODE = 36' "$core_root/BuildIdentity.java" \
-    || ! rg -q 'android:versionName="0\.4\.16"' "$manifest" \
-    || ! rg -q 'android:versionCode="36"' "$manifest" \
-    || ! rg -q 'APP_VERSION="0\.4\.16"' "$apk_builder" \
-    || ! rg -q 'VERSION_CODE="36"' "$apk_builder"; then
-  echo "The 0.4.16 identity is inconsistent." >&2
+if ! rg -q 'VERSION_NAME = "0\.5\.0"' "$core_root/BuildIdentity.java" \
+    || ! rg -q 'VERSION_CODE = 37' "$core_root/BuildIdentity.java" \
+    || ! rg -q 'android:versionName="0\.5\.0"' "$manifest" \
+    || ! rg -q 'android:versionCode="37"' "$manifest" \
+    || ! rg -q 'APP_VERSION="0\.5\.0"' "$apk_builder" \
+    || ! rg -q 'VERSION_CODE="37"' "$apk_builder"; then
+  echo "The 0.5.0 identity is inconsistent." >&2
   exit 1
 fi
 

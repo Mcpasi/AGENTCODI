@@ -29,10 +29,11 @@ public final class McpConfigurationControllerTest {
         loadsSecretFreeConfigurationAndClassifiesOrigins();
         validatesTheNarrowWriteBoundary();
         serializesAddEditEnableDeleteAndReload();
+        roundTripsMaximumWritableServerProjection();
         requiresPromptBeforeEnablingAnExistingServer();
         hardensPerToolApprovalOverridesWithoutDroppingOtherFields();
         reportsReloadFailureAfterAnAcceptedWrite();
-        return 6;
+        return 7;
     }
 
     private static void loadsSecretFreeConfigurationAndClassifiesOrigins() throws Exception {
@@ -381,6 +382,63 @@ public final class McpConfigurationControllerTest {
         controller.close();
     }
 
+    private static void roundTripsMaximumWritableServerProjection() throws Exception {
+        String serverName = repeatedCharacter('s', 64);
+        List<String> arguments = repeatedValues(64, repeatedCharacter('a', 2048));
+        List<String> enabledTools = repeatedValues(128, repeatedCharacter('e', 160));
+        List<String> disabledTools = repeatedValues(128, repeatedCharacter('d', 160));
+        McpServerDraft draft = new McpServerDraft(
+            serverName,
+            McpTransport.STDIO,
+            repeatedCharacter('c', 1024),
+            arguments,
+            "",
+            false,
+            false,
+            3600,
+            3600,
+            "prompt",
+            enabledTools,
+            disabledTools
+        );
+
+        StatefulRpc rpc = new StatefulRpc();
+        McpConfigurationController controller = new McpConfigurationController(rpc);
+        TestSupport.assertTrue(controller.refresh(), "maximum projection refresh accepted");
+        waitReady(controller, McpConfigurationNotice.NONE, "maximum projection initial read");
+        TestSupport.assertTrue(controller.save(draft), "maximum projection write accepted");
+        waitReady(controller, McpConfigurationNotice.SAVED, "maximum projection round trip");
+
+        McpServerConfiguration saved = find(controller.snapshot(), serverName);
+        TestSupport.assertEquals(
+            draft.getCommand(),
+            saved.getCommand(),
+            "maximum command retained"
+        );
+        TestSupport.assertEquals(arguments, saved.getArguments(), "maximum arguments retained");
+        TestSupport.assertEquals(
+            enabledTools,
+            saved.getEnabledTools(),
+            "maximum enabled tools retained"
+        );
+        TestSupport.assertEquals(
+            disabledTools,
+            saved.getDisabledTools(),
+            "maximum disabled tools retained"
+        );
+        TestSupport.assertEquals(
+            Integer.valueOf(1),
+            Integer.valueOf(rpc.writes.size()),
+            "maximum projection written once"
+        );
+        TestSupport.assertEquals(
+            Integer.valueOf(1),
+            Integer.valueOf(rpc.reloadCount),
+            "maximum projection reloaded once"
+        );
+        controller.close();
+    }
+
     private static void hardensPerToolApprovalOverridesWithoutDroppingOtherFields()
         throws Exception {
         final StatefulRpc rpc = new StatefulRpc();
@@ -555,6 +613,22 @@ public final class McpConfigurationControllerTest {
             Collections.<String>emptyList(),
             Collections.<String>emptyList()
         );
+    }
+
+    private static List<String> repeatedValues(int count, String value) {
+        List<String> values = new ArrayList<String>();
+        for (int index = 0; index < count; index++) {
+            values.add(value);
+        }
+        return values;
+    }
+
+    private static String repeatedCharacter(char character, int count) {
+        StringBuilder value = new StringBuilder(count);
+        for (int index = 0; index < count; index++) {
+            value.append(character);
+        }
+        return value.toString();
     }
 
     private static Map<String, Object> serverWithToolOverride(String url) {

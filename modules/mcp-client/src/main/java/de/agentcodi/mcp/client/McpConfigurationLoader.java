@@ -1,5 +1,6 @@
 package de.agentcodi.mcp.client;
 
+import de.agentcodi.core.CodexAppServerClient;
 import de.agentcodi.core.CodexMcpConfigurationRpc;
 import de.agentcodi.core.CredentialGuard;
 import de.agentcodi.core.CrashReportFormatter;
@@ -24,7 +25,8 @@ import java.util.Map;
 public final class McpConfigurationLoader {
     static final int MAX_SERVERS = 64;
     static final int MAX_ORIGINS = 4096;
-    static final int MAX_PROJECTED_CHARACTERS = 64 * 1024;
+    // Every projected character comes from the already byte-bounded incoming JSON frame.
+    static final int MAX_PROJECTED_CHARACTERS = CodexAppServerClient.MAX_INCOMING_BYTES;
     static final long REQUEST_TIMEOUT_MS = 20_000L;
 
     private final CodexMcpConfigurationRpc rpc;

@@ -321,7 +321,7 @@ int main(int argc, char* argv[]) {
   const std::string initialize =
       "{\"method\":\"initialize\",\"id\":1,\"params\":{"
       "\"clientInfo\":{\"name\":\"agentcodi_android\","
-      "\"title\":\"AGENTCODI\",\"version\":\"0.4.13\"},"
+      "\"title\":\"AGENTCODI\",\"version\":\"0.4.14\"},"
       "\"capabilities\":{\"experimentalApi\":true,"
       "\"optOutNotificationMethods\":[\"rawResponseItem/completed\","
       "\"rawResponse/completed\"]}}}";

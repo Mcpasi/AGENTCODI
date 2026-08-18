@@ -29,12 +29,13 @@ public final class McpConfigurationControllerTest {
         loadsSecretFreeConfigurationAndClassifiesOrigins();
         validatesTheNarrowWriteBoundary();
         serializesAddEditEnableDeleteAndReload();
+        preservesRepeatedStdioOptionsFromEditorInput();
         roundTripsMaximumWritableServerProjection();
         preservesUnchangedUnprojectableAndNormalizedFields();
         requiresPromptBeforeEnablingAnExistingServer();
         hardensPerToolApprovalOverridesWithoutDroppingOtherFields();
         reportsReloadFailureAfterAnAcceptedWrite();
-        return 8;
+        return 9;
     }
 
     private static void loadsSecretFreeConfigurationAndClassifiesOrigins() throws Exception {
@@ -436,6 +437,64 @@ public final class McpConfigurationControllerTest {
             Integer.valueOf(1),
             Integer.valueOf(rpc.reloadCount),
             "maximum projection reloaded once"
+        );
+        controller.close();
+    }
+
+    private static void preservesRepeatedStdioOptionsFromEditorInput() throws Exception {
+        List<String> expectedArguments = new ArrayList<String>();
+        expectedArguments.add("--header");
+        expectedArguments.add("A");
+        expectedArguments.add("--header");
+        expectedArguments.add("B");
+        List<String> parsedArguments = McpServerDraft.parseLines(
+            "  --header  \r\nA\n\n--header\r\n  B  \n"
+        );
+        TestSupport.assertEquals(
+            expectedArguments,
+            parsedArguments,
+            "editor parser retains repeated STDIO options in order"
+        );
+
+        McpServerDraft draft = new McpServerDraft(
+            "duplicate-stdio",
+            McpTransport.STDIO,
+            "runner",
+            parsedArguments,
+            "",
+            false,
+            false,
+            10,
+            60,
+            "prompt",
+            Collections.<String>emptyList(),
+            Collections.<String>emptyList()
+        );
+        StatefulRpc rpc = new StatefulRpc();
+        McpConfigurationController controller = new McpConfigurationController(rpc);
+        TestSupport.assertTrue(controller.refresh(), "duplicate STDIO refresh accepted");
+        waitReady(controller, McpConfigurationNotice.NONE, "duplicate STDIO initial read");
+        TestSupport.assertTrue(controller.save(draft), "duplicate STDIO write accepted");
+        waitReady(controller, McpConfigurationNotice.SAVED, "duplicate STDIO round trip");
+
+        Map<String, Object> added = JsonCodec.requireObject(
+            firstEdit(rpc.writes.get(0)).get("value"),
+            "duplicate STDIO server"
+        );
+        TestSupport.assertEquals(
+            expectedArguments,
+            added.get("args"),
+            "batch write retains both repeated STDIO options"
+        );
+        TestSupport.assertEquals(
+            expectedArguments,
+            find(controller.snapshot(), "duplicate-stdio").getArguments(),
+            "reload and read retain both repeated STDIO options"
+        );
+        TestSupport.assertEquals(
+            Integer.valueOf(1),
+            Integer.valueOf(rpc.reloadCount),
+            "duplicate STDIO write reloads exactly once"
         );
         controller.close();
     }

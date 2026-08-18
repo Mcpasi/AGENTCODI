@@ -87,6 +87,8 @@ if ! rg -Uq 'android:name="\.McpManagementActivity"[[:space:][:print:]]{0,220}an
     || ! rg -q 'hasToolApprovalOverrides' "$mcp_activity" \
     || ! rg -q 'snapshot\.getPhase\(\) != McpConfigurationPhase\.READY' "$mcp_activity" \
     || ! rg -q 'enabled\.setEnabled\(false\)' "$mcp_editor" \
+    || ! rg -q 'McpServerDraft\.parseLines\(argumentText\)' "$mcp_editor" \
+    || rg -q 'LinkedHashSet' "$mcp_editor" \
     || rg -n '(config/read|mcpServer/tool/call|oauth|plugin/install|marketplace/add)' "$mcp_activity"; then
   echo "The native MCP activity must remain non-exported and use only runtime facades." >&2
   exit 1
@@ -424,13 +426,13 @@ if ! rg -q 'PYTHON_SOURCE_EXTENSION_COUNT="75"' "$apk_builder" \
   exit 1
 fi
 
-if ! rg -q 'VERSION_NAME = "0\.4\.15"' "$core_root/BuildIdentity.java" \
-    || ! rg -q 'VERSION_CODE = 35' "$core_root/BuildIdentity.java" \
-    || ! rg -q 'android:versionName="0\.4\.15"' "$manifest" \
-    || ! rg -q 'android:versionCode="35"' "$manifest" \
-    || ! rg -q 'APP_VERSION="0\.4\.15"' "$apk_builder" \
-    || ! rg -q 'VERSION_CODE="35"' "$apk_builder"; then
-  echo "The 0.4.15 identity is inconsistent." >&2
+if ! rg -q 'VERSION_NAME = "0\.4\.16"' "$core_root/BuildIdentity.java" \
+    || ! rg -q 'VERSION_CODE = 36' "$core_root/BuildIdentity.java" \
+    || ! rg -q 'android:versionName="0\.4\.16"' "$manifest" \
+    || ! rg -q 'android:versionCode="36"' "$manifest" \
+    || ! rg -q 'APP_VERSION="0\.4\.16"' "$apk_builder" \
+    || ! rg -q 'VERSION_CODE="36"' "$apk_builder"; then
+  echo "The 0.4.16 identity is inconsistent." >&2
   exit 1
 fi
 

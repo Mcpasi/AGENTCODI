@@ -158,6 +158,7 @@ public final class McpConfigurationLoader {
                 advanced = true;
             }
         }
+        boolean toolApprovalOverrides = hasToolApprovalOverrides(server.get("tools"));
 
         for (String key : server.keySet()) {
             if (!isProjectedField(key)) {
@@ -201,6 +202,7 @@ public final class McpConfigurationLoader {
             disabledTools.values,
             origin.origin,
             editable,
+            toolApprovalOverrides,
             advanced,
             sensitive
         );
@@ -211,7 +213,17 @@ public final class McpConfigurationLoader {
             || "enabled".equals(key) || "required".equals(key)
             || "startup_timeout_sec".equals(key) || "tool_timeout_sec".equals(key)
             || "enabled_tools".equals(key) || "disabled_tools".equals(key)
-            || "default_tools_approval_mode".equals(key);
+            || "default_tools_approval_mode".equals(key) || "tools".equals(key);
+    }
+
+    private static boolean hasToolApprovalOverrides(Object value) {
+        if (value == null) {
+            return false;
+        }
+        if (!(value instanceof Map)) {
+            return true;
+        }
+        return !((Map<?, ?>) value).isEmpty();
     }
 
     private static String safeConfiguredText(

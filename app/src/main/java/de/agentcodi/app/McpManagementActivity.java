@@ -396,12 +396,21 @@ public final class McpManagementActivity extends Activity {
                 ) + "\n"
                 + getString(
                     R.string.mcp_configuration_approval_mode,
-                    approvalModeText(server.getApprovalMode())
+                    approvalModeText(server)
                 ) + "\n"
                 + originText(server.getOrigin())
         );
         details.setTextIsSelectable(true);
         theme.addWithTopMargin(card, details, 8);
+        if (server.hasToolApprovalOverrides()) {
+            TextView approvalOverride = theme.text(
+                getString(R.string.mcp_configuration_tool_approval_override_warning),
+                12,
+                theme.danger
+            );
+            approvalOverride.setLineSpacing(0.0f, 1.16f);
+            theme.addWithTopMargin(card, approvalOverride, 8);
+        }
         if (server.hasPreservedAdvancedFields()) {
             TextView advanced = theme.text(
                 getString(R.string.mcp_configuration_advanced),
@@ -563,10 +572,13 @@ public final class McpManagementActivity extends Activity {
         }
     }
 
-    private String approvalModeText(String approvalMode) {
-        return "prompt".equals(approvalMode)
-            ? getString(R.string.mcp_configuration_approval_prompt)
-            : getString(R.string.mcp_configuration_approval_unsafe);
+    private String approvalModeText(McpServerConfiguration server) {
+        if (!"prompt".equals(server.getApprovalMode())) {
+            return getString(R.string.mcp_configuration_approval_unsafe);
+        }
+        return server.hasToolApprovalOverrides()
+            ? getString(R.string.mcp_configuration_approval_overridden)
+            : getString(R.string.mcp_configuration_approval_prompt);
     }
 
     private static boolean isSuccessfulNotice(McpConfigurationNotice notice) {

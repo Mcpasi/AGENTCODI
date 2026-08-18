@@ -46,6 +46,7 @@ final class CodexMcpConfigurationRequestValidator {
         }
         Set<String> keyPaths = new HashSet<String>();
         Set<String> promptServers = new HashSet<String>();
+        Set<String> clearedToolApprovalOverrides = new HashSet<String>();
         Set<String> enabledServers = new HashSet<String>();
         for (Object value : edits) {
             if (!(value instanceof Map) || !isValidEdit((Map<?, ?>) value, keyPaths)) {
@@ -61,13 +62,16 @@ final class CodexMcpConfigurationRequestValidator {
                 if ("default_tools_approval_mode".equals(field)
                     && "prompt".equals(edit.get("value"))) {
                     promptServers.add(serverName);
+                } else if ("tools".equals(field) && edit.get("value") == null) {
+                    clearedToolApprovalOverrides.add(serverName);
                 } else if ("enabled".equals(field)
                     && Boolean.TRUE.equals(edit.get("value"))) {
                     enabledServers.add(serverName);
                 }
             }
         }
-        return promptServers.containsAll(enabledServers);
+        return promptServers.containsAll(enabledServers)
+            && clearedToolApprovalOverrides.containsAll(enabledServers);
     }
 
     private static boolean isValidEdit(Map<?, ?> edit, Set<String> keyPaths) {
@@ -100,6 +104,9 @@ final class CodexMcpConfigurationRequestValidator {
         String field = remainder.substring(separator + 1);
         if (field.isEmpty() || field.indexOf('.') >= 0) {
             return false;
+        }
+        if ("tools".equals(field)) {
+            return edit.get("value") == null;
         }
         return isValidField(field, edit.get("value"));
     }

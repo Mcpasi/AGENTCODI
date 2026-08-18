@@ -268,7 +268,7 @@
   <string name="mcp_dependency_count">%1$d Tool-Abhängigkeiten</string>
   <string name="mcp_plugin_count">%1$d Plugins</string>
   <string name="mcp_configuration_section">MCP-SERVER-KONFIGURATION · EXPERTEN</string>
-  <string name="mcp_configuration_expert_warning">Expertenfunktion: Änderungen wirken auf die Codex-Nutzerkonfiguration. Neue Server werden immer zuerst deaktiviert gespeichert und jeder bearbeitete Server wird auf eine Nachfrage bei jedem MCP-Tool festgelegt. Prüfe den Eintrag und aktiviere ihn danach ausdrücklich. Statische Umgebungsvariablen, HTTP-Header, Bearer-Token-Einstellungen, OAuth und direkter Konfigurationsdateizugriff sind absichtlich nicht verfügbar.</string>
+  <string name="mcp_configuration_expert_warning">Expertenfunktion: Änderungen wirken auf die Codex-Nutzerkonfiguration. Neue Server werden immer zuerst deaktiviert gespeichert. Jede Bearbeitung und Aktivierung setzt den Serverstandard auf Nachfragen und entfernt werkzeugspezifische Freigabe-Overrides, sodass kein Tool seinen nativen Entscheidungsdialog umgehen kann. Prüfe den Eintrag und aktiviere ihn danach ausdrücklich. Statische Umgebungsvariablen, HTTP-Header, Bearer-Token-Einstellungen, OAuth und direkter Konfigurationsdateizugriff sind absichtlich nicht verfügbar.</string>
   <string name="mcp_configuration_stopped">Starte Codex, um Server zu verwalten</string>
   <string name="mcp_configuration_loading">Effektive MCP-Konfiguration wird gelesen…</string>
   <string name="mcp_configuration_saving">MCP-Konfiguration wird angewendet und neu geladen…</string>
@@ -288,7 +288,9 @@
   <string name="mcp_configuration_approval_mode">Tool-Freigabe: %1$s</string>
   <string name="mcp_configuration_approval_prompt">bei jedem Tool nachfragen</string>
   <string name="mcp_configuration_approval_unsafe">nicht sicher auf Nachfragen begrenzt · vor Aktivierung bearbeiten</string>
-  <string name="mcp_configuration_advanced">Erweiterte Felder sind vorhanden. Sichere feldweise Änderungen erhalten sie, ohne ihre Werte anzuzeigen oder neu zu schreiben.</string>
+  <string name="mcp_configuration_approval_overridden">Werkzeug-Override erkannt · Bearbeiten oder Aktivieren erzwingt Nachfragen atomar</string>
+  <string name="mcp_configuration_tool_approval_override_warning">Werkzeugspezifische Freigabe-Overrides können den Serverstandard überstimmen. Bearbeiten oder Aktivieren über AGENTCODI entfernt die Override-Tabelle atomar.</string>
+  <string name="mcp_configuration_advanced">Weitere erweiterte Felder sind vorhanden. Sichere feldweise Änderungen erhalten sie, ohne ihre Werte anzuzeigen oder neu zu schreiben.</string>
   <string name="mcp_configuration_edit">Unterstützte Felder bearbeiten</string>
   <string name="mcp_configuration_disable">Server deaktivieren</string>
   <string name="mcp_configuration_enable">Server aktivieren</string>
@@ -332,7 +334,8 @@
   <string name="mcp_editor_tools_hint">Exakter Toolname, einer pro Zeile</string>
   <string name="mcp_editor_enabled_tools">Aktivierte Tools · optionale Positivliste</string>
   <string name="mcp_editor_disabled_tools">Deaktivierte Tools · optionale Sperrliste</string>
-  <string name="mcp_editor_advanced_preserved">Dieser Eintrag besitzt erweiterte Felder. Sie bleiben verborgen und erhalten, da nur die sichtbaren Felder geschrieben werden.</string>
+  <string name="mcp_editor_tool_approval_hardening">Dieser Eintrag besitzt werkzeugspezifische Freigabe-Overrides. Speichern entfernt diese Override-Tabelle, sodass jedes Tool den Nachfragemodus erbt; alle anderen erweiterten Felder bleiben erhalten.</string>
+  <string name="mcp_editor_advanced_preserved">Dieser Eintrag besitzt weitere erweiterte Felder. Sie bleiben verborgen und erhalten, da nur die sichtbaren Felder sowie die ausdrückliche Freigabehärtung geschrieben werden.</string>
   <string name="mcp_editor_command_hint">Für Codex verfügbarer Programmname oder Befehl</string>
   <string name="mcp_editor_url_hint">https://host/pfad ohne Query oder Fragment</string>
   <string name="mcp_editor_edit_title">MCP-Server bearbeiten</string>

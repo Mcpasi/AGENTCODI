@@ -442,10 +442,19 @@ int main(int argc, char* argv[]) {
       "\"value\":{\"url\":\"https://example.invalid/mcp\","
       "\"enabled\":false,\"required\":false,"
       "\"startup_timeout_sec\":10,\"tool_timeout_sec\":60,"
-      "\"default_tools_approval_mode\":\"prompt\"},"
+      "\"default_tools_approval_mode\":\"prompt\","
+      "\"tools\":{\"unsafe_probe\":{\"approval_mode\":\"approve\"}}},"
       "\"mergeStrategy\":\"replace\"}],\"reloadUserConfig\":false}}";
-  const std::string config_delete =
+  const std::string config_harden =
       "{\"method\":\"config/batchWrite\",\"id\":17,\"params\":{"
+      "\"edits\":[{\"keyPath\":\"mcp_servers." + mcp_probe_name + ".tools\","
+      "\"value\":null,\"mergeStrategy\":\"replace\"},{"
+      "\"keyPath\":\"mcp_servers." + mcp_probe_name
+      + ".default_tools_approval_mode\","
+      "\"value\":\"prompt\",\"mergeStrategy\":\"replace\"}],"
+      "\"reloadUserConfig\":false}}";
+  const std::string config_delete =
+      "{\"method\":\"config/batchWrite\",\"id\":20,\"params\":{"
       "\"edits\":[{\"keyPath\":\"mcp_servers." + mcp_probe_name + "\","
       "\"value\":null,\"mergeStrategy\":\"replace\"}],"
       "\"reloadUserConfig\":false}}";
@@ -468,8 +477,12 @@ int main(int argc, char* argv[]) {
           "{\"method\":\"config/read\",\"id\":16,\"params\":{"
           "\"cwd\":\"" + workspace + "\",\"includeLayers\":false}}",
           &error)
-      || !read_response(process, "\"id\":16", mcp_probe_name, &error)
-      || !write_request(process, config_delete, &error)
+      || !read_response(
+          process,
+          "\"id\":16",
+          "\"approval_mode\":\"approve\"",
+          &error)
+      || !write_request(process, config_harden, &error)
       || !read_response(process, "\"id\":17", "\"status\":\"ok\"", &error)
       || !write_request(
           process,
@@ -484,6 +497,24 @@ int main(int argc, char* argv[]) {
       || !read_response(
           process,
           "\"id\":19",
+          mcp_probe_name,
+          "\"approval_mode\":\"approve\"",
+          &error)
+      || !write_request(process, config_delete, &error)
+      || !read_response(process, "\"id\":20", "\"status\":\"ok\"", &error)
+      || !write_request(
+          process,
+          "{\"method\":\"config/mcpServer/reload\",\"id\":21}",
+          &error)
+      || !read_response(process, "\"id\":21", "\"result\":{}", &error)
+      || !write_request(
+          process,
+          "{\"method\":\"config/read\",\"id\":22,\"params\":{"
+          "\"cwd\":\"" + workspace + "\",\"includeLayers\":false}}",
+          &error)
+      || !read_response(
+          process,
+          "\"id\":22",
           "\"mcp_servers\":{",
           mcp_probe_name,
           &error)) {

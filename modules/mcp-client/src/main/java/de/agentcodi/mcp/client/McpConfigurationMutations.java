@@ -72,6 +72,7 @@ final class McpConfigurationMutations {
             prefix + "disabled_tools",
             draft.getDisabledTools().isEmpty() ? null : strings(draft.getDisabledTools())
         ));
+        edits.add(edit(prefix + "tools", null));
         edits.add(edit(
             prefix + "default_tools_approval_mode",
             "prompt"
@@ -89,6 +90,7 @@ final class McpConfigurationMutations {
             );
         }
         List<Object> edits = new ArrayList<Object>();
+        edits.add(edit("mcp_servers." + name + ".tools", null));
         edits.add(edit(
             "mcp_servers." + name + ".default_tools_approval_mode",
             "prompt"

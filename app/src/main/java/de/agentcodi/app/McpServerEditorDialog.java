@@ -159,6 +159,15 @@ final class McpServerEditorDialog {
         disabledTools.setText(editing ? join(existing.getDisabledTools()) : "");
         addField(content, theme, R.string.mcp_editor_disabled_tools, disabledTools);
 
+        if (editing && existing.hasToolApprovalOverrides()) {
+            TextView approvalHardening = theme.text(
+                activity.getString(R.string.mcp_editor_tool_approval_hardening),
+                12,
+                theme.danger
+            );
+            approvalHardening.setLineSpacing(0.0f, 1.18f);
+            theme.addWithTopMargin(content, approvalHardening, 14);
+        }
         if (editing && existing.hasPreservedAdvancedFields()) {
             TextView advanced = theme.text(
                 activity.getString(R.string.mcp_editor_advanced_preserved),

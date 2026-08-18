@@ -30,8 +30,9 @@ public final class McpConfigurationControllerTest {
         validatesTheNarrowWriteBoundary();
         serializesAddEditEnableDeleteAndReload();
         requiresPromptBeforeEnablingAnExistingServer();
+        hardensPerToolApprovalOverridesWithoutDroppingOtherFields();
         reportsReloadFailureAfterAnAcceptedWrite();
-        return 5;
+        return 6;
     }
 
     private static void loadsSecretFreeConfigurationAndClassifiesOrigins() throws Exception {
@@ -44,7 +45,10 @@ public final class McpConfigurationControllerTest {
             "startup_timeout_sec", Long.valueOf(12L),
             "tool_timeout_sec", Long.valueOf(80L),
             "default_tools_approval_mode", "prompt",
-            "enabled_tools", JsonCodec.array("search")
+            "enabled_tools", JsonCodec.array("search"),
+            "tools", JsonCodec.object(
+                "search", JsonCodec.object("approval_mode", "approve")
+            )
         ));
         servers.put("project-safe", JsonCodec.object(
             "url", "https://project.example/mcp",
@@ -82,6 +86,14 @@ public final class McpConfigurationControllerTest {
         TestSupport.assertTrue(local.isEditable(), "safe user entry editable");
         TestSupport.assertEquals(McpTransport.STDIO, local.getTransport(), "stdio transport");
         TestSupport.assertEquals(Integer.valueOf(12), Integer.valueOf(local.getStartupTimeoutSeconds()), "startup timeout");
+        TestSupport.assertTrue(
+            local.hasToolApprovalOverrides(),
+            "per-tool approval policy is projected explicitly"
+        );
+        TestSupport.assertFalse(
+            local.hasPreservedAdvancedFields(),
+            "per-tool approval policy is not hidden as a generic advanced field"
+        );
 
         McpServerConfiguration project = find(snapshot, "project-safe");
         TestSupport.assertEquals(McpServerOrigin.PROJECT, project.getOrigin(), "project origin");
@@ -163,6 +175,46 @@ public final class McpConfigurationControllerTest {
             "enable without an atomic prompt edit denied"
         );
 
+        Map<String, Object> enableWithoutToolClear = JsonCodec.object(
+            "edits", JsonCodec.array(
+                edit("mcp_servers.safe.default_tools_approval_mode", "prompt"),
+                edit("mcp_servers.safe.enabled", Boolean.TRUE)
+            ),
+            "expectedVersion", VERSION_A,
+            "reloadUserConfig", Boolean.FALSE
+        );
+        TestSupport.assertFalse(
+            CodexMcpConfigurationRpc.isValidWriteRequest(enableWithoutToolClear),
+            "enable without an atomic per-tool override clear denied"
+        );
+        Map<String, Object> safelyHardenedEnable = JsonCodec.object(
+            "edits", JsonCodec.array(
+                edit("mcp_servers.safe.tools", null),
+                edit("mcp_servers.safe.default_tools_approval_mode", "prompt"),
+                edit("mcp_servers.safe.enabled", Boolean.TRUE)
+            ),
+            "expectedVersion", VERSION_A,
+            "reloadUserConfig", Boolean.FALSE
+        );
+        TestSupport.assertTrue(
+            CodexMcpConfigurationRpc.isValidWriteRequest(safelyHardenedEnable),
+            "enable with atomic prompt and per-tool override clear allowed"
+        );
+        TestSupport.assertFalse(
+            CodexMcpConfigurationRpc.isValidWriteRequest(writeParameters(edit(
+                "mcp_servers.safe.tools",
+                JsonCodec.object("search", JsonCodec.object("approval_mode", "approve"))
+            ))),
+            "per-tool approval policy writes denied"
+        );
+        TestSupport.assertFalse(
+            CodexMcpConfigurationRpc.isValidWriteRequest(writeParameters(edit(
+                "mcp_servers.safe.tools.search.approval_mode",
+                "prompt"
+            ))),
+            "caller-controlled nested tool paths denied"
+        );
+
         Map<String, Object> autoReload = copy(valid);
         autoReload.put("reloadUserConfig", Boolean.TRUE);
         TestSupport.assertFalse(
@@ -199,6 +251,11 @@ public final class McpConfigurationControllerTest {
         TestSupport.assertTrue(controller.setEnabled("expert-http", true), "explicit enable accepted");
         waitReady(controller, McpConfigurationNotice.ENABLED, "enabled configuration");
         TestSupport.assertTrue(find(controller.snapshot(), "expert-http").isEnabled(), "entry enabled");
+        TestSupport.assertEquals(
+            null,
+            findEdit(rpc.writes.get(1), "mcp_servers.expert-http.tools").get("value"),
+            "enable atomically clears per-tool approval overrides"
+        );
 
         McpServerDraft edited = draft(
             "expert-http",
@@ -227,6 +284,96 @@ public final class McpConfigurationControllerTest {
         TestSupport.assertTrue(controller.snapshot().getServers().isEmpty(), "entry removed");
         TestSupport.assertEquals(Integer.valueOf(4), Integer.valueOf(rpc.reloadCount), "every write explicitly reloaded");
         TestSupport.assertFalse(flatten(controller.snapshot()).contains("config.toml"), "write response path discarded");
+        controller.close();
+    }
+
+    private static void hardensPerToolApprovalOverridesWithoutDroppingOtherFields()
+        throws Exception {
+        final StatefulRpc rpc = new StatefulRpc();
+        rpc.servers.put("override-enable", serverWithToolOverride(
+            "https://enable.example/mcp"
+        ));
+        rpc.servers.put("override-edit", serverWithToolOverride(
+            "https://edit.example/mcp"
+        ));
+        final McpConfigurationController controller = new McpConfigurationController(rpc);
+        TestSupport.assertTrue(controller.refresh(), "override fixture refresh accepted");
+        waitReady(controller, McpConfigurationNotice.NONE, "override fixture ready");
+
+        McpServerConfiguration enabled = find(controller.snapshot(), "override-enable");
+        TestSupport.assertTrue(enabled.isEditable(), "override entry remains editable");
+        TestSupport.assertTrue(
+            enabled.hasToolApprovalOverrides(),
+            "override entry exposes its approval hardening state"
+        );
+        TestSupport.assertTrue(
+            enabled.hasPreservedAdvancedFields(),
+            "unrelated advanced field remains separately classified"
+        );
+        TestSupport.assertTrue(
+            controller.setEnabled("override-enable", true),
+            "explicit enable hardens an override entry"
+        );
+        waitReady(controller, McpConfigurationNotice.ENABLED, "override enable hardened");
+        Map<String, Object> enableWrite = rpc.writes.get(0);
+        TestSupport.assertEquals(
+            null,
+            findEdit(enableWrite, "mcp_servers.override-enable.tools").get("value"),
+            "enable clears the complete tool approval override table"
+        );
+        TestSupport.assertEquals(
+            "prompt",
+            findEdit(
+                enableWrite,
+                "mcp_servers.override-enable.default_tools_approval_mode"
+            ).get("value"),
+            "enable fixes the server approval default"
+        );
+        TestSupport.assertEquals(
+            Boolean.TRUE,
+            findEdit(enableWrite, "mcp_servers.override-enable.enabled").get("value"),
+            "enable remains part of the same write"
+        );
+        McpServerConfiguration hardenedEnabled = find(
+            controller.snapshot(),
+            "override-enable"
+        );
+        TestSupport.assertTrue(hardenedEnabled.isEnabled(), "hardened server is enabled");
+        TestSupport.assertFalse(
+            hardenedEnabled.hasToolApprovalOverrides(),
+            "effective enabled server no longer has a tool approval override"
+        );
+        TestSupport.assertEquals(
+            "preserve-me",
+            rpc.servers.get("override-enable").get("custom_behavior"),
+            "enable preserves unrelated advanced fields"
+        );
+
+        TestSupport.assertTrue(controller.save(draft(
+            "override-edit",
+            "https://edited.example/mcp",
+            false,
+            false,
+            10,
+            60,
+            "prompt"
+        )), "editing hardens an override entry");
+        waitReady(controller, McpConfigurationNotice.SAVED, "override edit hardened");
+        Map<String, Object> editWrite = rpc.writes.get(1);
+        TestSupport.assertEquals(
+            null,
+            findEdit(editWrite, "mcp_servers.override-edit.tools").get("value"),
+            "edit clears the complete tool approval override table"
+        );
+        TestSupport.assertFalse(
+            find(controller.snapshot(), "override-edit").hasToolApprovalOverrides(),
+            "edited server no longer has a tool approval override"
+        );
+        TestSupport.assertEquals(
+            "preserve-me",
+            rpc.servers.get("override-edit").get("custom_behavior"),
+            "edit preserves unrelated advanced fields"
+        );
         controller.close();
     }
 
@@ -316,6 +463,21 @@ public final class McpConfigurationControllerTest {
         );
     }
 
+    private static Map<String, Object> serverWithToolOverride(String url) {
+        return JsonCodec.object(
+            "url", url,
+            "enabled", Boolean.FALSE,
+            "required", Boolean.FALSE,
+            "startup_timeout_sec", Long.valueOf(10L),
+            "tool_timeout_sec", Long.valueOf(60L),
+            "default_tools_approval_mode", "prompt",
+            "tools", JsonCodec.object(
+                "dangerous", JsonCodec.object("approval_mode", "approve")
+            ),
+            "custom_behavior", "preserve-me"
+        );
+    }
+
     private static Map<String, Object> writeParameters(Map<String, Object> edit) {
         return JsonCodec.object(
             "edits", JsonCodec.array(edit),
@@ -346,6 +508,18 @@ public final class McpConfigurationControllerTest {
 
     private static Map<String, Object> firstEdit(Map<String, Object> parameters) {
         return edits(parameters).get(0);
+    }
+
+    private static Map<String, Object> findEdit(
+        Map<String, Object> parameters,
+        String keyPath
+    ) {
+        for (Map<String, Object> change : edits(parameters)) {
+            if (keyPath.equals(change.get("keyPath"))) {
+                return change;
+            }
+        }
+        throw new AssertionError("Missing MCP configuration edit: " + keyPath);
     }
 
     private static void assertWriteHasNoPath(Map<String, Object> parameters) {

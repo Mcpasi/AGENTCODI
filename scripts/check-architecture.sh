@@ -58,7 +58,10 @@ if ! rg -q 'CodexMcpConfigurationRpc' "$mcp_client" \
     || ! rg -q '!Boolean\.FALSE\.equals\(parameters\.get\("reloadUserConfig"\)\)' "$mcp_validator" \
     || ! rg -q 'parameters\.containsKey\("filePath"\)' "$mcp_validator" \
     || ! rg -q 'promptServers\.containsAll\(enabledServers\)' "$mcp_validator" \
+    || ! rg -q 'clearedToolApprovalOverrides\.containsAll\(enabledServers\)' "$mcp_validator" \
     || ! rg -q '!"prompt"\.equals\(server\.get\("default_tools_approval_mode"\)\)' "$mcp_validator" \
+    || ! rg -q 'edit\(prefix \+ "tools", null\)' "$mcp_client" \
+    || ! rg -q 'name \+ "\.tools", null' "$mcp_client" \
     || ! rg -q '"mergeStrategy", "replace"' "$mcp_client" \
     || ! rg -q '"reloadUserConfig", Boolean\.FALSE' "$mcp_client" \
     || rg -n '"filePath"' "$mcp_client"; then
@@ -75,6 +78,7 @@ if ! rg -Uq 'android:name="\.McpManagementActivity"[[:space:][:print:]]{0,220}an
     || ! rg -q 'mcpConfigurationSnapshot' "$mcp_activity" \
     || ! rg -q 'saveMcpServer' "$mcp_activity" \
     || ! rg -q 'reloadMcpConfiguration' "$mcp_activity" \
+    || ! rg -q 'hasToolApprovalOverrides' "$mcp_activity" \
     || ! rg -q 'snapshot\.getPhase\(\) != McpConfigurationPhase\.READY' "$mcp_activity" \
     || ! rg -q 'enabled\.setEnabled\(false\)' "$mcp_editor" \
     || rg -n '(config/read|mcpServer/tool/call|oauth|plugin/install|marketplace/add)' "$mcp_activity"; then

@@ -20,6 +20,7 @@ public final class McpServerConfiguration {
     private final List<String> disabledTools;
     private final McpServerOrigin origin;
     private final boolean editable;
+    private final boolean toolApprovalOverrides;
     private final boolean preservedAdvancedFields;
     private final boolean sensitiveValuesHidden;
 
@@ -38,6 +39,7 @@ public final class McpServerConfiguration {
         List<String> disabledTools,
         McpServerOrigin origin,
         boolean editable,
+        boolean toolApprovalOverrides,
         boolean preservedAdvancedFields,
         boolean sensitiveValuesHidden
     ) {
@@ -58,6 +60,7 @@ public final class McpServerConfiguration {
         this.disabledTools = immutable(disabledTools);
         this.origin = origin;
         this.editable = editable;
+        this.toolApprovalOverrides = toolApprovalOverrides;
         this.preservedAdvancedFields = preservedAdvancedFields;
         this.sensitiveValuesHidden = sensitiveValuesHidden;
     }
@@ -120,6 +123,10 @@ public final class McpServerConfiguration {
 
     public boolean isEditable() {
         return editable;
+    }
+
+    public boolean hasToolApprovalOverrides() {
+        return toolApprovalOverrides;
     }
 
     public boolean hasPreservedAdvancedFields() {

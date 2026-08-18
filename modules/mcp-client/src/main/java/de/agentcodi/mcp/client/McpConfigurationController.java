@@ -78,6 +78,7 @@ public final class McpConfigurationController implements AutoCloseable {
                     return false;
                 }
                 mutation = McpConfigurationMutations.update(
+                    existing,
                     draft,
                     snapshot.getExpectedVersion()
                 );

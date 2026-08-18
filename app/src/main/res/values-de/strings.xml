@@ -290,7 +290,7 @@
   <string name="mcp_configuration_approval_unsafe">nicht sicher auf Nachfragen begrenzt · vor Aktivierung bearbeiten</string>
   <string name="mcp_configuration_approval_overridden">Werkzeug-Override erkannt · Bearbeiten oder Aktivieren erzwingt Nachfragen atomar</string>
   <string name="mcp_configuration_tool_approval_override_warning">Werkzeugspezifische Freigabe-Overrides können den Serverstandard überstimmen. Bearbeiten oder Aktivieren über AGENTCODI entfernt die Override-Tabelle atomar.</string>
-  <string name="mcp_configuration_advanced">Weitere erweiterte Felder sind vorhanden. Sichere feldweise Änderungen erhalten sie, ohne ihre Werte anzuzeigen oder neu zu schreiben.</string>
+  <string name="mcp_configuration_advanced">Weitere erweiterte oder nicht projizierbare Werte sind vorhanden. Änderungen erhalten jedes unveränderte Feld, ohne seinen verborgenen Wert anzuzeigen oder neu zu schreiben.</string>
   <string name="mcp_configuration_edit">Unterstützte Felder bearbeiten</string>
   <string name="mcp_configuration_disable">Server deaktivieren</string>
   <string name="mcp_configuration_enable">Server aktivieren</string>
@@ -335,7 +335,7 @@
   <string name="mcp_editor_enabled_tools">Aktivierte Tools · optionale Positivliste</string>
   <string name="mcp_editor_disabled_tools">Deaktivierte Tools · optionale Sperrliste</string>
   <string name="mcp_editor_tool_approval_hardening">Dieser Eintrag besitzt werkzeugspezifische Freigabe-Overrides. Speichern entfernt diese Override-Tabelle, sodass jedes Tool den Nachfragemodus erbt; alle anderen erweiterten Felder bleiben erhalten.</string>
-  <string name="mcp_editor_advanced_preserved">Dieser Eintrag besitzt weitere erweiterte Felder. Sie bleiben verborgen und erhalten, da nur die sichtbaren Felder sowie die ausdrückliche Freigabehärtung geschrieben werden.</string>
+  <string name="mcp_editor_advanced_preserved">Dieser Eintrag besitzt weitere erweiterte oder nicht projizierbare Werte. Nur tatsächlich geänderte Felder werden neu geschrieben; durch Editorgrenzen verborgene unveränderte Werte bleiben erhalten. Beim Speichern gilt weiterhin die in diesem Dialog beschriebene ausdrückliche Freigabehärtung.</string>
   <string name="mcp_editor_command_hint">Für Codex verfügbarer Programmname oder Befehl</string>
   <string name="mcp_editor_url_hint">https://host/pfad ohne Query oder Fragment</string>
   <string name="mcp_editor_edit_title">MCP-Server bearbeiten</string>

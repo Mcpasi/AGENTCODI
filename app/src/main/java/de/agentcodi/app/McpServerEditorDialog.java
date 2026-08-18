@@ -23,8 +23,7 @@ import de.agentcodi.mcp.McpTransport;
 
 import java.net.URI;
 import java.net.URISyntaxException;
-import java.util.ArrayList;
-import java.util.LinkedHashSet;
+import java.util.Collections;
 import java.util.List;
 
 final class McpServerEditorDialog {
@@ -259,7 +258,8 @@ final class McpServerEditorDialog {
                                     selectedTransport == McpTransport.STDIO
                                         ? endpointValue : "",
                                     selectedTransport == McpTransport.STDIO
-                                        ? lines(argumentText) : new ArrayList<String>(),
+                                        ? McpServerDraft.parseLines(argumentText)
+                                        : Collections.<String>emptyList(),
                                     selectedTransport == McpTransport.STREAMABLE_HTTP
                                         ? endpointValue : "",
                                     editing && enabled.isChecked(),
@@ -267,8 +267,8 @@ final class McpServerEditorDialog {
                                     parseTimeout(startupTimeout),
                                     parseTimeout(toolTimeout),
                                     "prompt",
-                                    lines(enabledToolText),
-                                    lines(disabledToolText)
+                                    McpServerDraft.parseLines(enabledToolText),
+                                    McpServerDraft.parseLines(disabledToolText)
                                 );
                                 if (!listener.onSave(draft)) {
                                     error.setText(R.string.mcp_editor_save_rejected);
@@ -330,18 +330,6 @@ final class McpServerEditorDialog {
         label.setTypeface(Typeface.DEFAULT_BOLD);
         theme.addWithTopMargin(parent, label, 14);
         theme.addWithTopMargin(parent, field, 5);
-    }
-
-    private static List<String> lines(String value) {
-        LinkedHashSet<String> values = new LinkedHashSet<String>();
-        String[] split = (value == null ? "" : value).split("\\r?\\n", -1);
-        for (String entry : split) {
-            String normalized = entry.trim();
-            if (!normalized.isEmpty()) {
-                values.add(normalized);
-            }
-        }
-        return new ArrayList<String>(values);
     }
 
     private static String join(List<String> values) {

@@ -3,6 +3,7 @@ package de.agentcodi.mcp.client;
 import de.agentcodi.core.CodexMcpConfigurationRpc;
 import de.agentcodi.core.JsonCodec;
 import de.agentcodi.mcp.McpConfigurationNotice;
+import de.agentcodi.mcp.McpServerConfiguration;
 import de.agentcodi.mcp.McpServerDraft;
 import de.agentcodi.mcp.McpTransport;
 
@@ -41,37 +42,67 @@ final class McpConfigurationMutations {
         );
     }
 
-    static Mutation update(McpServerDraft draft, String expectedVersion) {
+    static Mutation update(
+        McpServerConfiguration existing,
+        McpServerDraft draft,
+        String expectedVersion
+    ) {
         requireExpectedVersion(expectedVersion);
+        if (existing == null || !existing.getName().equals(draft.getName())
+            || existing.getTransport() != draft.getTransport()) {
+            throw new IllegalArgumentException("Matching MCP configuration is required");
+        }
         List<Object> edits = new ArrayList<Object>();
         String prefix = "mcp_servers." + draft.getName() + ".";
+        // Emit only deltas from the bounded read projection. An oversized or malformed known
+        // value is represented by a safe fallback, which must not be written back merely because
+        // the user changed another field.
         if (draft.getTransport() == McpTransport.STDIO) {
-            edits.add(edit(prefix + "command", draft.getCommand()));
-            edits.add(edit(
-                prefix + "args",
-                draft.getArguments().isEmpty() ? null : strings(draft.getArguments())
-            ));
+            if (!existing.getCommand().equals(draft.getCommand())) {
+                edits.add(edit(prefix + "command", draft.getCommand()));
+            }
+            if (!existing.getArguments().equals(draft.getArguments())) {
+                edits.add(edit(
+                    prefix + "args",
+                    draft.getArguments().isEmpty() ? null : strings(draft.getArguments())
+                ));
+            }
         } else {
-            edits.add(edit(prefix + "url", draft.getUrl()));
+            if (!existing.getUrl().equals(draft.getUrl())) {
+                edits.add(edit(prefix + "url", draft.getUrl()));
+            }
         }
-        edits.add(edit(prefix + "enabled", Boolean.valueOf(draft.isEnabled())));
-        edits.add(edit(prefix + "required", Boolean.valueOf(draft.isRequired())));
-        edits.add(edit(
-            prefix + "startup_timeout_sec",
-            Long.valueOf(draft.getStartupTimeoutSeconds())
-        ));
-        edits.add(edit(
-            prefix + "tool_timeout_sec",
-            Long.valueOf(draft.getToolTimeoutSeconds())
-        ));
-        edits.add(edit(
-            prefix + "enabled_tools",
-            draft.getEnabledTools().isEmpty() ? null : strings(draft.getEnabledTools())
-        ));
-        edits.add(edit(
-            prefix + "disabled_tools",
-            draft.getDisabledTools().isEmpty() ? null : strings(draft.getDisabledTools())
-        ));
+        if (existing.isEnabled() != draft.isEnabled()) {
+            edits.add(edit(prefix + "enabled", Boolean.valueOf(draft.isEnabled())));
+        }
+        if (existing.isRequired() != draft.isRequired()) {
+            edits.add(edit(prefix + "required", Boolean.valueOf(draft.isRequired())));
+        }
+        if (existing.getStartupTimeoutSeconds() != draft.getStartupTimeoutSeconds()) {
+            edits.add(edit(
+                prefix + "startup_timeout_sec",
+                Long.valueOf(draft.getStartupTimeoutSeconds())
+            ));
+        }
+        if (existing.getToolTimeoutSeconds() != draft.getToolTimeoutSeconds()) {
+            edits.add(edit(
+                prefix + "tool_timeout_sec",
+                Long.valueOf(draft.getToolTimeoutSeconds())
+            ));
+        }
+        if (!existing.getEnabledTools().equals(draft.getEnabledTools())) {
+            edits.add(edit(
+                prefix + "enabled_tools",
+                draft.getEnabledTools().isEmpty() ? null : strings(draft.getEnabledTools())
+            ));
+        }
+        if (!existing.getDisabledTools().equals(draft.getDisabledTools())) {
+            edits.add(edit(
+                prefix + "disabled_tools",
+                draft.getDisabledTools().isEmpty() ? null : strings(draft.getDisabledTools())
+            ));
+        }
+        // Editing is also the explicit approval-hardening action promised by the UI.
         edits.add(edit(prefix + "tools", null));
         edits.add(edit(
             prefix + "default_tools_approval_mode",

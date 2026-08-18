@@ -137,6 +137,19 @@ public final class McpServerDraft {
         return true;
     }
 
+    /** Parses the editor's one-value-per-line format without changing order or multiplicity. */
+    public static List<String> parseLines(String value) {
+        List<String> parsed = new ArrayList<String>();
+        String[] lines = (value == null ? "" : value).split("\\r?\\n", -1);
+        for (String line : lines) {
+            String normalized = normalize(line);
+            if (!normalized.isEmpty()) {
+                parsed.add(normalized);
+            }
+        }
+        return Collections.unmodifiableList(parsed);
+    }
+
     private static List<String> immutableValues(
         List<String> values,
         int maximumEntries,

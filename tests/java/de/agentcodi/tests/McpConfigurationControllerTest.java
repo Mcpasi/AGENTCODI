@@ -30,10 +30,11 @@ public final class McpConfigurationControllerTest {
         validatesTheNarrowWriteBoundary();
         serializesAddEditEnableDeleteAndReload();
         roundTripsMaximumWritableServerProjection();
+        preservesUnchangedUnprojectableAndNormalizedFields();
         requiresPromptBeforeEnablingAnExistingServer();
         hardensPerToolApprovalOverridesWithoutDroppingOtherFields();
         reportsReloadFailureAfterAnAcceptedWrite();
-        return 7;
+        return 8;
     }
 
     private static void loadsSecretFreeConfigurationAndClassifiesOrigins() throws Exception {
@@ -439,6 +440,179 @@ public final class McpConfigurationControllerTest {
         controller.close();
     }
 
+    private static void preservesUnchangedUnprojectableAndNormalizedFields()
+        throws Exception {
+        List<String> oversizedArguments = repeatedValues(65, "argument");
+        List<String> oversizedEnabledTools = repeatedValues(129, "enabled-tool");
+        List<String> duplicateDisabledTools = McpServerDraft.parseLines(
+            "  duplicate-tool  \r\nduplicate-tool\n"
+        );
+        TestSupport.assertEquals(
+            Integer.valueOf(2),
+            Integer.valueOf(duplicateDisabledTools.size()),
+            "editor line parser preserves duplicate entries"
+        );
+
+        StatefulRpc rpc = new StatefulRpc();
+        rpc.servers.put("lossless-edit", JsonCodec.object(
+            "command", "runner",
+            "args", oversizedArguments,
+            "enabled", "legacy-enabled-value",
+            "required", "legacy-required-value",
+            "startup_timeout_sec", Long.valueOf(0L),
+            "tool_timeout_sec", "legacy-timeout-value",
+            "default_tools_approval_mode", "prompt",
+            "enabled_tools", oversizedEnabledTools,
+            "disabled_tools", duplicateDisabledTools,
+            "custom_behavior", "preserve-me"
+        ));
+        McpConfigurationController controller = new McpConfigurationController(rpc);
+        TestSupport.assertTrue(controller.refresh(), "lossless fixture refresh accepted");
+        waitReady(controller, McpConfigurationNotice.NONE, "lossless fixture ready");
+
+        McpServerConfiguration projected = find(controller.snapshot(), "lossless-edit");
+        TestSupport.assertTrue(projected.isEditable(), "advanced entry remains editable");
+        TestSupport.assertTrue(
+            projected.hasPreservedAdvancedFields(),
+            "unprojectable known fields are disclosed as preserved"
+        );
+        TestSupport.assertTrue(
+            projected.getArguments().isEmpty(),
+            "oversized arguments are not projected into the editor"
+        );
+        TestSupport.assertTrue(
+            projected.getEnabledTools().isEmpty(),
+            "oversized enabled tools are not projected into the editor"
+        );
+        TestSupport.assertEquals(
+            duplicateDisabledTools,
+            projected.getDisabledTools(),
+            "valid duplicate list entries remain visible in order"
+        );
+
+        McpServerDraft endpointEdit = new McpServerDraft(
+            projected.getName(),
+            projected.getTransport(),
+            "runner-v2",
+            projected.getArguments(),
+            projected.getUrl(),
+            projected.isEnabled(),
+            projected.isRequired(),
+            projected.getStartupTimeoutSeconds(),
+            projected.getToolTimeoutSeconds(),
+            "prompt",
+            projected.getEnabledTools(),
+            projected.getDisabledTools()
+        );
+        TestSupport.assertTrue(
+            controller.save(endpointEdit),
+            "editing a different field on an advanced entry is accepted"
+        );
+        waitReady(controller, McpConfigurationNotice.SAVED, "lossless endpoint edit");
+
+        Map<String, Object> endpointWrite = rpc.writes.get(0);
+        TestSupport.assertEquals(
+            "runner-v2",
+            findEdit(endpointWrite, "mcp_servers.lossless-edit.command").get("value"),
+            "changed endpoint is written"
+        );
+        assertNoEdit(endpointWrite, "mcp_servers.lossless-edit.args");
+        assertNoEdit(endpointWrite, "mcp_servers.lossless-edit.enabled");
+        assertNoEdit(endpointWrite, "mcp_servers.lossless-edit.required");
+        assertNoEdit(endpointWrite, "mcp_servers.lossless-edit.startup_timeout_sec");
+        assertNoEdit(endpointWrite, "mcp_servers.lossless-edit.tool_timeout_sec");
+        assertNoEdit(endpointWrite, "mcp_servers.lossless-edit.enabled_tools");
+        assertNoEdit(endpointWrite, "mcp_servers.lossless-edit.disabled_tools");
+
+        Map<String, Object> retained = rpc.servers.get("lossless-edit");
+        TestSupport.assertEquals(
+            oversizedArguments,
+            retained.get("args"),
+            "unprojectable arguments survive an unrelated edit"
+        );
+        TestSupport.assertEquals(
+            oversizedEnabledTools,
+            retained.get("enabled_tools"),
+            "unprojectable tool list survives an unrelated edit"
+        );
+        TestSupport.assertEquals(
+            duplicateDisabledTools,
+            retained.get("disabled_tools"),
+            "duplicate projected values survive an unrelated edit"
+        );
+        TestSupport.assertEquals(
+            "legacy-enabled-value",
+            retained.get("enabled"),
+            "normalized enabled fallback is not written back"
+        );
+        TestSupport.assertEquals(
+            "legacy-required-value",
+            retained.get("required"),
+            "normalized required fallback is not written back"
+        );
+        TestSupport.assertEquals(
+            Long.valueOf(0L),
+            retained.get("startup_timeout_sec"),
+            "normalized startup timeout is not written back"
+        );
+        TestSupport.assertEquals(
+            "legacy-timeout-value",
+            retained.get("tool_timeout_sec"),
+            "normalized tool timeout is not written back"
+        );
+        TestSupport.assertEquals(
+            "preserve-me",
+            retained.get("custom_behavior"),
+            "unknown advanced field remains preserved"
+        );
+
+        McpServerConfiguration afterEndpointEdit = find(
+            controller.snapshot(),
+            "lossless-edit"
+        );
+        List<String> replacementArguments = new ArrayList<String>();
+        replacementArguments.add("replacement-one");
+        replacementArguments.add("replacement-two");
+        McpServerDraft explicitReplacement = new McpServerDraft(
+            afterEndpointEdit.getName(),
+            afterEndpointEdit.getTransport(),
+            afterEndpointEdit.getCommand(),
+            replacementArguments,
+            afterEndpointEdit.getUrl(),
+            afterEndpointEdit.isEnabled(),
+            afterEndpointEdit.isRequired(),
+            afterEndpointEdit.getStartupTimeoutSeconds(),
+            afterEndpointEdit.getToolTimeoutSeconds(),
+            "prompt",
+            afterEndpointEdit.getEnabledTools(),
+            afterEndpointEdit.getDisabledTools()
+        );
+        TestSupport.assertTrue(
+            controller.save(explicitReplacement),
+            "an explicit replacement for an unprojectable field remains supported"
+        );
+        waitReady(controller, McpConfigurationNotice.SAVED, "explicit list replacement");
+        TestSupport.assertEquals(
+            replacementArguments,
+            findEdit(
+                rpc.writes.get(1),
+                "mcp_servers.lossless-edit.args"
+            ).get("value"),
+            "explicit argument replacement is written"
+        );
+        TestSupport.assertEquals(
+            replacementArguments,
+            rpc.servers.get("lossless-edit").get("args"),
+            "explicit argument replacement reaches the effective configuration"
+        );
+        TestSupport.assertEquals(
+            oversizedEnabledTools,
+            rpc.servers.get("lossless-edit").get("enabled_tools"),
+            "other unprojectable fields remain preserved during replacement"
+        );
+        controller.close();
+    }
+
     private static void hardensPerToolApprovalOverridesWithoutDroppingOtherFields()
         throws Exception {
         final StatefulRpc rpc = new StatefulRpc();
@@ -688,6 +862,14 @@ public final class McpConfigurationControllerTest {
             }
         }
         throw new AssertionError("Missing MCP configuration edit: " + keyPath);
+    }
+
+    private static void assertNoEdit(Map<String, Object> parameters, String keyPath) {
+        for (Map<String, Object> change : edits(parameters)) {
+            if (keyPath.equals(change.get("keyPath"))) {
+                throw new AssertionError("Unexpected MCP configuration edit: " + keyPath);
+            }
+        }
     }
 
     private static void assertWriteHasNoPath(Map<String, Object> parameters) {

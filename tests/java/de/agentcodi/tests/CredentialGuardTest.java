@@ -3,15 +3,76 @@ package de.agentcodi.tests;
 import de.agentcodi.core.ChatMessage;
 import de.agentcodi.core.CredentialGuard;
 
+import java.util.Arrays;
+
 public final class CredentialGuardTest {
     private CredentialGuardTest() {
     }
 
     public static int run() {
         detectsCredentialShapesWithoutStringifyingMutableInput();
+        detectsPasswordAndClientSecretForms();
+        detectsCredentialValuesSplitAcrossArguments();
         permitsOrdinaryConversationText();
         redactsCredentialShapesAtTheChatProjectionBoundary();
-        return 3;
+        return 5;
+    }
+
+    private static void detectsPasswordAndClientSecretForms() {
+        TestSupport.assertTrue(
+            CredentialGuard.containsLikelyCredential("password=x"),
+            "short password assignment"
+        );
+        TestSupport.assertTrue(
+            CredentialGuard.containsLikelyCredential("password=&"),
+            "punctuation-only password assignment"
+        );
+        TestSupport.assertTrue(
+            CredentialGuard.containsLikelyCredential("client_secret=fixture-client-secret"),
+            "client secret assignment"
+        );
+        TestSupport.assertTrue(
+            CredentialGuard.containsLikelyCredential("--password\nfixture-password"),
+            "multiline password option"
+        );
+        TestSupport.assertTrue(
+            CredentialGuard.containsLikelyCredential(
+                "--client-secret \"fixture-client-secret\""
+            ),
+            "quoted client secret option"
+        );
+        TestSupport.assertTrue(
+            CredentialGuard.isLikelyCredentialName("clientSecret"),
+            "camel-case client secret field name"
+        );
+        TestSupport.assertFalse(
+            CredentialGuard.isLikelyCredentialName("client_secret_file"),
+            "credential transport field name"
+        );
+    }
+
+    private static void detectsCredentialValuesSplitAcrossArguments() {
+        TestSupport.assertTrue(
+            CredentialGuard.containsLikelyCredential(Arrays.asList(
+                "--password",
+                "fixture-password"
+            )),
+            "password split across argv"
+        );
+        TestSupport.assertTrue(
+            CredentialGuard.containsLikelyCredential(Arrays.asList(
+                "--client_secret",
+                "&"
+            )),
+            "punctuation-only client secret split across argv"
+        );
+        TestSupport.assertTrue(
+            CredentialGuard.containsLikelyCredential(Arrays.asList(
+                "--api-key",
+                "fixture-api-value"
+            )),
+            "existing credential labels are also correlated across argv"
+        );
     }
 
     private static void detectsCredentialShapesWithoutStringifyingMutableInput() {
@@ -45,6 +106,14 @@ public final class CredentialGuardTest {
         TestSupport.assertFalse(
             CredentialGuard.containsLikelyCredential("task-sk-short"),
             "embedded or short token fragments are allowed"
+        );
+        TestSupport.assertFalse(
+            CredentialGuard.containsLikelyCredential(Arrays.asList(
+                "--password-stdin",
+                "--client-secret-file",
+                "credential-input.txt"
+            )),
+            "non-value credential transport options remain allowed"
         );
     }
 

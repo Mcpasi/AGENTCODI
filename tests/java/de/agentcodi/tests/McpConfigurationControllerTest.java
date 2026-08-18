@@ -61,6 +61,25 @@ public final class McpConfigurationControllerTest {
                 "Authorization", "Bearer private-header-value"
             )
         ));
+        servers.put("secret-args", JsonCodec.object(
+            "command", "node",
+            "args", JsonCodec.array(
+                "server.js",
+                "--password",
+                "fixture-password-value"
+            ),
+            "enabled", Boolean.FALSE,
+            "required", Boolean.FALSE,
+            "default_tools_approval_mode", "prompt"
+        ));
+        servers.put("secret-field", JsonCodec.object(
+            "command", "node",
+            "args", JsonCodec.array("server.js"),
+            "client_secret", "fixture-client-field-value",
+            "enabled", Boolean.FALSE,
+            "required", Boolean.FALSE,
+            "default_tools_approval_mode", "prompt"
+        ));
 
         Map<String, Object> origins = new LinkedHashMap<String, Object>();
         addOrigin(origins, "mcp_servers.local-safe.command", "user", VERSION_A);
@@ -68,6 +87,10 @@ public final class McpConfigurationControllerTest {
         addOrigin(origins, "mcp_servers.project-safe.url", "project", VERSION_B);
         addOrigin(origins, "mcp_servers.secret-user.url", "user", VERSION_A);
         addOrigin(origins, "mcp_servers.secret-user.http_headers", "user", VERSION_A);
+        addOrigin(origins, "mcp_servers.secret-args.command", "user", VERSION_A);
+        addOrigin(origins, "mcp_servers.secret-args.args", "user", VERSION_A);
+        addOrigin(origins, "mcp_servers.secret-field.command", "user", VERSION_A);
+        addOrigin(origins, "mcp_servers.secret-field.client_secret", "user", VERSION_A);
 
         McpConfigurationSnapshot snapshot = new McpConfigurationLoader(
             new StaticRpc(JsonCodec.object(
@@ -79,7 +102,7 @@ public final class McpConfigurationControllerTest {
 
         TestSupport.assertEquals(McpConfigurationPhase.READY, snapshot.getPhase(), "phase");
         TestSupport.assertEquals(VERSION_A, snapshot.getExpectedVersion(), "user version");
-        TestSupport.assertEquals(Integer.valueOf(3), Integer.valueOf(snapshot.getServers().size()), "server count");
+        TestSupport.assertEquals(Integer.valueOf(5), Integer.valueOf(snapshot.getServers().size()), "server count");
 
         McpServerConfiguration local = find(snapshot, "local-safe");
         TestSupport.assertEquals(McpServerOrigin.USER, local.getOrigin(), "user origin");
@@ -106,9 +129,41 @@ public final class McpConfigurationControllerTest {
         TestSupport.assertTrue(secret.hasSensitiveValuesHidden(), "sensitive values hidden");
         TestSupport.assertEquals("", secret.getUrl(), "secret-bearing URL omitted");
 
+        McpServerConfiguration secretArguments = find(snapshot, "secret-args");
+        TestSupport.assertFalse(
+            secretArguments.isEditable(),
+            "split credential arguments cannot open editor"
+        );
+        TestSupport.assertTrue(
+            secretArguments.hasSensitiveValuesHidden(),
+            "split credential arguments are classified as sensitive"
+        );
+        TestSupport.assertTrue(
+            secretArguments.getArguments().isEmpty(),
+            "split credential arguments are omitted"
+        );
+
+        McpServerConfiguration secretField = find(snapshot, "secret-field");
+        TestSupport.assertFalse(
+            secretField.isEditable(),
+            "named credential field cannot open editor"
+        );
+        TestSupport.assertTrue(
+            secretField.hasSensitiveValuesHidden(),
+            "named credential field is classified as sensitive"
+        );
+
         String projected = flatten(snapshot);
         TestSupport.assertFalse(projected.contains("sk-private"), "token omitted");
         TestSupport.assertFalse(projected.contains("private-header"), "header value omitted");
+        TestSupport.assertFalse(
+            projected.contains("fixture-password-value"),
+            "split password value omitted"
+        );
+        TestSupport.assertFalse(
+            projected.contains("fixture-client-field-value"),
+            "named client secret value omitted"
+        );
         TestSupport.assertFalse(projected.contains("/private/codex-home"), "origin path omitted");
         TestSupport.assertFalse(projected.contains("config.toml"), "config filename omitted");
     }
@@ -152,6 +207,45 @@ public final class McpConfigurationControllerTest {
                 "fixture-secret"
             ))),
             "static environment write denied"
+        );
+        TestSupport.assertFalse(
+            CodexMcpConfigurationRpc.isValidWriteRequest(writeParameters(edit(
+                "mcp_servers.safe.args",
+                JsonCodec.array("password=x")
+            ))),
+            "password assignment argument denied"
+        );
+        TestSupport.assertFalse(
+            CodexMcpConfigurationRpc.isValidWriteRequest(writeParameters(edit(
+                "mcp_servers.safe.args",
+                JsonCodec.array("client_secret=fixture-client-secret")
+            ))),
+            "client secret assignment argument denied"
+        );
+        TestSupport.assertFalse(
+            CodexMcpConfigurationRpc.isValidWriteRequest(writeParameters(edit(
+                "mcp_servers.safe.args",
+                JsonCodec.array("--password", "fixture-password-value")
+            ))),
+            "password split across arguments denied"
+        );
+        TestSupport.assertFalse(
+            CodexMcpConfigurationRpc.isValidWriteRequest(writeParameters(edit(
+                "mcp_servers.safe.args",
+                JsonCodec.array("--client-secret", "&")
+            ))),
+            "punctuation-only client secret split across arguments denied"
+        );
+        TestSupport.assertTrue(
+            CodexMcpConfigurationRpc.isValidWriteRequest(writeParameters(edit(
+                "mcp_servers.safe.args",
+                JsonCodec.array(
+                    "--password-stdin",
+                    "--client-secret-file",
+                    "credential-input.txt"
+                )
+            ))),
+            "non-value credential transport arguments remain allowed"
         );
         TestSupport.assertFalse(
             CodexMcpConfigurationRpc.isValidWriteRequest(writeParameters(edit(

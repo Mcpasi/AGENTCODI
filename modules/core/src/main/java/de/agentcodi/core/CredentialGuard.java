@@ -2,6 +2,7 @@ package de.agentcodi.core;
 
 public final class CredentialGuard {
     private static final int MINIMUM_OPAQUE_VALUE_CHARACTERS = 8;
+    private static final int MINIMUM_PASSWORD_OR_CLIENT_SECRET_VALUE_CHARACTERS = 1;
     private static final String[] NAMED_CREDENTIALS = {
         "openai_api_key",
         "openai-api-key",
@@ -19,6 +20,11 @@ public final class CredentialGuard {
         "id_token",
         "id-token",
         "id token",
+        "client_secret",
+        "client-secret",
+        "client secret",
+        "clientsecret",
+        "password",
         "authorization"
     };
 
@@ -74,6 +80,43 @@ public final class CredentialGuard {
                 return value[index];
             }
         });
+    }
+
+    public static boolean containsLikelyCredential(Iterable<?> values) {
+        if (values == null) {
+            return false;
+        }
+        int pendingValueCharacters = 0;
+        for (Object entry : values) {
+            if (!(entry instanceof CharSequence)) {
+                pendingValueCharacters = 0;
+                continue;
+            }
+            CharSequence text = (CharSequence) entry;
+            if (containsLikelyCredential(text)) {
+                return true;
+            }
+            if (pendingValueCharacters > 0
+                && hasArgumentCredentialValue(text, pendingValueCharacters)) {
+                return true;
+            }
+            pendingValueCharacters = standaloneCredentialOptionMinimum(text);
+        }
+        return false;
+    }
+
+    public static boolean isLikelyCredentialName(CharSequence value) {
+        if (value == null || value.length() == 0) {
+            return false;
+        }
+        Characters characters = characters(value);
+        for (String label : NAMED_CREDENTIALS) {
+            if (value.length() == label.length()
+                && matches(characters, 0, label, true)) {
+                return true;
+            }
+        }
+        return false;
     }
 
     private static boolean containsLikelyCredential(Characters value) {
@@ -141,6 +184,13 @@ public final class CredentialGuard {
                 continue;
             }
             int cursor = index + label.length();
+            if (isLongCredentialOption(value, index)
+                && cursor < value.length()
+                && Character.isWhitespace(value.charAt(cursor))) {
+                if (hasNamedCredentialValue(value, cursor, label)) {
+                    return true;
+                }
+            }
             while (cursor < value.length()
                 && (Character.isWhitespace(value.charAt(cursor))
                     || value.charAt(cursor) == '"'
@@ -151,13 +201,85 @@ public final class CredentialGuard {
                 || (value.charAt(cursor) != ':' && value.charAt(cursor) != '=')) {
                 continue;
             }
-            cursor = skipWhitespaceAndQuotes(value, cursor + 1);
-            if (countOpaqueValueCharacters(value, cursor)
-                >= MINIMUM_OPAQUE_VALUE_CHARACTERS) {
+            if (hasNamedCredentialValue(value, cursor + 1, label)) {
                 return true;
             }
         }
         return false;
+    }
+
+    private static int standaloneCredentialOptionMinimum(CharSequence value) {
+        if (value == null || value.length() < 3
+            || value.charAt(0) != '-' || value.charAt(1) != '-') {
+            return 0;
+        }
+        Characters characters = characters(value);
+        for (String label : NAMED_CREDENTIALS) {
+            if (label.indexOf(' ') < 0 && value.length() == label.length() + 2
+                && matches(characters, 2, label, true)) {
+                return minimumNamedCredentialValueCharacters(label);
+            }
+        }
+        return 0;
+    }
+
+    private static boolean isLongCredentialOption(Characters value, int index) {
+        return index >= 2 && value.charAt(index - 2) == '-' && value.charAt(index - 1) == '-'
+            && (index == 2 || !isTokenCharacter(value.charAt(index - 3)));
+    }
+
+    private static int minimumNamedCredentialValueCharacters(String label) {
+        return "password".equals(label) || label.startsWith("client")
+            ? MINIMUM_PASSWORD_OR_CLIENT_SECRET_VALUE_CHARACTERS
+            : MINIMUM_OPAQUE_VALUE_CHARACTERS;
+    }
+
+    private static boolean hasNamedCredentialValue(
+        Characters value,
+        int index,
+        String label
+    ) {
+        int minimumCharacters = minimumNamedCredentialValueCharacters(label);
+        if (minimumCharacters == MINIMUM_PASSWORD_OR_CLIENT_SECRET_VALUE_CHARACTERS) {
+            int cursor = index;
+            while (cursor < value.length() && Character.isWhitespace(value.charAt(cursor))) {
+                cursor++;
+            }
+            return cursor < value.length();
+        }
+        int cursor = skipWhitespaceAndQuotes(value, index);
+        return countOpaqueValueCharacters(value, cursor) >= minimumCharacters;
+    }
+
+    private static boolean hasArgumentCredentialValue(
+        CharSequence value,
+        int minimumCharacters
+    ) {
+        return minimumCharacters == MINIMUM_PASSWORD_OR_CLIENT_SECRET_VALUE_CHARACTERS
+            ? value.length() > 0
+            : countOpaqueValueCharacters(value, 0) >= minimumCharacters;
+    }
+
+    private static Characters characters(final CharSequence value) {
+        return new Characters() {
+            @Override
+            public int length() {
+                return value.length();
+            }
+
+            @Override
+            public char charAt(int index) {
+                return value.charAt(index);
+            }
+        };
+    }
+
+    private static int countOpaqueValueCharacters(CharSequence value, int index) {
+        Characters characters = characters(value);
+        return countOpaqueValueCharacters(
+            characters,
+            skipWhitespaceAndQuotes(characters, index)
+        );
     }
 
     private static int skipWhitespaceAndQuotes(Characters value, int index) {

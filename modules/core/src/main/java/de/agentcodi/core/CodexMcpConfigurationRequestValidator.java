@@ -234,12 +234,11 @@ final class CodexMcpConfigurationRequestValidator {
             return false;
         }
         for (Object entry : values) {
-            if (!isSafeText(entry, maximumLength)
-                || CredentialGuard.containsLikelyCredential((String) entry)) {
+            if (!isSafeText(entry, maximumLength)) {
                 return false;
             }
         }
-        return true;
+        return !CredentialGuard.containsLikelyCredential(values);
     }
 
     private static boolean isSafeText(Object value, int maximumLength) {

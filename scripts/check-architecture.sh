@@ -60,6 +60,11 @@ if ! rg -q 'CodexMcpConfigurationRpc' "$mcp_client" \
     || ! rg -q 'promptServers\.containsAll\(enabledServers\)' "$mcp_validator" \
     || ! rg -q 'clearedToolApprovalOverrides\.containsAll\(enabledServers\)' "$mcp_validator" \
     || ! rg -q '!"prompt"\.equals\(server\.get\("default_tools_approval_mode"\)\)' "$mcp_validator" \
+    || ! rg -q 'CredentialGuard\.containsLikelyCredential\(values\)' "$mcp_validator" \
+    || ! rg -q 'CredentialGuard\.containsLikelyCredential\(values\)' "$mcp_client/de/agentcodi/mcp/client/McpConfigurationLoader.java" \
+    || ! rg -q 'CredentialGuard\.isLikelyCredentialName\(key\)' "$mcp_client/de/agentcodi/mcp/client/McpConfigurationLoader.java" \
+    || ! rg -q '"client_secret"' "$PROJECT_ROOT/modules/core/src/main/java/de/agentcodi/core/CredentialGuard.java" \
+    || ! rg -q '"password"' "$PROJECT_ROOT/modules/core/src/main/java/de/agentcodi/core/CredentialGuard.java" \
     || ! rg -q 'edit\(prefix \+ "tools", null\)' "$mcp_client" \
     || ! rg -q 'name \+ "\.tools", null' "$mcp_client" \
     || ! rg -q '"mergeStrategy", "replace"' "$mcp_client" \
@@ -418,13 +423,13 @@ if ! rg -q 'PYTHON_SOURCE_EXTENSION_COUNT="75"' "$apk_builder" \
   exit 1
 fi
 
-if ! rg -q 'VERSION_NAME = "0\.4\.12"' "$core_root/BuildIdentity.java" \
-    || ! rg -q 'VERSION_CODE = 32' "$core_root/BuildIdentity.java" \
-    || ! rg -q 'android:versionName="0\.4\.12"' "$manifest" \
-    || ! rg -q 'android:versionCode="32"' "$manifest" \
-    || ! rg -q 'APP_VERSION="0\.4\.12"' "$apk_builder" \
-    || ! rg -q 'VERSION_CODE="32"' "$apk_builder"; then
-  echo "The 0.4.12 identity is inconsistent." >&2
+if ! rg -q 'VERSION_NAME = "0\.4\.13"' "$core_root/BuildIdentity.java" \
+    || ! rg -q 'VERSION_CODE = 33' "$core_root/BuildIdentity.java" \
+    || ! rg -q 'android:versionName="0\.4\.13"' "$manifest" \
+    || ! rg -q 'android:versionCode="33"' "$manifest" \
+    || ! rg -q 'APP_VERSION="0\.4\.13"' "$apk_builder" \
+    || ! rg -q 'VERSION_CODE="33"' "$apk_builder"; then
+  echo "The 0.4.13 identity is inconsistent." >&2
   exit 1
 fi
 

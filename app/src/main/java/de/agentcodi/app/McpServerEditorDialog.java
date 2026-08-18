@@ -228,14 +228,14 @@ final class McpServerEditorDialog {
                             McpTransport selectedTransport = transport.getSelectedItemPosition() == 0
                                 ? McpTransport.STDIO
                                 : McpTransport.STREAMABLE_HTTP;
-                            String endpointValue = endpoint.getText().toString().trim();
-                            String argumentText = arguments.getText().toString();
-                            String enabledToolText = enabledTools.getText().toString();
-                            String disabledToolText = disabledTools.getText().toString();
-                            if (CredentialGuard.containsLikelyCredential(endpointValue)
-                                || CredentialGuard.containsLikelyCredential(argumentText)
-                                || CredentialGuard.containsLikelyCredential(enabledToolText)
-                                || CredentialGuard.containsLikelyCredential(disabledToolText)) {
+                            CharSequence endpointInput = endpoint.getText();
+                            CharSequence argumentInput = arguments.getText();
+                            CharSequence enabledToolInput = enabledTools.getText();
+                            CharSequence disabledToolInput = disabledTools.getText();
+                            if (CredentialGuard.containsLikelyCredential(endpointInput)
+                                || CredentialGuard.containsLikelyCredential(argumentInput)
+                                || CredentialGuard.containsLikelyCredential(enabledToolInput)
+                                || CredentialGuard.containsLikelyCredential(disabledToolInput)) {
                                 endpoint.setText("");
                                 arguments.setText("");
                                 enabledTools.setText("");
@@ -243,6 +243,10 @@ final class McpServerEditorDialog {
                                 error.setText(R.string.mcp_editor_credential_rejected);
                                 return;
                             }
+                            String endpointValue = endpointInput.toString().trim();
+                            String argumentText = argumentInput.toString();
+                            String enabledToolText = enabledToolInput.toString();
+                            String disabledToolText = disabledToolInput.toString();
                             if (selectedTransport == McpTransport.STREAMABLE_HTTP
                                 && !isSafeHttpsUrl(endpointValue)) {
                                 error.setText(R.string.mcp_editor_https_required);

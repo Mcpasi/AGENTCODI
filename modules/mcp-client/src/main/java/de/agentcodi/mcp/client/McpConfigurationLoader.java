@@ -164,7 +164,8 @@ public final class McpConfigurationLoader {
             if (!isProjectedField(key)) {
                 advanced = true;
                 if ("env".equals(key) || "http_headers".equals(key)
-                    || "bearer_token_env_var".equals(key)) {
+                    || "bearer_token_env_var".equals(key)
+                    || CredentialGuard.isLikelyCredentialName(key)) {
                     sensitive = true;
                 }
             }
@@ -273,15 +274,16 @@ public final class McpConfigurationLoader {
         if (!(value instanceof List) || ((List<?>) value).size() > maximumEntries) {
             return new ListResult(Collections.<String>emptyList(), true, false);
         }
+        List<?> values = (List<?>) value;
+        if (CredentialGuard.containsLikelyCredential(values)) {
+            return new ListResult(Collections.<String>emptyList(), false, true);
+        }
         List<String> projected = new ArrayList<String>();
-        for (Object entry : (List<?>) value) {
+        for (Object entry : values) {
             if (!(entry instanceof String)) {
                 return new ListResult(Collections.<String>emptyList(), true, false);
             }
             String text = (String) entry;
-            if (CredentialGuard.containsLikelyCredential(text)) {
-                return new ListResult(Collections.<String>emptyList(), false, true);
-            }
             if (!text.equals(text.trim()) || text.isEmpty()
                 || text.length() > maximumCharacters || hasControl(text)) {
                 return new ListResult(Collections.<String>emptyList(), true, false);

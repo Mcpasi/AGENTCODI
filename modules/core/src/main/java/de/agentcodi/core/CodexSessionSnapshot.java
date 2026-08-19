@@ -12,6 +12,7 @@ public final class CodexSessionSnapshot {
     private final String authMode;
     private final String accountEmail;
     private final String planType;
+    private final CodexRateLimitsSnapshot rateLimits;
     private final boolean loginPending;
     private final String loginUrl;
     private final boolean operationActive;
@@ -37,6 +38,7 @@ public final class CodexSessionSnapshot {
         String authMode,
         String accountEmail,
         String planType,
+        CodexRateLimitsSnapshot rateLimits,
         boolean loginPending,
         String loginUrl,
         boolean operationActive,
@@ -60,6 +62,9 @@ public final class CodexSessionSnapshot {
         this.authMode = nonNull(authMode);
         this.accountEmail = nonNull(accountEmail);
         this.planType = nonNull(planType);
+        this.rateLimits = rateLimits == null
+            ? CodexRateLimitsSnapshot.unavailable()
+            : rateLimits;
         this.loginPending = loginPending;
         this.loginUrl = nonNull(loginUrl);
         this.operationActive = operationActive;
@@ -87,6 +92,7 @@ public final class CodexSessionSnapshot {
             "",
             "",
             "",
+            CodexRateLimitsSnapshot.unavailable(),
             false,
             "",
             false,
@@ -135,6 +141,10 @@ public final class CodexSessionSnapshot {
 
     public String getPlanType() {
         return planType;
+    }
+
+    public CodexRateLimitsSnapshot getRateLimits() {
+        return rateLimits;
     }
 
     public boolean isLoginPending() {

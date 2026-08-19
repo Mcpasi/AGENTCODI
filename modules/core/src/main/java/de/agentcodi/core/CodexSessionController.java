@@ -42,6 +42,8 @@ public final class CodexSessionController
     private static final int MAX_ACTIVE_CARD_STREAMS = 32;
     private static final int MAX_PROMPT_CHARACTERS = 32 * 1024;
     private static final int MAX_ERROR_CHARACTERS = 600;
+    private static final long MAX_RATE_LIMIT_WINDOW_MINUTES = 5_270_400L;
+    private static final long MAX_RATE_LIMIT_RESET_SECONDS = 253_402_300_799L;
     private static final int MAX_INTERACTIVE_REQUESTS = 8;
     private static final int MAX_USER_INPUT_QUESTIONS = 3;
     private static final int MAX_USER_INPUT_OPTIONS = 8;
@@ -106,6 +108,8 @@ public final class CodexSessionController
     private String authMode = "";
     private String accountEmail = "";
     private String planType = "";
+    private CodexRateLimitsSnapshot rateLimits = CodexRateLimitsSnapshot.unavailable();
+    private boolean rateLimitsRefreshQueued;
     private boolean loginPending;
     private String loginUrl = "";
     private String loginId = "";
@@ -850,6 +854,12 @@ public final class CodexSessionController
             handleLoginCompleted(params);
         } else if ("account/updated".equals(method)) {
             queueAccountRefresh();
+        } else if ("account/rateLimits/updated".equals(method)) {
+            JsonCodec.requireObject(
+                params.get("rateLimits"),
+                "account/rateLimits/updated rateLimits"
+            );
+            queueRateLimitsRefresh();
         } else if ("serverRequest/resolved".equals(method)) {
             handleServerRequestResolved(params);
         }
@@ -869,6 +879,7 @@ public final class CodexSessionController
             turnActive = false;
             activeTurnId = "";
             operationActive = false;
+            rateLimitsRefreshQueued = false;
             interactiveRequests.clear();
             pendingFileChanges.clear();
             clearCardStreamsLocked();
@@ -1054,6 +1065,7 @@ public final class CodexSessionController
             NORMAL_TIMEOUT_MS
         );
         Map<String, Object> account = JsonCodec.optionalObject(result.get("account"));
+        boolean readRateLimits;
         synchronized (this) {
             requiresOpenaiAuth = JsonCodec.booleanValue(
                 result.get("requiresOpenaiAuth"),
@@ -1068,6 +1080,10 @@ public final class CodexSessionController
                 accountEmail = bounded(JsonCodec.optionalString(account.get("email")), 320);
                 planType = bounded(JsonCodec.optionalString(account.get("planType")), 40);
             }
+            readRateLimits = "chatgpt".equals(authMode);
+            if (!readRateLimits) {
+                rateLimits = CodexRateLimitsSnapshot.unavailable();
+            }
             if (!authMode.isEmpty()) {
                 loginPending = false;
                 loginUrl = "";
@@ -1075,6 +1091,103 @@ public final class CodexSessionController
             }
             publishLocked();
         }
+        if (readRateLimits) {
+            readRateLimitsOptionalInternal();
+        }
+    }
+
+    private void readRateLimitsOptionalInternal() throws Exception {
+        synchronized (this) {
+            if (!"chatgpt".equals(authMode)) {
+                rateLimits = CodexRateLimitsSnapshot.unavailable();
+                return;
+            }
+        }
+        try {
+            Map<String, Object> result = client.request(
+                "account/rateLimits/read",
+                null,
+                NORMAL_TIMEOUT_MS
+            );
+            CodexRateLimitsSnapshot parsed = parseRateLimits(result);
+            synchronized (this) {
+                if ("chatgpt".equals(authMode)) {
+                    rateLimits = parsed;
+                    publishLocked();
+                }
+            }
+        } catch (CodexRpcException unavailable) {
+            synchronized (this) {
+                if ("chatgpt".equals(authMode)) {
+                    rateLimits = CodexRateLimitsSnapshot.unavailable();
+                    publishLocked();
+                }
+            }
+        }
+    }
+
+    private static CodexRateLimitsSnapshot parseRateLimits(Map<String, Object> result) {
+        Map<String, Object> value = JsonCodec.requireObject(
+            result.get("rateLimits"),
+            "account/rateLimits/read rateLimits"
+        );
+        return new CodexRateLimitsSnapshot(
+            parseRateLimitWindow(value.get("primary"), "primary"),
+            parseRateLimitWindow(value.get("secondary"), "secondary")
+        );
+    }
+
+    private static CodexRateLimitWindow parseRateLimitWindow(Object value, String field) {
+        if (value == null) {
+            return null;
+        }
+        Map<String, Object> window = JsonCodec.requireObject(value, field + " rate-limit window");
+        long usedPercent = requireProtocolInteger(
+            window.get("usedPercent"),
+            field + " usedPercent",
+            0L,
+            100L
+        );
+        long duration = optionalProtocolInteger(
+            window.get("windowDurationMins"),
+            field + " windowDurationMins",
+            1L,
+            MAX_RATE_LIMIT_WINDOW_MINUTES
+        );
+        long resetsAt = optionalProtocolInteger(
+            window.get("resetsAt"),
+            field + " resetsAt",
+            0L,
+            MAX_RATE_LIMIT_RESET_SECONDS
+        );
+        return new CodexRateLimitWindow((int) usedPercent, duration, resetsAt);
+    }
+
+    private static long requireProtocolInteger(
+        Object value,
+        String field,
+        long minimum,
+        long maximum
+    ) {
+        if (!(value instanceof Long)) {
+            throw new IllegalArgumentException(field + " must be an integer");
+        }
+        long number = ((Long) value).longValue();
+        if (number < minimum || number > maximum) {
+            throw new IllegalArgumentException(field + " is outside its allowed range");
+        }
+        return number;
+    }
+
+    private static long optionalProtocolInteger(
+        Object value,
+        String field,
+        long minimum,
+        long maximum
+    ) {
+        return value == null
+            ? CodexRateLimitWindow.UNKNOWN_VALUE
+            : requireProtocolInteger(value, field, minimum, maximum);
     }
 
     private void refreshThreadsInternal() throws Exception {
@@ -2250,6 +2363,29 @@ public final class CodexSessionController
         });
     }
 
+    private void queueRateLimitsRefresh() {
+        synchronized (this) {
+            if (closed || !ready || !"chatgpt".equals(authMode)
+                || rateLimitsRefreshQueued) {
+                return;
+            }
+            rateLimitsRefreshQueued = true;
+        }
+        submitSilently(new Operation() {
+            @Override
+            public void run() throws Exception {
+                readRateLimitsOptionalInternal();
+            }
+
+            @Override
+            public void cancel() {
+                synchronized (CodexSessionController.this) {
+                    rateLimitsRefreshQueued = false;
+                }
+            }
+        });
+    }
+
     private void queueThreadRefresh() {
         submitSilently(new Operation() {
             @Override
@@ -3113,6 +3249,7 @@ public final class CodexSessionController
             authMode,
             accountEmail,
             planType,
+            rateLimits,
             loginPending,
             loginUrl,
             operationActive,
@@ -3580,6 +3717,8 @@ public final class CodexSessionController
         authMode = "";
         accountEmail = "";
         planType = "";
+        rateLimits = CodexRateLimitsSnapshot.unavailable();
+        rateLimitsRefreshQueued = false;
         loginPending = false;
         loginUrl = "";
         loginId = "";

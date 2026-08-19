@@ -211,9 +211,14 @@
   <string name="account_api_key_hint">OpenAI API-Schlüssel (optional)</string>
   <string name="account_api_key_submit">API-Schlüssel an Codex übergeben</string>
   <string name="account_sign_out">Abmelden</string>
-  <string name="account_refresh">Konto und Modelle aktualisieren</string>
+  <string name="account_refresh">Konto, Quoten und Modelle aktualisieren</string>
   <string name="account_signed_in_through">Angemeldet über %1$s</string>
   <string name="account_provider_no_auth">Der aktive Provider benötigt keine OpenAI-Anmeldung.</string>
+  <string name="account_rate_limits_title">CODEX-QUOTEN</string>
+  <string name="account_rate_limits_unavailable">Codex hat für dieses ChatGPT-Konto keine Quotendaten geliefert.</string>
+  <string name="account_rate_limit_window">%1$d-Minuten-Quote: %2$d %% genutzt</string>
+  <string name="account_rate_limit_window_unknown_duration">Quote: %1$d %% genutzt</string>
+  <string name="account_rate_limit_reset"> · Rücksetzung %1$s</string>
   <string name="account_login_preparing">Anmeldung wird vorbereitet…</string>
   <string name="account_login_browser_hint">Schließe die Anmeldung im externen Browser ab. Der Kontostatus aktualisiert sich automatisch.</string>
   <string name="account_login_url_rejected">Die Anmelde-URL wurde abgelehnt.</string>

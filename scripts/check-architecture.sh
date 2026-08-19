@@ -167,6 +167,21 @@ if ! rg -q 'startChatGptLogin' "$PROJECT_ROOT/app/src/main/java/de/agentcodi/app
   exit 1
 fi
 
+rate_limits_snapshot="$PROJECT_ROOT/modules/core/src/main/java/de/agentcodi/core/CodexRateLimitsSnapshot.java"
+rate_limit_window="$PROJECT_ROOT/modules/core/src/main/java/de/agentcodi/core/CodexRateLimitWindow.java"
+if ! rg -q '"account/rateLimits/read"' "$mcp_session" \
+    || ! rg -q '"account/rateLimits/updated"' "$mcp_session" \
+    || ! rg -q 'rateLimitsRefreshQueued' "$mcp_session" \
+    || ! rg -q 'usedPercent < 0 \|\| usedPercent > 100' "$rate_limit_window" \
+    || ! rg -q 'CodexRateLimitsSnapshot getRateLimits' "$PROJECT_ROOT/modules/core/src/main/java/de/agentcodi/core/CodexSessionSnapshot.java" \
+    || ! rg -q 'formatRateLimits' "$PROJECT_ROOT/app/src/main/java/de/agentcodi/app/SettingsActivity.java" \
+    || ! rg -q 'account/rateLimits/updated' "$PROJECT_ROOT/tests/cpp/agentcodi_engine_test.cpp" \
+    || rg -n 'account/(rateLimitResetCredit/consume|sendAddCreditsNudgeEmail)' \
+      "$PROJECT_ROOT/app/src/main/java" "$PROJECT_ROOT/modules"; then
+  echo "Rate limits must remain a bounded, read-only app-server projection." >&2
+  exit 1
+fi
+
 if rg -n 'readOnlyAccess|sandboxPolicy' "$PROJECT_ROOT/modules/core/src/main/java/de/agentcodi/core/CodexSessionController.java"; then
   echo "Legacy app-server read-access fields must not return to turn requests." >&2
   exit 1
@@ -426,13 +441,13 @@ if ! rg -q 'PYTHON_SOURCE_EXTENSION_COUNT="75"' "$apk_builder" \
   exit 1
 fi
 
-if ! rg -q 'VERSION_NAME = "0\.5\.0"' "$core_root/BuildIdentity.java" \
-    || ! rg -q 'VERSION_CODE = 37' "$core_root/BuildIdentity.java" \
-    || ! rg -q 'android:versionName="0\.5\.0"' "$manifest" \
-    || ! rg -q 'android:versionCode="37"' "$manifest" \
-    || ! rg -q 'APP_VERSION="0\.5\.0"' "$apk_builder" \
-    || ! rg -q 'VERSION_CODE="37"' "$apk_builder"; then
-  echo "The 0.5.0 identity is inconsistent." >&2
+if ! rg -q 'VERSION_NAME = "0\.5\.1"' "$core_root/BuildIdentity.java" \
+    || ! rg -q 'VERSION_CODE = 38' "$core_root/BuildIdentity.java" \
+    || ! rg -q 'android:versionName="0\.5\.1"' "$manifest" \
+    || ! rg -q 'android:versionCode="38"' "$manifest" \
+    || ! rg -q 'APP_VERSION="0\.5\.1"' "$apk_builder" \
+    || ! rg -q 'VERSION_CODE="38"' "$apk_builder"; then
+  echo "The 0.5.1 identity is inconsistent." >&2
   exit 1
 fi
 

@@ -211,9 +211,14 @@
   <string name="account_api_key_hint">OpenAI API key (optional)</string>
   <string name="account_api_key_submit">Pass API key to Codex</string>
   <string name="account_sign_out">Sign out</string>
-  <string name="account_refresh">Refresh account and models</string>
+  <string name="account_refresh">Refresh account, quotas, and models</string>
   <string name="account_signed_in_through">Signed in through %1$s</string>
   <string name="account_provider_no_auth">The active provider does not require an OpenAI sign-in.</string>
+  <string name="account_rate_limits_title">CODEX QUOTAS</string>
+  <string name="account_rate_limits_unavailable">Codex did not provide quota data for this ChatGPT account.</string>
+  <string name="account_rate_limit_window">%1$d-minute quota: %2$d%% used</string>
+  <string name="account_rate_limit_window_unknown_duration">Quota: %1$d%% used</string>
+  <string name="account_rate_limit_reset"> · resets %1$s</string>
   <string name="account_login_preparing">Preparing sign-in…</string>
   <string name="account_login_browser_hint">Complete sign-in in the external browser. The account status updates automatically.</string>
   <string name="account_login_url_rejected">The sign-in URL was rejected.</string>

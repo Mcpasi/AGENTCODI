@@ -162,6 +162,29 @@ int main(int argc, char* argv[]) {
         << "\"resources\":[],\"resourceTemplates\":[]}]}}\n";
     return 0;
   }
+  if (argc == 2 && std::string(argv[1]) == "--rate-limits-roundtrip") {
+    std::string request;
+    if (!std::getline(std::cin, request)
+        || request.find("\"method\":\"account/rateLimits/read\"")
+            == std::string::npos
+        || request.find("\"params\"") != std::string::npos) {
+      return 34;
+    }
+    std::cout
+        << "{\"id\":64,\"result\":{\"rateLimits\":{"
+        << "\"limitId\":\"codex\","
+        << "\"primary\":{\"usedPercent\":25,"
+        << "\"windowDurationMins\":300,\"resetsAt\":1800000000},"
+        << "\"secondary\":{\"usedPercent\":40,"
+        << "\"windowDurationMins\":10080,\"resetsAt\":1800600000}}}}"
+        << std::endl;
+    std::cout
+        << "{\"method\":\"account/rateLimits/updated\",\"params\":{"
+        << "\"rateLimits\":{\"limitId\":\"codex\","
+        << "\"primary\":{\"usedPercent\":31}}}}"
+        << std::endl;
+    return 0;
+  }
   if (argc == 2 && std::string(argv[1]) == "--mcp-config-roundtrip") {
     std::string request;
     if (!std::getline(std::cin, request)
@@ -199,7 +222,7 @@ int main(int argc, char* argv[]) {
   }
 
   const std::string version = agentcodi::engine_version();
-  expect(version == "agentcodi-native/0.5.0", "engine version");
+  expect(version == "agentcodi-native/0.5.1", "engine version");
   expect(agentcodi::run_self_test() == 0, "native self-test");
 
   const std::string diagnostics = agentcodi::runtime_diagnostics();
@@ -1026,6 +1049,38 @@ int main(int argc, char* argv[]) {
             "read MCP reload response");
         expect(process->Stop(500) == 0,
                "stop MCP configuration framing fixture");
+      }
+
+      config.arguments = {"--rate-limits-roundtrip"};
+      error.clear();
+      process = agentcodi::AppServerProcess::Start(config, &error);
+      expect(process != nullptr, "spawn rate-limit framing fixture");
+      if (process != nullptr) {
+        const std::string rate_limits_read =
+            "{\"id\":64,\"method\":\"account/rateLimits/read\"}";
+        expect(
+            process->WriteLine(rate_limits_read, 16U * 1024U, &error),
+            "write parameter-free rate-limit read request");
+        std::string rate_limits_response;
+        expect(
+            process->ReadLine(16U * 1024U, &rate_limits_response, &error)
+                    == agentcodi::LineReadStatus::kLine
+                && rate_limits_response.find("\"usedPercent\":25")
+                    != std::string::npos
+                && rate_limits_response.find("\"windowDurationMins\":10080")
+                    != std::string::npos,
+            "preserve bounded rate-limit response for Java validation");
+        std::string rate_limits_update;
+        expect(
+            process->ReadLine(16U * 1024U, &rate_limits_update, &error)
+                    == agentcodi::LineReadStatus::kLine
+                && rate_limits_update.find("account/rateLimits/updated")
+                    != std::string::npos
+                && rate_limits_update.find("\"usedPercent\":31")
+                    != std::string::npos,
+            "preserve sparse rate-limit update notification");
+        expect(process->Stop(500) == 0,
+               "stop rate-limit framing fixture");
       }
 
       config.arguments = {"--exit-with-code"};

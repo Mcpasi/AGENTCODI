@@ -4,6 +4,8 @@ import de.agentcodi.core.ChatMessage;
 import de.agentcodi.core.CodexApprovalDecision;
 import de.agentcodi.core.CodexInteractiveRequest;
 import de.agentcodi.core.CodexModelOption;
+import de.agentcodi.core.CodexRateLimitWindow;
+import de.agentcodi.core.CodexRateLimitsSnapshot;
 import de.agentcodi.core.CodexRpcTransport;
 import de.agentcodi.core.CodexSessionController;
 import de.agentcodi.core.CodexSessionSnapshot;
@@ -31,6 +33,7 @@ public final class CodexSessionControllerTest {
 
     public static int run() throws Exception {
         loadsAccountThreadsAndHistory();
+        loadsAndRefreshesRateLimits();
         mergesStreamingDeltasAndFinalItem();
         keepsCompletedItemAuthoritativeAcrossReordering();
         projectsReasoningAndPlanCardsAuthoritatively();
@@ -53,7 +56,7 @@ public final class CodexSessionControllerTest {
         terminatesTerminalWhenOutputCapIsReached();
         rejectsTerminalCredentialsAndMalformedOutput();
         usesVettedMcpConfigurationRpcs();
-        return 23;
+        return 24;
     }
 
     private static void usesVettedMcpConfigurationRpcs() throws Exception {
@@ -383,6 +386,106 @@ public final class CodexSessionControllerTest {
             }
         }, "new HTTPS-provider thread");
         assertHttpModelProvider(server.lastThreadStartParams, "thread/start");
+        controller.close();
+    }
+
+    private static void loadsAndRefreshesRateLimits() throws Exception {
+        final FixtureServer server = new FixtureServer(true);
+        server.accountType = "chatgpt";
+        final CodexSessionController controller = new CodexSessionController(
+            server,
+            "/private/workspace"
+        );
+        controller.start();
+
+        CodexRateLimitsSnapshot initial = controller.snapshot().getRateLimits();
+        TestSupport.assertTrue(initial.isAvailable(), "ChatGPT rate limits loaded");
+        TestSupport.assertEquals(
+            Integer.valueOf(25),
+            Integer.valueOf(initial.getPrimary().getUsedPercent()),
+            "primary quota usage inherited"
+        );
+        TestSupport.assertEquals(
+            Long.valueOf(300L),
+            Long.valueOf(initial.getPrimary().getWindowDurationMinutes()),
+            "primary quota duration inherited"
+        );
+        TestSupport.assertEquals(
+            Long.valueOf(1_800_000_000L),
+            Long.valueOf(initial.getPrimary().getResetsAtSeconds()),
+            "primary quota reset inherited"
+        );
+        TestSupport.assertEquals(
+            Integer.valueOf(40),
+            Integer.valueOf(initial.getSecondary().getUsedPercent()),
+            "secondary quota usage inherited"
+        );
+        TestSupport.assertEquals(
+            Integer.valueOf(1),
+            Integer.valueOf(server.rateLimitsReadCount.get()),
+            "one initial rate-limit read"
+        );
+        TestSupport.assertFalse(
+            server.lastRateLimitsReadHadParams,
+            "rate-limit read omits params"
+        );
+
+        server.primaryRateLimitUsedPercent = 31L;
+        server.notifyMessage("account/rateLimits/updated", JsonCodec.object(
+            "rateLimits", JsonCodec.object(
+                "primary", JsonCodec.object("usedPercent", Long.valueOf(99L))
+            )
+        ));
+        waitFor(new Condition() {
+            @Override
+            public boolean isTrue() {
+                CodexRateLimitWindow primary = controller.snapshot()
+                    .getRateLimits()
+                    .getPrimary();
+                return server.rateLimitsReadCount.get() == 2
+                    && primary != null
+                    && primary.getUsedPercent() == 31;
+            }
+        }, "sparse rate-limit update triggers authoritative reread");
+
+        server.primaryRateLimitUsedPercent = 101L;
+        server.notifyMessage("account/rateLimits/updated", JsonCodec.object(
+            "rateLimits", JsonCodec.object(
+                "primary", JsonCodec.object("usedPercent", Long.valueOf(101L))
+            )
+        ));
+        waitFor(new Condition() {
+            @Override
+            public boolean isTrue() {
+                return server.rateLimitsReadCount.get() == 3
+                    && controller.snapshot().getErrorMessage().contains("allowed range");
+            }
+        }, "invalid rate-limit response fails closed");
+        TestSupport.assertEquals(
+            Integer.valueOf(31),
+            Integer.valueOf(
+                controller.snapshot().getRateLimits().getPrimary().getUsedPercent()
+            ),
+            "invalid refresh does not replace last valid quota"
+        );
+
+        controller.logout();
+        waitFor(new Condition() {
+            @Override
+            public boolean isTrue() {
+                return controller.snapshot().getAuthMode().isEmpty()
+                    && !controller.snapshot().isOperationActive();
+            }
+        }, "logout clears rate limits");
+        TestSupport.assertFalse(
+            controller.snapshot().getRateLimits().isAvailable(),
+            "logout clears inherited quota"
+        );
+        TestSupport.assertEquals(
+            Integer.valueOf(3),
+            Integer.valueOf(server.rateLimitsReadCount.get()),
+            "logout does not read ChatGPT quota without a ChatGPT account"
+        );
         controller.close();
     }
 
@@ -2130,7 +2233,7 @@ public final class CodexSessionControllerTest {
         private final Map<Long, Map<String, Object>> serverErrors =
             new ConcurrentHashMap<Long, Map<String, Object>>();
         private final boolean permissionAllowed;
-        private volatile boolean signedIn;
+        private volatile String accountType;
         private volatile boolean closed;
         private volatile Map<String, Object> initializeParams;
         private volatile Map<String, Object> lastThreadResumeParams;
@@ -2149,13 +2252,16 @@ public final class CodexSessionControllerTest {
         private volatile boolean reorderStreamingEvents;
         private volatile boolean holdTurnOpen;
         private volatile boolean richHistory;
+        private final AtomicInteger rateLimitsReadCount = new AtomicInteger();
+        private volatile boolean lastRateLimitsReadHadParams;
+        private volatile long primaryRateLimitUsedPercent = 25L;
 
         private FixtureServer(boolean signedIn) {
             this(signedIn, true);
         }
 
         private FixtureServer(boolean signedIn, boolean permissionAllowed) {
-            this.signedIn = signedIn;
+            this.accountType = signedIn ? "apiKey" : "";
             this.permissionAllowed = permissionAllowed;
         }
 
@@ -2220,14 +2326,34 @@ public final class CodexSessionControllerTest {
                 ));
             } else if ("account/read".equals(method)) {
                 respond(request, JsonCodec.object(
-                    "account", signedIn
-                        ? JsonCodec.object(
-                            "type", "apiKey",
-                            "email", "",
-                            "planType", ""
-                        )
-                        : null,
+                    "account", accountType.isEmpty()
+                        ? null
+                        : "chatgpt".equals(accountType)
+                            ? JsonCodec.object(
+                                "type", "chatgpt",
+                                "email", "fixture@example.invalid",
+                                "planType", "plus"
+                            )
+                            : JsonCodec.object("type", "apiKey"),
                     "requiresOpenaiAuth", Boolean.TRUE
+                ));
+            } else if ("account/rateLimits/read".equals(method)) {
+                rateLimitsReadCount.incrementAndGet();
+                lastRateLimitsReadHadParams = request.containsKey("params");
+                respond(request, JsonCodec.object(
+                    "rateLimits", JsonCodec.object(
+                        "limitId", "codex",
+                        "primary", JsonCodec.object(
+                            "usedPercent", Long.valueOf(primaryRateLimitUsedPercent),
+                            "windowDurationMins", Long.valueOf(300L),
+                            "resetsAt", Long.valueOf(1_800_000_000L)
+                        ),
+                        "secondary", JsonCodec.object(
+                            "usedPercent", Long.valueOf(40L),
+                            "windowDurationMins", Long.valueOf(10_080L),
+                            "resetsAt", Long.valueOf(1_800_600_000L)
+                        )
+                    )
                 ));
             } else if ("account/login/start".equals(method)) {
                 Map<String, Object> params = JsonCodec.requireObject(request.get("params"), "params");
@@ -2236,7 +2362,7 @@ public final class CodexSessionControllerTest {
                         JsonCodec.optionalString(params.get("apiKey")).length() >= 8,
                         "transient API key reached Codex"
                     );
-                    signedIn = true;
+                    accountType = "apiKey";
                     respond(request, JsonCodec.object("type", "apiKey"));
                 } else {
                     respond(request, JsonCodec.object(
@@ -2422,8 +2548,10 @@ public final class CodexSessionControllerTest {
             } else if ("config/mcpServer/reload".equals(method)) {
                 lastMcpConfigurationReloadHadParams = request.containsKey("params");
                 respond(request, JsonCodec.object());
-            } else if ("account/logout".equals(method)
-                || "turn/interrupt".equals(method)) {
+            } else if ("account/logout".equals(method)) {
+                accountType = "";
+                respond(request, JsonCodec.object());
+            } else if ("turn/interrupt".equals(method)) {
                 respond(request, JsonCodec.object());
             }
         }

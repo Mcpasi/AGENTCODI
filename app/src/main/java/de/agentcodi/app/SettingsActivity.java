@@ -27,6 +27,8 @@ import android.widget.TextView;
 import android.widget.Toast;
 
 import de.agentcodi.core.BuildIdentity;
+import de.agentcodi.core.CodexRateLimitWindow;
+import de.agentcodi.core.CodexRateLimitsSnapshot;
 import de.agentcodi.core.CodexSessionSnapshot;
 import de.agentcodi.core.CrashReportFormatter;
 import de.agentcodi.core.RuntimePhase;
@@ -38,6 +40,8 @@ import de.agentcodi.runtime.CrashDiagnostics;
 import de.agentcodi.runtime.WorkspaceFileExporter;
 
 import java.net.URI;
+import java.text.DateFormat;
+import java.util.Date;
 import java.util.List;
 import java.util.Locale;
 import java.util.concurrent.ExecutorService;
@@ -88,6 +92,7 @@ public final class SettingsActivity extends Activity {
     private Button startRuntimeButton;
     private TextView sessionStatusView;
     private TextView accountView;
+    private TextView rateLimitsView;
     private TextView loginHintView;
     private Button chatGptLoginButton;
     private Button openLoginButton;
@@ -365,6 +370,11 @@ public final class SettingsActivity extends Activity {
         accountView = theme.text(getString(R.string.account_not_signed_in), 18, theme.primary);
         accountView.setTypeface(Typeface.DEFAULT_BOLD);
         theme.addWithTopMargin(accountCard, accountView, 12);
+
+        rateLimitsView = theme.text("", 13, theme.secondary);
+        rateLimitsView.setLineSpacing(0.0f, 1.18f);
+        rateLimitsView.setVisibility(View.GONE);
+        theme.addWithTopMargin(accountCard, rateLimitsView, 12);
 
         TextView credentialBoundary = theme.text(
             getString(R.string.account_credential_boundary),
@@ -660,6 +670,13 @@ public final class SettingsActivity extends Activity {
             accountView.setText(R.string.account_not_signed_in);
         }
 
+        boolean showRateLimits = "chatgpt".equals(session.getAuthMode());
+        rateLimitsView.setVisibility(showRateLimits ? View.VISIBLE : View.GONE);
+        rateLimitsView.setText(showRateLimits
+            ? formatRateLimits(session.getRateLimits())
+            : ""
+        );
+
         boolean actionReady = session.isReady() && !session.isOperationActive();
         boolean showLogin = !session.isSignedIn();
         chatGptLoginButton.setVisibility(showLogin ? View.VISIBLE : View.GONE);
@@ -688,6 +705,42 @@ public final class SettingsActivity extends Activity {
         apiKeyInput.setEnabled(actionReady && showLogin && !session.isLoginPending());
         if (interactiveRequestDialog != null) {
             interactiveRequestDialog.render(session);
+        }
+    }
+
+    private String formatRateLimits(CodexRateLimitsSnapshot rateLimits) {
+        StringBuilder text = new StringBuilder(getString(R.string.account_rate_limits_title));
+        if (rateLimits == null || !rateLimits.isAvailable()) {
+            return text.append('\n')
+                .append(getString(R.string.account_rate_limits_unavailable))
+                .toString();
+        }
+        appendRateLimitWindow(text, rateLimits.getPrimary());
+        appendRateLimitWindow(text, rateLimits.getSecondary());
+        return text.toString();
+    }
+
+    private void appendRateLimitWindow(StringBuilder text, CodexRateLimitWindow window) {
+        if (window == null) {
+            return;
+        }
+        text.append('\n');
+        if (window.hasWindowDuration()) {
+            text.append(getString(
+                R.string.account_rate_limit_window,
+                Long.valueOf(window.getWindowDurationMinutes()),
+                Integer.valueOf(window.getUsedPercent())
+            ));
+        } else {
+            text.append(getString(
+                R.string.account_rate_limit_window_unknown_duration,
+                Integer.valueOf(window.getUsedPercent())
+            ));
+        }
+        if (window.hasResetTime()) {
+            String reset = DateFormat.getDateTimeInstance(DateFormat.SHORT, DateFormat.SHORT)
+                .format(new Date(window.getResetsAtSeconds() * 1000L));
+            text.append(getString(R.string.account_rate_limit_reset, reset));
         }
     }
 

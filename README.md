@@ -51,13 +51,14 @@ AGENTCODI does more than display a Codex conversation.
 | Runtime service | Local Android foreground service |
 | Workspace | Private application storage |
 | Codex home | Private and separated from the workspace |
+| Account quotas | Read-only primary and secondary ChatGPT quota windows from Codex |
 | Terminal | Interactive workspace terminal through the Codex runtime |
 | Node.js | Packaged runtime |
 | npm | Packaged runtime |
 | Python | Packaged runtime |
 | MCP management | Native Android interface backed by Codex configuration RPCs |
 
-The current AGENTCODI 0.5.0 runtime uses **Codex app-server 0.147.2**.
+The current AGENTCODI 0.5.1 runtime uses **Codex app-server 0.147.2**.
 
 ---
 
@@ -105,7 +106,8 @@ AGENTCODI supports:
 
 - ChatGPT account sign-in through the Codex account flow
 - OpenAI API key authentication
-- Logout and account refresh
+- Read-only ChatGPT quota usage, window duration and reset time reported by Codex
+- Logout and account, quota and model refresh
 
 Authentication controls are kept in the settings surface.
 
@@ -216,7 +218,7 @@ This catalog remains a read-only projection of what Codex reports.
 
 ## MCP Expert Mode
 
-AGENTCODI 0.5.0 also includes a guarded Expert Mode for the supported part of the user's MCP configuration.
+AGENTCODI 0.5.1 also includes a guarded Expert Mode for the supported part of the user's MCP configuration.
 
 Supported user-owned servers can be managed through the native interface.
 
@@ -329,7 +331,7 @@ Several sensitive byte and character buffers are explicitly cleared after use.
 
 Current release line:
 
-### AGENTCODI 0.5.0
+### AGENTCODI 0.5.1
 
 | Requirement | Value |
 |---|---|
@@ -380,9 +382,10 @@ Physical Android hardware is used separately to validate installation, UI behavi
 
 AGENTCODI is under active development.
 
-Version 0.5.0 currently focuses heavily on:
+Version 0.5.1 currently focuses heavily on:
 
 - Native Codex runtime integration
+- Read-only, app-server-owned ChatGPT quota visibility
 - MCP visibility and guarded configuration
 - Packaged development toolchains
 - Android runtime stability

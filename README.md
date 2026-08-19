@@ -14,8 +14,7 @@
 ![Source](https://img.shields.io/badge/Source-Java%20%2B%20C%2B%2B-00599C)
 ![License](https://img.shields.io/badge/License-Apache%202.0-blue)
 
-  [Releases](../../releases) · [Issues](../../issues)
-
+  [Releases](../../releases) . [Issues](../../issues)
 <br>
 
 **No Termux required to use AGENTCODI. No WebView shell. No separate gateway setup.**

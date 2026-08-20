@@ -29,6 +29,7 @@ final class NativeAppServerTransport implements CodexRpcTransport {
         String toolRuntimeDirectory,
         String codexHome,
         String home,
+        String stateDirectory,
         String temporaryDirectory,
         String nativeLibraryDirectory
     ) throws IOException {
@@ -48,6 +49,7 @@ final class NativeAppServerTransport implements CodexRpcTransport {
             toolRuntimeDirectory,
             codexHome,
             home,
+            stateDirectory,
             temporaryDirectory,
             nativeLibraryDirectory
         );

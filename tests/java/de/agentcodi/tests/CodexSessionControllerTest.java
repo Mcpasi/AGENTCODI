@@ -39,6 +39,7 @@ public final class CodexSessionControllerTest {
         projectsReasoningAndPlanCardsAuthoritatively();
         releasesCardStreamCapacityAfterTurnCompletion();
         projectsCompleteToolCardSet();
+        keepsScrubbedResumeImagePathNonExportable();
         restoresCardsFromThreadHistory();
         reportsTransportFailureOnceAndReleasesTurn();
         steersActiveTurnWithoutStartingAnotherTurn();
@@ -58,7 +59,7 @@ public final class CodexSessionControllerTest {
         terminatesTerminalWhenOutputCapIsReached();
         rejectsTerminalCredentialsAndMalformedOutput();
         usesVettedMcpConfigurationRpcs();
-        return 26;
+        return 27;
     }
 
     private static void steersActiveTurnWithoutStartingAnotherTurn() throws Exception {
@@ -1273,6 +1274,47 @@ public final class CodexSessionControllerTest {
                 "tool card kind: " + id
             );
         }
+        controller.close();
+    }
+
+    private static void keepsScrubbedResumeImagePathNonExportable() throws Exception {
+        FixtureServer server = new FixtureServer(true);
+        server.holdTurnOpen = true;
+        final CodexSessionController controller = new CodexSessionController(
+            server,
+            "/private/workspace"
+        );
+        startHeldTurn(server, controller);
+
+        notifyCompletedTool(server, JsonCodec.object(
+            "id", "unproven_resume_image",
+            "type", "imageGeneration",
+            "status", "completed",
+            "result", "<generated-image-data-omitted>",
+            "savedPath", null
+        ));
+        waitFor(new Condition() {
+            @Override
+            public boolean isTrue() {
+                return cardById(
+                    controller.snapshot(),
+                    "unproven_resume_image"
+                ) != null;
+            }
+        }, "native-scrubbed resumed image projected");
+        CodexTranscriptItem image = cardById(
+            controller.snapshot(),
+            "unproven_resume_image"
+        );
+        TestSupport.assertEquals(
+            "",
+            image.getReportedImagePath(),
+            "missing native materialization proof exposes no export candidate"
+        );
+        TestSupport.assertFalse(
+            image.getDetail().contains("Export"),
+            "scrubbed app-server savedPath does not advertise export"
+        );
         controller.close();
     }
 

@@ -284,8 +284,8 @@ bool read_terminated_terminal_completion(
 }  // namespace
 
 int main(int argc, char* argv[]) {
-  if (argc != 14) {
-    std::cerr << "Expected app-server, host, shell, Node, Python, workspace, toolchain, tool-bin, tool-runtime, Codex home, home, temp and library paths\n";
+  if (argc != 15) {
+    std::cerr << "Expected app-server, host, shell, Node, Python, workspace, toolchain, tool-bin, tool-runtime, Codex home, home, state, temp and library paths\n";
     return 2;
   }
   const std::string workspace = argv[6];
@@ -307,8 +307,9 @@ int main(int argc, char* argv[]) {
   config.tool_runtime_directory = argv[9];
   config.codex_home = argv[10];
   config.home_directory = argv[11];
-  config.temporary_directory = argv[12];
-  config.library_directory = argv[13];
+  config.state_directory = argv[12];
+  config.temporary_directory = argv[13];
+  config.library_directory = argv[14];
 
   std::string error;
   std::shared_ptr<agentcodi::AppServerProcess> process =
@@ -321,7 +322,7 @@ int main(int argc, char* argv[]) {
   const std::string initialize =
       "{\"method\":\"initialize\",\"id\":1,\"params\":{"
       "\"clientInfo\":{\"name\":\"agentcodi_android\","
-      "\"title\":\"AGENTCODI\",\"version\":\"0.5.4\"},"
+      "\"title\":\"AGENTCODI\",\"version\":\"0.5.5\"},"
       "\"capabilities\":{\"experimentalApi\":true,"
       "\"optOutNotificationMethods\":[\"rawResponseItem/completed\","
       "\"rawResponse/completed\"]}}}";

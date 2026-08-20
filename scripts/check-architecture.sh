@@ -248,10 +248,15 @@ if ! rg -q 'CompactInboundImagePayloads' "$PROJECT_ROOT/modules/native-engine/sr
 fi
 
 png_validator="$PROJECT_ROOT/modules/native-engine/src/main/cpp/png_validator.cpp"
+sha256_implementation="$PROJECT_ROOT/modules/native-engine/src/main/cpp/sha256.cpp"
 workspace_image="$PROJECT_ROOT/modules/storage/src/main/java/de/agentcodi/storage/WorkspaceImageFile.java"
 java_png_validator="$PROJECT_ROOT/modules/storage/src/main/java/de/agentcodi/storage/PngImageValidator.java"
 if ! rg -q 'ValidatePngImage' "$PROJECT_ROOT/modules/native-engine/src/main/cpp/app_server_process.cpp" \
     || ! rg -q 'read_and_validate_materialized_png' "$PROJECT_ROOT/modules/native-engine/src/main/cpp/app_server_process.cpp" \
+    || ! rg -q 'ensure_materialization_proof' "$PROJECT_ROOT/modules/native-engine/src/main/cpp/app_server_process.cpp" \
+    || ! rg -q 'stored SHA-256 proof' "$PROJECT_ROOT/modules/native-engine/src/main/cpp/app_server_process.cpp" \
+    || ! rg -q 'image-materialization-proofs' "$PROJECT_ROOT/modules/native-engine/src/main/cpp/app_server_process.cpp" \
+    || ! rg -q 'Sha256Hex' "$sha256_implementation" \
     || rg -q 'has_png_signature' "$PROJECT_ROOT/modules/native-engine/src/main/cpp/app_server_process.cpp" \
     || ! rg -q 'kMaximumInflatedPngBytes' "$png_validator" \
     || ! rg -q 'IHDR' "$png_validator" \
@@ -265,8 +270,14 @@ if ! rg -q 'ValidatePngImage' "$PROJECT_ROOT/modules/native-engine/src/main/cpp/
     || ! rg -q 'MAXIMUM_INFLATED_BYTES' "$java_png_validator" \
     || ! rg -q 'png_validator\.cpp' "$PROJECT_ROOT/scripts/test.sh" \
     || ! rg -q 'png_validator\.cpp' "$apk_builder" \
+    || ! rg -q 'sha256\.cpp' "$PROJECT_ROOT/scripts/test.sh" \
+    || ! rg -q 'sha256\.cpp' "$apk_builder" \
     || ! rg -q 'libagentcodi\.so.*libz\.so\.1.*libz_1\.so' "$apk_builder" \
     || ! rg -q 'signature followed by arbitrary bytes' "$PROJECT_ROOT/tests/cpp/agentcodi_engine_test.cpp" \
+    || ! rg -q 'reject a valid replacement PNG whose digest lacks prior proof' "$PROJECT_ROOT/tests/cpp/agentcodi_engine_test.cpp" \
+    || ! rg -q 'clear app-server savedPath when no proven materialization exists' "$PROJECT_ROOT/tests/cpp/agentcodi_engine_test.cpp" \
+    || ! rg -q 'keepsScrubbedResumeImagePathNonExportable' "$PROJECT_ROOT/tests/java/de/agentcodi/tests/CodexSessionControllerTest.java" \
+    || ! rg -q 'layout\.getState\(\)\.getAbsolutePath\(\)' "$PROJECT_ROOT/modules/runtime/src/main/java/de/agentcodi/runtime/AgentRuntimeService.java" \
     || ! rg -q 'rejectsPngSignatureFollowedByGarbage' "$PROJECT_ROOT/tests/java/de/agentcodi/tests/WorkspaceLayoutTest.java"; then
   echo "Complete bounded PNG materialization and export validation is incomplete." >&2
   exit 1
@@ -497,13 +508,13 @@ if ! rg -q 'PYTHON_SOURCE_EXTENSION_COUNT="75"' "$apk_builder" \
   exit 1
 fi
 
-if ! rg -q 'VERSION_NAME = "0\.5\.4"' "$core_root/BuildIdentity.java" \
-    || ! rg -q 'VERSION_CODE = 41' "$core_root/BuildIdentity.java" \
-    || ! rg -q 'android:versionName="0\.5\.4"' "$manifest" \
-    || ! rg -q 'android:versionCode="41"' "$manifest" \
-    || ! rg -q 'APP_VERSION="0\.5\.4"' "$apk_builder" \
-    || ! rg -q 'VERSION_CODE="41"' "$apk_builder"; then
-  echo "The 0.5.4 identity is inconsistent." >&2
+if ! rg -q 'VERSION_NAME = "0\.5\.5"' "$core_root/BuildIdentity.java" \
+    || ! rg -q 'VERSION_CODE = 42' "$core_root/BuildIdentity.java" \
+    || ! rg -q 'android:versionName="0\.5\.5"' "$manifest" \
+    || ! rg -q 'android:versionCode="42"' "$manifest" \
+    || ! rg -q 'APP_VERSION="0\.5\.5"' "$apk_builder" \
+    || ! rg -q 'VERSION_CODE="42"' "$apk_builder"; then
+  echo "The 0.5.5 identity is inconsistent." >&2
   exit 1
 fi
 

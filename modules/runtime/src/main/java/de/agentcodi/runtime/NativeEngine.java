@@ -31,6 +31,7 @@ public final class NativeEngine {
         String toolRuntimeDirectory,
         String codexHome,
         String home,
+        String stateDirectory,
         String temporaryDirectory,
         String nativeLibraryDirectory
     ) throws IOException {
@@ -46,6 +47,7 @@ public final class NativeEngine {
             toolRuntimeDirectory,
             codexHome,
             home,
+            stateDirectory,
             temporaryDirectory,
             nativeLibraryDirectory
         );
@@ -115,6 +117,7 @@ public final class NativeEngine {
         String toolRuntimeDirectory,
         String codexHome,
         String home,
+        String stateDirectory,
         String temporaryDirectory,
         String nativeLibraryDirectory
     ) throws IOException;

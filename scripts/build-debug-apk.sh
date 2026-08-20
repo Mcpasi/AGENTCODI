@@ -6,8 +6,8 @@ PROJECT_ROOT="$(cd -- "$SCRIPT_DIR/.." && pwd -P)"
 
 APP_NAME="AGENTCODI"
 APP_ID="de.agentcodi.app"
-APP_VERSION="0.5.4"
-VERSION_CODE="41"
+APP_VERSION="0.5.5"
+VERSION_CODE="42"
 MIN_SDK="29"
 TARGET_SDK="35"
 ABI="arm64-v8a"
@@ -627,7 +627,7 @@ APP_JAR="$JARS_ROOT/app.jar"
 "$JAR" cf "$APP_JAR" -C "$APP_CLASSES" .
 
 echo "Compiling ARM64 JNI engine..."
-"$CLANGXX" --target=aarch64-linux-android"$MIN_SDK" -shared -fPIC -std=c++17 -O2 -Wall -Wextra -Werror -pthread -fvisibility=hidden -I"$JAVA_HOME_17/include" -I"$JAVA_HOME_17/include/linux" -I"$PROJECT_ROOT/modules/native-engine/src/main/cpp" "$PROJECT_ROOT/modules/native-engine/src/main/cpp/agentcodi_engine.cpp" "$PROJECT_ROOT/modules/native-engine/src/main/cpp/app_server_process.cpp" "$PROJECT_ROOT/modules/native-engine/src/main/cpp/png_validator.cpp" "$PROJECT_ROOT/modules/native-engine/src/main/cpp/workspace_file_reader.cpp" "$PROJECT_ROOT/modules/native-engine/src/main/cpp/jni_bridge.cpp" -Wl,-soname,libagentcodi.so -lz -llog -o "$NATIVE_DIR/libagentcodi.so"
+"$CLANGXX" --target=aarch64-linux-android"$MIN_SDK" -shared -fPIC -std=c++17 -O2 -Wall -Wextra -Werror -pthread -fvisibility=hidden -I"$JAVA_HOME_17/include" -I"$JAVA_HOME_17/include/linux" -I"$PROJECT_ROOT/modules/native-engine/src/main/cpp" "$PROJECT_ROOT/modules/native-engine/src/main/cpp/agentcodi_engine.cpp" "$PROJECT_ROOT/modules/native-engine/src/main/cpp/app_server_process.cpp" "$PROJECT_ROOT/modules/native-engine/src/main/cpp/png_validator.cpp" "$PROJECT_ROOT/modules/native-engine/src/main/cpp/sha256.cpp" "$PROJECT_ROOT/modules/native-engine/src/main/cpp/workspace_file_reader.cpp" "$PROJECT_ROOT/modules/native-engine/src/main/cpp/jni_bridge.cpp" -Wl,-soname,libagentcodi.so -lz -llog -o "$NATIVE_DIR/libagentcodi.so"
 "$LLVM_STRIP" --strip-unneeded "$NATIVE_DIR/libagentcodi.so"
 
 echo "Compiling packaged terminal shell bridge..."
@@ -1291,6 +1291,7 @@ BOOTSTRAP_SMOKE_BIN="$WORK_DIR/android-app-server-bootstrap-smoke"
   -I"$PROJECT_ROOT/modules/native-engine/src/main/cpp" \
   "$PROJECT_ROOT/modules/native-engine/src/main/cpp/app_server_process.cpp" \
   "$PROJECT_ROOT/modules/native-engine/src/main/cpp/png_validator.cpp" \
+  "$PROJECT_ROOT/modules/native-engine/src/main/cpp/sha256.cpp" \
   "$PROJECT_ROOT/tests/cpp/android_app_server_bootstrap_smoke.cpp" \
   -lz -o "$BOOTSTRAP_SMOKE_BIN"
 patch_elf_name "$BOOTSTRAP_SMOKE_BIN" 'libz.so.1' 'libz_1.so' 1
@@ -1301,9 +1302,10 @@ BOOTSTRAP_SMOKE_TOOL_BIN="$BOOTSTRAP_SMOKE_ROOT/tool-bin"
 BOOTSTRAP_SMOKE_TOOL_RUNTIME="$TOOL_RUNTIME_STAGE"
 BOOTSTRAP_SMOKE_CODEX_HOME="$BOOTSTRAP_SMOKE_ROOT/codex-home"
 BOOTSTRAP_SMOKE_HOME="$BOOTSTRAP_SMOKE_ROOT/home"
+BOOTSTRAP_SMOKE_STATE="$BOOTSTRAP_SMOKE_ROOT/state"
 BOOTSTRAP_SMOKE_TEMP="$BOOTSTRAP_SMOKE_ROOT/temp"
-mkdir -p "$BOOTSTRAP_SMOKE_WORKSPACE" "$BOOTSTRAP_SMOKE_TOOLCHAIN" "$BOOTSTRAP_SMOKE_TOOL_BIN" "$BOOTSTRAP_SMOKE_CODEX_HOME" "$BOOTSTRAP_SMOKE_HOME" "$BOOTSTRAP_SMOKE_TEMP"
-chmod 700 "$BOOTSTRAP_SMOKE_ROOT" "$BOOTSTRAP_SMOKE_WORKSPACE" "$BOOTSTRAP_SMOKE_TOOLCHAIN" "$BOOTSTRAP_SMOKE_TOOL_BIN" "$BOOTSTRAP_SMOKE_CODEX_HOME" "$BOOTSTRAP_SMOKE_HOME" "$BOOTSTRAP_SMOKE_TEMP"
+mkdir -p "$BOOTSTRAP_SMOKE_WORKSPACE" "$BOOTSTRAP_SMOKE_TOOLCHAIN" "$BOOTSTRAP_SMOKE_TOOL_BIN" "$BOOTSTRAP_SMOKE_CODEX_HOME" "$BOOTSTRAP_SMOKE_HOME" "$BOOTSTRAP_SMOKE_STATE" "$BOOTSTRAP_SMOKE_TEMP"
+chmod 700 "$BOOTSTRAP_SMOKE_ROOT" "$BOOTSTRAP_SMOKE_WORKSPACE" "$BOOTSTRAP_SMOKE_TOOLCHAIN" "$BOOTSTRAP_SMOKE_TOOL_BIN" "$BOOTSTRAP_SMOKE_CODEX_HOME" "$BOOTSTRAP_SMOKE_HOME" "$BOOTSTRAP_SMOKE_STATE" "$BOOTSTRAP_SMOKE_TEMP"
 ln -s "$NATIVE_DIR/$TERMINAL_SHELL_NAME" "$BOOTSTRAP_SMOKE_TOOL_BIN/node"
 ln -s "$NATIVE_DIR/$TERMINAL_SHELL_NAME" "$BOOTSTRAP_SMOKE_TOOL_BIN/npm"
 ln -s "$NATIVE_DIR/$TERMINAL_SHELL_NAME" "$BOOTSTRAP_SMOKE_TOOL_BIN/python"
@@ -1331,6 +1333,7 @@ if ! timeout 30s env -i \
     "$BOOTSTRAP_SMOKE_TOOL_RUNTIME" \
     "$BOOTSTRAP_SMOKE_CODEX_HOME" \
     "$BOOTSTRAP_SMOKE_HOME" \
+    "$BOOTSTRAP_SMOKE_STATE" \
     "$BOOTSTRAP_SMOKE_TEMP" \
     "$NATIVE_DIR"; then
   echo "Native supervisor failed the packaged app-server bootstrap sequence." >&2

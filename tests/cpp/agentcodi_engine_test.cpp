@@ -1,5 +1,6 @@
 #include "agentcodi_engine.h"
 #include "app_server_process.h"
+#include "sha256.h"
 
 #include <algorithm>
 #include <cerrno>
@@ -133,6 +134,49 @@ bool write_fixture_file(const std::string& path, const std::string& contents) {
       && fsync(descriptor) == 0;
   close(descriptor);
   return result;
+}
+
+bool read_fixture_file(const std::string& path, std::string* contents) {
+  const int descriptor = open(
+      path.c_str(),
+      O_RDONLY | O_CLOEXEC | O_NOFOLLOW);
+  if (descriptor < 0) {
+    return false;
+  }
+  struct stat metadata {};
+  if (fstat(descriptor, &metadata) != 0 || !S_ISREG(metadata.st_mode)
+      || metadata.st_size < 0 || metadata.st_size > 1024) {
+    close(descriptor);
+    return false;
+  }
+  contents->assign(static_cast<std::size_t>(metadata.st_size), '\0');
+  std::size_t received = 0U;
+  while (received < contents->size()) {
+    const ssize_t count = read(
+        descriptor,
+        &(*contents)[received],
+        contents->size() - received);
+    if (count > 0) {
+      received += static_cast<std::size_t>(count);
+    } else if (count == -1 && errno == EINTR) {
+      continue;
+    } else {
+      close(descriptor);
+      contents->clear();
+      return false;
+    }
+  }
+  const bool closed = close(descriptor) == 0;
+  return closed;
+}
+
+std::string proof_path_for_id(
+    const std::string& state_directory,
+    const std::string& image_id) {
+  return state_directory + "/image-materialization-proofs/"
+      + agentcodi::Sha256Hex(
+          reinterpret_cast<const unsigned char*>(image_id.data()),
+          image_id.size()) + ".proof";
 }
 
 std::string encode_fixture_base64(const std::vector<unsigned char>& bytes) {
@@ -301,6 +345,15 @@ int main(int argc, char* argv[]) {
         << "\"id\":\"child_turn\",\"status\":\"completed\"}}}\n";
     return 0;
   }
+  if (argc == 2 && std::string(argv[1]) == "--emit-resumed-image") {
+    std::cout
+        << "{\"method\":\"item/completed\",\"params\":{\"item\":{"
+        << "\"type\":\"imageGeneration\",\"id\":\"child_image\","
+        << "\"status\":\"completed\",\"result\":\"\","
+        << "\"savedPath\":\"/private/codex-home/generated_images/"
+        << "child-thread/child_image.png\"}}}\n";
+    return 0;
+  }
   if (argc == 2 && std::string(argv[1]) == "--exit-with-code") {
     return 23;
   }
@@ -401,8 +454,24 @@ int main(int argc, char* argv[]) {
   }
 
   const std::string version = agentcodi::engine_version();
-  expect(version == "agentcodi-native/0.5.4", "engine version");
+  expect(version == "agentcodi-native/0.5.5", "engine version");
   expect(agentcodi::run_self_test() == 0, "native self-test");
+  const std::string abc = "abc";
+  expect(
+      agentcodi::Sha256Hex(
+          reinterpret_cast<const unsigned char*>(abc.data()),
+          abc.size())
+          == "ba7816bf8f01cfea414140de5dae2223b00361a396177a9cb410ff61f20015ad",
+      "SHA-256 known vector");
+  const std::string multi_block_sha256_fixture =
+      "abcdbcdecdefdefgefghfghighijhijkijkljklmklmnlmnomnopnopq";
+  expect(
+      agentcodi::Sha256Hex(
+          reinterpret_cast<const unsigned char*>(
+              multi_block_sha256_fixture.data()),
+          multi_block_sha256_fixture.size())
+          == "248d6a61d20638b8e5c026930c3e6039a33ce45964ff2167f6ecedd419db06c1",
+      "SHA-256 multi-block known vector");
 
   const std::string diagnostics = agentcodi::runtime_diagnostics();
   expect(diagnostics.find("abi=arm64-v8a") != std::string::npos, "ABI diagnostic");
@@ -427,6 +496,7 @@ int main(int argc, char* argv[]) {
   argument_config.tool_binary_directory = "/private/tool-bin";
   argument_config.tool_runtime_directory = "/private/tool-runtime";
   argument_config.home_directory = "/private/home";
+  argument_config.state_directory = "/private/state";
   argument_config.temporary_directory = "/private/temporary";
   argument_config.library_directory = "/private/native";
   const std::vector<std::string> codex_arguments =
@@ -459,6 +529,8 @@ int main(int argc, char* argv[]) {
          "Codex environment deny patterns remain enabled");
   expect(joined_arguments.find("CODEX_HOME=") == std::string::npos,
          "Codex home excluded from tool environment");
+  expect(joined_arguments.find("/private/state") == std::string::npos,
+         "materialization proof state excluded from tool arguments");
   expect(joined_arguments.find("SHELL=\"/system/bin/sh\"")
              != std::string::npos,
          "Codex reports the actual Android system shell");
@@ -629,6 +701,7 @@ int main(int argc, char* argv[]) {
     const std::string tool_runtime = root + "/tool-runtime";
     const std::string codex_home = root + "/codex-home";
     const std::string home = root + "/home";
+    const std::string state = root + "/state";
     const std::string temporary = root + "/temporary";
     expect(mkdir(workspace.c_str(), 0700) == 0, "process-test workspace");
     expect(mkdir(toolchain.c_str(), 0700) == 0, "process-test toolchain");
@@ -679,6 +752,7 @@ int main(int argc, char* argv[]) {
            "process-test toolchain alias");
     expect(mkdir(codex_home.c_str(), 0700) == 0, "process-test Codex home");
     expect(mkdir(home.c_str(), 0700) == 0, "process-test home");
+    expect(mkdir(state.c_str(), 0700) == 0, "process-test private state");
     expect(mkdir(temporary.c_str(), 0700) == 0, "process-test temporary directory");
 
     const std::vector<unsigned char> valid_png = make_valid_fixture_png();
@@ -699,6 +773,7 @@ int main(int argc, char* argv[]) {
             1024U * 1024U,
             workspace,
             temporary,
+            state,
             &prepared_event,
             &error);
     if (materialized_status != agentcodi::InboundLineCompactionStatus::kCompacted) {
@@ -747,6 +822,38 @@ int main(int argc, char* argv[]) {
             && materialized_signature[2] == 'N'
             && materialized_signature[3] == 'G',
         "materialized image preserves decoded PNG bytes");
+    const std::string materialized_proof_path = proof_path_for_id(
+        state,
+        "materialize/fixture");
+    struct stat proof_directory_metadata {};
+    struct stat proof_metadata {};
+    std::string proof_contents;
+    const std::string materialized_id = "materialize/fixture";
+    const std::string expected_proof =
+        "agentcodi-image-proof-v1\n"
+        "id-sha256="
+        + agentcodi::Sha256Hex(
+            reinterpret_cast<const unsigned char*>(materialized_id.data()),
+            materialized_id.size())
+        + "\nimage-sha256="
+        + agentcodi::Sha256Hex(valid_png.data(), valid_png.size())
+        + "\nsize=" + std::to_string(valid_png.size()) + "\n";
+    expect(
+        lstat(
+            (state + "/image-materialization-proofs").c_str(),
+            &proof_directory_metadata) == 0
+            && S_ISDIR(proof_directory_metadata.st_mode)
+            && (proof_directory_metadata.st_mode & 0777) == 0700
+            && materialized_proof_path.find(workspace) != 0U,
+        "materialization proof directory remains private and outside workspace");
+    expect(
+        lstat(materialized_proof_path.c_str(), &proof_metadata) == 0
+            && S_ISREG(proof_metadata.st_mode)
+            && proof_metadata.st_nlink == 1
+            && (proof_metadata.st_mode & 0777) == 0600
+            && read_fixture_file(materialized_proof_path, &proof_contents)
+            && proof_contents == expected_proof,
+        "persist exact owner-only SHA-256 materialization proof");
 
     const std::string missing_path_event =
         "{\"id\":\"missing_path_fixture\",\"type\":\"imageGeneration\","
@@ -760,6 +867,7 @@ int main(int argc, char* argv[]) {
             1024U * 1024U,
             workspace,
             temporary,
+            state,
             &prepared_missing_path,
             &error) == agentcodi::InboundLineCompactionStatus::kCompacted,
         "materialize image when app-server omits savedPath");
@@ -784,10 +892,123 @@ int main(int argc, char* argv[]) {
             1024U * 1024U,
             workspace,
             temporary,
+            state,
             &prepared_resume,
             &error) == agentcodi::InboundLineCompactionStatus::kCompacted
             && saved_path_from_event(prepared_resume) == materialized_path,
         "reuse materialized workspace image when history omits inline bytes");
+
+    const std::vector<unsigned char> valid_replacement_png =
+        make_valid_fixture_png(1U, 0U);
+    expect(
+        !materialized_path.empty() && valid_replacement_png != valid_png
+            && unlink(materialized_path.c_str()) == 0
+            && write_fixture_file(
+                materialized_path,
+                std::string(
+                    valid_replacement_png.begin(),
+                    valid_replacement_png.end())),
+        "replace materialized image with a different valid PNG");
+    prepared_resume.clear();
+    error.clear();
+    expect(
+        agentcodi::MaterializeAndCompactInboundImagePayloads(
+            resumed_image_event,
+            1024U * 1024U,
+            workspace,
+            temporary,
+            state,
+            &prepared_resume,
+            &error) == agentcodi::InboundLineCompactionStatus::kInvalid
+            && prepared_resume.empty()
+            && error.find("SHA-256 proof") != std::string::npos,
+        "reject a valid replacement PNG whose digest lacks prior proof");
+    expect(
+        unlink(materialized_path.c_str()) == 0
+            && write_fixture_file(
+                materialized_path,
+                std::string(valid_png.begin(), valid_png.end())),
+        "restore the originally proven materialized PNG bytes");
+    prepared_resume.clear();
+    error.clear();
+    expect(
+        agentcodi::MaterializeAndCompactInboundImagePayloads(
+            resumed_image_event,
+            1024U * 1024U,
+            workspace,
+            temporary,
+            state,
+            &prepared_resume,
+            &error) == agentcodi::InboundLineCompactionStatus::kCompacted
+            && saved_path_from_event(prepared_resume) == materialized_path,
+        "reuse restored bytes only when they match the stored digest");
+
+    const std::string absent_resume_event =
+        "{\"id\":\"never_materialized\",\"type\":\"imageGeneration\","
+        "\"status\":\"completed\",\"result\":\"\",\"savedPath\":\""
+        + materialized_path + "\"}";
+    std::string prepared_absent_resume;
+    error.clear();
+    expect(
+        agentcodi::MaterializeAndCompactInboundImagePayloads(
+            absent_resume_event,
+            1024U * 1024U,
+            workspace,
+            temporary,
+            state,
+            &prepared_absent_resume,
+            &error) == agentcodi::InboundLineCompactionStatus::kCompacted
+            && prepared_absent_resume.find("\"savedPath\":null")
+                != std::string::npos
+            && prepared_absent_resume.find(materialized_path)
+                == std::string::npos
+            && saved_path_from_event(prepared_absent_resume).empty(),
+        "clear app-server savedPath when no proven materialization exists");
+
+    const std::string legacy_id = "legacy_unproven_fixture";
+    const std::string legacy_inline_event =
+        "{\"id\":\"" + legacy_id + "\",\"type\":\"imageGeneration\","
+        "\"status\":\"completed\",\"result\":\""
+        + materialized_payload + "\",\"savedPath\":null}";
+    std::string prepared_legacy_inline;
+    error.clear();
+    expect(
+        agentcodi::MaterializeAndCompactInboundImagePayloads(
+            legacy_inline_event,
+            1024U * 1024U,
+            workspace,
+            temporary,
+            state,
+            &prepared_legacy_inline,
+            &error) == agentcodi::InboundLineCompactionStatus::kCompacted,
+        "materialize legacy-proof regression fixture from inline bytes");
+    const std::string legacy_materialized_path =
+        saved_path_from_event(prepared_legacy_inline);
+    const std::string legacy_proof_path = proof_path_for_id(state, legacy_id);
+    expect(
+        !legacy_materialized_path.empty()
+            && unlink(legacy_proof_path.c_str()) == 0,
+        "remove only the private proof to model an unproven legacy image");
+    const std::string legacy_resume_event =
+        "{\"id\":\"" + legacy_id + "\",\"type\":\"imageGeneration\","
+        "\"status\":\"completed\",\"result\":\"\",\"savedPath\":\""
+        + legacy_materialized_path + "\"}";
+    std::string prepared_legacy_resume;
+    error.clear();
+    expect(
+        agentcodi::MaterializeAndCompactInboundImagePayloads(
+            legacy_resume_event,
+            1024U * 1024U,
+            workspace,
+            temporary,
+            state,
+            &prepared_legacy_resume,
+            &error) == agentcodi::InboundLineCompactionStatus::kCompacted
+            && prepared_legacy_resume.find("\"savedPath\":null")
+                != std::string::npos
+            && prepared_legacy_resume.find(legacy_materialized_path)
+                == std::string::npos,
+        "never infer a resume proof from a valid workspace PNG alone");
 
     const std::string conflicting_image_event =
         "{\"id\":\"materialize/fixture\",\"type\":\"imageGeneration\","
@@ -803,6 +1024,7 @@ int main(int argc, char* argv[]) {
             1024U * 1024U,
             workspace,
             temporary,
+            state,
             &prepared_event,
             &error) == agentcodi::InboundLineCompactionStatus::kInvalid
             && error.find("conflicts") != std::string::npos
@@ -821,12 +1043,18 @@ int main(int argc, char* argv[]) {
             1024U * 1024U,
             workspace,
             temporary,
+            state,
             &prepared_event,
             &error) == agentcodi::InboundLineCompactionStatus::kInvalid
             && error.find("PNG") != std::string::npos,
         "reject non-PNG image payload before writing it");
 
-    const auto expect_invalid_png = [&workspace, &temporary, &prepared_event, &error](
+    const auto expect_invalid_png = [
+        &workspace,
+        &temporary,
+        &state,
+        &prepared_event,
+        &error](
         const std::vector<unsigned char>& bytes,
         const std::string& id,
         const char* message) {
@@ -841,6 +1069,7 @@ int main(int argc, char* argv[]) {
               1024U * 1024U,
               workspace,
               temporary,
+              state,
               &prepared_event,
               &error) == agentcodi::InboundLineCompactionStatus::kInvalid
               && error.find("PNG") != std::string::npos,
@@ -935,6 +1164,7 @@ int main(int argc, char* argv[]) {
               1024U * 1024U,
               workspace,
               temporary,
+              state,
               &prepared_event,
               &error) == agentcodi::InboundLineCompactionStatus::kInvalid
               && error.find("PNG") != std::string::npos,
@@ -953,6 +1183,7 @@ int main(int argc, char* argv[]) {
     config.tool_runtime_directory = tool_runtime;
     config.codex_home = codex_home;
     config.home_directory = home;
+    config.state_directory = state;
     config.temporary_directory = temporary;
     config.library_directory = "/system/lib64";
     config.arguments = {
@@ -975,7 +1206,8 @@ int main(int argc, char* argv[]) {
               == agentcodi::LineReadStatus::kLine,
           "read child environment security state");
       expect(
-          child_security_state.find("unset|" + codex_home + "|" + home + "|") == 0U,
+          child_security_state.find("unset|" + codex_home + "|" + home + "|") == 0U
+              && child_security_state.find(state) == std::string::npos,
           "child inherits only explicit private environment");
       expect(
           child_security_state.find("|0077") != std::string::npos
@@ -1269,6 +1501,26 @@ int main(int argc, char* argv[]) {
                "stop oversized image framing fixture");
       }
       if (!child_materialized_path.empty()) {
+        config.arguments = {"--emit-resumed-image"};
+        error.clear();
+        process = agentcodi::AppServerProcess::Start(config, &error);
+        expect(process != nullptr,
+               "restart supervisor for persisted image-proof resume fixture");
+        if (process != nullptr) {
+          std::string resumed_child_image;
+          expect(
+              process->ReadLine(
+                  1024U * 1024U,
+                  &resumed_child_image,
+                  &error) == agentcodi::LineReadStatus::kLine
+                  && saved_path_from_event(resumed_child_image)
+                      == child_materialized_path
+                  && resumed_child_image.find("/private/codex-home")
+                      == std::string::npos,
+              "reuse image only through persisted proof after supervisor restart");
+          expect(process->Stop(500) != INT_MIN,
+                 "stop persisted image-proof resume fixture");
+        }
         expect(unlink(child_materialized_path.c_str()) == 0,
                "remove child materialization fixture");
       }
@@ -1450,6 +1702,15 @@ int main(int argc, char* argv[]) {
     expect(error.find("separate") != std::string::npos, "auth boundary error");
 
     config.codex_home = codex_home;
+    config.state_directory = workspace;
+    error.clear();
+    process = agentcodi::AppServerProcess::Start(config, &error);
+    expect(process == nullptr, "reject image proof state inside workspace");
+    expect(
+        error.find("state must be private and separate") != std::string::npos,
+        "materialization proof state boundary error");
+
+    config.state_directory = state;
     config.arguments = {"-c", "exit 0"};
     const std::string configuration_path = codex_home + "/config.toml";
     const int configuration_descriptor = open(
@@ -1487,10 +1748,28 @@ int main(int argc, char* argv[]) {
       expect(unlink(inserted_materialized_path.c_str()) == 0,
              "remove inserted-path materialization fixture");
     }
+    if (!legacy_materialized_path.empty()) {
+      expect(unlink(legacy_materialized_path.c_str()) == 0,
+             "remove unproven legacy materialization fixture");
+    }
     expect(rmdir((workspace + "/generated_images").c_str()) == 0,
            "remove generated-image fixture directory");
+    expect(
+        unlink(proof_path_for_id(state, "materialize/fixture").c_str()) == 0,
+        "remove materialized-image proof fixture");
+    expect(
+        unlink(proof_path_for_id(state, "missing_path_fixture").c_str()) == 0,
+        "remove inserted-path proof fixture");
+    const std::string child_proof_path = proof_path_for_id(state, "child_image");
+    if (unlink(child_proof_path.c_str()) != 0) {
+      expect(errno == ENOENT, "remove child image proof fixture when present");
+    }
+    expect(rmdir((state + "/image-materialization-proofs").c_str()) == 0,
+           "remove image materialization proof directory");
     expect(rmdir(temporary.c_str()) == 0,
            "image materialization leaves private temporary directory empty");
+    expect(rmdir(state.c_str()) == 0,
+           "image materialization leaves only explicit private proof state");
     rmdir(home.c_str());
     rmdir(codex_home.c_str());
     unlink(supervised_node_alias.c_str());

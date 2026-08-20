@@ -477,6 +477,7 @@ public final class AgentRuntimeService extends Service {
                         toolRuntimeDirectory.getAbsolutePath(),
                         layout.getCodexHome().getAbsolutePath(),
                         layout.getHome().getAbsolutePath(),
+                        layout.getState().getAbsolutePath(),
                         temporaryDirectory,
                         nativeLibraryPath
                     );

@@ -58,7 +58,7 @@ AGENTCODI does more than display a Codex conversation.
 | Python | Packaged runtime |
 | MCP management | Native Android interface backed by Codex configuration RPCs |
 
-The current AGENTCODI 0.5.4 runtime uses **Codex app-server 0.147.2**.
+The current AGENTCODI 0.5.5 runtime uses **Codex app-server 0.147.2**.
 
 ---
 
@@ -164,7 +164,9 @@ Supported workspace exports include:
 
 Export paths and archive contents pass through dedicated validation before leaving the private workspace. Since version 0.5.3, each exported file is read from a descriptor opened component by component relative to the private workspace without following links, then that same descriptor and its workspace name are verified again. A concurrent path, symlink, parent-directory or hard-link exchange therefore fails without redirecting reads outside the workspace. ZIP correlation compares Java and native modification times at their common microsecond precision, while the native descriptor still validates its full nanosecond `mtime`/`ctime` snapshot and the Java catalog remains exactly checked before and after the archive.
 
-Version 0.5.4 fully validates a PNG before native materialization and again before workspace image export or resumed-history reuse. Validation covers the complete chunk boundaries and ordering, CRCs, `IHDR` dimensions and format fields, palette rules, the bounded zlib stream, the exact interlaced or non-interlaced scanline shape and filter bytes, and a final `IEND` with no trailing data. A PNG signature followed by arbitrary bytes is rejected rather than materialized or offered for export. JPEG, GIF and WebP export support is unchanged.
+Version 0.5.4 introduced complete PNG validation before native materialization and again before workspace image export or resumed-history reuse. Validation covers the complete chunk boundaries and ordering, CRCs, `IHDR` dimensions and format fields, palette rules, the bounded zlib stream, the exact interlaced or non-interlaced scanline shape and filter bytes, and a final `IEND` with no trailing data. A PNG signature followed by arbitrary bytes is rejected rather than materialized or offered for export.
+
+Version 0.5.5 additionally binds resumed generated images to an owner-only SHA-256 materialization proof stored outside the writable workspace and outside `CODEX_HOME`. A valid PNG that replaced the originally materialized bytes is rejected even when its filename and current metadata still look valid. If no proven materialization exists, the app-server's reported `savedPath` is removed before the event reaches Java, so it cannot become an export candidate. Existing 0.5.4 workspace images are not retroactively trusted without fresh inline bytes. JPEG, GIF and WebP export support is unchanged.
 
 ---
 
@@ -224,7 +226,7 @@ This catalog remains a read-only projection of what Codex reports.
 
 ## MCP Expert Mode
 
-AGENTCODI 0.5.4 also includes a guarded Expert Mode for the supported part of the user's MCP configuration.
+AGENTCODI also includes a guarded Expert Mode for the supported part of the user's MCP configuration.
 
 Supported user-owned servers can be managed through the native interface.
 
@@ -322,6 +324,7 @@ Current safeguards include:
 - Symbolic-link boundary checks
 - Descriptor-relative, no-follow workspace exports with opened-file identity and link-count checks
 - Complete bounded PNG chunk, CRC, zlib and scanline-shape validation
+- Private SHA-256 materialization proofs before resumed images regain an export path
 - Bounded protocol messages
 - Bounded terminal input and output
 - Credential detection and redaction in sensitive paths
@@ -339,7 +342,7 @@ Several sensitive byte and character buffers are explicitly cleared after use.
 
 Current release line:
 
-### AGENTCODI 0.5.4
+### AGENTCODI 0.5.5
 
 | Requirement | Value |
 |---|---|
@@ -390,7 +393,7 @@ Physical Android hardware is used separately to validate installation, UI behavi
 
 AGENTCODI is under active development.
 
-Version 0.5.4 currently focuses heavily on:
+Version 0.5.5 currently focuses heavily on:
 
 - Native Codex runtime integration
 - Correlated in-flight turn steering without losing the separate stop action
@@ -401,6 +404,7 @@ Version 0.5.4 currently focuses heavily on:
 - Workspace boundaries
 - Race-free individual-file, image and ZIP source opening
 - Complete PNG validation before materialization, recovery and export
+- SHA-256-bound image materialization proofs for resumed history
 - Approval handling
 - Build and release integrity
 

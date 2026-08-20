@@ -24,6 +24,7 @@ struct ProcessConfig {
   std::string tool_runtime_directory;
   std::string codex_home;
   std::string home_directory;
+  std::string state_directory;
   std::string temporary_directory;
   std::string library_directory;
   std::vector<std::string> arguments;
@@ -54,6 +55,7 @@ InboundLineCompactionStatus MaterializeAndCompactInboundImagePayloads(
     std::size_t maximum_bytes,
     const std::string& workspace_directory,
     const std::string& temporary_directory,
+    const std::string& state_directory,
     std::string* prepared,
     std::string* error);
 
@@ -87,9 +89,10 @@ class AppServerProcess final {
  private:
   AppServerProcess(
       pid_t pid,
-      int socket_fd,
-      std::string workspace_directory,
-      std::string temporary_directory);
+    int socket_fd,
+    std::string workspace_directory,
+    std::string temporary_directory,
+    std::string state_directory);
 
   int DuplicateSocket(std::string* error);
 
@@ -101,6 +104,7 @@ class AppServerProcess final {
   int exit_code_;
   const std::string workspace_directory_;
   const std::string temporary_directory_;
+  const std::string state_directory_;
   std::string read_buffer_;
 };
 

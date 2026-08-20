@@ -1,5 +1,6 @@
 #include "app_server_process.h"
 #include "png_validator.h"
+#include "sha256.h"
 
 #include <algorithm>
 #include <cerrno>
@@ -31,12 +32,19 @@ constexpr std::size_t kImageResultCompactionThreshold = 32U * 1024U;
 constexpr std::size_t kMaximumMaterializedImageBytes = 64U * 1024U * 1024U;
 constexpr std::size_t kMaximumImagesPerLine = 240U;
 constexpr std::size_t kMaximumDecodedMetadataBytes = 256U;
+constexpr std::size_t kMaximumMaterializationProofBytes = 256U;
 constexpr unsigned int kRenameNoReplace = 1U;
 constexpr int kExitStatusObservationAttempts = 25;
 constexpr const char* kSystemShell = "/system/bin/sh";
 constexpr const char* kCompactedImageResult =
     "\"<generated-image-data-omitted>\"";
 constexpr const char* kGeneratedImagesDirectory = "generated_images";
+constexpr const char* kMaterializationProofDirectory =
+    "image-materialization-proofs";
+
+bool same_materialized_image_snapshot(
+    const struct stat& first,
+    const struct stat& second);
 
 struct JsonStringSpan {
   std::size_t begin;
@@ -737,6 +745,287 @@ std::string materialized_image_name(const std::string& id) {
   return name.str();
 }
 
+std::string materialization_proof_name(const std::string& image_id) {
+  return Sha256Hex(
+      reinterpret_cast<const unsigned char*>(image_id.data()),
+      image_id.size()) + ".proof";
+}
+
+std::string materialization_proof_contents(
+    const std::string& image_id,
+    const std::vector<unsigned char>& bytes) {
+  const std::string id_digest = Sha256Hex(
+      reinterpret_cast<const unsigned char*>(image_id.data()),
+      image_id.size());
+  const std::string image_digest = Sha256Hex(bytes.data(), bytes.size());
+  return "agentcodi-image-proof-v1\n"
+      "id-sha256=" + id_digest + "\n"
+      "image-sha256=" + image_digest + "\n"
+      "size=" + std::to_string(bytes.size()) + "\n";
+}
+
+bool open_materialization_proof_directory(
+    const std::string& state_directory,
+    bool create,
+    ScopedDescriptor* directory,
+    std::string* error) {
+  char resolved[PATH_MAX] {};
+  if (realpath(state_directory.c_str(), resolved) == nullptr
+      || state_directory != resolved) {
+    *error = "Image materialization state is not canonical";
+    return false;
+  }
+  ScopedDescriptor state(open(
+      state_directory.c_str(),
+      O_RDONLY | O_DIRECTORY | O_CLOEXEC | O_NOFOLLOW));
+  struct stat state_metadata {};
+  if (state.Get() < 0 || fstat(state.Get(), &state_metadata) != 0
+      || !S_ISDIR(state_metadata.st_mode)
+      || state_metadata.st_uid != geteuid()
+      || (state_metadata.st_mode & 0777) != 0700) {
+    *error = "Image materialization state is not a private directory";
+    return false;
+  }
+  bool created = false;
+  if (create) {
+    if (mkdirat(state.Get(), kMaterializationProofDirectory, 0700) == 0) {
+      created = true;
+    } else if (errno != EEXIST) {
+      *error = "Image materialization proof directory could not be created";
+      return false;
+    }
+  }
+  const int proof_directory = openat(
+      state.Get(),
+      kMaterializationProofDirectory,
+      O_RDONLY | O_DIRECTORY | O_CLOEXEC | O_NOFOLLOW);
+  if (proof_directory < 0) {
+    if (!create && errno == ENOENT) {
+      directory->Reset();
+      return true;
+    }
+    *error = "Image materialization proof directory is not safe";
+    return false;
+  }
+  directory->Reset(proof_directory);
+  struct stat proof_metadata {};
+  if (fstat(directory->Get(), &proof_metadata) != 0
+      || !S_ISDIR(proof_metadata.st_mode)
+      || proof_metadata.st_uid != geteuid()
+      || (proof_metadata.st_mode & 0777) != 0700
+      || (created && fsync(state.Get()) != 0)) {
+    directory->Reset();
+    *error = "Image materialization proof directory is not private";
+    return false;
+  }
+  return true;
+}
+
+bool read_materialization_proof_at(
+    int directory,
+    const std::string& name,
+    std::string* proof,
+    bool* exists,
+    std::string* error) {
+  proof->clear();
+  *exists = false;
+  ScopedDescriptor descriptor(openat(
+      directory,
+      name.c_str(),
+      O_RDONLY | O_CLOEXEC | O_NOFOLLOW));
+  if (descriptor.Get() < 0) {
+    if (errno == ENOENT) {
+      return true;
+    }
+    *error = "Image materialization proof could not be opened safely";
+    return false;
+  }
+  struct stat before {};
+  if (fstat(descriptor.Get(), &before) != 0 || !S_ISREG(before.st_mode)
+      || before.st_uid != geteuid() || before.st_nlink != 1
+      || (before.st_mode & 0777) != 0600 || before.st_size <= 0
+      || static_cast<std::uint64_t>(before.st_size)
+          > kMaximumMaterializationProofBytes
+      || lseek(descriptor.Get(), 0, SEEK_SET) != 0) {
+    *error = "Image materialization proof is not a private regular file";
+    return false;
+  }
+  proof->resize(static_cast<std::size_t>(before.st_size));
+  std::size_t received = 0U;
+  while (received < proof->size()) {
+    const ssize_t count = read(
+        descriptor.Get(),
+        &(*proof)[received],
+        proof->size() - received);
+    if (count > 0) {
+      received += static_cast<std::size_t>(count);
+    } else if (count == -1 && errno == EINTR) {
+      continue;
+    } else {
+      proof->clear();
+      *error = "Image materialization proof is truncated";
+      return false;
+    }
+  }
+  unsigned char trailing = 0U;
+  ssize_t trailing_count;
+  do {
+    trailing_count = read(descriptor.Get(), &trailing, 1U);
+  } while (trailing_count == -1 && errno == EINTR);
+  struct stat after {};
+  struct stat path_metadata {};
+  if (trailing_count != 0 || fstat(descriptor.Get(), &after) != 0
+      || !same_materialized_image_snapshot(before, after)
+      || fstatat(
+          directory,
+          name.c_str(),
+          &path_metadata,
+          AT_SYMLINK_NOFOLLOW) != 0
+      || !S_ISREG(path_metadata.st_mode)
+      || path_metadata.st_dev != after.st_dev
+      || path_metadata.st_ino != after.st_ino
+      || path_metadata.st_nlink != 1) {
+    proof->clear();
+    *error = "Image materialization proof changed during validation";
+    return false;
+  }
+  *exists = true;
+  return true;
+}
+
+bool ensure_materialization_proof(
+    const std::string& state_directory,
+    const std::string& image_id,
+    const std::vector<unsigned char>& bytes,
+    std::string* error) {
+  ScopedDescriptor directory;
+  if (!open_materialization_proof_directory(
+          state_directory,
+          true,
+          &directory,
+          error)) {
+    return false;
+  }
+  const std::string name = materialization_proof_name(image_id);
+  const std::string expected = materialization_proof_contents(image_id, bytes);
+  std::string existing;
+  bool exists = false;
+  if (!read_materialization_proof_at(
+          directory.Get(),
+          name,
+          &existing,
+          &exists,
+          error)) {
+    return false;
+  }
+  if (exists) {
+    if (existing != expected) {
+      *error = "Stored generated-image SHA-256 proof conflicts with the completed image";
+      return false;
+    }
+    return true;
+  }
+
+  static std::atomic<unsigned long long> proof_sequence(1ULL);
+  std::ostringstream temporary_name_builder;
+  temporary_name_builder << ".agentcodi-image-proof-" << getpid() << '-'
+                         << proof_sequence.fetch_add(1ULL) << ".tmp";
+  const std::string temporary_name = temporary_name_builder.str();
+  ScopedDescriptor output(openat(
+      directory.Get(),
+      temporary_name.c_str(),
+      O_WRONLY | O_CREAT | O_EXCL | O_CLOEXEC | O_NOFOLLOW,
+      0600));
+  if (output.Get() < 0) {
+    *error = "Image materialization proof could not be created privately";
+    return false;
+  }
+  std::size_t written = 0U;
+  while (written < expected.size()) {
+    const ssize_t count = write(
+        output.Get(),
+        expected.data() + written,
+        expected.size() - written);
+    if (count > 0) {
+      written += static_cast<std::size_t>(count);
+    } else if (count == -1 && errno == EINTR) {
+      continue;
+    } else {
+      output.Reset();
+      unlinkat(directory.Get(), temporary_name.c_str(), 0);
+      *error = "Image materialization proof could not be written";
+      return false;
+    }
+  }
+  if (fchmod(output.Get(), 0600) != 0 || fsync(output.Get()) != 0) {
+    output.Reset();
+    unlinkat(directory.Get(), temporary_name.c_str(), 0);
+    *error = "Image materialization proof could not be synchronized";
+    return false;
+  }
+  output.Reset();
+  if (syscall(
+          SYS_renameat2,
+          directory.Get(),
+          temporary_name.c_str(),
+          directory.Get(),
+          name.c_str(),
+          kRenameNoReplace) != 0) {
+    const int saved_errno = errno;
+    unlinkat(directory.Get(), temporary_name.c_str(), 0);
+    if (saved_errno != EEXIST) {
+      *error = "Image materialization proof could not be installed atomically";
+      return false;
+    }
+  }
+  if (fsync(directory.Get()) != 0) {
+    *error = "Image materialization proof directory could not be synchronized";
+    return false;
+  }
+  existing.clear();
+  exists = false;
+  if (!read_materialization_proof_at(
+          directory.Get(),
+          name,
+          &existing,
+          &exists,
+          error)
+      || !exists || existing != expected) {
+    if (error->empty()) {
+      *error = "Installed generated-image SHA-256 proof does not match";
+    }
+    return false;
+  }
+  return true;
+}
+
+bool read_materialization_proof(
+    const std::string& state_directory,
+    const std::string& image_id,
+    std::string* proof,
+    bool* exists,
+    std::string* error) {
+  ScopedDescriptor directory;
+  if (!open_materialization_proof_directory(
+          state_directory,
+          false,
+          &directory,
+          error)) {
+    return false;
+  }
+  if (directory.Get() < 0) {
+    proof->clear();
+    *exists = false;
+    return true;
+  }
+  return read_materialization_proof_at(
+      directory.Get(),
+      materialization_proof_name(image_id),
+      proof,
+      exists,
+      error);
+}
+
 bool descriptor_matches(
     int descriptor,
     const std::vector<unsigned char>& expected,
@@ -862,6 +1151,7 @@ bool open_generated_images_directory(
 bool materialize_png(
     const std::string& workspace_directory,
     const std::string& temporary_directory,
+    const std::string& state_directory,
     const std::string& image_id,
     const std::vector<unsigned char>& bytes,
     std::string* saved_path,
@@ -947,6 +1237,13 @@ bool materialize_png(
       *error = "Generated image directory update could not be synchronized";
       return false;
     }
+  }
+  if (!ensure_materialization_proof(
+          state_directory,
+          image_id,
+          bytes,
+          error)) {
+    return false;
   }
   *saved_path = workspace_directory + '/' + kGeneratedImagesDirectory + '/' + name;
   ScopedDescriptor installed(openat(
@@ -1053,6 +1350,7 @@ bool read_and_validate_materialized_png(
 
 bool find_materialized_png(
     const std::string& workspace_directory,
+    const std::string& state_directory,
     const std::string& image_id,
     std::string* saved_path,
     std::string* error) {
@@ -1081,6 +1379,20 @@ bool find_materialized_png(
     *error = "Materialized generated image could not be opened safely";
     return false;
   }
+  std::string stored_proof;
+  bool proof_exists = false;
+  if (!read_materialization_proof(
+          state_directory,
+          image_id,
+          &stored_proof,
+          &proof_exists,
+          error)) {
+    return false;
+  }
+  if (!proof_exists) {
+    saved_path->clear();
+    return true;
+  }
   struct stat metadata {};
   std::vector<unsigned char> bytes;
   if (!read_and_validate_materialized_png(
@@ -1088,6 +1400,11 @@ bool find_materialized_png(
           &bytes,
           &metadata,
           error)) {
+    return false;
+  }
+  if (stored_proof != materialization_proof_contents(image_id, bytes)) {
+    bytes.clear();
+    *error = "Materialized generated image does not match its stored SHA-256 proof";
     return false;
   }
   *saved_path = workspace_directory + '/' + kGeneratedImagesDirectory + '/' + name;
@@ -1471,11 +1788,17 @@ InboundLineCompactionStatus MaterializeAndCompactInboundImagePayloads(
     std::size_t maximum_bytes,
     const std::string& workspace_directory,
     const std::string& temporary_directory,
+    const std::string& state_directory,
     std::string* prepared,
     std::string* error) {
   if (prepared == nullptr || error == nullptr || maximum_bytes == 0U
       || workspace_directory.empty() || workspace_directory[0] != '/'
-      || temporary_directory.empty() || temporary_directory[0] != '/') {
+      || temporary_directory.empty() || temporary_directory[0] != '/'
+      || state_directory.empty() || state_directory[0] != '/'
+      || contains_path(workspace_directory, state_directory)
+      || contains_path(state_directory, workspace_directory)
+      || contains_path(temporary_directory, state_directory)
+      || contains_path(state_directory, temporary_directory)) {
     return InboundLineCompactionStatus::kInvalid;
   }
   prepared->clear();
@@ -1519,6 +1842,7 @@ InboundLineCompactionStatus MaterializeAndCompactInboundImagePayloads(
           || !materialize_png(
               workspace_directory,
               temporary_directory,
+              state_directory,
               payload.id,
               image_bytes,
               &materialized_path,
@@ -1532,6 +1856,7 @@ InboundLineCompactionStatus MaterializeAndCompactInboundImagePayloads(
       });
     } else if (!find_materialized_png(
                    workspace_directory,
+                   state_directory,
                    payload.id,
                    &materialized_path,
                    error)) {
@@ -1539,6 +1864,13 @@ InboundLineCompactionStatus MaterializeAndCompactInboundImagePayloads(
     }
 
     if (materialized_path.empty()) {
+      if (payload.has_saved_path) {
+        replacements.push_back(JsonReplacement {
+            payload.saved_path_span.begin,
+            payload.saved_path_span.end,
+            "null",
+        });
+      }
       continue;
     }
     const std::string quoted_path = quoted_json_string(materialized_path);
@@ -1713,6 +2045,11 @@ std::shared_ptr<AppServerProcess> AppServerProcess::Start(
           &config.home_directory,
           error)
       || !canonical_directory(
+          requested_config.state_directory,
+          "State",
+          &config.state_directory,
+          error)
+      || !canonical_directory(
           requested_config.temporary_directory,
           "Temporary",
           &config.temporary_directory,
@@ -1732,6 +2069,24 @@ std::shared_ptr<AppServerProcess> AppServerProcess::Start(
   if (config.toolchain_directory == config.working_directory
       || !contains_path(config.working_directory, config.toolchain_directory)) {
     *error = "Toolchain must remain below the canonical workspace";
+    return nullptr;
+  }
+  const auto overlaps_state = [&config](const std::string& path) {
+    return contains_path(config.state_directory, path)
+        || contains_path(path, config.state_directory);
+  };
+  struct stat state_metadata {};
+  if (lstat(config.state_directory.c_str(), &state_metadata) != 0
+      || !S_ISDIR(state_metadata.st_mode)
+      || state_metadata.st_uid != geteuid()
+      || (state_metadata.st_mode & 0777) != 0700
+      || overlaps_state(config.working_directory)
+      || overlaps_state(config.tool_binary_directory)
+      || overlaps_state(config.tool_runtime_directory)
+      || overlaps_state(config.codex_home)
+      || overlaps_state(config.home_directory)
+      || overlaps_state(config.temporary_directory)) {
+    *error = "Image materialization state must be private and separate";
     return nullptr;
   }
   struct stat tool_binary_metadata {};
@@ -1933,19 +2288,22 @@ std::shared_ptr<AppServerProcess> AppServerProcess::Start(
       pid,
       communication[0],
       config.working_directory,
-      config.temporary_directory));
+      config.temporary_directory,
+      config.state_directory));
 }
 
 AppServerProcess::AppServerProcess(
     pid_t pid,
     int socket_fd,
     std::string workspace_directory,
-    std::string temporary_directory)
+    std::string temporary_directory,
+    std::string state_directory)
     : pid_(pid),
       socket_fd_(socket_fd),
       exit_code_(kStillRunning),
       workspace_directory_(std::move(workspace_directory)),
-      temporary_directory_(std::move(temporary_directory)) {}
+      temporary_directory_(std::move(temporary_directory)),
+      state_directory_(std::move(state_directory)) {}
 
 AppServerProcess::~AppServerProcess() {
   Stop(100);
@@ -2060,6 +2418,7 @@ LineReadStatus AppServerProcess::ReadLine(
             maximum_bytes,
             workspace_directory_,
             temporary_directory_,
+            state_directory_,
             line,
             error);
       }

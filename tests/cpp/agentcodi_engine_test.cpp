@@ -5,10 +5,14 @@
 #include <cerrno>
 #include <climits>
 #include <csignal>
+#include <cstdint>
 #include <cstdlib>
+#include <cstring>
 #include <iostream>
 #include <string>
 #include <vector>
+
+#include <zlib.h>
 
 #include <fcntl.h>
 #include <sys/stat.h>
@@ -131,12 +135,159 @@ bool write_fixture_file(const std::string& path, const std::string& contents) {
   return result;
 }
 
+std::string encode_fixture_base64(const std::vector<unsigned char>& bytes) {
+  static const char alphabet[] =
+      "ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789+/";
+  std::string encoded;
+  encoded.reserve(((bytes.size() + 2U) / 3U) * 4U);
+  for (std::size_t offset = 0U; offset < bytes.size(); offset += 3U) {
+    const std::size_t remaining = bytes.size() - offset;
+    const std::uint32_t first = bytes[offset];
+    const std::uint32_t second = remaining > 1U ? bytes[offset + 1U] : 0U;
+    const std::uint32_t third = remaining > 2U ? bytes[offset + 2U] : 0U;
+    const std::uint32_t combined = (first << 16U) | (second << 8U) | third;
+    encoded.push_back(alphabet[(combined >> 18U) & 0x3fU]);
+    encoded.push_back(alphabet[(combined >> 12U) & 0x3fU]);
+    encoded.push_back(remaining > 1U ? alphabet[(combined >> 6U) & 0x3fU] : '=');
+    encoded.push_back(remaining > 2U ? alphabet[combined & 0x3fU] : '=');
+  }
+  return encoded;
+}
+
+std::uint32_t read_fixture_u32(
+    const std::vector<unsigned char>& bytes,
+    std::size_t offset) {
+  return (static_cast<std::uint32_t>(bytes[offset]) << 24U)
+      | (static_cast<std::uint32_t>(bytes[offset + 1U]) << 16U)
+      | (static_cast<std::uint32_t>(bytes[offset + 2U]) << 8U)
+      | static_cast<std::uint32_t>(bytes[offset + 3U]);
+}
+
+void write_fixture_u32(
+    std::vector<unsigned char>* bytes,
+    std::size_t offset,
+    std::uint32_t value) {
+  (*bytes)[offset] = static_cast<unsigned char>(value >> 24U);
+  (*bytes)[offset + 1U] = static_cast<unsigned char>(value >> 16U);
+  (*bytes)[offset + 2U] = static_cast<unsigned char>(value >> 8U);
+  (*bytes)[offset + 3U] = static_cast<unsigned char>(value);
+}
+
+std::size_t find_fixture_chunk(
+    const std::vector<unsigned char>& png,
+    const char* type) {
+  std::size_t offset = 8U;
+  while (offset <= png.size() && png.size() - offset >= 12U) {
+    const std::uint32_t length = read_fixture_u32(png, offset);
+    if (static_cast<std::uint64_t>(length) + 12U > png.size() - offset) {
+      return std::string::npos;
+    }
+    if (std::memcmp(png.data() + offset + 4U, type, 4U) == 0) {
+      return offset;
+    }
+    offset += static_cast<std::size_t>(length) + 12U;
+  }
+  return std::string::npos;
+}
+
+void rewrite_fixture_chunk_crc(
+    std::vector<unsigned char>* png,
+    std::size_t chunk_offset) {
+  const std::uint32_t length = read_fixture_u32(*png, chunk_offset);
+  uLong crc = crc32(0L, Z_NULL, 0U);
+  crc = crc32(
+      crc,
+      reinterpret_cast<const Bytef*>(png->data() + chunk_offset + 4U),
+      length + 4U);
+  write_fixture_u32(
+      png,
+      chunk_offset + 8U + length,
+      static_cast<std::uint32_t>(crc));
+}
+
+void append_fixture_chunk(
+    std::vector<unsigned char>* png,
+    const char* type,
+    const std::vector<unsigned char>& data) {
+  const std::size_t offset = png->size();
+  png->resize(offset + data.size() + 12U, 0U);
+  write_fixture_u32(
+      png,
+      offset,
+      static_cast<std::uint32_t>(data.size()));
+  std::memcpy(png->data() + offset + 4U, type, 4U);
+  std::copy(data.begin(), data.end(), png->begin() + offset + 8U);
+  rewrite_fixture_chunk_crc(png, offset);
+}
+
+std::vector<unsigned char> make_valid_fixture_png(
+    unsigned char filter = 0U,
+    unsigned char interlace = 0U) {
+  const std::vector<unsigned char> pixels = {
+      filter, 0x11U, 0x22U, 0x33U, 0xffU,
+  };
+  uLongf compressed_size = compressBound(pixels.size());
+  std::vector<unsigned char> compressed(compressed_size);
+  if (compress2(
+          compressed.data(),
+          &compressed_size,
+          pixels.data(),
+          pixels.size(),
+          Z_BEST_COMPRESSION) != Z_OK) {
+    return {};
+  }
+  compressed.resize(compressed_size);
+  std::vector<unsigned char> png = {
+      0x89U, 'P', 'N', 'G', 0x0dU, 0x0aU, 0x1aU, 0x0aU,
+  };
+  std::vector<unsigned char> ihdr(13U, 0U);
+  write_fixture_u32(&ihdr, 0U, 1U);
+  write_fixture_u32(&ihdr, 4U, 1U);
+  ihdr[8U] = 8U;
+  ihdr[9U] = 6U;
+  ihdr[12U] = interlace;
+  append_fixture_chunk(&png, "IHDR", ihdr);
+  append_fixture_chunk(&png, "IDAT", compressed);
+  append_fixture_chunk(&png, "IEND", {});
+  return png;
+}
+
+std::vector<unsigned char> png_with_ancillary_chunk(
+    const std::vector<unsigned char>& original,
+    const char* type,
+    const std::vector<unsigned char>& data) {
+  const std::size_t iend = find_fixture_chunk(original, "IEND");
+  if (iend == std::string::npos) {
+    return {};
+  }
+  std::vector<unsigned char> chunk;
+  append_fixture_chunk(&chunk, type, data);
+  std::vector<unsigned char> result;
+  result.reserve(original.size() + chunk.size());
+  result.insert(result.end(), original.begin(), original.begin() + iend);
+  result.insert(result.end(), chunk.begin(), chunk.end());
+  result.insert(result.end(), original.begin() + iend, original.end());
+  return result;
+}
+
+std::vector<unsigned char> png_with_private_chunk(
+    const std::vector<unsigned char>& original) {
+  const std::string data = "fixture=value";
+  return png_with_ancillary_chunk(
+      original,
+      "aaAa",
+      std::vector<unsigned char>(data.begin(), data.end()));
+}
+
 }  // namespace
 
 int main(int argc, char* argv[]) {
   if (argc == 2 && std::string(argv[1]) == "--emit-oversized-image") {
-    const std::string payload =
-        "iVBORw0KGgoA" + std::string(1152U * 1024U, 'A');
+    const std::vector<unsigned char> oversized_png = png_with_ancillary_chunk(
+        make_valid_fixture_png(),
+        "aaAa",
+        std::vector<unsigned char>(1024U * 1024U, 'A'));
+    const std::string payload = encode_fixture_base64(oversized_png);
     std::cout
         << "{\"method\":\"item/completed\",\"params\":{\"item\":{"
         << "\"type\":\"imageGeneration\",\"id\":\"child_image\","
@@ -250,7 +401,7 @@ int main(int argc, char* argv[]) {
   }
 
   const std::string version = agentcodi::engine_version();
-  expect(version == "agentcodi-native/0.5.3", "engine version");
+  expect(version == "agentcodi-native/0.5.4", "engine version");
   expect(agentcodi::run_self_test() == 0, "native self-test");
 
   const std::string diagnostics = agentcodi::runtime_diagnostics();
@@ -530,8 +681,9 @@ int main(int argc, char* argv[]) {
     expect(mkdir(home.c_str(), 0700) == 0, "process-test home");
     expect(mkdir(temporary.c_str(), 0700) == 0, "process-test temporary directory");
 
-    const std::string materialized_payload =
-        "iVBORw0KGgoA" + std::string(40U * 1024U, 'A');
+    const std::vector<unsigned char> valid_png = make_valid_fixture_png();
+    expect(!valid_png.empty(), "construct valid native PNG fixture");
+    const std::string materialized_payload = encode_fixture_base64(valid_png);
     const std::string materialized_event =
         "{\"method\":\"item/completed\",\"params\":{\"item\":{"
         "\"id\":\"materialize/fixture\",\"type\":\"imageGeneration\","
@@ -599,8 +751,7 @@ int main(int argc, char* argv[]) {
     const std::string missing_path_event =
         "{\"id\":\"missing_path_fixture\",\"type\":\"imageGeneration\","
         "\"status\":\"completed\",\"result\":\""
-        "iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAQAAAC1HAwCAAAAC0lEQVR42mP8/"
-        "x8AAusB9WlK3SAAAAAASUVORK5CYII=\"}";
+        + materialized_payload + "\"}";
     std::string prepared_missing_path;
     error.clear();
     expect(
@@ -640,8 +791,10 @@ int main(int argc, char* argv[]) {
 
     const std::string conflicting_image_event =
         "{\"id\":\"materialize/fixture\",\"type\":\"imageGeneration\","
-        "\"status\":\"completed\",\"result\":\"iVBORw0KGgoA\","
-        "\"savedPath\":null}";
+        "\"status\":\"completed\",\"result\":\""
+        + encode_fixture_base64(png_with_private_chunk(
+            make_valid_fixture_png(0U, 1U)))
+        + "\",\"savedPath\":null}";
     error.clear();
     struct stat preserved_metadata {};
     expect(
@@ -655,7 +808,7 @@ int main(int argc, char* argv[]) {
             && error.find("conflicts") != std::string::npos
             && lstat(materialized_path.c_str(), &preserved_metadata) == 0
             && preserved_metadata.st_size == materialized_metadata.st_size,
-        "never overwrite a materialized image when an item id conflicts");
+        "validate Adam7 PNG and never overwrite when an item id conflicts");
 
     const std::string invalid_image_event =
         "{\"id\":\"invalid_image\",\"type\":\"imageGeneration\","
@@ -670,8 +823,123 @@ int main(int argc, char* argv[]) {
             temporary,
             &prepared_event,
             &error) == agentcodi::InboundLineCompactionStatus::kInvalid
-            && error.find("PNG signature") != std::string::npos,
+            && error.find("PNG") != std::string::npos,
         "reject non-PNG image payload before writing it");
+
+    const auto expect_invalid_png = [&workspace, &temporary, &prepared_event, &error](
+        const std::vector<unsigned char>& bytes,
+        const std::string& id,
+        const char* message) {
+      const std::string event =
+          "{\"id\":\"" + id + "\",\"type\":\"imageGeneration\","
+          "\"status\":\"completed\",\"result\":\""
+          + encode_fixture_base64(bytes) + "\",\"savedPath\":null}";
+      error.clear();
+      expect(
+          agentcodi::MaterializeAndCompactInboundImagePayloads(
+              event,
+              1024U * 1024U,
+              workspace,
+              temporary,
+              &prepared_event,
+              &error) == agentcodi::InboundLineCompactionStatus::kInvalid
+              && error.find("PNG") != std::string::npos,
+          message);
+    };
+
+    std::vector<unsigned char> signature_and_garbage = {
+        0x89U, 'P', 'N', 'G', 0x0dU, 0x0aU, 0x1aU, 0x0aU,
+        0x00U, 0x00U, 0x00U, 0x00U, 'D', 'A', 'T', 'A',
+    };
+    expect_invalid_png(
+        signature_and_garbage,
+        "signature_garbage",
+        "reject PNG signature followed by arbitrary bytes before writing");
+
+    std::vector<unsigned char> zero_width = valid_png;
+    std::fill(zero_width.begin() + 16U, zero_width.begin() + 20U, 0U);
+    rewrite_fixture_chunk_crc(&zero_width, 8U);
+    expect_invalid_png(
+        zero_width,
+        "zero_width",
+        "reject CRC-correct PNG with invalid IHDR dimensions");
+
+    std::vector<unsigned char> crossing_chunk = valid_png;
+    write_fixture_u32(&crossing_chunk, 8U, 0x7fffffffU);
+    expect_invalid_png(
+        crossing_chunk,
+        "crossing_chunk",
+        "reject PNG chunk length outside decoded payload");
+
+    std::vector<unsigned char> bad_crc = valid_png;
+    bad_crc[29U] ^= 0x01U;
+    expect_invalid_png(
+        bad_crc,
+        "bad_crc",
+        "reject PNG with invalid chunk CRC");
+
+    std::vector<unsigned char> corrupt_idat = valid_png;
+    const std::size_t idat = find_fixture_chunk(corrupt_idat, "IDAT");
+    expect(idat != std::string::npos, "valid native PNG fixture contains IDAT");
+    if (idat != std::string::npos) {
+      corrupt_idat[idat + 8U] ^= 0x01U;
+      rewrite_fixture_chunk_crc(&corrupt_idat, idat);
+      expect_invalid_png(
+          corrupt_idat,
+          "corrupt_idat",
+          "reject CRC-correct PNG with invalid compressed image data");
+    }
+
+    std::vector<unsigned char> incomplete_shape = valid_png;
+    incomplete_shape[19U] = 0x02U;
+    rewrite_fixture_chunk_crc(&incomplete_shape, 8U);
+    expect_invalid_png(
+        incomplete_shape,
+        "incomplete_shape",
+        "reject PNG whose IDAT scanline is shorter than its IHDR shape");
+
+    expect_invalid_png(
+        make_valid_fixture_png(5U, 0U),
+        "invalid_filter",
+        "reject PNG with invalid decompressed scanline filter");
+
+    std::vector<unsigned char> missing_iend = valid_png;
+    missing_iend.resize(missing_iend.size() - 12U);
+    expect_invalid_png(
+        missing_iend,
+        "missing_iend",
+        "reject PNG without IEND");
+
+    std::vector<unsigned char> trailing_png = valid_png;
+    trailing_png.push_back('X');
+    expect_invalid_png(
+        trailing_png,
+        "trailing_png",
+        "reject bytes after PNG IEND");
+
+    if (!inserted_materialized_path.empty()) {
+      expect(unlink(inserted_materialized_path.c_str()) == 0,
+             "remove valid resumed-image fixture before corruption test");
+      const std::string corrupt_file(
+          signature_and_garbage.begin(),
+          signature_and_garbage.end());
+      expect(write_fixture_file(inserted_materialized_path, corrupt_file),
+             "replace resumed-image fixture with malformed PNG");
+      const std::string corrupt_resume_event =
+          "{\"id\":\"missing_path_fixture\",\"type\":\"imageGeneration\","
+          "\"status\":\"completed\",\"result\":\"\",\"savedPath\":null}";
+      error.clear();
+      expect(
+          agentcodi::MaterializeAndCompactInboundImagePayloads(
+              corrupt_resume_event,
+              1024U * 1024U,
+              workspace,
+              temporary,
+              &prepared_event,
+              &error) == agentcodi::InboundLineCompactionStatus::kInvalid
+              && error.find("PNG") != std::string::npos,
+          "fully revalidate a materialized PNG before resumed-history reuse");
+    }
 
     agentcodi::ProcessConfig config;
     config.executable = "/system/bin/sh";

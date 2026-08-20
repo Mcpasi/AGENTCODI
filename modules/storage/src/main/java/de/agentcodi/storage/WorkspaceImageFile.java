@@ -67,6 +67,15 @@ public final class WorkspaceImageFile {
             if (mimeType.isEmpty()) {
                 throw new IOException("Workspace file is not a supported image");
             }
+            if ("image/png".equals(mimeType)) {
+                PngImageValidator.validate(
+                    opened.source,
+                    header,
+                    header.length,
+                    byteCount,
+                    null
+                );
+            }
             opened.source.verifyUnchanged();
             return fromOpened(opened, mimeType);
         }
@@ -124,30 +133,40 @@ public final class WorkspaceImageFile {
                 throw new IOException("Workspace file is not a supported image");
             }
             WorkspaceImageFile image = fromOpened(opened, mimeType);
-            destination.write(buffer, 0, firstCount);
-            long copied = firstCount;
-            while (true) {
-                if (Thread.currentThread().isInterrupted()) {
-                    throw new IOException("Workspace image export was cancelled");
+            if ("image/png".equals(mimeType)) {
+                PngImageValidator.validate(
+                    opened.source,
+                    buffer,
+                    firstCount,
+                    image.byteCount,
+                    destination
+                );
+            } else {
+                destination.write(buffer, 0, firstCount);
+                long copied = firstCount;
+                while (true) {
+                    if (Thread.currentThread().isInterrupted()) {
+                        throw new IOException("Workspace image export was cancelled");
+                    }
+                    int count = opened.source.read(buffer, 0, buffer.length);
+                    if (count < 0) {
+                        break;
+                    }
+                    if (count == 0) {
+                        continue;
+                    }
+                    if (copied > Long.MAX_VALUE - count) {
+                        throw new IOException("Workspace image size overflow");
+                    }
+                    copied += count;
+                    if (copied > maximumBytes || copied > image.byteCount) {
+                        throw new IOException("Workspace image changed during export");
+                    }
+                    destination.write(buffer, 0, count);
                 }
-                int count = opened.source.read(buffer, 0, buffer.length);
-                if (count < 0) {
-                    break;
-                }
-                if (count == 0) {
-                    continue;
-                }
-                if (copied > Long.MAX_VALUE - count) {
-                    throw new IOException("Workspace image size overflow");
-                }
-                copied += count;
-                if (copied > maximumBytes || copied > image.byteCount) {
+                if (copied != image.byteCount) {
                     throw new IOException("Workspace image changed during export");
                 }
-                destination.write(buffer, 0, count);
-            }
-            if (copied != image.byteCount) {
-                throw new IOException("Workspace image changed during export");
             }
             opened.source.verifyUnchanged();
             destination.flush();

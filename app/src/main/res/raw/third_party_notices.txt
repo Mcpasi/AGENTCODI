@@ -32,6 +32,9 @@ Included runtime components and primary license classifications:
 - LLVM libc++: University of Illinois/NCSA Open Source License, reproduced
   below.
 
+The same packaged zlib 1.3.2 library is used by AGENTCODI's bounded native
+PNG validator; no additional runtime component is introduced for that path.
+
 The complete distributor or upstream license texts for Node.js, c-ares, ICU,
 OpenSSL, and zlib are packaged at:
 assets/third-party/node/

@@ -247,6 +247,31 @@ if ! rg -q 'CompactInboundImagePayloads' "$PROJECT_ROOT/modules/native-engine/sr
     exit 1
 fi
 
+png_validator="$PROJECT_ROOT/modules/native-engine/src/main/cpp/png_validator.cpp"
+workspace_image="$PROJECT_ROOT/modules/storage/src/main/java/de/agentcodi/storage/WorkspaceImageFile.java"
+java_png_validator="$PROJECT_ROOT/modules/storage/src/main/java/de/agentcodi/storage/PngImageValidator.java"
+if ! rg -q 'ValidatePngImage' "$PROJECT_ROOT/modules/native-engine/src/main/cpp/app_server_process.cpp" \
+    || ! rg -q 'read_and_validate_materialized_png' "$PROJECT_ROOT/modules/native-engine/src/main/cpp/app_server_process.cpp" \
+    || rg -q 'has_png_signature' "$PROJECT_ROOT/modules/native-engine/src/main/cpp/app_server_process.cpp" \
+    || ! rg -q 'kMaximumInflatedPngBytes' "$png_validator" \
+    || ! rg -q 'IHDR' "$png_validator" \
+    || ! rg -q 'IDAT' "$png_validator" \
+    || ! rg -q 'IEND' "$png_validator" \
+    || ! rg -q 'crc32' "$png_validator" \
+    || ! rg -q 'inflateInit' "$png_validator" \
+    || ! rg -q 'PngImageValidator\.validate' "$workspace_image" \
+    || ! rg -q 'CRC32' "$java_png_validator" \
+    || ! rg -q 'Inflater' "$java_png_validator" \
+    || ! rg -q 'MAXIMUM_INFLATED_BYTES' "$java_png_validator" \
+    || ! rg -q 'png_validator\.cpp' "$PROJECT_ROOT/scripts/test.sh" \
+    || ! rg -q 'png_validator\.cpp' "$apk_builder" \
+    || ! rg -q 'libagentcodi\.so.*libz\.so\.1.*libz_1\.so' "$apk_builder" \
+    || ! rg -q 'signature followed by arbitrary bytes' "$PROJECT_ROOT/tests/cpp/agentcodi_engine_test.cpp" \
+    || ! rg -q 'rejectsPngSignatureFollowedByGarbage' "$PROJECT_ROOT/tests/java/de/agentcodi/tests/WorkspaceLayoutTest.java"; then
+  echo "Complete bounded PNG materialization and export validation is incomplete." >&2
+  exit 1
+fi
+
 image_exporter="$PROJECT_ROOT/modules/runtime/src/main/java/de/agentcodi/runtime/WorkspaceImageExporter.java"
 if ! rg -q 'WorkspaceImageFile\.inspect' "$image_exporter" \
     || ! rg -q 'WorkspaceImageFile\.copyTo' "$image_exporter" \
@@ -472,13 +497,13 @@ if ! rg -q 'PYTHON_SOURCE_EXTENSION_COUNT="75"' "$apk_builder" \
   exit 1
 fi
 
-if ! rg -q 'VERSION_NAME = "0\.5\.3"' "$core_root/BuildIdentity.java" \
-    || ! rg -q 'VERSION_CODE = 40' "$core_root/BuildIdentity.java" \
-    || ! rg -q 'android:versionName="0\.5\.3"' "$manifest" \
-    || ! rg -q 'android:versionCode="40"' "$manifest" \
-    || ! rg -q 'APP_VERSION="0\.5\.3"' "$apk_builder" \
-    || ! rg -q 'VERSION_CODE="40"' "$apk_builder"; then
-  echo "The 0.5.3 identity is inconsistent." >&2
+if ! rg -q 'VERSION_NAME = "0\.5\.4"' "$core_root/BuildIdentity.java" \
+    || ! rg -q 'VERSION_CODE = 41' "$core_root/BuildIdentity.java" \
+    || ! rg -q 'android:versionName="0\.5\.4"' "$manifest" \
+    || ! rg -q 'android:versionCode="41"' "$manifest" \
+    || ! rg -q 'APP_VERSION="0\.5\.4"' "$apk_builder" \
+    || ! rg -q 'VERSION_CODE="41"' "$apk_builder"; then
+  echo "The 0.5.4 identity is inconsistent." >&2
   exit 1
 fi
 

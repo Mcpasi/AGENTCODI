@@ -6,8 +6,8 @@ PROJECT_ROOT="$(cd -- "$SCRIPT_DIR/.." && pwd -P)"
 
 APP_NAME="AGENTCODI"
 APP_ID="de.agentcodi.app"
-APP_VERSION="0.5.3"
-VERSION_CODE="40"
+APP_VERSION="0.5.4"
+VERSION_CODE="41"
 MIN_SDK="29"
 TARGET_SDK="35"
 ABI="arm64-v8a"
@@ -627,7 +627,7 @@ APP_JAR="$JARS_ROOT/app.jar"
 "$JAR" cf "$APP_JAR" -C "$APP_CLASSES" .
 
 echo "Compiling ARM64 JNI engine..."
-"$CLANGXX" --target=aarch64-linux-android"$MIN_SDK" -shared -fPIC -std=c++17 -O2 -Wall -Wextra -Werror -pthread -fvisibility=hidden -I"$JAVA_HOME_17/include" -I"$JAVA_HOME_17/include/linux" -I"$PROJECT_ROOT/modules/native-engine/src/main/cpp" "$PROJECT_ROOT/modules/native-engine/src/main/cpp/agentcodi_engine.cpp" "$PROJECT_ROOT/modules/native-engine/src/main/cpp/app_server_process.cpp" "$PROJECT_ROOT/modules/native-engine/src/main/cpp/workspace_file_reader.cpp" "$PROJECT_ROOT/modules/native-engine/src/main/cpp/jni_bridge.cpp" -Wl,-soname,libagentcodi.so -llog -o "$NATIVE_DIR/libagentcodi.so"
+"$CLANGXX" --target=aarch64-linux-android"$MIN_SDK" -shared -fPIC -std=c++17 -O2 -Wall -Wextra -Werror -pthread -fvisibility=hidden -I"$JAVA_HOME_17/include" -I"$JAVA_HOME_17/include/linux" -I"$PROJECT_ROOT/modules/native-engine/src/main/cpp" "$PROJECT_ROOT/modules/native-engine/src/main/cpp/agentcodi_engine.cpp" "$PROJECT_ROOT/modules/native-engine/src/main/cpp/app_server_process.cpp" "$PROJECT_ROOT/modules/native-engine/src/main/cpp/png_validator.cpp" "$PROJECT_ROOT/modules/native-engine/src/main/cpp/workspace_file_reader.cpp" "$PROJECT_ROOT/modules/native-engine/src/main/cpp/jni_bridge.cpp" -Wl,-soname,libagentcodi.so -lz -llog -o "$NATIVE_DIR/libagentcodi.so"
 "$LLVM_STRIP" --strip-unneeded "$NATIVE_DIR/libagentcodi.so"
 
 echo "Compiling packaged terminal shell bridge..."
@@ -672,6 +672,7 @@ patch_elf_name "$NATIVE_DIR/libicuuc_78.so" 'libicuuc.so.78' 'libicuuc_78.so' 1
 patch_elf_name "$NATIVE_DIR/libicui18n_78.so" 'libicuuc.so.78' 'libicuuc_78.so' 1
 patch_elf_name "$NATIVE_DIR/libicui18n_78.so" 'libicui18n.so.78' 'libicui18n_78.so' 1
 patch_elf_name "$NATIVE_DIR/libz_1.so" 'libz.so.1' 'libz_1.so' 1
+patch_elf_name "$NATIVE_DIR/libagentcodi.so" 'libz.so.1' 'libz_1.so' 1
 patch_elf_name "$NATIVE_DIR/libsqlite3.so" 'libz.so.1' 'libz_1.so' 1
 
 RUNTIME_LINK_RECORDS="$WORK_DIR/runtime-link-records.txt"
@@ -942,8 +943,9 @@ if readelf -Ws "$NATIVE_DIR/libagentcodi.so" \
   echo "JNI library contains an obsolete same-UID terminal process path." >&2
   exit 1
 fi
-if ! readelf -d "$NATIVE_DIR/libagentcodi.so" | grep -q 'Shared library: \[libc++_shared.so\]'; then
-  echo "Native engine did not declare its packaged C++ runtime dependency." >&2
+if ! readelf -d "$NATIVE_DIR/libagentcodi.so" | grep -q 'Shared library: \[libc++_shared.so\]' \
+    || ! readelf -d "$NATIVE_DIR/libagentcodi.so" | grep -q 'Shared library: \[libz_1.so\]'; then
+  echo "Native engine did not declare its packaged C++ and PNG zlib dependencies." >&2
   exit 1
 fi
 if readelf -Ws "$NATIVE_DIR/libagentcodi.so" | grep -F ' clearenv' >/dev/null \
@@ -984,9 +986,12 @@ if ! grep -Fq 'shell_environment_policy={inherit="none"' "$WORK_DIR/native-engin
   exit 1
 fi
 if ! grep -Fq 'generated_images' "$WORK_DIR/native-engine-strings.txt" \
-    || ! grep -Fq 'Generated image does not have the required PNG signature' "$WORK_DIR/native-engine-strings.txt" \
+    || ! grep -Fq 'Generated image is not a complete valid bounded PNG' "$WORK_DIR/native-engine-strings.txt" \
+    || ! grep -Fq 'chunk CRC does not match its type and data' "$WORK_DIR/native-engine-strings.txt" \
+    || ! grep -Fq 'IEND precedes a complete IHDR-shaped IDAT stream' "$WORK_DIR/native-engine-strings.txt" \
+    || ! grep -Fq 'Materialized generated image changed during validation' "$WORK_DIR/native-engine-strings.txt" \
     || ! grep -Fq 'Generated image could not be installed atomically in the workspace' "$WORK_DIR/native-engine-strings.txt"; then
-  echo "Native engine is missing validated workspace image materialization." >&2
+  echo "Native engine is missing complete PNG validation or workspace materialization." >&2
   exit 1
 fi
 if ! grep -aFq "$CODEX_PACKAGED_HOST_NAME" "$NATIVE_DIR/libcodex.so" \
@@ -1285,8 +1290,10 @@ BOOTSTRAP_SMOKE_BIN="$WORK_DIR/android-app-server-bootstrap-smoke"
 "$CLANGXX" --target=aarch64-linux-android"$MIN_SDK" -std=c++17 -O2 -Wall -Wextra -Werror -pthread \
   -I"$PROJECT_ROOT/modules/native-engine/src/main/cpp" \
   "$PROJECT_ROOT/modules/native-engine/src/main/cpp/app_server_process.cpp" \
+  "$PROJECT_ROOT/modules/native-engine/src/main/cpp/png_validator.cpp" \
   "$PROJECT_ROOT/tests/cpp/android_app_server_bootstrap_smoke.cpp" \
-  -o "$BOOTSTRAP_SMOKE_BIN"
+  -lz -o "$BOOTSTRAP_SMOKE_BIN"
+patch_elf_name "$BOOTSTRAP_SMOKE_BIN" 'libz.so.1' 'libz_1.so' 1
 BOOTSTRAP_SMOKE_ROOT="$WORK_DIR/supervisor-bootstrap-smoke"
 BOOTSTRAP_SMOKE_WORKSPACE="$BOOTSTRAP_SMOKE_ROOT/workspace"
 BOOTSTRAP_SMOKE_TOOLCHAIN="$BOOTSTRAP_SMOKE_WORKSPACE/toolchain"

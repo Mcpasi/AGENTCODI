@@ -1,4 +1,5 @@
 #include "app_server_process.h"
+#include "png_validator.h"
 
 #include <algorithm>
 #include <cerrno>
@@ -621,14 +622,6 @@ int base64_digit(unsigned char value) {
   return -1;
 }
 
-bool has_png_signature(const std::vector<unsigned char>& bytes) {
-  static const unsigned char signature[] = {
-      0x89U, 0x50U, 0x4eU, 0x47U, 0x0dU, 0x0aU, 0x1aU, 0x0aU,
-  };
-  return bytes.size() >= sizeof(signature)
-      && std::equal(signature, signature + sizeof(signature), bytes.begin());
-}
-
 bool decode_png_result(
     const std::string& line,
     const JsonStringSpan& span,
@@ -713,9 +706,8 @@ bool decode_png_result(
       return false;
     }
   }
-  if (!has_png_signature(*bytes)) {
+  if (!ValidatePngImage(*bytes, error)) {
     bytes->clear();
-    *error = "Generated image does not have the required PNG signature";
     return false;
   }
   return true;
@@ -987,6 +979,78 @@ bool materialize_png(
   return true;
 }
 
+bool same_materialized_image_snapshot(
+    const struct stat& first,
+    const struct stat& second) {
+  return first.st_dev == second.st_dev
+      && first.st_ino == second.st_ino
+      && first.st_mode == second.st_mode
+      && first.st_nlink == second.st_nlink
+      && first.st_uid == second.st_uid
+      && first.st_gid == second.st_gid
+      && first.st_size == second.st_size
+      && first.st_mtim.tv_sec == second.st_mtim.tv_sec
+      && first.st_mtim.tv_nsec == second.st_mtim.tv_nsec
+      && first.st_ctim.tv_sec == second.st_ctim.tv_sec
+      && first.st_ctim.tv_nsec == second.st_ctim.tv_nsec;
+}
+
+bool read_and_validate_materialized_png(
+    int descriptor,
+    std::vector<unsigned char>* bytes,
+    struct stat* verified_metadata,
+    std::string* error) {
+  if (bytes == nullptr || verified_metadata == nullptr || error == nullptr) {
+    return false;
+  }
+  struct stat before {};
+  if (fstat(descriptor, &before) != 0 || !S_ISREG(before.st_mode)
+      || before.st_nlink != 1 || before.st_size <= 0
+      || static_cast<std::uint64_t>(before.st_size)
+          > kMaximumMaterializedImageBytes
+      || lseek(descriptor, 0, SEEK_SET) != 0) {
+    *error = "Materialized generated image failed workspace validation";
+    return false;
+  }
+  const std::size_t expected_size = static_cast<std::size_t>(before.st_size);
+  bytes->clear();
+  bytes->resize(expected_size);
+  std::size_t received = 0U;
+  while (received < expected_size) {
+    const ssize_t count = read(
+        descriptor,
+        bytes->data() + received,
+        expected_size - received);
+    if (count > 0) {
+      received += static_cast<std::size_t>(count);
+    } else if (count == -1 && errno == EINTR) {
+      continue;
+    } else {
+      bytes->clear();
+      *error = "Materialized generated image is truncated";
+      return false;
+    }
+  }
+  unsigned char trailing = 0U;
+  ssize_t trailing_count;
+  do {
+    trailing_count = read(descriptor, &trailing, 1U);
+  } while (trailing_count == -1 && errno == EINTR);
+  struct stat after {};
+  if (trailing_count != 0 || fstat(descriptor, &after) != 0
+      || !same_materialized_image_snapshot(before, after)) {
+    bytes->clear();
+    *error = "Materialized generated image changed during validation";
+    return false;
+  }
+  if (!ValidatePngImage(*bytes, error)) {
+    bytes->clear();
+    return false;
+  }
+  *verified_metadata = after;
+  return true;
+}
+
 bool find_materialized_png(
     const std::string& workspace_directory,
     const std::string& image_id,
@@ -1018,34 +1082,12 @@ bool find_materialized_png(
     return false;
   }
   struct stat metadata {};
-  unsigned char signature[8];
-  std::size_t received = 0U;
-  while (received < sizeof(signature)) {
-    const ssize_t count = read(
-        image.Get(),
-        signature + received,
-        sizeof(signature) - received);
-    if (count > 0) {
-      received += static_cast<std::size_t>(count);
-    } else if (count == -1 && errno == EINTR) {
-      continue;
-    } else {
-      break;
-    }
-  }
-  static const unsigned char png_signature[] = {
-      0x89U, 0x50U, 0x4eU, 0x47U, 0x0dU, 0x0aU, 0x1aU, 0x0aU,
-  };
-  if (fstat(image.Get(), &metadata) != 0 || !S_ISREG(metadata.st_mode)
-      || metadata.st_nlink != 1 || metadata.st_size < 8
-      || static_cast<std::uint64_t>(metadata.st_size)
-          > kMaximumMaterializedImageBytes
-      || received != sizeof(signature)
-      || !std::equal(
-          signature,
-          signature + sizeof(signature),
-          png_signature)) {
-    *error = "Materialized generated image failed workspace validation";
+  std::vector<unsigned char> bytes;
+  if (!read_and_validate_materialized_png(
+          image.Get(),
+          &bytes,
+          &metadata,
+          error)) {
     return false;
   }
   *saved_path = workspace_directory + '/' + kGeneratedImagesDirectory + '/' + name;

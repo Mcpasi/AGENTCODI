@@ -13,8 +13,11 @@ import java.nio.file.Files;
 import java.nio.file.Path;
 import java.nio.file.attribute.PosixFilePermission;
 import java.security.MessageDigest;
+import java.util.Arrays;
 import java.util.EnumSet;
 import java.util.Set;
+import java.util.zip.CRC32;
+import java.util.zip.Deflater;
 import java.util.zip.ZipEntry;
 import java.util.zip.ZipOutputStream;
 
@@ -38,6 +41,7 @@ public final class WorkspaceLayoutTest {
         preservesPrivateCodexConfigurationFiles();
         rejectsSymbolicCodexConfigurationFile();
         acceptsSupportedWorkspaceImage();
+        acceptsAdam7WorkspaceImage();
         copiesValidatedWorkspaceImage();
         rejectsWorkspaceImageMutationDuringCopy();
         rejectsImageSymlinkSwapBeforeOpenWithoutWritingBytes();
@@ -46,8 +50,18 @@ public final class WorkspaceLayoutTest {
         acceptsAliasOfWorkspaceRoot();
         rejectsSymbolicWorkspaceImage();
         rejectsUnsupportedWorkspaceFile();
+        rejectsPngSignatureFollowedByGarbage();
+        rejectsPngWithInvalidDimensions();
+        rejectsPngChunkOutsideFileBoundary();
+        rejectsPngWithInvalidChunkCrc();
+        rejectsPngWithCorruptImageData();
+        rejectsPngWithIncompleteScanlineShape();
+        rejectsPngWithInvalidScanlineFilter();
+        rejectsPngWithoutIend();
+        rejectsPngBytesAfterIend();
+        rejectsMalformedPngDuringCopy();
         rejectsOversizedWorkspaceImage();
-        return 24;
+        return 35;
     }
 
     private static void createsStablePrivateLayout() throws Exception {
@@ -608,6 +622,31 @@ public final class WorkspaceLayoutTest {
         }
     }
 
+    private static void acceptsAdam7WorkspaceImage() throws Exception {
+        Path base = Files.createTempDirectory("agentcodi-image-adam7-");
+        try {
+            WorkspaceLayout layout = WorkspaceLayout.create(base.toFile());
+            Path image = layout.getWorkspace().toPath().resolve("interlaced.png");
+            byte[] expected = pngFixture(
+                new byte[] {0x00, 0x11, 0x22, 0x33, (byte) 0xff},
+                1
+            );
+            Files.write(image, expected);
+            WorkspaceImageFile inspected = WorkspaceImageFile.inspect(
+                layout.getWorkspace(),
+                image.toString(),
+                1024L
+            );
+            TestSupport.assertEquals(
+                Long.valueOf(expected.length),
+                Long.valueOf(inspected.getByteCount()),
+                "Adam7 PNG byte count"
+            );
+        } finally {
+            deleteRecursively(base);
+        }
+    }
+
     private static void rejectsWorkspaceImageMutationDuringCopy() throws Exception {
         final Path base = Files.createTempDirectory("agentcodi-image-copy-race-");
         try {
@@ -847,6 +886,114 @@ public final class WorkspaceLayoutTest {
         }
     }
 
+    private static void rejectsPngSignatureFollowedByGarbage() throws Exception {
+        expectRejectedPng(
+            new byte[] {
+                (byte) 0x89, 'P', 'N', 'G', 0x0d, 0x0a, 0x1a, 0x0a,
+                0x00, 0x00, 0x00, 0x00, 'D', 'A', 'T', 'A'
+            },
+            "PNG signature followed by arbitrary bytes"
+        );
+    }
+
+    private static void rejectsPngWithInvalidDimensions() throws Exception {
+        byte[] malformed = pngFixture();
+        Arrays.fill(malformed, 16, 20, (byte) 0x00);
+        rewriteChunkCrc(malformed, 8);
+        expectRejectedPng(malformed, "PNG with zero IHDR width");
+    }
+
+    private static void rejectsPngChunkOutsideFileBoundary() throws Exception {
+        byte[] malformed = pngFixture();
+        malformed[8] = 0x7f;
+        malformed[9] = (byte) 0xff;
+        malformed[10] = (byte) 0xff;
+        malformed[11] = (byte) 0xff;
+        expectRejectedPng(malformed, "PNG chunk crossing the file boundary");
+    }
+
+    private static void rejectsPngWithInvalidChunkCrc() throws Exception {
+        byte[] malformed = pngFixture();
+        malformed[29] ^= 0x01;
+        expectRejectedPng(malformed, "PNG with an invalid chunk CRC");
+    }
+
+    private static void rejectsPngWithCorruptImageData() throws Exception {
+        byte[] malformed = pngFixture();
+        int idat = findChunk(malformed, "IDAT");
+        TestSupport.assertTrue(idat >= 0, "valid fixture contains IDAT");
+        malformed[idat + 8] ^= 0x01;
+        rewriteChunkCrc(malformed, idat);
+        expectRejectedPng(malformed, "PNG with CRC-correct corrupt IDAT data");
+    }
+
+    private static void rejectsPngWithIncompleteScanlineShape() throws Exception {
+        byte[] malformed = pngFixture();
+        malformed[19] = 0x02;
+        rewriteChunkCrc(malformed, 8);
+        expectRejectedPng(
+            malformed,
+            "PNG whose inflated scanline is shorter than its IHDR shape"
+        );
+    }
+
+    private static void rejectsPngWithInvalidScanlineFilter() throws Exception {
+        expectRejectedPng(
+            pngFixture(
+                new byte[] {0x05, 0x11, 0x22, 0x33, (byte) 0xff},
+                0
+            ),
+            "PNG with invalid decompressed scanline filter"
+        );
+    }
+
+    private static void rejectsPngWithoutIend() throws Exception {
+        byte[] valid = pngFixture();
+        expectRejectedPng(
+            Arrays.copyOf(valid, valid.length - 12),
+            "PNG without IEND"
+        );
+    }
+
+    private static void rejectsPngBytesAfterIend() throws Exception {
+        byte[] valid = pngFixture();
+        byte[] malformed = Arrays.copyOf(valid, valid.length + 1);
+        malformed[malformed.length - 1] = 'X';
+        expectRejectedPng(malformed, "PNG with bytes after IEND");
+    }
+
+    private static void rejectsMalformedPngDuringCopy() throws Exception {
+        final Path base = Files.createTempDirectory("agentcodi-image-invalid-copy-");
+        try {
+            final WorkspaceLayout layout = WorkspaceLayout.create(base.toFile());
+            final Path image = layout.getWorkspace().toPath().resolve("invalid-copy.png");
+            Files.write(
+                image,
+                new byte[] {
+                    (byte) 0x89, 'P', 'N', 'G', 0x0d, 0x0a, 0x1a, 0x0a,
+                    0x00, 0x00, 0x00, 0x00, 'D', 'A', 'T', 'A'
+                }
+            );
+            TestSupport.expectThrows(
+                IOException.class,
+                new TestSupport.ThrowingRunnable() {
+                    @Override
+                    public void run() throws Exception {
+                        WorkspaceImageFile.copyTo(
+                            layout.getWorkspace(),
+                            image.toString(),
+                            1024L,
+                            new ByteArrayOutputStream()
+                        );
+                    }
+                },
+                "malformed PNG must be rejected again during copy"
+            );
+        } finally {
+            deleteRecursively(base);
+        }
+    }
+
     private static void rejectsOversizedWorkspaceImage() throws Exception {
         final Path base = Files.createTempDirectory("agentcodi-image-large-");
         try {
@@ -873,10 +1020,140 @@ public final class WorkspaceLayoutTest {
     }
 
     private static byte[] pngFixture() {
-        return new byte[] {
-            (byte) 0x89, 'P', 'N', 'G', 0x0d, 0x0a, 0x1a, 0x0a,
-            0x00, 0x00, 0x00, 0x00, 'D', 'A', 'T', 'A'
+        return pngFixture(
+            new byte[] {0x00, 0x11, 0x22, 0x33, (byte) 0xff},
+            0
+        );
+    }
+
+    private static byte[] pngFixture(byte[] pixels, int interlace) {
+        Deflater deflater = new Deflater(Deflater.BEST_COMPRESSION);
+        ByteArrayOutputStream compressed = new ByteArrayOutputStream();
+        try {
+            deflater.setInput(pixels);
+            deflater.finish();
+            byte[] buffer = new byte[64];
+            while (!deflater.finished()) {
+                int count = deflater.deflate(buffer);
+                if (count <= 0) {
+                    throw new IllegalStateException("PNG fixture deflater made no progress");
+                }
+                compressed.write(buffer, 0, count);
+            }
+        } finally {
+            deflater.end();
+        }
+
+        byte[] ihdr = new byte[13];
+        ihdr[3] = 0x01;
+        ihdr[7] = 0x01;
+        ihdr[8] = 0x08;
+        ihdr[9] = 0x06;
+        ihdr[12] = (byte) interlace;
+        ByteArrayOutputStream png = new ByteArrayOutputStream();
+        png.write((byte) 0x89);
+        png.write('P');
+        png.write('N');
+        png.write('G');
+        png.write(0x0d);
+        png.write(0x0a);
+        png.write(0x1a);
+        png.write(0x0a);
+        appendPngChunk(png, "IHDR", ihdr);
+        appendPngChunk(png, "IDAT", compressed.toByteArray());
+        appendPngChunk(png, "IEND", new byte[0]);
+        return png.toByteArray();
+    }
+
+    private static void appendPngChunk(
+        ByteArrayOutputStream png,
+        String type,
+        byte[] data
+    ) {
+        int length = data.length;
+        png.write((byte) (length >>> 24));
+        png.write((byte) (length >>> 16));
+        png.write((byte) (length >>> 8));
+        png.write((byte) length);
+        byte[] typeBytes = new byte[] {
+            (byte) type.charAt(0),
+            (byte) type.charAt(1),
+            (byte) type.charAt(2),
+            (byte) type.charAt(3)
         };
+        png.write(typeBytes, 0, typeBytes.length);
+        png.write(data, 0, data.length);
+        CRC32 crc = new CRC32();
+        crc.update(typeBytes, 0, typeBytes.length);
+        crc.update(data, 0, data.length);
+        long value = crc.getValue();
+        png.write((byte) (value >>> 24));
+        png.write((byte) (value >>> 16));
+        png.write((byte) (value >>> 8));
+        png.write((byte) value);
+    }
+
+    private static void expectRejectedPng(final byte[] contents, String message)
+        throws Exception {
+        final Path base = Files.createTempDirectory("agentcodi-image-malformed-");
+        try {
+            final WorkspaceLayout layout = WorkspaceLayout.create(base.toFile());
+            final Path image = layout.getWorkspace().toPath().resolve("malformed.png");
+            Files.write(image, contents);
+            TestSupport.expectThrows(
+                IOException.class,
+                new TestSupport.ThrowingRunnable() {
+                    @Override
+                    public void run() throws Exception {
+                        WorkspaceImageFile.inspect(
+                            layout.getWorkspace(),
+                            image.toString(),
+                            1024L * 1024L
+                        );
+                    }
+                },
+                message
+            );
+        } finally {
+            deleteRecursively(base);
+        }
+    }
+
+    private static int findChunk(byte[] png, String type) {
+        int offset = 8;
+        while (offset <= png.length - 12) {
+            long length = unsignedInt(png, offset);
+            if (length > Integer.MAX_VALUE || length + 12L > png.length - offset) {
+                return -1;
+            }
+            if (png[offset + 4] == type.charAt(0)
+                && png[offset + 5] == type.charAt(1)
+                && png[offset + 6] == type.charAt(2)
+                && png[offset + 7] == type.charAt(3)) {
+                return offset;
+            }
+            offset += (int) length + 12;
+        }
+        return -1;
+    }
+
+    private static void rewriteChunkCrc(byte[] png, int chunkOffset) {
+        int length = (int) unsignedInt(png, chunkOffset);
+        CRC32 crc = new CRC32();
+        crc.update(png, chunkOffset + 4, length + 4);
+        long value = crc.getValue();
+        int crcOffset = chunkOffset + 8 + length;
+        png[crcOffset] = (byte) (value >>> 24);
+        png[crcOffset + 1] = (byte) (value >>> 16);
+        png[crcOffset + 2] = (byte) (value >>> 8);
+        png[crcOffset + 3] = (byte) value;
+    }
+
+    private static long unsignedInt(byte[] bytes, int offset) {
+        return ((long) (bytes[offset] & 0xff) << 24)
+            | ((long) (bytes[offset + 1] & 0xff) << 16)
+            | ((long) (bytes[offset + 2] & 0xff) << 8)
+            | (long) (bytes[offset + 3] & 0xff);
     }
 
     private static void deleteRecursively(Path path) throws IOException {

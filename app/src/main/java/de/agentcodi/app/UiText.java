@@ -412,8 +412,12 @@ final class UiText {
         if ("Nachrichten müssen 1 bis 32768 Zeichen enthalten.".equals(raw)) return R.string.core_message_length;
         if ("OpenAI-Zugangsdaten dürfen nur im geschützten Kontobereich eingegeben werden.".equals(raw)) return R.string.user_input_credential_warning;
         if ("Nachricht wird gesendet.".equals(raw)) return R.string.core_message_sending;
+        if ("Ergänzung wird an den laufenden Turn gesendet.".equals(raw)) return R.string.core_turn_steering;
+        if ("Ergänzung wurde in den laufenden Turn übernommen.".equals(raw)) return R.string.core_turn_steer_accepted;
         if ("Bitte zuerst anmelden.".equals(raw)) return R.string.core_sign_in_first;
         if ("Der aktuelle Turn läuft noch.".equals(raw)) return R.string.core_turn_still_running;
+        if ("Kein laufender Turn kann ergänzt werden.".equals(raw)) return R.string.core_no_steerable_turn;
+        if ("Der App-Server hat einen anderen Turn bestätigt.".equals(raw)) return R.string.core_steer_turn_mismatch;
         if ("Kein stoppbarer Turn ist aktiv.".equals(raw)) return R.string.core_no_stoppable_turn;
         if ("Bitte ein angebotenes Modell und eine Denkstufe wählen.".equals(raw)) return R.string.core_choose_model_effort;
         if ("Codex arbeitet.".equals(raw)) return R.string.core_codex_working;

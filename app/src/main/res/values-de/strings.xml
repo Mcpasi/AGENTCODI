@@ -86,7 +86,9 @@
   <string name="reasoning_max">Maximum</string>
   <string name="reasoning_ultra">Ultra</string>
   <string name="composer_hint">Aufgabe für Codex…</string>
+  <string name="composer_steer_hint">Laufenden Turn korrigieren oder ergänzen…</string>
   <string name="turn_stop">Stopp</string>
+  <string name="turn_steer">Ergänzen</string>
   <string name="message_send">Senden</string>
 
   <string name="transcript_role_you">DU</string>
@@ -446,8 +448,12 @@
   <string name="core_chat_open">Chat ist geöffnet.</string>
   <string name="core_message_length">Nachrichten müssen 1 bis 32768 Zeichen enthalten.</string>
   <string name="core_message_sending">Nachricht wird gesendet.</string>
+  <string name="core_turn_steering">Ergänzung wird an den laufenden Turn gesendet.</string>
+  <string name="core_turn_steer_accepted">Ergänzung wurde in den laufenden Turn übernommen.</string>
   <string name="core_sign_in_first">Bitte zuerst anmelden.</string>
   <string name="core_turn_still_running">Der aktuelle Turn läuft noch.</string>
+  <string name="core_no_steerable_turn">Kein laufender Turn kann ergänzt werden.</string>
+  <string name="core_steer_turn_mismatch">Der App-Server hat einen anderen Turn bestätigt.</string>
   <string name="core_no_stoppable_turn">Kein stoppbarer Turn ist aktiv.</string>
   <string name="core_choose_model_effort">Bitte ein angebotenes Modell und eine Denkstufe wählen.</string>
   <string name="core_codex_working">Codex arbeitet.</string>

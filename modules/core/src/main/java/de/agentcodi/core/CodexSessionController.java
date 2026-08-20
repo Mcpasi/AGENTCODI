@@ -654,6 +654,81 @@ public final class CodexSessionController
         });
     }
 
+    public void steerTurn(final String input) {
+        if (CredentialGuard.containsLikelyCredential(input)) {
+            setUserError(
+                "OpenAI-Zugangsdaten dürfen nur im geschützten Kontobereich eingegeben werden."
+            );
+            return;
+        }
+        final String prompt = input == null ? "" : input.trim();
+        if (prompt.isEmpty() || prompt.length() > MAX_PROMPT_CHARACTERS) {
+            setUserError("Nachrichten müssen 1 bis 32768 Zeichen enthalten.");
+            return;
+        }
+        submit("Ergänzung wird an den laufenden Turn gesendet.", new Operation() {
+            @Override
+            public void run() throws Exception {
+                String threadId;
+                String expectedTurnId;
+                String localId;
+                synchronized (CodexSessionController.this) {
+                    if (requiresOpenaiAuth && authMode.isEmpty()) {
+                        throw new IllegalStateException("Bitte zuerst anmelden.");
+                    }
+                    if (!turnActive || activeThreadId.isEmpty() || activeTurnId.isEmpty()) {
+                        throw new IllegalStateException(
+                            "Kein laufender Turn kann ergänzt werden."
+                        );
+                    }
+                    threadId = activeThreadId;
+                    expectedTurnId = activeTurnId;
+                    localId = "local-user-" + localMessageIds.getAndIncrement();
+                    addBoundedMessageLocked(new ChatMessage(
+                        localId,
+                        ChatMessage.Role.USER,
+                        prompt,
+                        false
+                    ));
+                    publishLocked();
+                }
+
+                try {
+                    Map<String, Object> result = client.request(
+                        "turn/steer",
+                        JsonCodec.object(
+                            "threadId", threadId,
+                            "input", JsonCodec.array(
+                                JsonCodec.object("type", "text", "text", prompt)
+                            ),
+                            "expectedTurnId", expectedTurnId
+                        ),
+                        NORMAL_TIMEOUT_MS
+                    );
+                    String returnedTurnId = JsonCodec.optionalString(result.get("turnId"));
+                    if (!expectedTurnId.equals(returnedTurnId)) {
+                        throw new IllegalArgumentException(
+                            "Der App-Server hat einen anderen Turn bestätigt."
+                        );
+                    }
+                    synchronized (CodexSessionController.this) {
+                        operationMessage = "Ergänzung wurde in den laufenden Turn übernommen.";
+                        publishLocked();
+                    }
+                } catch (Throwable error) {
+                    synchronized (CodexSessionController.this) {
+                        removeLocalMessageLocked(localId);
+                        publishLocked();
+                    }
+                    if (error instanceof Exception) {
+                        throw (Exception) error;
+                    }
+                    throw new IllegalStateException("Turn steer failed", error);
+                }
+            }
+        });
+    }
+
     public void interruptTurn() {
         submit("Turn wird gestoppt.", new Operation() {
             @Override
@@ -3440,6 +3515,16 @@ public final class CodexSessionController
             }
         }
         upsertMessageLocked(new ChatMessage(itemId, ChatMessage.Role.USER, text, false));
+    }
+
+    private void removeLocalMessageLocked(String itemId) {
+        for (int index = transcriptItems.size() - 1; index >= 0; index--) {
+            CodexTranscriptItem item = transcriptItems.get(index);
+            if (item.isMessage() && item.getId().equals(itemId)) {
+                transcriptItems.remove(index);
+                return;
+            }
+        }
     }
 
     private int findMessageLocked(String id) {

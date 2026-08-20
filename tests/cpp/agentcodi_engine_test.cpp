@@ -185,6 +185,34 @@ int main(int argc, char* argv[]) {
         << std::endl;
     return 0;
   }
+  if (argc == 2 && std::string(argv[1]) == "--turn-steer-roundtrip") {
+    std::string request;
+    if (!std::getline(std::cin, request)
+        || request.find("\"method\":\"turn/steer\"") == std::string::npos
+        || request.find("\"threadId\":\"thr_fixture\"") == std::string::npos
+        || request.find("\"expectedTurnId\":\"turn_fixture\"")
+            == std::string::npos
+        || request.find("\"type\":\"text\"") == std::string::npos
+        || request.find("\"text\":\"Focus on tests first.\"")
+            == std::string::npos
+        || request.find("\"model\"") != std::string::npos
+        || request.find("\"cwd\"") != std::string::npos
+        || request.find("\"sandboxPolicy\"") != std::string::npos
+        || request.find("\"approvalPolicy\"") != std::string::npos) {
+      return 35;
+    }
+    std::cout
+        << "{\"id\":65,\"result\":{\"turnId\":\"turn_fixture\"}}"
+        << std::endl;
+    std::cout
+        << "{\"method\":\"item/completed\",\"params\":{"
+        << "\"threadId\":\"thr_fixture\",\"turnId\":\"turn_fixture\","
+        << "\"item\":{\"id\":\"steer_user_fixture\","
+        << "\"type\":\"userMessage\",\"content\":[{"
+        << "\"type\":\"text\",\"text\":\"Focus on tests first.\"}]}}}"
+        << std::endl;
+    return 0;
+  }
   if (argc == 2 && std::string(argv[1]) == "--mcp-config-roundtrip") {
     std::string request;
     if (!std::getline(std::cin, request)
@@ -222,7 +250,7 @@ int main(int argc, char* argv[]) {
   }
 
   const std::string version = agentcodi::engine_version();
-  expect(version == "agentcodi-native/0.5.1", "engine version");
+  expect(version == "agentcodi-native/0.5.2", "engine version");
   expect(agentcodi::run_self_test() == 0, "native self-test");
 
   const std::string diagnostics = agentcodi::runtime_diagnostics();
@@ -1081,6 +1109,42 @@ int main(int argc, char* argv[]) {
             "preserve sparse rate-limit update notification");
         expect(process->Stop(500) == 0,
                "stop rate-limit framing fixture");
+      }
+
+      config.arguments = {"--turn-steer-roundtrip"};
+      error.clear();
+      process = agentcodi::AppServerProcess::Start(config, &error);
+      expect(process != nullptr, "spawn turn-steer framing fixture");
+      if (process != nullptr) {
+        const std::string steer_request =
+            "{\"id\":65,\"method\":\"turn/steer\",\"params\":{"
+            "\"threadId\":\"thr_fixture\",\"input\":[{"
+            "\"type\":\"text\",\"text\":\"Focus on tests first.\"}],"
+            "\"expectedTurnId\":\"turn_fixture\"}}";
+        expect(
+            process->WriteLine(steer_request, 16U * 1024U, &error),
+            "write bounded correlated turn-steer request");
+        std::string steer_response;
+        expect(
+            process->ReadLine(16U * 1024U, &steer_response, &error)
+                    == agentcodi::LineReadStatus::kLine
+                && steer_response
+                    == "{\"id\":65,\"result\":{\"turnId\":\"turn_fixture\"}}",
+            "preserve correlated turn-steer response");
+        std::string steer_item;
+        expect(
+            process->ReadLine(16U * 1024U, &steer_item, &error)
+                    == agentcodi::LineReadStatus::kLine
+                && steer_item.find("\"method\":\"item/completed\"")
+                    != std::string::npos
+                && steer_item.find("\"id\":\"steer_user_fixture\"")
+                    != std::string::npos
+                && steer_item.find("\"turnId\":\"turn_fixture\"")
+                    != std::string::npos
+                && steer_item.find("turn/started") == std::string::npos,
+            "preserve steering user item without inventing a new turn");
+        expect(process->Stop(500) == 0,
+               "stop turn-steer framing fixture");
       }
 
       config.arguments = {"--exit-with-code"};

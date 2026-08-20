@@ -41,6 +41,8 @@ public final class CodexSessionControllerTest {
         projectsCompleteToolCardSet();
         restoresCardsFromThreadHistory();
         reportsTransportFailureOnceAndReleasesTurn();
+        steersActiveTurnWithoutStartingAnotherTurn();
+        rejectsUncorrelatedSteering();
         keepsApiKeyOutOfSnapshotsAndWipesCallerBuffer();
         blocksCredentialsInChatMessages();
         acceptsOnlyTrustedBrowserLoginUrl();
@@ -56,7 +58,171 @@ public final class CodexSessionControllerTest {
         terminatesTerminalWhenOutputCapIsReached();
         rejectsTerminalCredentialsAndMalformedOutput();
         usesVettedMcpConfigurationRpcs();
-        return 24;
+        return 26;
+    }
+
+    private static void steersActiveTurnWithoutStartingAnotherTurn() throws Exception {
+        FixtureServer server = new FixtureServer(true);
+        server.holdTurnOpen = true;
+        server.emitSteerUserItemBeforeResponse = true;
+        final CodexSessionController controller = new CodexSessionController(
+            server,
+            "/private/workspace"
+        );
+        startHeldTurn(server, controller);
+
+        controller.steerTurn("  Zuerst die fehlschlagenden Tests prüfen.  ");
+        waitFor(new Condition() {
+            @Override
+            public boolean isTrue() {
+                return server.lastTurnSteerParams != null
+                    && !controller.snapshot().isOperationActive();
+            }
+        }, "active turn steering completed");
+
+        Map<String, Object> params = server.lastTurnSteerParams;
+        TestSupport.assertEquals(
+            Integer.valueOf(3),
+            Integer.valueOf(params.size()),
+            "turn/steer has only its supported fields"
+        );
+        TestSupport.assertEquals("thr_existing", params.get("threadId"), "steer thread id");
+        TestSupport.assertEquals(
+            "turn_fixture",
+            params.get("expectedTurnId"),
+            "steer expected turn id"
+        );
+        List<Object> input = JsonCodec.requireArray(params.get("input"), "steer input");
+        TestSupport.assertEquals(
+            Integer.valueOf(1),
+            Integer.valueOf(input.size()),
+            "single steering input"
+        );
+        Map<String, Object> text = JsonCodec.requireObject(input.get(0), "steer text");
+        TestSupport.assertEquals("text", text.get("type"), "steer input type");
+        TestSupport.assertEquals(
+            "Zuerst die fehlschlagenden Tests prüfen.",
+            text.get("text"),
+            "trimmed steering text"
+        );
+        TestSupport.assertEquals(
+            Integer.valueOf(1),
+            Integer.valueOf(server.turnStartRequestCount.get()),
+            "steering does not start another turn"
+        );
+        TestSupport.assertTrue(controller.snapshot().isTurnActive(), "steered turn stays active");
+        TestSupport.assertEquals(
+            "turn_fixture",
+            controller.snapshot().getActiveTurnId(),
+            "steered active turn remains correlated"
+        );
+        TestSupport.assertTrue(
+            hasMessage(
+                controller.snapshot(),
+                "steer_user_fixture",
+                "Zuerst die fehlschlagenden Tests prüfen."
+            ),
+            "authoritative steering user item replaces the local projection"
+        );
+
+        controller.interruptTurn();
+        waitFor(new Condition() {
+            @Override
+            public boolean isTrue() {
+                return server.lastTurnInterruptParams != null
+                    && !controller.snapshot().isOperationActive();
+            }
+        }, "interrupt remains available after steering");
+        TestSupport.assertEquals(
+            "turn_fixture",
+            server.lastTurnInterruptParams.get("turnId"),
+            "interrupt targets the steered turn"
+        );
+        controller.close();
+    }
+
+    private static void rejectsUncorrelatedSteering() throws Exception {
+        FixtureServer idleServer = new FixtureServer(true);
+        final CodexSessionController idleController = new CodexSessionController(
+            idleServer,
+            "/private/workspace"
+        );
+        idleController.start();
+        idleController.openThread("thr_existing");
+        waitFor(new Condition() {
+            @Override
+            public boolean isTrue() {
+                return "thr_existing".equals(idleController.snapshot().getActiveThreadId())
+                    && !idleController.snapshot().isOperationActive();
+            }
+        }, "idle thread ready");
+        idleController.steerTurn("Diese Eingabe darf keinen neuen Turn starten.");
+        waitFor(new Condition() {
+            @Override
+            public boolean isTrue() {
+                return !idleController.snapshot().isOperationActive()
+                    && "Kein laufender Turn kann ergänzt werden.".equals(
+                        idleController.snapshot().getErrorMessage()
+                    );
+            }
+        }, "idle steering rejected");
+        TestSupport.assertTrue(
+            idleServer.lastTurnSteerParams == null,
+            "idle steering never reaches transport"
+        );
+        TestSupport.assertEquals(
+            Integer.valueOf(0),
+            Integer.valueOf(idleServer.turnStartRequestCount.get()),
+            "idle steering is never replayed as turn/start"
+        );
+        idleController.close();
+
+        FixtureServer mismatchServer = new FixtureServer(true);
+        mismatchServer.holdTurnOpen = true;
+        mismatchServer.steerResponseTurnId = "turn_other";
+        final CodexSessionController mismatchController = new CodexSessionController(
+            mismatchServer,
+            "/private/workspace"
+        );
+        startHeldTurn(mismatchServer, mismatchController);
+        mismatchController.steerTurn("apiKey=sk-steeringfixture12345");
+        TestSupport.assertContains(
+            mismatchController.snapshot().getErrorMessage(),
+            "Kontobereich",
+            "steering credential rejection"
+        );
+        TestSupport.assertTrue(
+            mismatchServer.lastTurnSteerParams == null,
+            "steering credential never reaches transport"
+        );
+        TestSupport.assertTrue(
+            mismatchController.snapshot().isTurnActive(),
+            "credential rejection leaves the running turn available"
+        );
+        mismatchController.steerTurn("Nicht als bestätigt anzeigen");
+        waitFor(new Condition() {
+            @Override
+            public boolean isTrue() {
+                return !mismatchController.snapshot().isOperationActive()
+                    && "Der App-Server hat einen anderen Turn bestätigt.".equals(
+                        mismatchController.snapshot().getErrorMessage()
+                    );
+            }
+        }, "mismatched steer response rejected");
+        TestSupport.assertFalse(
+            hasMessage(mismatchController.snapshot(), "", "Nicht als bestätigt anzeigen"),
+            "rejected steering projection removed"
+        );
+        TestSupport.assertTrue(
+            mismatchController.snapshot().isTurnActive(),
+            "a malformed steer response does not invent turn completion"
+        );
+        TestSupport.assertEquals(
+            Integer.valueOf(1),
+            Integer.valueOf(mismatchServer.turnStartRequestCount.get()),
+            "mismatched steering is not silently retried"
+        );
+        mismatchController.close();
     }
 
     private static void usesVettedMcpConfigurationRpcs() throws Exception {
@@ -2195,6 +2361,20 @@ public final class CodexSessionControllerTest {
         return false;
     }
 
+    private static boolean hasMessage(
+        CodexSessionSnapshot snapshot,
+        String id,
+        String text
+    ) {
+        for (ChatMessage message : snapshot.getMessages()) {
+            if ((id.isEmpty() || message.getId().equals(id))
+                && message.getText().equals(text)) {
+                return true;
+            }
+        }
+        return false;
+    }
+
     private static ChatMessage messageById(CodexSessionSnapshot snapshot, String id) {
         for (ChatMessage message : snapshot.getMessages()) {
             if (message.getId().equals(id)) {
@@ -2239,6 +2419,8 @@ public final class CodexSessionControllerTest {
         private volatile Map<String, Object> lastThreadResumeParams;
         private volatile Map<String, Object> lastThreadStartParams;
         private volatile Map<String, Object> lastTurnStartParams;
+        private volatile Map<String, Object> lastTurnSteerParams;
+        private volatile Map<String, Object> lastTurnInterruptParams;
         private volatile Map<String, Object> lastCommandExecParams;
         private volatile Map<String, Object> lastTerminalResizeParams;
         private volatile Map<String, Object> lastTerminalTerminateParams;
@@ -2251,7 +2433,10 @@ public final class CodexSessionControllerTest {
         private volatile boolean terminalInputWireBufferWiped;
         private volatile boolean reorderStreamingEvents;
         private volatile boolean holdTurnOpen;
+        private volatile boolean emitSteerUserItemBeforeResponse;
+        private volatile String steerResponseTurnId = "turn_fixture";
         private volatile boolean richHistory;
+        private final AtomicInteger turnStartRequestCount = new AtomicInteger();
         private final AtomicInteger rateLimitsReadCount = new AtomicInteger();
         private volatile boolean lastRateLimitsReadHadParams;
         private volatile long primaryRateLimitUsedPercent = 25L;
@@ -2404,6 +2589,7 @@ public final class CodexSessionControllerTest {
                 ));
             } else if ("turn/start".equals(method)) {
                 lastTurnStartParams = JsonCodec.requireObject(request.get("params"), "params");
+                turnStartRequestCount.incrementAndGet();
                 respond(request, JsonCodec.object(
                     "turn", JsonCodec.object(
                         "id", "turn_fixture",
@@ -2488,6 +2674,30 @@ public final class CodexSessionControllerTest {
                         "error", null
                     )
                 ));
+            } else if ("turn/steer".equals(method)) {
+                lastTurnSteerParams = JsonCodec.requireObject(request.get("params"), "params");
+                if (emitSteerUserItemBeforeResponse) {
+                    Map<String, Object> steerInput = JsonCodec.requireObject(
+                        JsonCodec.requireArray(
+                            lastTurnSteerParams.get("input"),
+                            "steer input"
+                        ).get(0),
+                        "steer text input"
+                    );
+                    notifyMessage("item/completed", JsonCodec.object(
+                        "threadId", "thr_existing",
+                        "turnId", "turn_fixture",
+                        "item", JsonCodec.object(
+                            "id", "steer_user_fixture",
+                            "type", "userMessage",
+                            "content", JsonCodec.array(JsonCodec.object(
+                                "type", "text",
+                                "text", steerInput.get("text")
+                            ))
+                        )
+                    ));
+                }
+                respond(request, JsonCodec.object("turnId", steerResponseTurnId));
             } else if ("command/exec".equals(method)) {
                 lastCommandExecParams = JsonCodec.requireObject(request.get("params"), "params");
                 pendingTerminalRequest = request;
@@ -2552,6 +2762,10 @@ public final class CodexSessionControllerTest {
                 accountType = "";
                 respond(request, JsonCodec.object());
             } else if ("turn/interrupt".equals(method)) {
+                lastTurnInterruptParams = JsonCodec.requireObject(
+                    request.get("params"),
+                    "turn interrupt params"
+                );
                 respond(request, JsonCodec.object());
             }
         }

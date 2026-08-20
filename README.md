@@ -58,7 +58,7 @@ AGENTCODI does more than display a Codex conversation.
 | Python | Packaged runtime |
 | MCP management | Native Android interface backed by Codex configuration RPCs |
 
-The current AGENTCODI 0.5.1 runtime uses **Codex app-server 0.147.2**.
+The current AGENTCODI 0.5.2 runtime uses **Codex app-server 0.147.2**.
 
 ---
 
@@ -72,8 +72,12 @@ AGENTCODI exposes the parts of the Codex app-server workflow that matter during 
 - Resume existing threads
 - Recover thread history
 - Stream responses live
+- Correct or add guidance to an active turn without starting a new turn
 - Interrupt active turns
 - Restart the local runtime explicitly
+
+While a turn is running, the composer switches to **Add guidance** and sends a correlated
+`turn/steer` request to that same turn. The separate **Stop** action remains available.
 
 ### Live activity
 
@@ -218,7 +222,7 @@ This catalog remains a read-only projection of what Codex reports.
 
 ## MCP Expert Mode
 
-AGENTCODI 0.5.1 also includes a guarded Expert Mode for the supported part of the user's MCP configuration.
+AGENTCODI 0.5.2 also includes a guarded Expert Mode for the supported part of the user's MCP configuration.
 
 Supported user-owned servers can be managed through the native interface.
 
@@ -331,7 +335,7 @@ Several sensitive byte and character buffers are explicitly cleared after use.
 
 Current release line:
 
-### AGENTCODI 0.5.1
+### AGENTCODI 0.5.2
 
 | Requirement | Value |
 |---|---|
@@ -382,9 +386,10 @@ Physical Android hardware is used separately to validate installation, UI behavi
 
 AGENTCODI is under active development.
 
-Version 0.5.1 currently focuses heavily on:
+Version 0.5.2 currently focuses heavily on:
 
 - Native Codex runtime integration
+- Correlated in-flight turn steering without losing the separate stop action
 - Read-only, app-server-owned ChatGPT quota visibility
 - MCP visibility and guarded configuration
 - Packaged development toolchains

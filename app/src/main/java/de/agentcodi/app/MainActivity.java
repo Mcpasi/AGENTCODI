@@ -567,7 +567,11 @@ public final class MainActivity extends Activity {
                     return;
                 }
                 editable.clear();
-                AgentRuntimeService.sendMessage(prompt);
+                if (AgentRuntimeService.sessionSnapshot().isTurnActive()) {
+                    AgentRuntimeService.steerTurn(prompt);
+                } else {
+                    AgentRuntimeService.sendMessage(prompt);
+                }
             }
         });
         LinearLayout.LayoutParams sendParams = new LinearLayout.LayoutParams(
@@ -604,8 +608,13 @@ public final class MainActivity extends Activity {
             newThreadButton,
             canChat && !session.isTurnActive() && !interactionOpen
         );
-        composerInput.setEnabled(canChat && !session.isTurnActive() && !interactionOpen);
-        theme.setEnabled(sendButton, canChat && !session.isTurnActive() && !interactionOpen);
+        boolean steering = session.isTurnActive();
+        composerInput.setHint(
+            steering ? R.string.composer_steer_hint : R.string.composer_hint
+        );
+        sendButton.setText(steering ? R.string.turn_steer : R.string.message_send);
+        composerInput.setEnabled(canChat && !interactionOpen);
+        theme.setEnabled(sendButton, canChat && !interactionOpen);
         theme.setEnabled(stopButton, session.isReady() && session.isTurnActive());
         threadAdapter.setData(
             session.getThreads(),

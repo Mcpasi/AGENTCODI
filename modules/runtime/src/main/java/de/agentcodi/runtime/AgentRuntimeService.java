@@ -277,6 +277,13 @@ public final class AgentRuntimeService extends Service {
         }
     }
 
+    public static void steerTurn(String message) {
+        CodexSessionController controller = sessionController;
+        if (controller != null) {
+            controller.steerTurn(message);
+        }
+    }
+
     public static void interruptTurn() {
         CodexSessionController controller = sessionController;
         if (controller != null) {

@@ -187,6 +187,17 @@ if rg -n 'readOnlyAccess|sandboxPolicy' "$PROJECT_ROOT/modules/core/src/main/jav
   exit 1
 fi
 
+if ! rg -q '"turn/steer"' "$mcp_session" \
+    || ! rg -q '"expectedTurnId"' "$mcp_session" \
+    || ! rg -q 'controller\.steerTurn' "$PROJECT_ROOT/modules/runtime/src/main/java/de/agentcodi/runtime/AgentRuntimeService.java" \
+    || ! rg -q 'AgentRuntimeService\.steerTurn' "$PROJECT_ROOT/app/src/main/java/de/agentcodi/app/MainActivity.java" \
+    || ! rg -Fq 'composerInput.setEnabled(canChat && !interactionOpen)' "$PROJECT_ROOT/app/src/main/java/de/agentcodi/app/MainActivity.java" \
+    || ! rg -q 'turn/steer has only its supported fields' "$PROJECT_ROOT/tests/java/de/agentcodi/tests/CodexSessionControllerTest.java" \
+    || ! rg -q -- '--turn-steer-roundtrip' "$PROJECT_ROOT/tests/cpp/agentcodi_engine_test.cpp"; then
+  echo "Correlated active-turn steering is incomplete." >&2
+  exit 1
+fi
+
 if rg -n 'approvalPolicy", "never"' "$PROJECT_ROOT/modules/core/src/main/java/de/agentcodi/core/CodexSessionController.java" \
     || rg -n 'approval_policy=\\"never\\"' "$PROJECT_ROOT/modules/native-engine/src/main/cpp/app_server_process.cpp"; then
   echo "The native interactive flow must not be disabled by the old never-approval policy." >&2
@@ -441,13 +452,13 @@ if ! rg -q 'PYTHON_SOURCE_EXTENSION_COUNT="75"' "$apk_builder" \
   exit 1
 fi
 
-if ! rg -q 'VERSION_NAME = "0\.5\.1"' "$core_root/BuildIdentity.java" \
-    || ! rg -q 'VERSION_CODE = 38' "$core_root/BuildIdentity.java" \
-    || ! rg -q 'android:versionName="0\.5\.1"' "$manifest" \
-    || ! rg -q 'android:versionCode="38"' "$manifest" \
-    || ! rg -q 'APP_VERSION="0\.5\.1"' "$apk_builder" \
-    || ! rg -q 'VERSION_CODE="38"' "$apk_builder"; then
-  echo "The 0.5.1 identity is inconsistent." >&2
+if ! rg -q 'VERSION_NAME = "0\.5\.2"' "$core_root/BuildIdentity.java" \
+    || ! rg -q 'VERSION_CODE = 39' "$core_root/BuildIdentity.java" \
+    || ! rg -q 'android:versionName="0\.5\.2"' "$manifest" \
+    || ! rg -q 'android:versionCode="39"' "$manifest" \
+    || ! rg -q 'APP_VERSION="0\.5\.2"' "$apk_builder" \
+    || ! rg -q 'VERSION_CODE="39"' "$apk_builder"; then
+  echo "The 0.5.2 identity is inconsistent." >&2
   exit 1
 fi
 

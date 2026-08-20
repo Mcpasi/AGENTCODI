@@ -86,7 +86,9 @@
   <string name="reasoning_max">Maximum</string>
   <string name="reasoning_ultra">Ultra</string>
   <string name="composer_hint">Task for Codex…</string>
+  <string name="composer_steer_hint">Correct or add to the running turn…</string>
   <string name="turn_stop">Stop</string>
+  <string name="turn_steer">Add guidance</string>
   <string name="message_send">Send</string>
 
   <string name="transcript_role_you">YOU</string>
@@ -446,8 +448,12 @@
   <string name="core_chat_open">Chat is open.</string>
   <string name="core_message_length">Messages must contain between 1 and 32,768 characters.</string>
   <string name="core_message_sending">Sending message.</string>
+  <string name="core_turn_steering">Sending guidance to the running turn.</string>
+  <string name="core_turn_steer_accepted">Guidance was added to the running turn.</string>
   <string name="core_sign_in_first">Please sign in first.</string>
   <string name="core_turn_still_running">The current turn is still running.</string>
+  <string name="core_no_steerable_turn">There is no running turn that can accept guidance.</string>
+  <string name="core_steer_turn_mismatch">The app-server confirmed a different turn.</string>
   <string name="core_no_stoppable_turn">There is no active turn that can be stopped.</string>
   <string name="core_choose_model_effort">Choose an offered model and reasoning effort.</string>
   <string name="core_codex_working">Codex is working.</string>

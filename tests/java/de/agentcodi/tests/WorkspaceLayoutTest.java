@@ -2,6 +2,7 @@ package de.agentcodi.tests;
 
 import de.agentcodi.storage.WorkspaceLayout;
 import de.agentcodi.storage.WorkspaceImageFile;
+import de.agentcodi.storage.WorkspaceFileAccess;
 
 import java.io.ByteArrayInputStream;
 import java.io.ByteArrayOutputStream;
@@ -39,13 +40,14 @@ public final class WorkspaceLayoutTest {
         acceptsSupportedWorkspaceImage();
         copiesValidatedWorkspaceImage();
         rejectsWorkspaceImageMutationDuringCopy();
+        rejectsImageSymlinkSwapBeforeOpenWithoutWritingBytes();
         rejectsImageOutsideWorkspace();
         rejectsMissingWorkspaceImage();
         acceptsAliasOfWorkspaceRoot();
         rejectsSymbolicWorkspaceImage();
         rejectsUnsupportedWorkspaceFile();
         rejectsOversizedWorkspaceImage();
-        return 23;
+        return 24;
     }
 
     private static void createsStablePrivateLayout() throws Exception {
@@ -656,6 +658,66 @@ public final class WorkspaceLayoutTest {
             );
         } finally {
             deleteRecursively(base);
+        }
+    }
+
+    private static void rejectsImageSymlinkSwapBeforeOpenWithoutWritingBytes()
+        throws Exception {
+        final Path base = Files.createTempDirectory("agentcodi-image-open-race-");
+        final Path outside = Files.createTempFile("agentcodi-image-open-outside-", ".png");
+        try {
+            final WorkspaceLayout layout = WorkspaceLayout.create(base.toFile());
+            final Path image = layout.getWorkspace().toPath().resolve("changing.png");
+            Files.write(image, pngFixture());
+            byte[] outsideImage = pngFixture();
+            outsideImage[outsideImage.length - 1] = 'X';
+            Files.write(outside, outsideImage);
+            final WorkspaceFileAccess.Opener swapping = new WorkspaceFileAccess.Opener() {
+                private boolean swapped;
+
+                @Override
+                public WorkspaceFileAccess.Source open(
+                    File workspaceDirectory,
+                    String relativePath,
+                    long maximumBytes
+                ) throws IOException {
+                    if (!swapped) {
+                        swapped = true;
+                        Files.move(image, image.resolveSibling("changing-before-swap.png"));
+                        Files.createSymbolicLink(image, outside);
+                    }
+                    return WorkspaceFileAccess.secureNioOpener().open(
+                        workspaceDirectory,
+                        relativePath,
+                        maximumBytes
+                    );
+                }
+            };
+            final ByteArrayOutputStream destination = new ByteArrayOutputStream();
+            TestSupport.expectThrows(
+                IOException.class,
+                new TestSupport.ThrowingRunnable() {
+                    @Override
+                    public void run() throws Exception {
+                        WorkspaceImageFile.copyTo(
+                            layout.getWorkspace(),
+                            image.toString(),
+                            1024L,
+                            destination,
+                            swapping
+                        );
+                    }
+                },
+                "image symlink exchange before descriptor open must fail"
+            );
+            TestSupport.assertEquals(
+                Integer.valueOf(0),
+                Integer.valueOf(destination.size()),
+                "image symlink exchange must not write foreign bytes"
+            );
+        } finally {
+            deleteRecursively(base);
+            Files.deleteIfExists(outside);
         }
     }
 

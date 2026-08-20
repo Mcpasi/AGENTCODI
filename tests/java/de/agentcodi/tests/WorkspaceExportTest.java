@@ -2,6 +2,7 @@ package de.agentcodi.tests;
 
 import de.agentcodi.storage.WorkspaceArchive;
 import de.agentcodi.storage.WorkspaceExportFile;
+import de.agentcodi.storage.WorkspaceFileAccess;
 import de.agentcodi.storage.WorkspaceLayout;
 
 import java.io.ByteArrayInputStream;
@@ -11,6 +12,8 @@ import java.io.IOException;
 import java.io.OutputStream;
 import java.nio.file.Files;
 import java.nio.file.Path;
+import java.nio.file.attribute.FileTime;
+import java.time.Instant;
 import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
@@ -28,6 +31,8 @@ public final class WorkspaceExportTest {
         rejectsFileOutsideWorkspace();
         rejectsSymbolicCatalogEntry();
         rejectsHardLinkToPrivateSibling();
+        rejectsFileSymlinkSwapBeforeOpenWithoutWritingBytes();
+        rejectsFileHardLinkSwapBeforeOpenWithoutWritingBytes();
         archivesCompleteWorkspaceWithoutCodexHome();
         createsValidEmptyWorkspaceArchive();
         rejectsArchiveFileAboveLimit();
@@ -35,8 +40,10 @@ public final class WorkspaceExportTest {
         rejectsArchiveFileCountAboveLimit();
         rejectsUnsafePortableArchiveName();
         rejectsPortableArchiveNameCollision();
+        archivesAcrossProviderTimestampPrecision();
         rejectsWorkspaceMutationDuringArchive();
-        return 14;
+        rejectsArchiveSymlinkSwapBeforeOpen();
+        return 18;
     }
 
     private static void catalogsAllRegularFileTypes() throws Exception {
@@ -196,6 +203,128 @@ public final class WorkspaceExportTest {
             );
         } finally {
             deleteRecursively(base);
+        }
+    }
+
+    private static void rejectsFileSymlinkSwapBeforeOpenWithoutWritingBytes()
+        throws Exception {
+        final Path base = Files.createTempDirectory("agentcodi-export-open-symlink-race-");
+        final Path outside = Files.createTempFile(
+            "agentcodi-export-open-symlink-outside-",
+            ".bin"
+        );
+        try {
+            final WorkspaceLayout layout = WorkspaceLayout.create(base.toFile());
+            final Path source = layout.getWorkspace().toPath().resolve("source.bin");
+            Files.write(source, "workspace".getBytes("UTF-8"));
+            Files.write(outside, "outside".getBytes("UTF-8"));
+            final WorkspaceFileAccess.Opener swapping = new WorkspaceFileAccess.Opener() {
+                private boolean swapped;
+
+                @Override
+                public WorkspaceFileAccess.Source open(
+                    File workspaceDirectory,
+                    String relativePath,
+                    long maximumBytes
+                ) throws IOException {
+                    if (!swapped) {
+                        swapped = true;
+                        Files.move(source, source.resolveSibling("source-before-swap.bin"));
+                        Files.createSymbolicLink(source, outside);
+                    }
+                    return WorkspaceFileAccess.secureNioOpener().open(
+                        workspaceDirectory,
+                        relativePath,
+                        maximumBytes
+                    );
+                }
+            };
+            final ByteArrayOutputStream destination = new ByteArrayOutputStream();
+            TestSupport.expectThrows(
+                IOException.class,
+                new TestSupport.ThrowingRunnable() {
+                    @Override
+                    public void run() throws Exception {
+                        WorkspaceExportFile.copyTo(
+                            layout.getWorkspace(),
+                            source.toString(),
+                            1024L,
+                            destination,
+                            swapping
+                        );
+                    }
+                },
+                "symlink exchange before descriptor open must fail"
+            );
+            TestSupport.assertEquals(
+                Integer.valueOf(0),
+                Integer.valueOf(destination.size()),
+                "symlink exchange must not write foreign bytes"
+            );
+        } finally {
+            deleteRecursively(base);
+            Files.deleteIfExists(outside);
+        }
+    }
+
+    private static void rejectsFileHardLinkSwapBeforeOpenWithoutWritingBytes()
+        throws Exception {
+        final Path base = Files.createTempDirectory("agentcodi-export-open-hardlink-race-");
+        final Path outside = Files.createTempFile(
+            "agentcodi-export-open-hardlink-outside-",
+            ".bin"
+        );
+        try {
+            final WorkspaceLayout layout = WorkspaceLayout.create(base.toFile());
+            final Path source = layout.getWorkspace().toPath().resolve("source.bin");
+            Files.write(source, "workspace".getBytes("UTF-8"));
+            Files.write(outside, "outside".getBytes("UTF-8"));
+            final WorkspaceFileAccess.Opener swapping = new WorkspaceFileAccess.Opener() {
+                private boolean swapped;
+
+                @Override
+                public WorkspaceFileAccess.Source open(
+                    File workspaceDirectory,
+                    String relativePath,
+                    long maximumBytes
+                ) throws IOException {
+                    if (!swapped) {
+                        swapped = true;
+                        Files.move(source, source.resolveSibling("source-before-swap.bin"));
+                        Files.createLink(source, outside);
+                    }
+                    return WorkspaceFileAccess.secureNioOpener().open(
+                        workspaceDirectory,
+                        relativePath,
+                        maximumBytes
+                    );
+                }
+            };
+            final ByteArrayOutputStream destination = new ByteArrayOutputStream();
+            TestSupport.expectThrows(
+                IOException.class,
+                new TestSupport.ThrowingRunnable() {
+                    @Override
+                    public void run() throws Exception {
+                        WorkspaceExportFile.copyTo(
+                            layout.getWorkspace(),
+                            source.toString(),
+                            1024L,
+                            destination,
+                            swapping
+                        );
+                    }
+                },
+                "hard-link exchange before descriptor open must fail"
+            );
+            TestSupport.assertEquals(
+                Integer.valueOf(0),
+                Integer.valueOf(destination.size()),
+                "hard-link exchange must not write foreign bytes"
+            );
+        } finally {
+            deleteRecursively(base);
+            Files.deleteIfExists(outside);
         }
     }
 
@@ -377,6 +506,97 @@ public final class WorkspaceExportTest {
         }
     }
 
+    private static void archivesAcrossProviderTimestampPrecision() throws Exception {
+        Path base = Files.createTempDirectory("agentcodi-export-time-precision-");
+        try {
+            WorkspaceLayout layout = WorkspaceLayout.create(base.toFile());
+            Path source = layout.getWorkspace().toPath().resolve("stable.bin");
+            byte[] expected = new byte[] {4, 3, 2, 1};
+            Files.write(source, expected);
+            final WorkspaceFileAccess.Opener differentNanosecondView =
+                new WorkspaceFileAccess.Opener() {
+                    @Override
+                    public WorkspaceFileAccess.Source open(
+                        File workspaceDirectory,
+                        String relativePath,
+                        long maximumBytes
+                    ) throws IOException {
+                        final WorkspaceFileAccess.Source delegate =
+                            WorkspaceFileAccess.secureNioOpener().open(
+                                workspaceDirectory,
+                                relativePath,
+                                maximumBytes
+                            );
+                        return new WorkspaceFileAccess.Source() {
+                            @Override
+                            public long getByteCount() {
+                                return delegate.getByteCount();
+                            }
+
+                            @Override
+                            public FileTime getLastModifiedTime() {
+                                Instant original = delegate.getLastModifiedTime().toInstant();
+                                int remainder = original.getNano() % 1000;
+                                int differentRemainder = remainder == 999
+                                    ? 998
+                                    : remainder + 1;
+                                int adjustedNanos = original.getNano() - remainder
+                                    + differentRemainder;
+                                return FileTime.from(Instant.ofEpochSecond(
+                                    original.getEpochSecond(),
+                                    adjustedNanos
+                                ));
+                            }
+
+                            @Override
+                            public Object getFileKey() {
+                                return delegate.getFileKey();
+                            }
+
+                            @Override
+                            public int read(byte[] buffer, int offset, int length)
+                                throws IOException {
+                                return delegate.read(buffer, offset, length);
+                            }
+
+                            @Override
+                            public void verifyUnchanged() throws IOException {
+                                delegate.verifyUnchanged();
+                            }
+
+                            @Override
+                            public void close() throws IOException {
+                                delegate.close();
+                            }
+                        };
+                    }
+                };
+            ByteArrayOutputStream destination = new ByteArrayOutputStream();
+            WorkspaceArchive.Summary summary = WorkspaceArchive.write(
+                layout.getWorkspace(),
+                destination,
+                10,
+                1024L,
+                4096L,
+                256,
+                8,
+                differentNanosecondView
+            );
+            Map<String, byte[]> entries = unzip(destination.toByteArray());
+            TestSupport.assertEquals(
+                Integer.valueOf(1),
+                Integer.valueOf(summary.getFileCount()),
+                "provider timestamp precision does not invent a mutation"
+            );
+            TestSupport.assertTrue(
+                java.util.Arrays.equals(expected, entries.get("stable.bin")),
+                "provider timestamp precision preserves ZIP bytes"
+            );
+        } finally {
+            deleteRecursively(base);
+        }
+    }
+
     private static void rejectsWorkspaceMutationDuringArchive() throws Exception {
         final Path base = Files.createTempDirectory("agentcodi-export-archive-race-");
         try {
@@ -428,6 +648,70 @@ public final class WorkspaceExportTest {
             );
         } finally {
             deleteRecursively(base);
+        }
+    }
+
+    private static void rejectsArchiveSymlinkSwapBeforeOpen() throws Exception {
+        final Path base = Files.createTempDirectory("agentcodi-export-zip-open-race-");
+        final Path outside = Files.createTempFile(
+            "agentcodi-export-zip-open-outside-",
+            ".bin"
+        );
+        try {
+            final WorkspaceLayout layout = WorkspaceLayout.create(base.toFile());
+            final Path source = layout.getWorkspace().toPath().resolve("source.bin");
+            Files.write(source, "workspace".getBytes("UTF-8"));
+            Files.write(outside, "outside".getBytes("UTF-8"));
+            final WorkspaceFileAccess.Opener swapping = new WorkspaceFileAccess.Opener() {
+                private boolean swapped;
+
+                @Override
+                public WorkspaceFileAccess.Source open(
+                    File workspaceDirectory,
+                    String relativePath,
+                    long maximumBytes
+                ) throws IOException {
+                    if (!swapped) {
+                        swapped = true;
+                        Files.move(source, source.resolveSibling("source-before-swap.bin"));
+                        Files.createSymbolicLink(source, outside);
+                    }
+                    return WorkspaceFileAccess.secureNioOpener().open(
+                        workspaceDirectory,
+                        relativePath,
+                        maximumBytes
+                    );
+                }
+            };
+            final ByteArrayOutputStream destination = new ByteArrayOutputStream();
+            TestSupport.expectThrows(
+                IOException.class,
+                new TestSupport.ThrowingRunnable() {
+                    @Override
+                    public void run() throws Exception {
+                        WorkspaceArchive.write(
+                            layout.getWorkspace(),
+                            destination,
+                            10,
+                            1024L,
+                            4096L,
+                            256,
+                            8,
+                            swapping
+                        );
+                    }
+                },
+                "ZIP symlink exchange before descriptor open must fail"
+            );
+            Map<String, byte[]> entries = unzip(destination.toByteArray());
+            byte[] exported = entries.get("source.bin");
+            TestSupport.assertTrue(
+                exported == null || exported.length == 0,
+                "ZIP exchange must not include foreign bytes"
+            );
+        } finally {
+            deleteRecursively(base);
+            Files.deleteIfExists(outside);
         }
     }
 

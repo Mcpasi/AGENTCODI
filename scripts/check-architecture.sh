@@ -247,8 +247,10 @@ if ! rg -q 'CompactInboundImagePayloads' "$PROJECT_ROOT/modules/native-engine/sr
     exit 1
 fi
 
-if ! rg -q 'WorkspaceImageFile\.inspect' "$PROJECT_ROOT/modules/runtime/src/main/java/de/agentcodi/runtime/WorkspaceImageExporter.java" \
-    || ! rg -q 'WorkspaceImageFile\.copyTo' "$PROJECT_ROOT/modules/runtime/src/main/java/de/agentcodi/runtime/WorkspaceImageExporter.java" \
+image_exporter="$PROJECT_ROOT/modules/runtime/src/main/java/de/agentcodi/runtime/WorkspaceImageExporter.java"
+if ! rg -q 'WorkspaceImageFile\.inspect' "$image_exporter" \
+    || ! rg -q 'WorkspaceImageFile\.copyTo' "$image_exporter" \
+    || ! rg -q 'NativeWorkspaceFileAccess\.opener' "$image_exporter" \
     || ! rg -q 'Intent\.ACTION_CREATE_DOCUMENT' "$PROJECT_ROOT/app/src/main/java/de/agentcodi/app/MainActivity.java" \
     || ! rg -q 'getReportedImagePath' "$PROJECT_ROOT/app/src/main/java/de/agentcodi/app/MainActivity.java" \
     || ! rg -q 'R\.string\.image_export' "$PROJECT_ROOT/app/src/main/java/de/agentcodi/app/MainActivity.java" \
@@ -259,11 +261,29 @@ fi
 
 workspace_exporter="$PROJECT_ROOT/modules/runtime/src/main/java/de/agentcodi/runtime/WorkspaceFileExporter.java"
 settings_activity="$PROJECT_ROOT/app/src/main/java/de/agentcodi/app/SettingsActivity.java"
+workspace_reader="$PROJECT_ROOT/modules/native-engine/src/main/cpp/workspace_file_reader.cpp"
+workspace_access="$PROJECT_ROOT/modules/storage/src/main/java/de/agentcodi/storage/WorkspaceFileAccess.java"
+workspace_archive="$PROJECT_ROOT/modules/storage/src/main/java/de/agentcodi/storage/WorkspaceArchive.java"
 if ! rg -q 'WorkspaceExportFile\.list' "$workspace_exporter" \
     || ! rg -q 'WorkspaceExportFile\.copyTo' "$workspace_exporter" \
     || ! rg -q 'WorkspaceArchive\.write' "$workspace_exporter" \
+    || ! rg -q 'NativeWorkspaceFileAccess\.opener' "$workspace_exporter" \
     || ! rg -q 'layout\.getWorkspace\(\)' "$workspace_exporter" \
-    || ! rg -q '"unix:nlink"' "$PROJECT_ROOT/modules/storage/src/main/java/de/agentcodi/storage/WorkspaceFileBoundary.java" \
+    || ! rg -q '"unix:nlink,fileKey"' "$PROJECT_ROOT/modules/storage/src/main/java/de/agentcodi/storage/WorkspaceFileBoundary.java" \
+    || ! rg -q 'expectedFileKey\.equals\(fileKey\)' "$PROJECT_ROOT/modules/storage/src/main/java/de/agentcodi/storage/WorkspaceFileBoundary.java" \
+    || ! rg -q 'SecureDirectoryStream' "$workspace_access" \
+    || ! rg -q 'hasSameOpenedSnapshot' "$workspace_archive" \
+    || ! rg -q 'getNano\(\) / 1000' "$PROJECT_ROOT/modules/storage/src/main/java/de/agentcodi/storage/WorkspaceExportFile.java" \
+    || ! rg -q 'archivesAcrossProviderTimestampPrecision' "$PROJECT_ROOT/tests/java/de/agentcodi/tests/WorkspaceExportTest.java" \
+    || ! rg -q 'openat\(' "$workspace_reader" \
+    || ! rg -q 'O_NOFOLLOW' "$workspace_reader" \
+    || ! rg -q 'fstat\(' "$workspace_reader" \
+    || ! rg -q 'st_nlink != 1' "$workspace_reader" \
+    || ! rg -q 'nativeOpenWorkspaceFile' "$PROJECT_ROOT/modules/runtime/src/main/java/de/agentcodi/runtime/NativeEngine.java" \
+    || ! rg -q 'workspace_file_reader\.cpp' "$apk_builder" \
+    || rg -q 'FileInputStream' \
+      "$PROJECT_ROOT/modules/storage/src/main/java/de/agentcodi/storage/WorkspaceExportFile.java" \
+      "$PROJECT_ROOT/modules/storage/src/main/java/de/agentcodi/storage/WorkspaceImageFile.java" \
     || rg -q 'getCodexHome|auth\.json' "$workspace_exporter" \
     || ! rg -q 'R\.string\.workspace_file_choose' "$settings_activity" \
     || ! rg -q 'R\.string\.workspace_archive_export' "$settings_activity" \
@@ -452,13 +472,13 @@ if ! rg -q 'PYTHON_SOURCE_EXTENSION_COUNT="75"' "$apk_builder" \
   exit 1
 fi
 
-if ! rg -q 'VERSION_NAME = "0\.5\.2"' "$core_root/BuildIdentity.java" \
-    || ! rg -q 'VERSION_CODE = 39' "$core_root/BuildIdentity.java" \
-    || ! rg -q 'android:versionName="0\.5\.2"' "$manifest" \
-    || ! rg -q 'android:versionCode="39"' "$manifest" \
-    || ! rg -q 'APP_VERSION="0\.5\.2"' "$apk_builder" \
-    || ! rg -q 'VERSION_CODE="39"' "$apk_builder"; then
-  echo "The 0.5.2 identity is inconsistent." >&2
+if ! rg -q 'VERSION_NAME = "0\.5\.3"' "$core_root/BuildIdentity.java" \
+    || ! rg -q 'VERSION_CODE = 40' "$core_root/BuildIdentity.java" \
+    || ! rg -q 'android:versionName="0\.5\.3"' "$manifest" \
+    || ! rg -q 'android:versionCode="40"' "$manifest" \
+    || ! rg -q 'APP_VERSION="0\.5\.3"' "$apk_builder" \
+    || ! rg -q 'VERSION_CODE="40"' "$apk_builder"; then
+  echo "The 0.5.3 identity is inconsistent." >&2
   exit 1
 fi
 

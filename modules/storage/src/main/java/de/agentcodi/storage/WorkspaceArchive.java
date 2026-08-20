@@ -55,8 +55,33 @@ public final class WorkspaceArchive {
         int maximumRelativePathCharacters,
         int maximumDepth
     ) throws IOException {
+        return write(
+            workspaceDirectory,
+            destination,
+            maximumFiles,
+            maximumFileBytes,
+            maximumTotalBytes,
+            maximumRelativePathCharacters,
+            maximumDepth,
+            WorkspaceFileAccess.secureNioOpener()
+        );
+    }
+
+    public static Summary write(
+        File workspaceDirectory,
+        OutputStream destination,
+        int maximumFiles,
+        long maximumFileBytes,
+        long maximumTotalBytes,
+        int maximumRelativePathCharacters,
+        int maximumDepth,
+        WorkspaceFileAccess.Opener opener
+    ) throws IOException {
         if (destination == null) {
             throw new IllegalArgumentException("destination must not be null");
+        }
+        if (opener == null) {
+            throw new IllegalArgumentException("opener must not be null");
         }
         Summary before = inspect(
             workspaceDirectory,
@@ -80,9 +105,15 @@ public final class WorkspaceArchive {
                         workspaceDirectory,
                         file.getAbsolutePath(),
                         maximumFileBytes,
-                        new CountingOutputStream(zip, counter)
+                        new CountingOutputStream(zip, counter),
+                        opener
                     );
-                    if (!copied.hasSameSnapshot(file)) {
+                    // Android's Java Unix provider exposes mtime at microsecond
+                    // precision while the native fstat handle retains nanoseconds.
+                    // Only this cross-provider comparison uses their common
+                    // precision. The source handle still verifies its full native
+                    // mtime/ctime snapshot, and both Java catalog scans remain exact.
+                    if (!copied.hasSameOpenedSnapshot(file)) {
                         throw new IOException("Workspace changed while the archive was created");
                     }
                 } finally {

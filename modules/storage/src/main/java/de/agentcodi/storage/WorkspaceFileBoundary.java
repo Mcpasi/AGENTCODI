@@ -7,6 +7,7 @@ import java.nio.file.LinkOption;
 import java.nio.file.Path;
 import java.nio.file.attribute.BasicFileAttributes;
 import java.nio.file.attribute.FileTime;
+import java.util.Map;
 
 final class WorkspaceFileBoundary {
     private WorkspaceFileBoundary() {
@@ -61,6 +62,49 @@ final class WorkspaceFileBoundary {
         );
     }
 
+    static OpenedFile openRegularFile(
+        File workspaceDirectory,
+        String requestedPath,
+        long maximumBytes,
+        WorkspaceFileAccess.Opener opener
+    ) throws IOException {
+        if (opener == null) {
+            throw new IllegalArgumentException("opener must not be null");
+        }
+        ResolvedFile resolved = resolveRegularFile(
+            workspaceDirectory,
+            requestedPath,
+            maximumBytes
+        );
+        Path workspace = requireWorkspace(workspaceDirectory);
+        WorkspaceFileAccess.Source source = opener.open(
+            workspace.toFile(),
+            resolved.relativePath,
+            maximumBytes
+        );
+        boolean accepted = false;
+        try {
+            long byteCount = source.getByteCount();
+            if (byteCount < 0L || byteCount > maximumBytes) {
+                throw new IOException("Workspace file size is outside the export limit");
+            }
+            if (source.getLastModifiedTime() == null) {
+                throw new IOException("Workspace file timestamp is unavailable");
+            }
+            OpenedFile opened = new OpenedFile(
+                resolved.file,
+                resolved.relativePath,
+                source
+            );
+            accepted = true;
+            return opened;
+        } finally {
+            if (!accepted) {
+                source.close();
+            }
+        }
+    }
+
     static Path requireWorkspace(File workspaceDirectory) throws IOException {
         if (workspaceDirectory == null) {
             throw new IllegalArgumentException("workspaceDirectory must not be null");
@@ -101,16 +145,29 @@ final class WorkspaceFileBoundary {
     }
 
     static void requireSingleLink(Path path) throws IOException {
-        final Object value;
+        requireSingleLink(path, null);
+    }
+
+    static void requireSingleLink(Path path, Object expectedFileKey) throws IOException {
+        final Map<String, Object> attributes;
         try {
-            value = Files.getAttribute(path, "unix:nlink", LinkOption.NOFOLLOW_LINKS);
+            attributes = Files.readAttributes(
+                path,
+                "unix:nlink,fileKey",
+                LinkOption.NOFOLLOW_LINKS
+            );
         } catch (UnsupportedOperationException error) {
             throw new IOException("Filesystem cannot verify the workspace hard-link boundary", error);
         } catch (IllegalArgumentException error) {
             throw new IOException("Filesystem cannot verify the workspace hard-link boundary", error);
         }
+        Object value = attributes.get("nlink");
         if (!(value instanceof Number) || ((Number) value).longValue() != 1L) {
             throw new IOException("Hard-linked workspace files are not exportable");
+        }
+        Object fileKey = attributes.get("fileKey");
+        if (expectedFileKey != null && !expectedFileKey.equals(fileKey)) {
+            throw new IOException("Workspace file changed while its link count was checked");
         }
     }
 
@@ -157,6 +214,39 @@ final class WorkspaceFileBoundary {
             this.byteCount = byteCount;
             this.lastModifiedTime = lastModifiedTime;
             this.fileKey = fileKey;
+        }
+    }
+
+    static final class OpenedFile implements AutoCloseable {
+        final File file;
+        final String relativePath;
+        final WorkspaceFileAccess.Source source;
+
+        OpenedFile(
+            File file,
+            String relativePath,
+            WorkspaceFileAccess.Source source
+        ) {
+            this.file = file;
+            this.relativePath = relativePath;
+            this.source = source;
+        }
+
+        long getByteCount() {
+            return source.getByteCount();
+        }
+
+        FileTime getLastModifiedTime() {
+            return source.getLastModifiedTime();
+        }
+
+        Object getFileKey() {
+            return source.getFileKey();
+        }
+
+        @Override
+        public void close() throws IOException {
+            source.close();
         }
     }
 }

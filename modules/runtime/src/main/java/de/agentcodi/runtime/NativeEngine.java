@@ -68,6 +68,35 @@ public final class NativeEngine {
         return nativeStopAppServer(handle, timeoutMilliseconds);
     }
 
+    static long openWorkspaceFile(
+        String workspace,
+        String relativePath,
+        long maximumBytes
+    ) throws IOException {
+        return nativeOpenWorkspaceFile(workspace, relativePath, maximumBytes);
+    }
+
+    static long[] workspaceFileMetadata(long handle) throws IOException {
+        return nativeWorkspaceFileMetadata(handle);
+    }
+
+    static int readWorkspaceFile(
+        long handle,
+        byte[] destination,
+        int offset,
+        int length
+    ) throws IOException {
+        return nativeReadWorkspaceFile(handle, destination, offset, length);
+    }
+
+    static void verifyWorkspaceFile(long handle) throws IOException {
+        nativeVerifyWorkspaceFile(handle);
+    }
+
+    static void closeWorkspaceFile(long handle) {
+        nativeCloseWorkspaceFile(handle);
+    }
+
     private static native String nativeVersion();
 
     private static native int nativeSelfTest();
@@ -103,4 +132,25 @@ public final class NativeEngine {
     ) throws IOException;
 
     private static native int nativeStopAppServer(long handle, int timeoutMilliseconds);
+
+    private static native long nativeOpenWorkspaceFile(
+        String workspace,
+        String relativePath,
+        long maximumBytes
+    ) throws IOException;
+
+    private static native long[] nativeWorkspaceFileMetadata(long handle)
+        throws IOException;
+
+    private static native int nativeReadWorkspaceFile(
+        long handle,
+        byte[] destination,
+        int offset,
+        int length
+    ) throws IOException;
+
+    private static native void nativeVerifyWorkspaceFile(long handle)
+        throws IOException;
+
+    private static native void nativeCloseWorkspaceFile(long handle);
 }

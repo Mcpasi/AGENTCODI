@@ -58,7 +58,7 @@ AGENTCODI does more than display a Codex conversation.
 | Python | Packaged runtime |
 | MCP management | Native Android interface backed by Codex configuration RPCs |
 
-The current AGENTCODI 0.5.2 runtime uses **Codex app-server 0.147.2**.
+The current AGENTCODI 0.5.3 runtime uses **Codex app-server 0.147.2**.
 
 ---
 
@@ -152,7 +152,7 @@ The storage layer keeps separate areas for:
 
 Workspace and Codex home are deliberately separated.
 
-The application also validates canonical paths and rejects unsafe symbolic-link boundaries.
+The application also validates canonical paths and rejects unsafe symbolic-link and hard-link boundaries.
 
 ### Export
 
@@ -162,7 +162,7 @@ Supported workspace exports include:
 - Images
 - Bounded ZIP archives
 
-Export paths and archive contents pass through dedicated validation before leaving the private workspace.
+Export paths and archive contents pass through dedicated validation before leaving the private workspace. Version 0.5.3 reads each exported file from a descriptor opened component by component relative to the private workspace without following links, then verifies that same descriptor and its workspace name. A concurrent path, symlink, parent-directory or hard-link exchange therefore fails without redirecting reads outside the workspace. ZIP correlation compares Java and native modification times at their common microsecond precision, while the native descriptor still validates its full nanosecond `mtime`/`ctime` snapshot and the Java catalog remains exactly checked before and after the archive.
 
 ---
 
@@ -222,7 +222,7 @@ This catalog remains a read-only projection of what Codex reports.
 
 ## MCP Expert Mode
 
-AGENTCODI 0.5.2 also includes a guarded Expert Mode for the supported part of the user's MCP configuration.
+AGENTCODI 0.5.3 also includes a guarded Expert Mode for the supported part of the user's MCP configuration.
 
 Supported user-owned servers can be managed through the native interface.
 
@@ -318,6 +318,7 @@ Current safeguards include:
 - Separate workspace and Codex home
 - Canonical path validation
 - Symbolic-link boundary checks
+- Descriptor-relative, no-follow workspace exports with opened-file identity and link-count checks
 - Bounded protocol messages
 - Bounded terminal input and output
 - Credential detection and redaction in sensitive paths
@@ -335,7 +336,7 @@ Several sensitive byte and character buffers are explicitly cleared after use.
 
 Current release line:
 
-### AGENTCODI 0.5.2
+### AGENTCODI 0.5.3
 
 | Requirement | Value |
 |---|---|
@@ -386,7 +387,7 @@ Physical Android hardware is used separately to validate installation, UI behavi
 
 AGENTCODI is under active development.
 
-Version 0.5.2 currently focuses heavily on:
+Version 0.5.3 currently focuses heavily on:
 
 - Native Codex runtime integration
 - Correlated in-flight turn steering without losing the separate stop action
@@ -395,6 +396,7 @@ Version 0.5.2 currently focuses heavily on:
 - Packaged development toolchains
 - Android runtime stability
 - Workspace boundaries
+- Race-free individual-file, image and ZIP source opening
 - Approval handling
 - Build and release integrity
 

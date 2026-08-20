@@ -1,5 +1,6 @@
 #include "agentcodi_engine.h"
 #include "app_server_process.h"
+#include "workspace_file_reader.h"
 
 #include <jni.h>
 
@@ -19,6 +20,11 @@ jstring to_java_string(JNIEnv* environment, const std::string& value) {
 std::mutex process_registry_mutex;
 std::unordered_map<jlong, std::shared_ptr<agentcodi::AppServerProcess>> process_registry;
 std::atomic<jlong> next_process_handle{1};
+
+std::mutex workspace_file_registry_mutex;
+std::unordered_map<jlong, std::shared_ptr<agentcodi::WorkspaceFileReader>>
+    workspace_file_registry;
+std::atomic<jlong> next_workspace_file_handle{1};
 
 void throw_io_exception(JNIEnv* environment, const std::string& message) {
   if (environment->ExceptionCheck()) {
@@ -56,6 +62,12 @@ std::shared_ptr<agentcodi::AppServerProcess> find_process(jlong handle) {
   std::lock_guard<std::mutex> guard(process_registry_mutex);
   const auto found = process_registry.find(handle);
   return found == process_registry.end() ? nullptr : found->second;
+}
+
+std::shared_ptr<agentcodi::WorkspaceFileReader> find_workspace_file(jlong handle) {
+  std::lock_guard<std::mutex> guard(workspace_file_registry_mutex);
+  const auto found = workspace_file_registry.find(handle);
+  return found == workspace_file_registry.end() ? nullptr : found->second;
 }
 
 }  // namespace
@@ -263,4 +275,171 @@ Java_de_agentcodi_runtime_NativeEngine_nativeStopAppServer(
     process_registry.erase(found);
   }
   return static_cast<jint>(process->Stop(timeout_milliseconds));
+}
+
+extern "C" JNIEXPORT jlong JNICALL
+Java_de_agentcodi_runtime_NativeEngine_nativeOpenWorkspaceFile(
+    JNIEnv* environment,
+    jclass,
+    jstring workspace,
+    jstring relative_path,
+    jlong maximum_bytes) {
+  if (maximum_bytes < 0) {
+    throw_io_exception(environment, "Workspace file byte limit is invalid");
+    return 0;
+  }
+  std::string workspace_value;
+  std::string relative_path_value;
+  if (!from_java_string(
+          environment,
+          workspace,
+          "Workspace root",
+          &workspace_value)
+      || !from_java_string(
+          environment,
+          relative_path,
+          "Workspace relative path",
+          &relative_path_value)) {
+    return 0;
+  }
+  std::string error;
+  std::unique_ptr<agentcodi::WorkspaceFileReader> opened =
+      agentcodi::WorkspaceFileReader::Open(
+          workspace_value,
+          relative_path_value,
+          static_cast<std::int64_t>(maximum_bytes),
+          &error);
+  if (opened == nullptr) {
+    throw_io_exception(
+        environment,
+        error.empty() ? "Workspace file could not be opened safely" : error);
+    return 0;
+  }
+  const jlong handle = next_workspace_file_handle.fetch_add(1);
+  if (handle <= 0) {
+    throw_io_exception(environment, "Workspace file handle space is exhausted");
+    return 0;
+  }
+  {
+    std::lock_guard<std::mutex> guard(workspace_file_registry_mutex);
+    workspace_file_registry.emplace(
+        handle,
+        std::shared_ptr<agentcodi::WorkspaceFileReader>(std::move(opened)));
+  }
+  return handle;
+}
+
+extern "C" JNIEXPORT jlongArray JNICALL
+Java_de_agentcodi_runtime_NativeEngine_nativeWorkspaceFileMetadata(
+    JNIEnv* environment,
+    jclass,
+    jlong handle) {
+  std::shared_ptr<agentcodi::WorkspaceFileReader> source =
+      find_workspace_file(handle);
+  if (source == nullptr) {
+    throw_io_exception(environment, "Workspace file handle is not open");
+    return nullptr;
+  }
+  const agentcodi::WorkspaceFileMetadata& metadata = source->metadata();
+  const jlong values[] = {
+      static_cast<jlong>(metadata.size),
+      static_cast<jlong>(metadata.modified_seconds),
+      static_cast<jlong>(metadata.modified_nanoseconds),
+      static_cast<jlong>(metadata.changed_seconds),
+      static_cast<jlong>(metadata.changed_nanoseconds),
+      static_cast<jlong>(metadata.device),
+      static_cast<jlong>(metadata.inode),
+  };
+  jlongArray result = environment->NewLongArray(
+      static_cast<jsize>(sizeof(values) / sizeof(values[0])));
+  if (result == nullptr) {
+    return nullptr;
+  }
+  environment->SetLongArrayRegion(
+      result,
+      0,
+      static_cast<jsize>(sizeof(values) / sizeof(values[0])),
+      values);
+  return result;
+}
+
+extern "C" JNIEXPORT jint JNICALL
+Java_de_agentcodi_runtime_NativeEngine_nativeReadWorkspaceFile(
+    JNIEnv* environment,
+    jclass,
+    jlong handle,
+    jbyteArray destination,
+    jint offset,
+    jint length) {
+  if (destination == nullptr || length <= 0 || length > 64 * 1024) {
+    throw_io_exception(environment, "Workspace file read request is invalid");
+    return -1;
+  }
+  const jsize destination_length = environment->GetArrayLength(destination);
+  if (offset < 0 || offset > destination_length - length) {
+    throw_io_exception(environment, "Workspace file read bounds are invalid");
+    return -1;
+  }
+  std::shared_ptr<agentcodi::WorkspaceFileReader> source =
+      find_workspace_file(handle);
+  if (source == nullptr) {
+    throw_io_exception(environment, "Workspace file handle is not open");
+    return -1;
+  }
+  std::vector<unsigned char> buffer(static_cast<std::size_t>(length));
+  std::string error;
+  const ssize_t count = source->Read(buffer.data(), buffer.size(), &error);
+  if (count < 0) {
+    volatile unsigned char* cursor = buffer.data();
+    for (std::size_t index = 0; index < buffer.size(); ++index) {
+      cursor[index] = 0U;
+    }
+    throw_io_exception(
+        environment,
+        error.empty() ? "Workspace file read failed" : error);
+    return -1;
+  }
+  if (count > 0) {
+    environment->SetByteArrayRegion(
+        destination,
+        offset,
+        static_cast<jsize>(count),
+        reinterpret_cast<const jbyte*>(buffer.data()));
+  }
+  volatile unsigned char* cursor = buffer.data();
+  for (std::size_t index = 0; index < buffer.size(); ++index) {
+    cursor[index] = 0U;
+  }
+  if (environment->ExceptionCheck()) {
+    return -1;
+  }
+  return count == 0 ? -1 : static_cast<jint>(count);
+}
+
+extern "C" JNIEXPORT void JNICALL
+Java_de_agentcodi_runtime_NativeEngine_nativeVerifyWorkspaceFile(
+    JNIEnv* environment,
+    jclass,
+    jlong handle) {
+  std::shared_ptr<agentcodi::WorkspaceFileReader> source =
+      find_workspace_file(handle);
+  if (source == nullptr) {
+    throw_io_exception(environment, "Workspace file handle is not open");
+    return;
+  }
+  std::string error;
+  if (!source->VerifyUnchanged(&error)) {
+    throw_io_exception(
+        environment,
+        error.empty() ? "Workspace file changed during export" : error);
+  }
+}
+
+extern "C" JNIEXPORT void JNICALL
+Java_de_agentcodi_runtime_NativeEngine_nativeCloseWorkspaceFile(
+    JNIEnv*,
+    jclass,
+    jlong handle) {
+  std::lock_guard<std::mutex> guard(workspace_file_registry_mutex);
+  workspace_file_registry.erase(handle);
 }

@@ -37,7 +37,8 @@ public final class WorkspaceImageExporter {
         WorkspaceImageFile.inspect(
             layout.getWorkspace(),
             sourcePath,
-            MAXIMUM_IMAGE_BYTES
+            MAXIMUM_IMAGE_BYTES,
+            NativeWorkspaceFileAccess.opener()
         );
         ContentResolver resolver = context.getContentResolver();
         OutputStream output = resolver.openOutputStream(destination, "w");
@@ -50,7 +51,8 @@ public final class WorkspaceImageExporter {
                 layout.getWorkspace(),
                 sourcePath,
                 MAXIMUM_IMAGE_BYTES,
-                destinationStream
+                destinationStream,
+                NativeWorkspaceFileAccess.opener()
             );
         }
         return new ImageExport(
@@ -66,7 +68,8 @@ public final class WorkspaceImageExporter {
         return WorkspaceImageFile.inspect(
             layout.getWorkspace(),
             sourcePath,
-            MAXIMUM_IMAGE_BYTES
+            MAXIMUM_IMAGE_BYTES,
+            NativeWorkspaceFileAccess.opener()
         );
     }
 

@@ -47,7 +47,8 @@ public final class WorkspaceFileExporter {
         return toFileExport(WorkspaceExportFile.inspect(
             layout.getWorkspace(),
             sourcePath,
-            MAXIMUM_FILE_BYTES
+            MAXIMUM_FILE_BYTES,
+            NativeWorkspaceFileAccess.opener()
         ));
     }
 
@@ -61,7 +62,8 @@ public final class WorkspaceFileExporter {
         WorkspaceExportFile.inspect(
             layout.getWorkspace(),
             sourcePath,
-            MAXIMUM_FILE_BYTES
+            MAXIMUM_FILE_BYTES,
+            NativeWorkspaceFileAccess.opener()
         );
         OutputStream output = openDestination(context, destination);
         WorkspaceExportFile exported;
@@ -70,7 +72,8 @@ public final class WorkspaceFileExporter {
                 layout.getWorkspace(),
                 sourcePath,
                 MAXIMUM_FILE_BYTES,
-                destinationStream
+                destinationStream,
+                NativeWorkspaceFileAccess.opener()
             );
         }
         return toFileExport(exported);
@@ -114,7 +117,8 @@ public final class WorkspaceFileExporter {
                 MAXIMUM_FILE_BYTES,
                 MAXIMUM_ARCHIVE_BYTES,
                 MAXIMUM_RELATIVE_PATH_CHARACTERS,
-                MAXIMUM_DIRECTORY_DEPTH
+                MAXIMUM_DIRECTORY_DEPTH,
+                NativeWorkspaceFileAccess.opener()
             );
         }
         return new ArchiveExport(

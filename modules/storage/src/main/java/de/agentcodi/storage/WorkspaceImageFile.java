@@ -1,7 +1,6 @@
 package de.agentcodi.storage;
 
 import java.io.File;
-import java.io.FileInputStream;
 import java.io.IOException;
 import java.io.OutputStream;
 import java.nio.file.attribute.FileTime;
@@ -37,38 +36,49 @@ public final class WorkspaceImageFile {
         String requestedPath,
         long maximumBytes
     ) throws IOException {
+        return inspect(
+            workspaceDirectory,
+            requestedPath,
+            maximumBytes,
+            WorkspaceFileAccess.secureNioOpener()
+        );
+    }
+
+    public static WorkspaceImageFile inspect(
+        File workspaceDirectory,
+        String requestedPath,
+        long maximumBytes,
+        WorkspaceFileAccess.Opener opener
+    ) throws IOException {
+        requireRequest(requestedPath, maximumBytes);
+        try (WorkspaceFileBoundary.OpenedFile opened =
+                WorkspaceFileBoundary.openRegularFile(
+                    workspaceDirectory,
+                    requestedPath,
+                    maximumBytes,
+                    opener
+                )) {
+            long byteCount = opened.getByteCount();
+            if (byteCount <= 0L) {
+                throw new IOException("Workspace image size is outside the export limit");
+            }
+            byte[] header = readHeader(opened.source);
+            String mimeType = detectMimeType(header);
+            if (mimeType.isEmpty()) {
+                throw new IOException("Workspace file is not a supported image");
+            }
+            opened.source.verifyUnchanged();
+            return fromOpened(opened, mimeType);
+        }
+    }
+
+    private static void requireRequest(String requestedPath, long maximumBytes) {
         if (requestedPath == null || requestedPath.trim().isEmpty()) {
             throw new IllegalArgumentException("requestedPath must not be blank");
         }
         if (maximumBytes <= 0L) {
             throw new IllegalArgumentException("maximumBytes must be positive");
         }
-
-        WorkspaceFileBoundary.ResolvedFile resolved =
-            WorkspaceFileBoundary.resolveRegularFile(
-                workspaceDirectory,
-                requestedPath,
-                maximumBytes
-            );
-        File candidate = resolved.file;
-        long byteCount = resolved.byteCount;
-        if (byteCount <= 0L) {
-            throw new IOException("Workspace image size is outside the export limit");
-        }
-
-        byte[] header = readHeader(candidate);
-        String mimeType = detectMimeType(header);
-        if (mimeType.isEmpty()) {
-            throw new IOException("Workspace file is not a supported image");
-        }
-        return new WorkspaceImageFile(
-            candidate,
-            safeDisplayName(candidate.getName(), mimeType),
-            mimeType,
-            byteCount,
-            resolved.lastModifiedTime,
-            resolved.fileKey
-        );
     }
 
     public static WorkspaceImageFile copyTo(
@@ -77,33 +87,58 @@ public final class WorkspaceImageFile {
         long maximumBytes,
         OutputStream destination
     ) throws IOException {
+        return copyTo(
+            workspaceDirectory,
+            requestedPath,
+            maximumBytes,
+            destination,
+            WorkspaceFileAccess.secureNioOpener()
+        );
+    }
+
+    public static WorkspaceImageFile copyTo(
+        File workspaceDirectory,
+        String requestedPath,
+        long maximumBytes,
+        OutputStream destination,
+        WorkspaceFileAccess.Opener opener
+    ) throws IOException {
         if (destination == null) {
             throw new IllegalArgumentException("destination must not be null");
         }
-        WorkspaceImageFile image = inspect(
-            workspaceDirectory,
-            requestedPath,
-            maximumBytes
-        );
-        try (FileInputStream input = new FileInputStream(image.file)) {
-            byte[] buffer = new byte[8192];
-            int firstCount = readPrefix(input, buffer, HEADER_BYTES);
-            if (firstCount <= 0
-                || !image.mimeType.equals(detectMimeType(buffer, firstCount))) {
-                throw new IOException("Workspace image changed before export");
+        requireRequest(requestedPath, maximumBytes);
+        try (WorkspaceFileBoundary.OpenedFile opened =
+                WorkspaceFileBoundary.openRegularFile(
+                    workspaceDirectory,
+                    requestedPath,
+                    maximumBytes,
+                    opener
+                )) {
+            if (opened.getByteCount() <= 0L) {
+                throw new IOException("Workspace image size is outside the export limit");
             }
+            byte[] buffer = new byte[8192];
+            int firstCount = readPrefix(opened.source, buffer, HEADER_BYTES);
+            String mimeType = detectMimeType(buffer, firstCount);
+            if (firstCount <= 0 || mimeType.isEmpty()) {
+                throw new IOException("Workspace file is not a supported image");
+            }
+            WorkspaceImageFile image = fromOpened(opened, mimeType);
             destination.write(buffer, 0, firstCount);
             long copied = firstCount;
             while (true) {
                 if (Thread.currentThread().isInterrupted()) {
                     throw new IOException("Workspace image export was cancelled");
                 }
-                int count = input.read(buffer);
+                int count = opened.source.read(buffer, 0, buffer.length);
                 if (count < 0) {
                     break;
                 }
                 if (count == 0) {
                     continue;
+                }
+                if (copied > Long.MAX_VALUE - count) {
+                    throw new IOException("Workspace image size overflow");
                 }
                 copied += count;
                 if (copied > maximumBytes || copied > image.byteCount) {
@@ -114,17 +149,10 @@ public final class WorkspaceImageFile {
             if (copied != image.byteCount) {
                 throw new IOException("Workspace image changed during export");
             }
+            opened.source.verifyUnchanged();
             destination.flush();
+            return image;
         }
-        WorkspaceImageFile afterCopy = inspect(
-            workspaceDirectory,
-            requestedPath,
-            maximumBytes
-        );
-        if (!image.hasSameSnapshot(afterCopy)) {
-            throw new IOException("Workspace image changed during export");
-        }
-        return image;
     }
 
     public File getFile() {
@@ -143,21 +171,9 @@ public final class WorkspaceImageFile {
         return byteCount;
     }
 
-    private boolean hasSameSnapshot(WorkspaceImageFile other) {
-        return other != null
-            && file.equals(other.file)
-            && byteCount == other.byteCount
-            && mimeType.equals(other.mimeType)
-            && sameValue(lastModifiedTime, other.lastModifiedTime)
-            && sameValue(fileKey, other.fileKey);
-    }
-
-    private static byte[] readHeader(File file) throws IOException {
+    private static byte[] readHeader(WorkspaceFileAccess.Source source) throws IOException {
         byte[] header = new byte[HEADER_BYTES];
-        int total;
-        try (FileInputStream input = new FileInputStream(file)) {
-            total = readPrefix(input, header, header.length);
-        }
+        int total = readPrefix(source, header, header.length);
         if (total == header.length) {
             return header;
         }
@@ -166,26 +182,39 @@ public final class WorkspaceImageFile {
         return exact;
     }
 
-    private static int readPrefix(FileInputStream input, byte[] buffer, int maximum)
+    private static int readPrefix(
+        WorkspaceFileAccess.Source source,
+        byte[] buffer,
+        int maximum
+    )
         throws IOException {
         int total = 0;
         while (total < maximum) {
-            int count = input.read(buffer, total, maximum - total);
+            int count = source.read(buffer, total, maximum - total);
             if (count < 0) {
                 break;
             }
             if (count == 0) {
-                int single = input.read();
-                if (single < 0) {
-                    break;
-                }
-                buffer[total] = (byte) single;
-                total++;
+                continue;
             } else {
                 total += count;
             }
         }
         return total;
+    }
+
+    private static WorkspaceImageFile fromOpened(
+        WorkspaceFileBoundary.OpenedFile opened,
+        String mimeType
+    ) {
+        return new WorkspaceImageFile(
+            opened.file,
+            safeDisplayName(opened.file.getName(), mimeType),
+            mimeType,
+            opened.getByteCount(),
+            opened.getLastModifiedTime(),
+            opened.getFileKey()
+        );
     }
 
     private static String detectMimeType(byte[] header) {
@@ -283,7 +312,4 @@ public final class WorkspaceImageFile {
         return value & 0xff;
     }
 
-    private static boolean sameValue(Object left, Object right) {
-        return left == null ? right == null : left.equals(right);
-    }
 }

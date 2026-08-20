@@ -1,7 +1,6 @@
 package de.agentcodi.storage;
 
 import java.io.File;
-import java.io.FileInputStream;
 import java.io.IOException;
 import java.io.OutputStream;
 import java.nio.file.DirectoryStream;
@@ -10,6 +9,7 @@ import java.nio.file.LinkOption;
 import java.nio.file.Path;
 import java.nio.file.attribute.BasicFileAttributes;
 import java.nio.file.attribute.FileTime;
+import java.time.Instant;
 import java.util.ArrayList;
 import java.util.Collections;
 import java.util.Comparator;
@@ -35,7 +35,7 @@ public final class WorkspaceExportFile {
         this.displayName = safeDisplayName(file.getName());
         this.byteCount = byteCount;
         this.lastModifiedTime = lastModifiedTime;
-        this.fileKey = fileKey;
+        this.fileKey = fileKey == null ? null : fileKey.toString();
     }
 
     public static WorkspaceExportFile inspect(
@@ -43,19 +43,30 @@ public final class WorkspaceExportFile {
         String requestedPath,
         long maximumBytes
     ) throws IOException {
-        WorkspaceFileBoundary.ResolvedFile resolved =
-            WorkspaceFileBoundary.resolveRegularFile(
-                workspaceDirectory,
-                requestedPath,
-                maximumBytes
-            );
-        return new WorkspaceExportFile(
-            resolved.file,
-            resolved.relativePath,
-            resolved.byteCount,
-            resolved.lastModifiedTime,
-            resolved.fileKey
+        return inspect(
+            workspaceDirectory,
+            requestedPath,
+            maximumBytes,
+            WorkspaceFileAccess.secureNioOpener()
         );
+    }
+
+    public static WorkspaceExportFile inspect(
+        File workspaceDirectory,
+        String requestedPath,
+        long maximumBytes,
+        WorkspaceFileAccess.Opener opener
+    ) throws IOException {
+        try (WorkspaceFileBoundary.OpenedFile opened =
+                WorkspaceFileBoundary.openRegularFile(
+                    workspaceDirectory,
+                    requestedPath,
+                    maximumBytes,
+                    opener
+                )) {
+            opened.source.verifyUnchanged();
+            return fromOpened(opened);
+        }
     }
 
     public static List<WorkspaceExportFile> list(
@@ -95,22 +106,40 @@ public final class WorkspaceExportFile {
         long maximumBytes,
         OutputStream destination
     ) throws IOException {
+        return copyTo(
+            workspaceDirectory,
+            requestedPath,
+            maximumBytes,
+            destination,
+            WorkspaceFileAccess.secureNioOpener()
+        );
+    }
+
+    public static WorkspaceExportFile copyTo(
+        File workspaceDirectory,
+        String requestedPath,
+        long maximumBytes,
+        OutputStream destination,
+        WorkspaceFileAccess.Opener opener
+    ) throws IOException {
         if (destination == null) {
             throw new IllegalArgumentException("destination must not be null");
         }
-        WorkspaceExportFile source = inspect(
-            workspaceDirectory,
-            requestedPath,
-            maximumBytes
-        );
-        try (FileInputStream input = new FileInputStream(source.file)) {
+        try (WorkspaceFileBoundary.OpenedFile opened =
+                WorkspaceFileBoundary.openRegularFile(
+                    workspaceDirectory,
+                    requestedPath,
+                    maximumBytes,
+                    opener
+                )) {
+            WorkspaceExportFile source = fromOpened(opened);
             byte[] buffer = new byte[8192];
             long copied = 0L;
             while (true) {
                 if (Thread.currentThread().isInterrupted()) {
                     throw new IOException("Workspace file export was cancelled");
                 }
-                int count = input.read(buffer);
+                int count = opened.source.read(buffer, 0, buffer.length);
                 if (count < 0) {
                     break;
                 }
@@ -126,20 +155,10 @@ public final class WorkspaceExportFile {
             if (copied != source.byteCount) {
                 throw new IOException("Workspace file changed during export");
             }
+            opened.source.verifyUnchanged();
             destination.flush();
+            return source;
         }
-        WorkspaceExportFile afterCopy = inspect(
-            workspaceDirectory,
-            requestedPath,
-            maximumBytes
-        );
-        if (afterCopy.byteCount != source.byteCount
-            || !afterCopy.file.equals(source.file)
-            || !sameValue(afterCopy.lastModifiedTime, source.lastModifiedTime)
-            || !sameValue(afterCopy.fileKey, source.fileKey)) {
-            throw new IOException("Workspace file changed during export");
-        }
-        return source;
     }
 
     public File getFile() {
@@ -167,6 +186,17 @@ public final class WorkspaceExportFile {
             && relativePath.equals(other.relativePath)
             && byteCount == other.byteCount
             && sameValue(lastModifiedTime, other.lastModifiedTime)
+            && sameValue(fileKey, other.fileKey);
+    }
+
+    boolean hasSameOpenedSnapshot(WorkspaceExportFile other) {
+        return other != null
+            && relativePath.equals(other.relativePath)
+            && byteCount == other.byteCount
+            && sameFileTimeAtMicrosecondPrecision(
+                lastModifiedTime,
+                other.lastModifiedTime
+            )
             && sameValue(fileKey, other.fileKey);
     }
 
@@ -255,6 +285,18 @@ public final class WorkspaceExportFile {
         return safe.length() == 0 ? "agentcodi-file" : safe.toString();
     }
 
+    private static WorkspaceExportFile fromOpened(
+        WorkspaceFileBoundary.OpenedFile opened
+    ) {
+        return new WorkspaceExportFile(
+            opened.file,
+            opened.relativePath,
+            opened.getByteCount(),
+            opened.getLastModifiedTime(),
+            opened.getFileKey()
+        );
+    }
+
     private static long checkedAdd(long value, long increment) throws IOException {
         if (increment < 0L || value > Long.MAX_VALUE - increment) {
             throw new IOException("Workspace file size overflow");
@@ -264,5 +306,18 @@ public final class WorkspaceExportFile {
 
     private static boolean sameValue(Object left, Object right) {
         return left == null ? right == null : left.equals(right);
+    }
+
+    private static boolean sameFileTimeAtMicrosecondPrecision(
+        FileTime left,
+        FileTime right
+    ) {
+        if (left == null || right == null) {
+            return left == right;
+        }
+        Instant leftInstant = left.toInstant();
+        Instant rightInstant = right.toInstant();
+        return leftInstant.getEpochSecond() == rightInstant.getEpochSecond()
+            && leftInstant.getNano() / 1000 == rightInstant.getNano() / 1000;
     }
 }

@@ -1,6 +1,7 @@
 #include "agentcodi_engine.h"
 #include "app_server_process.h"
 #include "workspace_file_reader.h"
+#include "workspace_import_installer.h"
 
 #include <jni.h>
 
@@ -448,4 +449,47 @@ Java_de_agentcodi_runtime_NativeEngine_nativeCloseWorkspaceFile(
     jlong handle) {
   std::lock_guard<std::mutex> guard(workspace_file_registry_mutex);
   workspace_file_registry.erase(handle);
+}
+
+extern "C" JNIEXPORT void JNICALL
+Java_de_agentcodi_runtime_NativeEngine_nativeInstallWorkspaceImportNoReplace(
+    JNIEnv* environment,
+    jclass,
+    jstring workspace,
+    jstring pending_name,
+    jstring final_name,
+    jlong expected_byte_count) {
+  std::string workspace_value;
+  std::string pending_name_value;
+  std::string final_name_value;
+  if (!from_java_string(
+          environment,
+          workspace,
+          "Workspace root",
+          &workspace_value)
+      || !from_java_string(
+          environment,
+          pending_name,
+          "Pending import name",
+          &pending_name_value)
+      || !from_java_string(
+          environment,
+          final_name,
+          "Final import name",
+          &final_name_value)) {
+    return;
+  }
+  std::string error;
+  if (!agentcodi::InstallWorkspaceImportNoReplace(
+          workspace_value,
+          pending_name_value,
+          final_name_value,
+          static_cast<std::int64_t>(expected_byte_count),
+          &error)) {
+    throw_io_exception(
+        environment,
+        error.empty()
+            ? "Workspace import could not be installed safely"
+            : error);
+  }
 }

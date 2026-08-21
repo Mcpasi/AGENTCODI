@@ -59,7 +59,7 @@ AGENTCODI does more than display a Codex conversation.
 | Python | Packaged runtime |
 | MCP management | Native Android interface backed by Codex configuration RPCs |
 
-The current AGENTCODI 0.5.9 runtime uses **Codex app-server 0.147.2**.
+The current AGENTCODI 0.5.10 runtime uses **Codex app-server 0.147.2**.
 
 ---
 
@@ -162,7 +162,7 @@ The chat composer can import files selected through Android's system document pi
 
 For both a new `turn/start` and attachment-only or text-backed `turn/steer`, the pinned app-server's native `mention` input preserves the visible attachment in user history while its native `additionalContext` field gives Codex the exact verified workspace path and requires it to read the actual file bytes with the existing workspace tools. No file is represented to the model by its display name alone, and the application creates no upload protocol, second process, listener, JNI gateway or filesystem root.
 
-One message can attach at most 16 imported files, with a 512 MiB per-file limit and a 1 GiB combined limit. Pending and final files use random non-overwriting tokens plus at most a short strictly alphanumeric extension, owner-only permissions, bounded copying, descriptor-relative no-follow operations, cleanup after failure, and the same stable regular-file/link checks used by workspace export. The user-controlled display-name stem is therefore not part of the model-readable path. A transient SHA-256 binding is calculated while copying. In 0.5.9 the UI passes only a closeable one-shot transaction across its hand-off queues; the serial Core operation consumes it by opening and fully hashing the complete selected batch inside the same synchronous scope that constructs and sends the request. Every no-follow handle remains open, the whole batch is checked after the last hash, and a one-time guard checks it again inside the JSONL transport write lock immediately before the request bytes are written. Handles close only after the correlated request returns or fails. Equal-length replacement before this scope, while a later attachment is checked, or during request preparation therefore fails closed before transport. Obvious credential filenames are rejected before copying. Provider URIs, grants, display labels and pending digest state never enter the model context; external storage never becomes a runtime workspace root or sandbox exception.
+One message can attach at most 16 imported files, with a 512 MiB per-file limit and a 1 GiB combined limit. Pending and final files use random tokens plus at most a short strictly alphanumeric extension, owner-only permissions, bounded copying, descriptor-relative no-follow operations, cleanup after failure, and the same stable regular-file/link checks used by workspace export. Since 0.5.10, the completed pending file is installed through the existing JNI gateway by a C++ `renameat2(RENAME_NOREPLACE)` operation; there is no separate missing-target check, and a parallel creator wins without its bytes being replaced. The user-controlled display-name stem is therefore not part of the model-readable path. A transient SHA-256 binding is calculated while copying. In 0.5.9 the UI began passing only a closeable one-shot transaction across its hand-off queues; the serial Core operation consumes it by opening and fully hashing the complete selected batch inside the same synchronous scope that constructs and sends the request. Every no-follow handle remains open, the whole batch is checked after the last hash, and a one-time guard checks it again inside the JSONL transport write lock immediately before the request bytes are written. Handles close only after the correlated request returns or fails. Equal-length replacement before this scope, while a later attachment is checked, or during request preparation therefore fails closed before transport. Obvious credential filenames are rejected before copying. Provider URIs, grants, display labels and pending digest state never enter the model context; external storage never becomes a runtime workspace root or sandbox exception.
 
 Detaching a file removes it only from the pending message. The private copy remains a normal workspace file so a later Codex turn can work with it and the existing explicit workspace export can retrieve it.
 
@@ -355,7 +355,7 @@ Several sensitive byte and character buffers are explicitly cleared after use.
 
 Current release line:
 
-### AGENTCODI 0.5.9
+### AGENTCODI 0.5.10
 
 | Requirement | Value |
 |---|---|
@@ -406,7 +406,7 @@ Physical Android hardware is used separately to validate installation, UI behavi
 
 AGENTCODI is under active development.
 
-Version 0.5.9 currently focuses heavily on:
+Version 0.5.10 currently focuses heavily on:
 
 - Native Codex runtime integration
 - Correlated in-flight turn steering without losing the separate stop action
@@ -415,7 +415,7 @@ Version 0.5.9 currently focuses heavily on:
 - Packaged development toolchains
 - Android runtime stability
 - Workspace boundaries
-- Direct, bounded external-document import whose returned transient read grant is proven before provider access, whose verified handles survive every queue handoff, and whose final batch revalidation is coupled to the app-server JSONL write
+- Direct, bounded external-document import with a proven transient read grant, atomic no-replace installation, retained verification handles across queue hand-offs, and final batch revalidation coupled to the app-server JSONL write
 - Race-free individual-file, image and ZIP source opening
 - Complete PNG validation before materialization, recovery and export
 - SHA-256-bound image materialization proofs for resumed history

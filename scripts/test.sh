@@ -54,4 +54,11 @@ env LD_LIBRARY_PATH="$TERMUX_PREFIX/lib" "$TEST_BUILD/cpp/agentcodi-engine-test"
   -o "$TEST_BUILD/cpp/workspace-file-reader-test"
 "$TEST_BUILD/cpp/workspace-file-reader-test"
 
+"$CLANGXX" -std=c++17 -O2 -Wall -Wextra -Werror -pthread \
+  -I"$PROJECT_ROOT/modules/native-engine/src/main/cpp" \
+  "$PROJECT_ROOT/modules/native-engine/src/main/cpp/workspace_import_installer.cpp" \
+  "$PROJECT_ROOT/tests/cpp/workspace_import_installer_test.cpp" \
+  -o "$TEST_BUILD/cpp/workspace-import-installer-test"
+"$TEST_BUILD/cpp/workspace-import-installer-test"
+
 echo "All host tests passed."

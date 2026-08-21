@@ -6,8 +6,8 @@ PROJECT_ROOT="$(cd -- "$SCRIPT_DIR/.." && pwd -P)"
 
 APP_NAME="AGENTCODI"
 APP_ID="de.agentcodi.app"
-APP_VERSION="0.5.9"
-VERSION_CODE="46"
+APP_VERSION="0.5.10"
+VERSION_CODE="47"
 MIN_SDK="29"
 TARGET_SDK="35"
 ABI="arm64-v8a"
@@ -641,7 +641,7 @@ APP_JAR="$JARS_ROOT/app.jar"
 "$JAR" cf "$APP_JAR" -C "$APP_CLASSES" .
 
 echo "Compiling ARM64 JNI engine..."
-"$CLANGXX" --target=aarch64-linux-android"$MIN_SDK" -shared -fPIC -std=c++17 -O2 -Wall -Wextra -Werror -pthread -fvisibility=hidden -I"$JAVA_HOME_17/include" -I"$JAVA_HOME_17/include/linux" -I"$PROJECT_ROOT/modules/native-engine/src/main/cpp" "$PROJECT_ROOT/modules/native-engine/src/main/cpp/agentcodi_engine.cpp" "$PROJECT_ROOT/modules/native-engine/src/main/cpp/app_server_process.cpp" "$PROJECT_ROOT/modules/native-engine/src/main/cpp/png_validator.cpp" "$PROJECT_ROOT/modules/native-engine/src/main/cpp/sha256.cpp" "$PROJECT_ROOT/modules/native-engine/src/main/cpp/workspace_file_reader.cpp" "$PROJECT_ROOT/modules/native-engine/src/main/cpp/jni_bridge.cpp" -Wl,-soname,libagentcodi.so -lz -llog -o "$NATIVE_DIR/libagentcodi.so"
+"$CLANGXX" --target=aarch64-linux-android"$MIN_SDK" -shared -fPIC -std=c++17 -O2 -Wall -Wextra -Werror -pthread -fvisibility=hidden -I"$JAVA_HOME_17/include" -I"$JAVA_HOME_17/include/linux" -I"$PROJECT_ROOT/modules/native-engine/src/main/cpp" "$PROJECT_ROOT/modules/native-engine/src/main/cpp/agentcodi_engine.cpp" "$PROJECT_ROOT/modules/native-engine/src/main/cpp/app_server_process.cpp" "$PROJECT_ROOT/modules/native-engine/src/main/cpp/png_validator.cpp" "$PROJECT_ROOT/modules/native-engine/src/main/cpp/sha256.cpp" "$PROJECT_ROOT/modules/native-engine/src/main/cpp/workspace_file_reader.cpp" "$PROJECT_ROOT/modules/native-engine/src/main/cpp/workspace_import_installer.cpp" "$PROJECT_ROOT/modules/native-engine/src/main/cpp/jni_bridge.cpp" -Wl,-soname,libagentcodi.so -lz -llog -o "$NATIVE_DIR/libagentcodi.so"
 "$LLVM_STRIP" --strip-unneeded "$NATIVE_DIR/libagentcodi.so"
 
 echo "Compiling packaged terminal shell bridge..."
@@ -945,7 +945,8 @@ for workspace_symbol in \
   nativeWorkspaceFileMetadata \
   nativeReadWorkspaceFile \
   nativeVerifyWorkspaceFile \
-  nativeCloseWorkspaceFile; do
+  nativeCloseWorkspaceFile \
+  nativeInstallWorkspaceImportNoReplace; do
   if ! readelf -Ws "$NATIVE_DIR/libagentcodi.so" \
       | grep -q "Java_de_agentcodi_runtime_NativeEngine_${workspace_symbol}"; then
     echo "JNI workspace file reader symbol is missing: $workspace_symbol" >&2
@@ -1572,6 +1573,7 @@ grep -Fq 'Lde/agentcodi/runtime/CrashDiagnostics;' "$WORK_DIR/dex-strings.txt"
 grep -Fq 'Lde/agentcodi/runtime/WorkspaceImageExporter;' "$WORK_DIR/dex-strings.txt"
 grep -Fq 'Lde/agentcodi/runtime/WorkspaceFileExporter;' "$WORK_DIR/dex-strings.txt"
 grep -Fq 'Lde/agentcodi/runtime/WorkspaceFileImporter;' "$WORK_DIR/dex-strings.txt"
+grep -Fq 'Lde/agentcodi/runtime/NativeWorkspaceDocumentInstaller;' "$WORK_DIR/dex-strings.txt"
 grep -Fq 'Lde/agentcodi/runtime/NativeEngine;' "$WORK_DIR/dex-strings.txt"
 grep -Fq 'libcodex.so' "$WORK_DIR/dex-strings.txt"
 grep -Fq "$CODEX_PACKAGED_HOST_NAME" "$WORK_DIR/dex-strings.txt"
@@ -1590,6 +1592,7 @@ grep -Fq 'Lde/agentcodi/runtime/NativeWorkspaceFileAccess;' "$WORK_DIR/dex-strin
 grep -Fq 'Lde/agentcodi/imports/ImportedWorkspaceFile;' "$WORK_DIR/dex-strings.txt"
 grep -Fq 'Lde/agentcodi/imports/WorkspaceImportLimits;' "$WORK_DIR/dex-strings.txt"
 grep -Fq 'Lde/agentcodi/imports/client/WorkspaceDocumentImporter;' "$WORK_DIR/dex-strings.txt"
+grep -Fq 'Lde/agentcodi/imports/client/WorkspaceDocumentInstaller;' "$WORK_DIR/dex-strings.txt"
 grep -Fq 'android.intent.action.OPEN_DOCUMENT' "$WORK_DIR/dex-strings.txt"
 grep -Fq 'android.intent.action.CREATE_DOCUMENT' "$WORK_DIR/dex-strings.txt"
 grep -Fq 'image_export' "$WORK_DIR/dex-strings.txt"

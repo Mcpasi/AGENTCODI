@@ -7,6 +7,7 @@ import de.agentcodi.imports.WorkspaceImportGrant;
 import de.agentcodi.imports.WorkspaceImportLimits;
 import de.agentcodi.imports.WorkspaceImportSelection;
 import de.agentcodi.imports.client.WorkspaceDocumentImporter;
+import de.agentcodi.imports.client.WorkspaceDocumentInstaller;
 import de.agentcodi.storage.WorkspaceFileAccess;
 import de.agentcodi.storage.WorkspaceLayout;
 
@@ -18,6 +19,7 @@ import java.nio.file.Files;
 import java.nio.file.LinkOption;
 import java.nio.file.Path;
 import java.nio.file.StandardCopyOption;
+import java.nio.file.StandardOpenOption;
 import java.nio.file.attribute.FileTime;
 import java.nio.file.attribute.PosixFilePermission;
 import java.util.ArrayList;
@@ -36,6 +38,7 @@ public final class WorkspaceImportTest {
         importsAndVerifiesArbitraryBytes();
         sanitizesUntrustedMetadata();
         createsDistinctCopiesWithoutOverwriting();
+        rejectsFinalNameRaceWithoutOverwriting();
         rejectsCredentialShapedNamesBeforeCopy();
         enforcesDeclaredAndObservedSizeLimits();
         cleansPartialFileAfterSourceFailure();
@@ -44,7 +47,7 @@ public final class WorkspaceImportTest {
         keepsVerifiedHandlesOpenThroughTheSendScope();
         rejectsChangesAcrossThePreparedBatchWindow();
         validatesBoundedImmutableSelections();
-        return 12;
+        return 13;
     }
 
     private static void validatesTransientResultReadGrant() throws Exception {
@@ -93,7 +96,7 @@ public final class WorkspaceImportTest {
         try {
             WorkspaceLayout layout = WorkspaceLayout.create(base.toFile());
             byte[] expected = new byte[] {0, (byte) 0xff, 7, 0, 42, 13};
-            WorkspaceDocumentImporter importer = new WorkspaceDocumentImporter();
+            WorkspaceDocumentImporter importer = newImporter();
             ImportedWorkspaceFile imported = importer.importDocument(
                 layout.getWorkspace(),
                 layout.getImports(),
@@ -163,7 +166,7 @@ public final class WorkspaceImportTest {
         Path base = Files.createTempDirectory("agentcodi-import-metadata-");
         try {
             WorkspaceLayout layout = WorkspaceLayout.create(base.toFile());
-            ImportedWorkspaceFile imported = new WorkspaceDocumentImporter().importDocument(
+            ImportedWorkspaceFile imported = newImporter().importDocument(
                 layout.getWorkspace(),
                 layout.getImports(),
                 "  ../folder\\report:\u0001.txt.  ",
@@ -202,7 +205,7 @@ public final class WorkspaceImportTest {
         Path base = Files.createTempDirectory("agentcodi-import-distinct-");
         try {
             WorkspaceLayout layout = WorkspaceLayout.create(base.toFile());
-            WorkspaceDocumentImporter importer = new WorkspaceDocumentImporter();
+            WorkspaceDocumentImporter importer = newImporter();
             ImportedWorkspaceFile first = importer.importDocument(
                 layout.getWorkspace(),
                 layout.getImports(),
@@ -242,11 +245,82 @@ public final class WorkspaceImportTest {
         }
     }
 
+    private static void rejectsFinalNameRaceWithoutOverwriting() throws Exception {
+        final Path base = Files.createTempDirectory("agentcodi-import-install-race-");
+        try {
+            final WorkspaceLayout layout = WorkspaceLayout.create(base.toFile());
+            final byte[] competingBytes = "competing-workspace-entry".getBytes("UTF-8");
+            final Path[] competingTarget = new Path[1];
+            WorkspaceDocumentInstaller racingInstaller =
+                new WorkspaceDocumentInstaller() {
+                    @Override
+                    public void installNoReplace(
+                        File workspaceDirectory,
+                        String pendingName,
+                        String finalName,
+                        long expectedByteCount
+                    ) throws IOException {
+                        Path imports = workspaceDirectory.toPath().resolve(
+                            WorkspaceImportLimits.IMPORT_DIRECTORY_NAME
+                        );
+                        competingTarget[0] = imports.resolve(finalName);
+                        Files.write(
+                            competingTarget[0],
+                            competingBytes,
+                            StandardOpenOption.CREATE_NEW,
+                            StandardOpenOption.WRITE
+                        );
+                        TEST_INSTALLER.installNoReplace(
+                            workspaceDirectory,
+                            pendingName,
+                            finalName,
+                            expectedByteCount
+                        );
+                    }
+                };
+            final WorkspaceDocumentImporter importer =
+                new WorkspaceDocumentImporter(racingInstaller);
+            TestSupport.expectThrows(
+                IOException.class,
+                new TestSupport.ThrowingRunnable() {
+                    @Override
+                    public void run() throws Exception {
+                        importer.importDocument(
+                            layout.getWorkspace(),
+                            layout.getImports(),
+                            "race.bin",
+                            "application/octet-stream",
+                            4L,
+                            new ByteArrayInputStream(new byte[] {1, 2, 3, 4})
+                        );
+                    }
+                },
+                "a competing final name at the atomic install boundary fails closed"
+            );
+            TestSupport.assertTrue(
+                competingTarget[0] != null && Files.isRegularFile(competingTarget[0]),
+                "the competing final entry remains present after the failed import"
+            );
+            TestSupport.assertTrue(
+                Arrays.equals(competingBytes, Files.readAllBytes(competingTarget[0])),
+                "the final installation race never overwrites competing bytes"
+            );
+            File[] remaining = layout.getImports().listFiles();
+            TestSupport.assertEquals(
+                Integer.valueOf(1),
+                Integer.valueOf(remaining == null ? 0 : remaining.length),
+                "the failed race cleans only its private pending entry"
+            );
+        } finally {
+            deleteRecursively(base);
+        }
+    }
+
     private static void rejectsCredentialShapedNamesBeforeCopy() throws Exception {
         final Path base = Files.createTempDirectory("agentcodi-import-secret-name-");
         try {
             final WorkspaceLayout layout = WorkspaceLayout.create(base.toFile());
-            final WorkspaceDocumentImporter importer = new WorkspaceDocumentImporter();
+            final WorkspaceDocumentImporter importer = newImporter();
             for (final String name : Arrays.asList(
                 "auth.json",
                 ".env.production",
@@ -285,7 +359,7 @@ public final class WorkspaceImportTest {
         final Path base = Files.createTempDirectory("agentcodi-import-size-");
         try {
             final WorkspaceLayout layout = WorkspaceLayout.create(base.toFile());
-            final WorkspaceDocumentImporter importer = new WorkspaceDocumentImporter(4L);
+            final WorkspaceDocumentImporter importer = newImporter(4L);
             TestSupport.expectThrows(
                 IOException.class,
                 new TestSupport.ThrowingRunnable() {
@@ -350,7 +424,7 @@ public final class WorkspaceImportTest {
                 new TestSupport.ThrowingRunnable() {
                     @Override
                     public void run() throws Exception {
-                        new WorkspaceDocumentImporter(32L).importDocument(
+                        newImporter(32L).importDocument(
                             layout.getWorkspace(),
                             layout.getImports(),
                             "partial.bin",
@@ -384,7 +458,7 @@ public final class WorkspaceImportTest {
                 new TestSupport.ThrowingRunnable() {
                     @Override
                     public void run() throws Exception {
-                        new WorkspaceDocumentImporter().importDocument(
+                        newImporter().importDocument(
                             layout.getWorkspace(),
                             layout.getImports(),
                             "outside.bin",
@@ -411,7 +485,7 @@ public final class WorkspaceImportTest {
         final Path base = Files.createTempDirectory("agentcodi-import-recheck-");
         try {
             final WorkspaceLayout layout = WorkspaceLayout.create(base.toFile());
-            final WorkspaceDocumentImporter importer = new WorkspaceDocumentImporter();
+            final WorkspaceDocumentImporter importer = newImporter();
             final ImportedWorkspaceFile imported = importer.importDocument(
                 layout.getWorkspace(),
                 layout.getImports(),
@@ -479,7 +553,7 @@ public final class WorkspaceImportTest {
         Path base = Files.createTempDirectory("agentcodi-import-send-scope-");
         try {
             WorkspaceLayout layout = WorkspaceLayout.create(base.toFile());
-            WorkspaceDocumentImporter importer = new WorkspaceDocumentImporter();
+            WorkspaceDocumentImporter importer = newImporter();
             ImportedWorkspaceFile first = importer.importDocument(
                 layout.getWorkspace(),
                 layout.getImports(),
@@ -561,7 +635,7 @@ public final class WorkspaceImportTest {
         Path base = Files.createTempDirectory("agentcodi-import-send-race-");
         try {
             final WorkspaceLayout layout = WorkspaceLayout.create(base.toFile());
-            final WorkspaceDocumentImporter importer = new WorkspaceDocumentImporter();
+            final WorkspaceDocumentImporter importer = newImporter();
             final ImportedWorkspaceFile first = importer.importDocument(
                 layout.getWorkspace(),
                 layout.getImports(),
@@ -912,6 +986,34 @@ public final class WorkspaceImportTest {
             Long.valueOf(WorkspaceImportSelection.totalBytes(Arrays.asList(first, second))),
             "selection byte accounting is exact"
         );
+    }
+
+    /** Host-only fixture; production installation is the native no-replace move. */
+    private static final WorkspaceDocumentInstaller TEST_INSTALLER =
+        new WorkspaceDocumentInstaller() {
+            @Override
+            public void installNoReplace(
+                File workspaceDirectory,
+                String pendingName,
+                String finalName,
+                long expectedByteCount
+            ) throws IOException {
+                Path imports = workspaceDirectory.toPath().resolve(
+                    WorkspaceImportLimits.IMPORT_DIRECTORY_NAME
+                );
+                Path pending = imports.resolve(pendingName);
+                Path target = imports.resolve(finalName);
+                Files.createLink(target, pending);
+                Files.delete(pending);
+            }
+        };
+
+    private static WorkspaceDocumentImporter newImporter() {
+        return new WorkspaceDocumentImporter(TEST_INSTALLER);
+    }
+
+    private static WorkspaceDocumentImporter newImporter(long maximumFileBytes) {
+        return new WorkspaceDocumentImporter(maximumFileBytes, TEST_INSTALLER);
     }
 
     private static ImportedWorkspaceFile importedMetadata(String path, long byteCount) {

@@ -41,7 +41,10 @@ public final class WorkspaceFileImporter {
         ContentResolver resolver = applicationContext.getContentResolver();
         DocumentMetadata metadata = readMetadata(resolver, sourceUri);
         WorkspaceLayout layout = WorkspaceLayout.create(applicationContext.getFilesDir());
-        WorkspaceDocumentImporter importer = new WorkspaceDocumentImporter(boundedMaximum);
+        WorkspaceDocumentImporter importer = new WorkspaceDocumentImporter(
+            boundedMaximum,
+            NativeWorkspaceDocumentInstaller.instance()
+        );
         final InputStream opened;
         try {
             opened = resolver.openInputStream(sourceUri);
@@ -73,7 +76,9 @@ public final class WorkspaceFileImporter {
             throw new IllegalArgumentException("Prepared document batch must not be empty");
         }
         WorkspaceLayout layout = WorkspaceLayout.create(requireContext(context).getFilesDir());
-        WorkspaceDocumentImporter importer = new WorkspaceDocumentImporter();
+        WorkspaceDocumentImporter importer = new WorkspaceDocumentImporter(
+            NativeWorkspaceDocumentInstaller.instance()
+        );
         return importer.prepareForCodex(
             layout.getWorkspace(),
             files,

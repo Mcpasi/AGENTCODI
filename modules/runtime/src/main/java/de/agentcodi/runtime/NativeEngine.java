@@ -99,6 +99,20 @@ public final class NativeEngine {
         nativeCloseWorkspaceFile(handle);
     }
 
+    static void installWorkspaceImportNoReplace(
+        String workspace,
+        String pendingName,
+        String finalName,
+        long expectedByteCount
+    ) throws IOException {
+        nativeInstallWorkspaceImportNoReplace(
+            workspace,
+            pendingName,
+            finalName,
+            expectedByteCount
+        );
+    }
+
     private static native String nativeVersion();
 
     private static native int nativeSelfTest();
@@ -156,4 +170,11 @@ public final class NativeEngine {
         throws IOException;
 
     private static native void nativeCloseWorkspaceFile(long handle);
+
+    private static native void nativeInstallWorkspaceImportNoReplace(
+        String workspace,
+        String pendingName,
+        String finalName,
+        long expectedByteCount
+    ) throws IOException;
 }

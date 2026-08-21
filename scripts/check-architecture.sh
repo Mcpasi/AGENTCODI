@@ -210,6 +210,9 @@ fi
 main_activity="$PROJECT_ROOT/app/src/main/java/de/agentcodi/app/MainActivity.java"
 workspace_importer="$PROJECT_ROOT/modules/runtime/src/main/java/de/agentcodi/runtime/WorkspaceFileImporter.java"
 document_importer="$import_client/de/agentcodi/imports/client/WorkspaceDocumentImporter.java"
+document_installer="$import_client/de/agentcodi/imports/client/WorkspaceDocumentInstaller.java"
+native_document_installer="$PROJECT_ROOT/modules/runtime/src/main/java/de/agentcodi/runtime/NativeWorkspaceDocumentInstaller.java"
+native_import_installer="$PROJECT_ROOT/modules/native-engine/src/main/cpp/workspace_import_installer.cpp"
 import_limits="$import_contracts/de/agentcodi/imports/WorkspaceImportLimits.java"
 import_grant="$import_contracts/de/agentcodi/imports/WorkspaceImportGrant.java"
 imported_file="$import_contracts/de/agentcodi/imports/ImportedWorkspaceFile.java"
@@ -233,6 +236,7 @@ if ! rg -q 'Intent\.ACTION_OPEN_DOCUMENT' "$main_activity" \
     || ! rg -q 'ContentResolver\.SCHEME_CONTENT' "$workspace_importer" \
     || ! rg -q 'WorkspaceLayout\.create' "$workspace_importer" \
     || ! rg -q 'NativeWorkspaceFileAccess\.opener' "$workspace_importer" \
+    || ! rg -q 'NativeWorkspaceDocumentInstaller\.instance' "$workspace_importer" \
     || ! rg -q 'CodexFileMentionTransaction prepareForCodex' "$workspace_importer" \
     || ! rg -q 'prepareForCodex\(' "$main_activity" "$document_importer" \
     || rg -q 'List<CodexFileMention>|verifyForCodex\(applicationContext' "$main_activity" "$workspace_importer" \
@@ -244,7 +248,15 @@ if ! rg -q 'Intent\.ACTION_OPEN_DOCUMENT' "$main_activity" \
     || ! rg -q 'SecureDirectoryStream' "$document_importer" \
     || ! rg -q 'StandardOpenOption\.CREATE_NEW' "$document_importer" \
     || ! rg -q 'LinkOption\.NOFOLLOW_LINKS' "$document_importer" \
-    || ! rg -q 'importRoot\.move' "$document_importer" \
+    || ! rg -q 'interface WorkspaceDocumentInstaller' "$document_installer" \
+    || ! rg -q 'installer\.installNoReplace' "$document_importer" \
+    || rg -q 'requireMissing|importRoot\.move' "$document_importer" \
+    || ! rg -q 'NativeEngine\.installWorkspaceImportNoReplace' "$native_document_installer" \
+    || ! rg -q 'SYS_renameat2' "$native_import_installer" \
+    || ! rg -q 'kRenameNoReplace' "$native_import_installer" \
+    || ! rg -q 'O_NOFOLLOW' "$native_import_installer" \
+    || ! rg -q 'nativeInstallWorkspaceImportNoReplace' "$PROJECT_ROOT/modules/runtime/src/main/java/de/agentcodi/runtime/NativeEngine.java" \
+    || ! rg -q 'workspace_import_installer\.cpp' "$apk_builder" \
     || ! rg -q 'OWNER_READ' "$document_importer" \
     || ! rg -q 'OWNER_WRITE' "$document_importer" \
     || ! rg -q 'MessageDigest\.getInstance\("SHA-256"\)' "$document_importer" \
@@ -272,6 +284,8 @@ if ! rg -q 'Intent\.ACTION_OPEN_DOCUMENT' "$main_activity" \
     || ! rg -q 'same-size replacement before send-scope hashing cannot reach the Codex RPC' "$PROJECT_ROOT/tests/java/de/agentcodi/tests/WorkspaceImportTest.java" \
     || ! rg -q 'same-size replacement immediately before RPC write fails closed' "$PROJECT_ROOT/tests/java/de/agentcodi/tests/WorkspaceImportTest.java" \
     || ! rg -q 'first attachment replacement while hashing a later file fails closed' "$PROJECT_ROOT/tests/java/de/agentcodi/tests/WorkspaceImportTest.java" \
+    || ! rg -q 'the final installation race never overwrites competing bytes' "$PROJECT_ROOT/tests/java/de/agentcodi/tests/WorkspaceImportTest.java" \
+    || ! rg -q 'never_overwrites_a_parallel_creator' "$PROJECT_ROOT/tests/cpp/workspace_import_installer_test.cpp" \
     || ! rg -q 'turn/start revalidates at transport write while verified handles remain open' "$PROJECT_ROOT/tests/java/de/agentcodi/tests/CodexSessionControllerTest.java" \
     || ! rg -q 'failed final guard prevents transport write and closes transaction' "$PROJECT_ROOT/tests/java/de/agentcodi/tests/CodexSessionControllerTest.java" \
     || ! rg -q -- '--turn-import-roundtrip' "$PROJECT_ROOT/tests/cpp/agentcodi_engine_test.cpp"; then
@@ -589,13 +603,13 @@ if ! rg -q 'PYTHON_SOURCE_EXTENSION_COUNT="75"' "$apk_builder" \
   exit 1
 fi
 
-if ! rg -q 'VERSION_NAME = "0\.5\.9"' "$core_root/BuildIdentity.java" \
-    || ! rg -q 'VERSION_CODE = 46' "$core_root/BuildIdentity.java" \
-    || ! rg -q 'android:versionName="0\.5\.9"' "$manifest" \
-    || ! rg -q 'android:versionCode="46"' "$manifest" \
-    || ! rg -q 'APP_VERSION="0\.5\.9"' "$apk_builder" \
-    || ! rg -q 'VERSION_CODE="46"' "$apk_builder"; then
-  echo "The 0.5.9 identity is inconsistent." >&2
+if ! rg -q 'VERSION_NAME = "0\.5\.10"' "$core_root/BuildIdentity.java" \
+    || ! rg -q 'VERSION_CODE = 47' "$core_root/BuildIdentity.java" \
+    || ! rg -q 'android:versionName="0\.5\.10"' "$manifest" \
+    || ! rg -q 'android:versionCode="47"' "$manifest" \
+    || ! rg -q 'APP_VERSION="0\.5\.10"' "$apk_builder" \
+    || ! rg -q 'VERSION_CODE="47"' "$apk_builder"; then
+  echo "The 0.5.10 identity is inconsistent." >&2
   exit 1
 fi
 

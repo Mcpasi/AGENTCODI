@@ -41,7 +41,8 @@ import java.util.Set;
 
 /**
  * Android-independent document materialization below the storage-owned import
- * directory. All creation and moves are relative to secure directory handles.
+ * directory. Creation is relative to a secure directory handle; the final move
+ * is delegated to a required atomic no-replace installer with the same contract.
  */
 public final class WorkspaceDocumentImporter {
     private static final int BUFFER_BYTES = 8192;
@@ -55,18 +56,26 @@ public final class WorkspaceDocumentImporter {
         ));
 
     private final long maximumFileBytes;
+    private final WorkspaceDocumentInstaller installer;
 
-    public WorkspaceDocumentImporter() {
-        this(WorkspaceImportLimits.MAXIMUM_FILE_BYTES);
+    public WorkspaceDocumentImporter(WorkspaceDocumentInstaller documentInstaller) {
+        this(WorkspaceImportLimits.MAXIMUM_FILE_BYTES, documentInstaller);
     }
 
     /** Allows focused tests to exercise the exact production limit behavior. */
-    public WorkspaceDocumentImporter(long maximumFileBytes) {
+    public WorkspaceDocumentImporter(
+        long maximumFileBytes,
+        WorkspaceDocumentInstaller documentInstaller
+    ) {
         if (maximumFileBytes <= 0L
             || maximumFileBytes > WorkspaceImportLimits.MAXIMUM_FILE_BYTES) {
             throw new IllegalArgumentException("Document import limit is invalid");
         }
+        if (documentInstaller == null) {
+            throw new IllegalArgumentException("Atomic document installer is required");
+        }
         this.maximumFileBytes = maximumFileBytes;
+        installer = documentInstaller;
     }
 
     public ImportedWorkspaceFile importDocument(
@@ -272,8 +281,12 @@ public final class WorkspaceDocumentImporter {
             if (pendingAttributes.size() != byteCount) {
                 throw new IOException("Imported workspace file changed while it was written");
             }
-            requireMissing(importRoot, finalName);
-            importRoot.move(pendingName, importRoot, finalName);
+            installer.installNoReplace(
+                workspace.toFile(),
+                pendingName.toString(),
+                finalName.toString(),
+                byteCount
+            );
             pendingCreated = false;
             finalCreated = true;
             enforceOwnerFilePermissions(importRoot, finalName);
@@ -659,26 +672,6 @@ public final class WorkspaceDocumentImporter {
         PosixFileAttributes attributes = view.readAttributes();
         if (!attributes.permissions().equals(OWNER_FILE_PERMISSIONS)) {
             throw new IOException("Imported workspace file is not owner-only");
-        }
-    }
-
-    private static void requireMissing(
-        SecureDirectoryStream<Path> directory,
-        Path name
-    ) throws IOException {
-        BasicFileAttributeView view = directory.getFileAttributeView(
-            name,
-            BasicFileAttributeView.class,
-            LinkOption.NOFOLLOW_LINKS
-        );
-        if (view == null) {
-            throw new IOException("Filesystem cannot reserve an imported workspace name");
-        }
-        try {
-            view.readAttributes();
-            throw new IOException("Random imported workspace name already exists");
-        } catch (NoSuchFileException expected) {
-            // The random final name is free within the held directory handle.
         }
     }
 

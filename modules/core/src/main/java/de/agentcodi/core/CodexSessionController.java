@@ -553,47 +553,55 @@ public final class CodexSessionController
     }
 
     public boolean sendMessage(final String input) {
-        return sendMessage(input, Collections.<CodexFileMention>emptyList());
+        return sendMessageInternal(input, null);
     }
 
     public boolean sendMessage(
         final String input,
-        List<CodexFileMention> fileMentions
+        CodexFileMentionTransaction fileTransaction
+    ) {
+        if (fileTransaction == null) {
+            setUserError("Die vorbereitete Importprüfung fehlt.");
+            return false;
+        }
+        return sendMessageInternal(input, fileTransaction);
+    }
+
+    private boolean sendMessageInternal(
+        final String input,
+        final CodexFileMentionTransaction fileTransaction
     ) {
         if (CredentialGuard.containsLikelyCredential(input)) {
+            closeFileTransaction(fileTransaction);
             setUserError(
                 "OpenAI-Zugangsdaten dürfen nur im geschützten Kontobereich eingegeben werden."
             );
             return false;
         }
         final String prompt = input == null ? "" : input.trim();
-        final List<CodexFileMention> mentions;
+        final int fileCount;
         try {
-            mentions = validateFileMentions(fileMentions);
-        } catch (IllegalArgumentException error) {
+            fileCount = validatedFileTransactionCount(fileTransaction);
+        } catch (RuntimeException error) {
+            closeFileTransaction(fileTransaction);
             setUserError("Importierte Dateien konnten nicht sicher angehängt werden.");
             return false;
         }
-        if ((prompt.isEmpty() && mentions.isEmpty())
+        if ((prompt.isEmpty() && fileCount == 0)
             || prompt.length() > MAX_PROMPT_CHARACTERS) {
+            closeFileTransaction(fileTransaction);
             setUserError(
                 "Nachrichten benötigen Text oder importierte Dateien und dürfen höchstens "
                     + "32768 Textzeichen enthalten."
             );
             return false;
         }
-        final List<Object> userInput = buildUserInput(prompt, mentions);
-        final Map<String, Object> attachmentContext =
-            CodexWorkspaceAttachmentContext.create(mentions);
-        final String projectedUserText = extractUserText(JsonCodec.object(
-            "content", userInput
-        ));
         return submit("Nachricht wird gesendet.", new Operation() {
             @Override
             public void run() throws Exception {
-                String threadId;
-                String requestModel;
-                String requestEffort;
+                final String threadId;
+                final String requestModel;
+                final String requestEffort;
                 synchronized (CodexSessionController.this) {
                     if (requiresOpenaiAuth && authMode.isEmpty()) {
                         throw new IllegalStateException("Bitte zuerst anmelden.");
@@ -616,170 +624,257 @@ public final class CodexSessionController
                 } else {
                     threadId = snapshot().getActiveThreadId();
                 }
-
-                String localId = "local-user-" + localMessageIds.getAndIncrement();
-                synchronized (CodexSessionController.this) {
-                    addBoundedMessageLocked(new ChatMessage(
-                        localId,
-                        ChatMessage.Role.USER,
-                        projectedUserText,
-                        false
-                    ));
-                    turnActive = true;
-                    activeTurnId = "";
-                    publishLocked();
-                }
-
-                Map<String, Object> params = JsonCodec.object(
-                    "threadId", threadId,
-                    "input", userInput,
-                    "cwd", workspacePath,
-                    "runtimeWorkspaceRoots", JsonCodec.array(workspacePath),
-                    "approvalPolicy", "on-request",
-                    "permissions", WORKSPACE_PERMISSION_PROFILE,
-                    "model", requestModel,
-                    "effort", requestEffort,
-                    "summary", "auto"
-                );
-                if (!attachmentContext.isEmpty()) {
-                    params.put("additionalContext", attachmentContext);
-                }
-                try {
-                    Map<String, Object> result = client.request(
-                        "turn/start",
-                        params,
-                        NORMAL_TIMEOUT_MS
-                    );
-                    Map<String, Object> turn = JsonCodec.requireObject(
-                        result.get("turn"),
-                        "turn/start turn"
-                    );
-                    synchronized (CodexSessionController.this) {
-                        String returnedTurnId = JsonCodec.requireString(turn.get("id"), "turn id");
-                        activeTurnId = returnedTurnId;
-                        turnActive = !returnedTurnId.equals(lastCompletedTurnId)
-                            && !"completed".equals(JsonCodec.optionalString(turn.get("status")));
-                        if (!turnActive) {
-                            activeTurnId = "";
+                withVerifiedFileMentions(
+                    fileTransaction,
+                    fileCount,
+                    new CodexFileMentionTransaction.VerifiedSender() {
+                        @Override
+                        public void send(
+                            List<CodexFileMention> mentions,
+                            CodexFileMentionTransaction.SendGuard sendGuard
+                        )
+                            throws Exception {
+                            startTurnWithMentions(
+                                prompt,
+                                mentions,
+                                threadId,
+                                requestModel,
+                                requestEffort,
+                                sendGuard
+                            );
                         }
-                        operationMessage = "Codex arbeitet.";
-                        publishLocked();
                     }
-                } catch (Throwable error) {
-                    synchronized (CodexSessionController.this) {
-                        turnActive = false;
-                        activeTurnId = "";
-                        addSystemMessageLocked(safeError(error));
-                        publishLocked();
-                    }
-                    if (error instanceof Exception) {
-                        throw (Exception) error;
-                    }
-                    throw new IllegalStateException("Turn start failed", error);
-                }
+                );
+            }
+
+            @Override
+            public void cancel() {
+                closeFileTransaction(fileTransaction);
             }
         });
     }
 
     public boolean steerTurn(final String input) {
-        return steerTurn(input, Collections.<CodexFileMention>emptyList());
+        return steerTurnInternal(input, null);
     }
 
     public boolean steerTurn(
         final String input,
-        List<CodexFileMention> fileMentions
+        CodexFileMentionTransaction fileTransaction
+    ) {
+        if (fileTransaction == null) {
+            setUserError("Die vorbereitete Importprüfung fehlt.");
+            return false;
+        }
+        return steerTurnInternal(input, fileTransaction);
+    }
+
+    private boolean steerTurnInternal(
+        final String input,
+        final CodexFileMentionTransaction fileTransaction
     ) {
         if (CredentialGuard.containsLikelyCredential(input)) {
+            closeFileTransaction(fileTransaction);
             setUserError(
                 "OpenAI-Zugangsdaten dürfen nur im geschützten Kontobereich eingegeben werden."
             );
             return false;
         }
         final String prompt = input == null ? "" : input.trim();
-        final List<CodexFileMention> mentions;
+        final int fileCount;
         try {
-            mentions = validateFileMentions(fileMentions);
-        } catch (IllegalArgumentException error) {
+            fileCount = validatedFileTransactionCount(fileTransaction);
+        } catch (RuntimeException error) {
+            closeFileTransaction(fileTransaction);
             setUserError("Importierte Dateien konnten nicht sicher angehängt werden.");
             return false;
         }
-        if ((prompt.isEmpty() && mentions.isEmpty())
+        if ((prompt.isEmpty() && fileCount == 0)
             || prompt.length() > MAX_PROMPT_CHARACTERS) {
+            closeFileTransaction(fileTransaction);
             setUserError(
                 "Nachrichten benötigen Text oder importierte Dateien und dürfen höchstens "
                     + "32768 Textzeichen enthalten."
             );
             return false;
         }
-        final List<Object> userInput = buildUserInput(prompt, mentions);
-        final Map<String, Object> attachmentContext =
-            CodexWorkspaceAttachmentContext.create(mentions);
-        final String projectedUserText = extractUserText(JsonCodec.object(
-            "content", userInput
-        ));
         return submit("Ergänzung wird an den laufenden Turn gesendet.", new Operation() {
             @Override
             public void run() throws Exception {
-                String threadId;
-                String expectedTurnId;
-                String localId;
-                synchronized (CodexSessionController.this) {
-                    if (requiresOpenaiAuth && authMode.isEmpty()) {
-                        throw new IllegalStateException("Bitte zuerst anmelden.");
+                withVerifiedFileMentions(
+                    fileTransaction,
+                    fileCount,
+                    new CodexFileMentionTransaction.VerifiedSender() {
+                        @Override
+                        public void send(
+                            List<CodexFileMention> mentions,
+                            CodexFileMentionTransaction.SendGuard sendGuard
+                        )
+                            throws Exception {
+                            steerTurnWithMentions(prompt, mentions, sendGuard);
+                        }
                     }
-                    if (!turnActive || activeThreadId.isEmpty() || activeTurnId.isEmpty()) {
-                        throw new IllegalStateException(
-                            "Kein laufender Turn kann ergänzt werden."
-                        );
-                    }
-                    threadId = activeThreadId;
-                    expectedTurnId = activeTurnId;
-                    localId = "local-user-" + localMessageIds.getAndIncrement();
-                    addBoundedMessageLocked(new ChatMessage(
-                        localId,
-                        ChatMessage.Role.USER,
-                        projectedUserText,
-                        false
-                    ));
-                    publishLocked();
-                }
+                );
+            }
 
-                try {
-                    Map<String, Object> params = JsonCodec.object(
-                        "threadId", threadId,
-                        "input", userInput,
-                        "expectedTurnId", expectedTurnId
-                    );
-                    if (!attachmentContext.isEmpty()) {
-                        params.put("additionalContext", attachmentContext);
-                    }
-                    Map<String, Object> result = client.request(
-                        "turn/steer",
-                        params,
-                        NORMAL_TIMEOUT_MS
-                    );
-                    String returnedTurnId = JsonCodec.optionalString(result.get("turnId"));
-                    if (!expectedTurnId.equals(returnedTurnId)) {
-                        throw new IllegalArgumentException(
-                            "Der App-Server hat einen anderen Turn bestätigt."
-                        );
-                    }
-                    synchronized (CodexSessionController.this) {
-                        operationMessage = "Ergänzung wurde in den laufenden Turn übernommen.";
-                        publishLocked();
-                    }
-                } catch (Throwable error) {
-                    synchronized (CodexSessionController.this) {
-                        removeLocalMessageLocked(localId);
-                        publishLocked();
-                    }
-                    if (error instanceof Exception) {
-                        throw (Exception) error;
-                    }
-                    throw new IllegalStateException("Turn steer failed", error);
-                }
+            @Override
+            public void cancel() {
+                closeFileTransaction(fileTransaction);
             }
         });
+    }
+
+    private void startTurnWithMentions(
+        String prompt,
+        List<CodexFileMention> mentions,
+        String threadId,
+        String requestModel,
+        String requestEffort,
+        CodexFileMentionTransaction.SendGuard sendGuard
+    ) throws Exception {
+        List<Object> userInput = buildUserInput(prompt, mentions);
+        Map<String, Object> attachmentContext =
+            CodexWorkspaceAttachmentContext.create(mentions);
+        String projectedUserText = extractUserText(JsonCodec.object(
+            "content", userInput
+        ));
+        String localId = "local-user-" + localMessageIds.getAndIncrement();
+        synchronized (this) {
+            addBoundedMessageLocked(new ChatMessage(
+                localId,
+                ChatMessage.Role.USER,
+                projectedUserText,
+                false
+            ));
+            turnActive = true;
+            activeTurnId = "";
+            publishLocked();
+        }
+
+        Map<String, Object> params = JsonCodec.object(
+            "threadId", threadId,
+            "input", userInput,
+            "cwd", workspacePath,
+            "runtimeWorkspaceRoots", JsonCodec.array(workspacePath),
+            "approvalPolicy", "on-request",
+            "permissions", WORKSPACE_PERMISSION_PROFILE,
+            "model", requestModel,
+            "effort", requestEffort,
+            "summary", "auto"
+        );
+        if (!attachmentContext.isEmpty()) {
+            params.put("additionalContext", attachmentContext);
+        }
+        try {
+            Map<String, Object> result = sendGuard == null
+                ? client.request("turn/start", params, NORMAL_TIMEOUT_MS)
+                : client.requestWithFileGuard(
+                    "turn/start",
+                    params,
+                    NORMAL_TIMEOUT_MS,
+                    sendGuard
+                );
+            Map<String, Object> turn = JsonCodec.requireObject(
+                result.get("turn"),
+                "turn/start turn"
+            );
+            synchronized (this) {
+                String returnedTurnId = JsonCodec.requireString(turn.get("id"), "turn id");
+                activeTurnId = returnedTurnId;
+                turnActive = !returnedTurnId.equals(lastCompletedTurnId)
+                    && !"completed".equals(JsonCodec.optionalString(turn.get("status")));
+                if (!turnActive) {
+                    activeTurnId = "";
+                }
+                operationMessage = "Codex arbeitet.";
+                publishLocked();
+            }
+        } catch (Throwable error) {
+            synchronized (this) {
+                turnActive = false;
+                activeTurnId = "";
+                addSystemMessageLocked(safeError(error));
+                publishLocked();
+            }
+            if (error instanceof Exception) {
+                throw (Exception) error;
+            }
+            throw new IllegalStateException("Turn start failed", error);
+        }
+    }
+
+    private void steerTurnWithMentions(
+        String prompt,
+        List<CodexFileMention> mentions,
+        CodexFileMentionTransaction.SendGuard sendGuard
+    ) throws Exception {
+        List<Object> userInput = buildUserInput(prompt, mentions);
+        Map<String, Object> attachmentContext =
+            CodexWorkspaceAttachmentContext.create(mentions);
+        String projectedUserText = extractUserText(JsonCodec.object(
+            "content", userInput
+        ));
+        final String threadId;
+        final String expectedTurnId;
+        final String localId;
+        synchronized (this) {
+            if (requiresOpenaiAuth && authMode.isEmpty()) {
+                throw new IllegalStateException("Bitte zuerst anmelden.");
+            }
+            if (!turnActive || activeThreadId.isEmpty() || activeTurnId.isEmpty()) {
+                throw new IllegalStateException(
+                    "Kein laufender Turn kann ergänzt werden."
+                );
+            }
+            threadId = activeThreadId;
+            expectedTurnId = activeTurnId;
+            localId = "local-user-" + localMessageIds.getAndIncrement();
+            addBoundedMessageLocked(new ChatMessage(
+                localId,
+                ChatMessage.Role.USER,
+                projectedUserText,
+                false
+            ));
+            publishLocked();
+        }
+
+        try {
+            Map<String, Object> params = JsonCodec.object(
+                "threadId", threadId,
+                "input", userInput,
+                "expectedTurnId", expectedTurnId
+            );
+            if (!attachmentContext.isEmpty()) {
+                params.put("additionalContext", attachmentContext);
+            }
+            Map<String, Object> result = sendGuard == null
+                ? client.request("turn/steer", params, NORMAL_TIMEOUT_MS)
+                : client.requestWithFileGuard(
+                    "turn/steer",
+                    params,
+                    NORMAL_TIMEOUT_MS,
+                    sendGuard
+                );
+            String returnedTurnId = JsonCodec.optionalString(result.get("turnId"));
+            if (!expectedTurnId.equals(returnedTurnId)) {
+                throw new IllegalArgumentException(
+                    "Der App-Server hat einen anderen Turn bestätigt."
+                );
+            }
+            synchronized (this) {
+                operationMessage = "Ergänzung wurde in den laufenden Turn übernommen.";
+                publishLocked();
+            }
+        } catch (Throwable error) {
+            synchronized (this) {
+                removeLocalMessageLocked(localId);
+                publishLocked();
+            }
+            if (error instanceof Exception) {
+                throw (Exception) error;
+            }
+            throw new IllegalStateException("Turn steer failed", error);
+        }
     }
 
     public void interruptTurn() {
@@ -3712,6 +3807,97 @@ public final class CodexSessionController
         while (firstRetained > 0) {
             history.remove(0);
             firstRetained--;
+        }
+    }
+
+    private static int validatedFileTransactionCount(
+        CodexFileMentionTransaction transaction
+    ) {
+        if (transaction == null) {
+            return 0;
+        }
+        int count = transaction.getFileCount();
+        if (count <= 0 || count > CodexFileMention.MAXIMUM_MENTIONS) {
+            throw new IllegalArgumentException(
+                "Prepared Codex file count is outside its bound"
+            );
+        }
+        return count;
+    }
+
+    private void withVerifiedFileMentions(
+        CodexFileMentionTransaction transaction,
+        final int expectedCount,
+        final CodexFileMentionTransaction.VerifiedSender sender
+    ) throws Exception {
+        if (transaction == null) {
+            if (expectedCount != 0) {
+                throw new IllegalArgumentException("Prepared Codex files are missing");
+            }
+            sender.send(Collections.<CodexFileMention>emptyList(), null);
+            return;
+        }
+        final Thread operationThread = Thread.currentThread();
+        final boolean[] callbackActive = new boolean[] {true};
+        final boolean[] callbackInvoked = new boolean[] {false};
+        try {
+            transaction.withVerifiedMentions(
+                new CodexFileMentionTransaction.VerifiedSender() {
+                    @Override
+                    public void send(
+                        List<CodexFileMention> values,
+                        CodexFileMentionTransaction.SendGuard sendGuard
+                    )
+                        throws Exception {
+                        synchronized (callbackActive) {
+                            if (!callbackActive[0]
+                                || callbackInvoked[0]
+                                || Thread.currentThread() != operationThread) {
+                                throw new IllegalStateException(
+                                    "Prepared Codex files escaped their verification scope"
+                                );
+                            }
+                            callbackInvoked[0] = true;
+                        }
+                        List<CodexFileMention> mentions = validateFileMentions(values);
+                        if (mentions.size() != expectedCount) {
+                            throw new IllegalArgumentException(
+                                "Prepared Codex file count changed during verification"
+                            );
+                        }
+                        if (sendGuard == null) {
+                            throw new IllegalArgumentException(
+                                "Prepared Codex files have no RPC send guard"
+                            );
+                        }
+                        sender.send(mentions, sendGuard);
+                    }
+                }
+            );
+        } finally {
+            synchronized (callbackActive) {
+                callbackActive[0] = false;
+            }
+        }
+        synchronized (callbackActive) {
+            if (!callbackInvoked[0]) {
+                throw new IllegalStateException(
+                    "Prepared Codex files were not sent inside their verification scope"
+                );
+            }
+        }
+    }
+
+    private static void closeFileTransaction(
+        CodexFileMentionTransaction transaction
+    ) {
+        if (transaction == null) {
+            return;
+        }
+        try {
+            transaction.close();
+        } catch (IOException ignored) {
+            // The transaction is already unusable; cancellation must remain fail-closed.
         }
     }
 

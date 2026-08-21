@@ -1,6 +1,7 @@
 package de.agentcodi.tests;
 
 import de.agentcodi.core.CodexFileMention;
+import de.agentcodi.core.CodexFileMentionTransaction;
 import de.agentcodi.imports.ImportedWorkspaceFile;
 import de.agentcodi.imports.WorkspaceImportGrant;
 import de.agentcodi.imports.WorkspaceImportLimits;
@@ -16,9 +17,12 @@ import java.io.InputStream;
 import java.nio.file.Files;
 import java.nio.file.LinkOption;
 import java.nio.file.Path;
+import java.nio.file.StandardCopyOption;
+import java.nio.file.attribute.FileTime;
 import java.nio.file.attribute.PosixFilePermission;
 import java.util.ArrayList;
 import java.util.Arrays;
+import java.util.Collections;
 import java.util.EnumSet;
 import java.util.List;
 import java.util.Set;
@@ -37,8 +41,10 @@ public final class WorkspaceImportTest {
         cleansPartialFileAfterSourceFailure();
         rejectsSymbolicImportsRoot();
         rejectsChangedAndHardLinkedImportsBeforeCodex();
+        keepsVerifiedHandlesOpenThroughTheSendScope();
+        rejectsChangesAcrossThePreparedBatchWindow();
         validatesBoundedImmutableSelections();
-        return 10;
+        return 12;
     }
 
     private static void validatesTransientResultReadGrant() throws Exception {
@@ -466,6 +472,374 @@ public final class WorkspaceImportTest {
             );
         } finally {
             deleteRecursively(base);
+        }
+    }
+
+    private static void keepsVerifiedHandlesOpenThroughTheSendScope() throws Exception {
+        Path base = Files.createTempDirectory("agentcodi-import-send-scope-");
+        try {
+            WorkspaceLayout layout = WorkspaceLayout.create(base.toFile());
+            WorkspaceDocumentImporter importer = new WorkspaceDocumentImporter();
+            ImportedWorkspaceFile first = importer.importDocument(
+                layout.getWorkspace(),
+                layout.getImports(),
+                "first.bin",
+                "application/octet-stream",
+                4L,
+                new ByteArrayInputStream(new byte[] {1, 2, 3, 4})
+            );
+            ImportedWorkspaceFile second = importer.importDocument(
+                layout.getWorkspace(),
+                layout.getImports(),
+                "second.bin",
+                "application/octet-stream",
+                4L,
+                new ByteArrayInputStream(new byte[] {5, 6, 7, 8})
+            );
+            final TrackingOpener opener = new TrackingOpener(
+                WorkspaceFileAccess.secureNioOpener()
+            );
+            CodexFileMentionTransaction transaction = importer.prepareForCodex(
+                layout.getWorkspace(),
+                Arrays.asList(first, second),
+                opener
+            );
+            try {
+                TestSupport.assertEquals(
+                    Integer.valueOf(0),
+                    Integer.valueOf(opener.openCount),
+                    "preparation does not hash before the synchronous send scope"
+                );
+                TestSupport.assertEquals(
+                    Integer.valueOf(0),
+                    Integer.valueOf(opener.closedCount),
+                    "preparation has no source handle to leak across queue handoff"
+                );
+                final boolean[] sent = new boolean[] {false};
+                transaction.withVerifiedMentions(
+                    new CodexFileMentionTransaction.VerifiedSender() {
+                        @Override
+                        public void send(
+                            List<CodexFileMention> mentions,
+                            CodexFileMentionTransaction.SendGuard sendGuard
+                        ) throws IOException {
+                            TestSupport.assertEquals(
+                                Integer.valueOf(2),
+                                Integer.valueOf(mentions.size()),
+                                "the complete verified batch reaches one sender"
+                            );
+                            TestSupport.assertEquals(
+                                Integer.valueOf(2),
+                                Integer.valueOf(opener.openCount),
+                                "every full hash runs inside the synchronous send scope"
+                            );
+                            TestSupport.assertEquals(
+                                Integer.valueOf(0),
+                                Integer.valueOf(opener.closedCount),
+                                "all verified handles remain open during the synchronous send"
+                            );
+                            sendGuard.verifyUnchanged();
+                            sent[0] = true;
+                        }
+                    }
+                );
+                TestSupport.assertTrue(sent[0], "verified sender runs exactly inside the scope");
+                TestSupport.assertEquals(
+                    Integer.valueOf(2),
+                    Integer.valueOf(opener.closedCount),
+                    "the complete handle batch closes after the sender returns"
+                );
+            } finally {
+                transaction.close();
+            }
+        } finally {
+            deleteRecursively(base);
+        }
+    }
+
+    private static void rejectsChangesAcrossThePreparedBatchWindow() throws Exception {
+        Path base = Files.createTempDirectory("agentcodi-import-send-race-");
+        try {
+            final WorkspaceLayout layout = WorkspaceLayout.create(base.toFile());
+            final WorkspaceDocumentImporter importer = new WorkspaceDocumentImporter();
+            final ImportedWorkspaceFile first = importer.importDocument(
+                layout.getWorkspace(),
+                layout.getImports(),
+                "first.bin",
+                "application/octet-stream",
+                4L,
+                new ByteArrayInputStream(new byte[] {1, 2, 3, 4})
+            );
+            final ImportedWorkspaceFile second = importer.importDocument(
+                layout.getWorkspace(),
+                layout.getImports(),
+                "second.bin",
+                "application/octet-stream",
+                4L,
+                new ByteArrayInputStream(new byte[] {5, 6, 7, 8})
+            );
+            final Path firstPath = layout.getWorkspace().toPath().resolve(
+                first.getRelativePath()
+            );
+
+            CodexFileMentionTransaction beforeSendScope = importer.prepareForCodex(
+                layout.getWorkspace(),
+                Collections.singletonList(first),
+                WorkspaceFileAccess.secureNioOpener()
+            );
+            replaceWithSameLength(firstPath, new byte[] {4, 3, 2, 1});
+            final boolean[] preScopeReplacementSent = new boolean[] {false};
+            try {
+                TestSupport.expectThrows(
+                    IOException.class,
+                    new TestSupport.ThrowingRunnable() {
+                        @Override
+                        public void run() throws Exception {
+                            beforeSendScope.withVerifiedMentions(
+                                new CodexFileMentionTransaction.VerifiedSender() {
+                                    @Override
+                                    public void send(
+                                        List<CodexFileMention> mentions,
+                                        CodexFileMentionTransaction.SendGuard sendGuard
+                                    ) throws IOException {
+                                        sendGuard.verifyUnchanged();
+                                        preScopeReplacementSent[0] = true;
+                                    }
+                                }
+                            );
+                        }
+                    },
+                    "same-size replacement before send-scope hashing cannot reach the Codex RPC"
+                );
+            } finally {
+                beforeSendScope.close();
+            }
+            TestSupport.assertFalse(
+                preScopeReplacementSent[0],
+                "pre-scope replacement is rejected by the synchronous full hash"
+            );
+
+            ImportedWorkspaceFile guarded = importer.importDocument(
+                layout.getWorkspace(),
+                layout.getImports(),
+                "guarded.bin",
+                "application/octet-stream",
+                4L,
+                new ByteArrayInputStream(new byte[] {21, 22, 23, 24})
+            );
+            final Path guardedPath = layout.getWorkspace().toPath().resolve(
+                guarded.getRelativePath()
+            );
+            CodexFileMentionTransaction atRpcWrite = importer.prepareForCodex(
+                layout.getWorkspace(),
+                Collections.singletonList(guarded),
+                WorkspaceFileAccess.secureNioOpener()
+            );
+            final boolean[] senderEntered = new boolean[] {false};
+            final boolean[] transportReached = new boolean[] {false};
+            try {
+                TestSupport.expectThrows(
+                    IOException.class,
+                    new TestSupport.ThrowingRunnable() {
+                        @Override
+                        public void run() throws Exception {
+                            atRpcWrite.withVerifiedMentions(
+                                new CodexFileMentionTransaction.VerifiedSender() {
+                                    @Override
+                                    public void send(
+                                        List<CodexFileMention> mentions,
+                                        CodexFileMentionTransaction.SendGuard sendGuard
+                                    ) throws IOException {
+                                        senderEntered[0] = true;
+                                        replaceWithSameLength(
+                                            guardedPath,
+                                            new byte[] {24, 23, 22, 21}
+                                        );
+                                        sendGuard.verifyUnchanged();
+                                        transportReached[0] = true;
+                                    }
+                                }
+                            );
+                        }
+                    },
+                    "same-size replacement immediately before RPC write fails closed"
+                );
+            } finally {
+                atRpcWrite.close();
+            }
+            TestSupport.assertTrue(
+                senderEntered[0],
+                "the transport-time regression reaches the guarded send scope"
+            );
+            TestSupport.assertFalse(
+                transportReached[0],
+                "transport write cannot follow a failed final batch revalidation"
+            );
+
+            ImportedWorkspaceFile freshFirst = importer.importDocument(
+                layout.getWorkspace(),
+                layout.getImports(),
+                "fresh-first.bin",
+                "application/octet-stream",
+                4L,
+                new ByteArrayInputStream(new byte[] {9, 10, 11, 12})
+            );
+            Path freshFirstPath = layout.getWorkspace().toPath().resolve(
+                freshFirst.getRelativePath()
+            );
+            WorkspaceFileAccess.Opener mutatingOpener = new MutatingSecondOpenOpener(
+                WorkspaceFileAccess.secureNioOpener(),
+                freshFirstPath
+            );
+            CodexFileMentionTransaction duringLaterHash = importer.prepareForCodex(
+                layout.getWorkspace(),
+                Arrays.asList(freshFirst, second),
+                mutatingOpener
+            );
+            final boolean[] batchSent = new boolean[] {false};
+            try {
+                TestSupport.expectThrows(
+                    IOException.class,
+                    new TestSupport.ThrowingRunnable() {
+                        @Override
+                        public void run() throws Exception {
+                            duringLaterHash.withVerifiedMentions(
+                                new CodexFileMentionTransaction.VerifiedSender() {
+                                    @Override
+                                    public void send(
+                                        List<CodexFileMention> mentions,
+                                        CodexFileMentionTransaction.SendGuard sendGuard
+                                    ) throws IOException {
+                                        sendGuard.verifyUnchanged();
+                                        batchSent[0] = true;
+                                    }
+                                }
+                            );
+                        }
+                    },
+                    "first attachment replacement while hashing a later file fails closed"
+                );
+            } finally {
+                duringLaterHash.close();
+            }
+            TestSupport.assertFalse(
+                batchSent[0],
+                "the whole retained handle batch is revalidated before sending"
+            );
+        } finally {
+            deleteRecursively(base);
+        }
+    }
+
+    private static void replaceWithSameLength(Path target, byte[] replacement)
+        throws IOException {
+        Path pending = target.resolveSibling("replacement-" + System.nanoTime() + ".bin");
+        Files.write(pending, replacement);
+        Files.move(pending, target, StandardCopyOption.REPLACE_EXISTING);
+    }
+
+    private static final class TrackingOpener implements WorkspaceFileAccess.Opener {
+        private final WorkspaceFileAccess.Opener delegate;
+        private int openCount;
+        private int closedCount;
+
+        private TrackingOpener(WorkspaceFileAccess.Opener delegate) {
+            this.delegate = delegate;
+        }
+
+        @Override
+        public WorkspaceFileAccess.Source open(
+            File workspaceDirectory,
+            String relativePath,
+            long maximumBytes
+        ) throws IOException {
+            WorkspaceFileAccess.Source source = delegate.open(
+                workspaceDirectory,
+                relativePath,
+                maximumBytes
+            );
+            openCount++;
+            return new TrackingSource(this, source);
+        }
+    }
+
+    private static final class TrackingSource implements WorkspaceFileAccess.Source {
+        private final TrackingOpener owner;
+        private final WorkspaceFileAccess.Source delegate;
+        private boolean closed;
+
+        private TrackingSource(
+            TrackingOpener owner,
+            WorkspaceFileAccess.Source delegate
+        ) {
+            this.owner = owner;
+            this.delegate = delegate;
+        }
+
+        @Override
+        public long getByteCount() {
+            return delegate.getByteCount();
+        }
+
+        @Override
+        public FileTime getLastModifiedTime() {
+            return delegate.getLastModifiedTime();
+        }
+
+        @Override
+        public Object getFileKey() {
+            return delegate.getFileKey();
+        }
+
+        @Override
+        public int read(byte[] buffer, int offset, int length) throws IOException {
+            return delegate.read(buffer, offset, length);
+        }
+
+        @Override
+        public void verifyUnchanged() throws IOException {
+            delegate.verifyUnchanged();
+        }
+
+        @Override
+        public void close() throws IOException {
+            if (closed) {
+                return;
+            }
+            closed = true;
+            try {
+                delegate.close();
+            } finally {
+                owner.closedCount++;
+            }
+        }
+    }
+
+    private static final class MutatingSecondOpenOpener
+        implements WorkspaceFileAccess.Opener {
+        private final WorkspaceFileAccess.Opener delegate;
+        private final Path firstPath;
+        private int openCount;
+
+        private MutatingSecondOpenOpener(
+            WorkspaceFileAccess.Opener delegate,
+            Path firstPath
+        ) {
+            this.delegate = delegate;
+            this.firstPath = firstPath;
+        }
+
+        @Override
+        public WorkspaceFileAccess.Source open(
+            File workspaceDirectory,
+            String relativePath,
+            long maximumBytes
+        ) throws IOException {
+            openCount++;
+            if (openCount == 2) {
+                replaceWithSameLength(firstPath, new byte[] {12, 11, 10, 9});
+            }
+            return delegate.open(workspaceDirectory, relativePath, maximumBytes);
         }
     }
 

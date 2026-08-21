@@ -13,7 +13,7 @@ import android.util.Log;
 
 import de.agentcodi.core.BuildIdentity;
 import de.agentcodi.core.CodexApprovalDecision;
-import de.agentcodi.core.CodexFileMention;
+import de.agentcodi.core.CodexFileMentionTransaction;
 import de.agentcodi.core.CrashReportFormatter;
 import de.agentcodi.core.CodexSessionController;
 import de.agentcodi.core.CodexSessionSnapshot;
@@ -273,33 +273,50 @@ public final class AgentRuntimeService extends Service {
     }
 
     public static boolean sendMessage(String message) {
-        return sendMessage(message, java.util.Collections.<CodexFileMention>emptyList());
+        CodexSessionController controller = sessionController;
+        return controller != null && controller.sendMessage(message);
     }
 
     public static boolean sendMessage(
         String message,
-        List<CodexFileMention> fileMentions
+        CodexFileMentionTransaction fileTransaction
     ) {
         CodexSessionController controller = sessionController;
         if (controller != null) {
-            return controller.sendMessage(message, fileMentions);
+            return controller.sendMessage(message, fileTransaction);
         }
+        closeFileTransaction(fileTransaction);
         return false;
     }
 
     public static boolean steerTurn(String message) {
-        return steerTurn(message, java.util.Collections.<CodexFileMention>emptyList());
+        CodexSessionController controller = sessionController;
+        return controller != null && controller.steerTurn(message);
     }
 
     public static boolean steerTurn(
         String message,
-        List<CodexFileMention> fileMentions
+        CodexFileMentionTransaction fileTransaction
     ) {
         CodexSessionController controller = sessionController;
         if (controller != null) {
-            return controller.steerTurn(message, fileMentions);
+            return controller.steerTurn(message, fileTransaction);
         }
+        closeFileTransaction(fileTransaction);
         return false;
+    }
+
+    private static void closeFileTransaction(
+        CodexFileMentionTransaction fileTransaction
+    ) {
+        if (fileTransaction == null) {
+            return;
+        }
+        try {
+            fileTransaction.close();
+        } catch (IOException ignored) {
+            // A missing runtime cannot consume this one-shot verified batch.
+        }
     }
 
     public static void interruptTurn() {

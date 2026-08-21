@@ -6,7 +6,7 @@ import android.database.Cursor;
 import android.net.Uri;
 import android.provider.OpenableColumns;
 
-import de.agentcodi.core.CodexFileMention;
+import de.agentcodi.core.CodexFileMentionTransaction;
 import de.agentcodi.imports.ImportedWorkspaceFile;
 import de.agentcodi.imports.WorkspaceImportGrant;
 import de.agentcodi.imports.WorkspaceImportLimits;
@@ -16,8 +16,6 @@ import de.agentcodi.storage.WorkspaceLayout;
 
 import java.io.IOException;
 import java.io.InputStream;
-import java.util.ArrayList;
-import java.util.Collections;
 import java.util.List;
 
 /** Android Storage Access Framework adapter for the pure import modules. */
@@ -66,26 +64,21 @@ public final class WorkspaceFileImporter {
         }
     }
 
-    public static List<CodexFileMention> verifyForCodex(
+    public static CodexFileMentionTransaction prepareForCodex(
         Context context,
         List<ImportedWorkspaceFile> importedFiles
     ) throws IOException {
         List<ImportedWorkspaceFile> files = WorkspaceImportSelection.copyOf(importedFiles);
         if (files.isEmpty()) {
-            return Collections.emptyList();
+            throw new IllegalArgumentException("Prepared document batch must not be empty");
         }
         WorkspaceLayout layout = WorkspaceLayout.create(requireContext(context).getFilesDir());
         WorkspaceDocumentImporter importer = new WorkspaceDocumentImporter();
-        List<CodexFileMention> mentions =
-            new ArrayList<CodexFileMention>(files.size());
-        for (ImportedWorkspaceFile file : files) {
-            mentions.add(importer.verifyForCodex(
-                layout.getWorkspace(),
-                file,
-                NativeWorkspaceFileAccess.opener()
-            ));
-        }
-        return Collections.unmodifiableList(mentions);
+        return importer.prepareForCodex(
+            layout.getWorkspace(),
+            files,
+            NativeWorkspaceFileAccess.opener()
+        );
     }
 
     private static DocumentMetadata readMetadata(ContentResolver resolver, Uri sourceUri)

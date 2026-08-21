@@ -1,9 +1,11 @@
 package de.agentcodi.imports.client;
 
 import de.agentcodi.core.CodexFileMention;
+import de.agentcodi.core.CodexFileMentionTransaction;
 import de.agentcodi.core.CredentialGuard;
 import de.agentcodi.imports.ImportedWorkspaceFile;
 import de.agentcodi.imports.WorkspaceImportLimits;
+import de.agentcodi.imports.WorkspaceImportSelection;
 import de.agentcodi.storage.WorkspaceFileAccess;
 
 import java.io.File;
@@ -28,10 +30,12 @@ import java.nio.file.attribute.PosixFilePermission;
 import java.security.MessageDigest;
 import java.security.NoSuchAlgorithmException;
 import java.security.SecureRandom;
+import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.Collections;
 import java.util.EnumSet;
 import java.util.HashSet;
+import java.util.List;
 import java.util.Locale;
 import java.util.Set;
 
@@ -148,7 +152,52 @@ public final class WorkspaceDocumentImporter {
         if (verificationOpener == null) {
             throw new IllegalArgumentException("Document verification opener is required");
         }
-        Path workspace = requireWorkspace(workspaceDirectory);
+        VerifiedCodexFile verified = openVerifiedForCodex(
+            requireWorkspace(workspaceDirectory),
+            imported,
+            verificationOpener
+        );
+        try {
+            return verified.mention;
+        } finally {
+            verified.source.close();
+        }
+    }
+
+    /**
+     * Prepares a bounded, one-shot attachment transaction. Full SHA-256
+     * verification is deliberately deferred until the transaction's
+     * synchronous send scope so no UI or core queue separates hashing from the
+     * request. Every verified source handle then remains open through the
+     * correlated request, with a final whole-batch snapshot check at the
+     * transport write.
+     */
+    public CodexFileMentionTransaction prepareForCodex(
+        File workspaceDirectory,
+        List<ImportedWorkspaceFile> importedFiles,
+        WorkspaceFileAccess.Opener verificationOpener
+    ) throws IOException {
+        if (verificationOpener == null) {
+            throw new IllegalArgumentException("Document verification opener is required");
+        }
+        List<ImportedWorkspaceFile> files = WorkspaceImportSelection.copyOf(
+            importedFiles
+        );
+        if (files.isEmpty()) {
+            throw new IllegalArgumentException("Prepared document batch must not be empty");
+        }
+        return new PreparedCodexFiles(
+            requireWorkspace(workspaceDirectory),
+            files,
+            verificationOpener
+        );
+    }
+
+    private VerifiedCodexFile openVerifiedForCodex(
+        Path workspace,
+        ImportedWorkspaceFile imported,
+        WorkspaceFileAccess.Opener verificationOpener
+    ) throws IOException {
         String relativePath = imported.getRelativePath();
         Path expected = workspace.resolve(relativePath).normalize();
         if (!expected.getParent().equals(workspace.resolve(
@@ -156,17 +205,28 @@ public final class WorkspaceDocumentImporter {
         ))) {
             throw new IOException("Imported workspace file escaped its private directory");
         }
-        try (WorkspaceFileAccess.Source source = verificationOpener.open(
+        WorkspaceFileAccess.Source source = verificationOpener.open(
             workspace.toFile(),
             relativePath,
             maximumFileBytes
-        )) {
-            verifyContent(source, imported);
-        }
-        return CodexFileMention.create(
-            imported.getDisplayName(),
-            expected.toFile().getAbsolutePath()
         );
+        boolean accepted = false;
+        try {
+            verifyContent(source, imported);
+            VerifiedCodexFile verified = new VerifiedCodexFile(
+                source,
+                CodexFileMention.create(
+                    imported.getDisplayName(),
+                    expected.toFile().getAbsolutePath()
+                )
+            );
+            accepted = true;
+            return verified;
+        } finally {
+            if (!accepted) {
+                source.close();
+            }
+        }
     }
 
     private ImportedWorkspaceFile materialize(
@@ -361,6 +421,147 @@ public final class WorkspaceDocumentImporter {
             return MessageDigest.getInstance("SHA-256");
         } catch (NoSuchAlgorithmException error) {
             throw new IOException("SHA-256 is unavailable for document import", error);
+        }
+    }
+
+    private static void closeVerifiedFiles(
+        List<VerifiedCodexFile> files,
+        IOException initialFailure
+    ) throws IOException {
+        IOException failure = initialFailure;
+        for (int index = files.size() - 1; index >= 0; index--) {
+            try {
+                files.get(index).source.close();
+            } catch (IOException error) {
+                if (failure == null) {
+                    failure = error;
+                } else {
+                    failure.addSuppressed(error);
+                }
+            }
+        }
+        if (failure != null) {
+            throw failure;
+        }
+    }
+
+    private static final class VerifiedCodexFile {
+        private final WorkspaceFileAccess.Source source;
+        private final CodexFileMention mention;
+
+        private VerifiedCodexFile(
+            WorkspaceFileAccess.Source source,
+            CodexFileMention mention
+        ) {
+            this.source = source;
+            this.mention = mention;
+        }
+    }
+
+    private final class PreparedCodexFiles
+        implements CodexFileMentionTransaction {
+        private final Path workspace;
+        private final List<ImportedWorkspaceFile> importedFiles;
+        private final WorkspaceFileAccess.Opener verificationOpener;
+        private final List<VerifiedCodexFile> openedFiles =
+            new ArrayList<VerifiedCodexFile>();
+        private boolean claimed;
+        private boolean closed;
+
+        private PreparedCodexFiles(
+            Path verifiedWorkspace,
+            List<ImportedWorkspaceFile> files,
+            WorkspaceFileAccess.Opener opener
+        ) {
+            workspace = verifiedWorkspace;
+            importedFiles = files;
+            verificationOpener = opener;
+        }
+
+        @Override
+        public int getFileCount() {
+            return importedFiles.size();
+        }
+
+        @Override
+        public synchronized void withVerifiedMentions(VerifiedSender sender)
+            throws Exception {
+            if (sender == null) {
+                throw new IllegalArgumentException("Verified attachment sender is required");
+            }
+            if (closed || claimed) {
+                throw new IOException("Prepared attachment batch is no longer available");
+            }
+            claimed = true;
+            Throwable failure = null;
+            try {
+                List<CodexFileMention> values =
+                    new ArrayList<CodexFileMention>(importedFiles.size());
+                for (ImportedWorkspaceFile imported : importedFiles) {
+                    VerifiedCodexFile verified = openVerifiedForCodex(
+                        workspace,
+                        imported,
+                        verificationOpener
+                    );
+                    openedFiles.add(verified);
+                    values.add(verified.mention);
+                }
+                final List<CodexFileMention> mentions =
+                    Collections.unmodifiableList(values);
+                verifyBatchUnchanged();
+                final boolean[] guardInvoked = new boolean[] {false};
+                sender.send(mentions, new SendGuard() {
+                    @Override
+                    public void verifyUnchanged() throws IOException {
+                        if (guardInvoked[0]) {
+                            throw new IOException(
+                                "Prepared attachment send guard was already consumed"
+                            );
+                        }
+                        guardInvoked[0] = true;
+                        verifyBatchUnchanged();
+                    }
+                });
+                if (!guardInvoked[0]) {
+                    throw new IOException(
+                        "Prepared attachment batch was not revalidated at RPC write"
+                    );
+                }
+            } catch (Throwable error) {
+                failure = error;
+                if (error instanceof Exception) {
+                    throw (Exception) error;
+                }
+                if (error instanceof Error) {
+                    throw (Error) error;
+                }
+                throw new IllegalStateException("Verified attachment send failed", error);
+            } finally {
+                try {
+                    close();
+                } catch (IOException closeError) {
+                    if (failure != null) {
+                        failure.addSuppressed(closeError);
+                    } else {
+                        throw closeError;
+                    }
+                }
+            }
+        }
+
+        @Override
+        public synchronized void close() throws IOException {
+            if (closed) {
+                return;
+            }
+            closed = true;
+            closeVerifiedFiles(openedFiles, null);
+        }
+
+        private void verifyBatchUnchanged() throws IOException {
+            for (VerifiedCodexFile file : openedFiles) {
+                file.source.verifyUnchanged();
+            }
         }
     }
 

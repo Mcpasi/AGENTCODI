@@ -3,6 +3,7 @@ package de.agentcodi.tests;
 import de.agentcodi.core.ChatMessage;
 import de.agentcodi.core.CodexApprovalDecision;
 import de.agentcodi.core.CodexFileMention;
+import de.agentcodi.core.CodexFileMentionTransaction;
 import de.agentcodi.core.CodexInteractiveRequest;
 import de.agentcodi.core.CodexModelOption;
 import de.agentcodi.core.CodexRateLimitWindow;
@@ -92,8 +93,10 @@ public final class CodexSessionControllerTest {
                 "/private/workspace/imports/fedcba9876543210fedcba9876543210.csv"
             )
         );
+        TestFileTransaction startTransaction = verifiedMentions(mentions);
+        server.expectedTurnStartFileTransaction = startTransaction;
         TestSupport.assertTrue(
-            controller.sendMessage("  Analysiere beide Dateien.  ", mentions),
+            controller.sendMessage("  Analysiere beide Dateien.  ", startTransaction),
             "bounded imported mentions are accepted"
         );
         waitFor(new Condition() {
@@ -104,6 +107,13 @@ public final class CodexSessionControllerTest {
                     && !controller.snapshot().isOperationActive();
             }
         }, "turn/start carries imported mentions");
+        TestSupport.assertTrue(
+            startTransaction.guardInvoked
+                && startTransaction.transportObservedAfterGuard
+                && startTransaction.senderReturnedBeforeClose
+                && startTransaction.closed,
+            "turn/start revalidates at transport write while verified handles remain open"
+        );
 
         Map<String, Object> start = server.lastTurnStartParams;
         TestSupport.assertEquals(
@@ -220,8 +230,12 @@ public final class CodexSessionControllerTest {
             "correction.txt",
             "/private/workspace/imports/aabbccddeeff0011aabbccddeeff0011.txt"
         );
+        TestFileTransaction steerTransaction = verifiedMentions(
+            Collections.singletonList(steeringMention)
+        );
+        server.expectedTurnSteerFileTransaction = steerTransaction;
         TestSupport.assertTrue(
-            controller.steerTurn("", Collections.singletonList(steeringMention)),
+            controller.steerTurn("", steerTransaction),
             "attachment-only active-turn steering is accepted"
         );
         waitFor(new Condition() {
@@ -231,6 +245,13 @@ public final class CodexSessionControllerTest {
                     && !controller.snapshot().isOperationActive();
             }
         }, "turn/steer carries an attachment-only mention");
+        TestSupport.assertTrue(
+            steerTransaction.guardInvoked
+                && steerTransaction.transportObservedAfterGuard
+                && steerTransaction.senderReturnedBeforeClose
+                && steerTransaction.closed,
+            "turn/steer revalidates at transport write while verified handles remain open"
+        );
         Map<String, Object> steer = server.lastTurnSteerParams;
         TestSupport.assertEquals(
             Integer.valueOf(4),
@@ -292,10 +313,19 @@ public final class CodexSessionControllerTest {
             "outside.txt",
             "/private/outside/outside.txt"
         );
-        TestSupport.assertFalse(
-            controller.sendMessage("Nicht senden", Collections.singletonList(outside)),
-            "outside mention is rejected synchronously"
+        TestSupport.assertTrue(
+            controller.sendMessage(
+                "Nicht senden",
+                verifiedMentions(Collections.singletonList(outside))
+            ),
+            "outside mention verification is accepted into the serial operation"
         );
+        waitFor(new Condition() {
+            @Override
+            public boolean isTrue() {
+                return !controller.snapshot().isOperationActive();
+            }
+        }, "outside mention verification fails before transport");
         TestSupport.assertEquals(
             null,
             server.lastTurnStartParams,
@@ -306,20 +336,55 @@ public final class CodexSessionControllerTest {
             "inside.txt",
             "/private/workspace/imports/0123456789abcdef0123456789abcdef.txt"
         );
-        TestSupport.assertFalse(
-            controller.sendMessage("Nicht doppelt", Arrays.asList(valid, valid)),
-            "duplicate mention path is rejected"
+        TestSupport.assertTrue(
+            controller.sendMessage(
+                "Nicht doppelt",
+                verifiedMentions(Arrays.asList(valid, valid))
+            ),
+            "duplicate mention verification is queued"
         );
+        waitFor(new Condition() {
+            @Override
+            public boolean isTrue() {
+                return !controller.snapshot().isOperationActive();
+            }
+        }, "duplicate mention verification fails before transport");
         CodexFileMention predictable = CodexFileMention.create(
             "predictable.txt",
             "/private/workspace/imports/predictable.txt"
         );
-        TestSupport.assertFalse(
+        TestSupport.assertTrue(
             controller.sendMessage(
                 "Nicht mit nutzergesteuertem Speicherpfad",
-                Collections.singletonList(predictable)
+                verifiedMentions(Collections.singletonList(predictable))
             ),
-            "non-random import storage name is rejected"
+            "non-random import storage-name verification is queued"
+        );
+        waitFor(new Condition() {
+            @Override
+            public boolean isTrue() {
+                return !controller.snapshot().isOperationActive();
+            }
+        }, "non-random import storage name fails before transport");
+        TestFileTransaction changedAtTransport = new TestFileTransaction(
+            Collections.singletonList(valid),
+            true
+        );
+        TestSupport.assertTrue(
+            controller.sendMessage("Guard muss ablehnen", changedAtTransport),
+            "transport-time mutation check is queued"
+        );
+        waitFor(new Condition() {
+            @Override
+            public boolean isTrue() {
+                return !controller.snapshot().isOperationActive();
+            }
+        }, "transport-time mutation fails before turn/start write");
+        TestSupport.assertTrue(
+            changedAtTransport.guardInvoked
+                && !changedAtTransport.transportObservedAfterGuard
+                && changedAtTransport.closed,
+            "failed final guard prevents transport write and closes transaction"
         );
         final List<CodexFileMention> tooMany = new ArrayList<CodexFileMention>();
         for (int index = 0; index <= CodexFileMention.MAXIMUM_MENTIONS; index++) {
@@ -332,7 +397,7 @@ public final class CodexSessionControllerTest {
             ));
         }
         TestSupport.assertFalse(
-            controller.sendMessage("Nicht zu viele", tooMany),
+            controller.sendMessage("Nicht zu viele", verifiedMentions(tooMany)),
             "mention-count limit is rejected"
         );
         TestSupport.expectThrows(
@@ -2741,6 +2806,78 @@ public final class CodexSessionControllerTest {
         boolean isTrue();
     }
 
+    private static TestFileTransaction verifiedMentions(
+        List<CodexFileMention> mentions
+    ) {
+        return new TestFileTransaction(mentions);
+    }
+
+    /** Host fixture for the one-shot runtime-owned verification scope. */
+    private static final class TestFileTransaction
+        implements CodexFileMentionTransaction {
+        private final List<CodexFileMention> mentions;
+        private boolean claimed;
+        private volatile boolean closed;
+        private volatile boolean guardInvoked;
+        private volatile boolean transportObservedAfterGuard;
+        private volatile boolean senderReturnedBeforeClose;
+        private final boolean failGuard;
+
+        private TestFileTransaction(List<CodexFileMention> values) {
+            this(values, false);
+        }
+
+        private TestFileTransaction(
+            List<CodexFileMention> values,
+            boolean rejectAtGuard
+        ) {
+            mentions = Collections.unmodifiableList(
+                new ArrayList<CodexFileMention>(values)
+            );
+            failGuard = rejectAtGuard;
+        }
+
+        @Override
+        public int getFileCount() {
+            return mentions.size();
+        }
+
+        @Override
+        public synchronized void withVerifiedMentions(VerifiedSender sender)
+            throws Exception {
+            if (claimed || closed) {
+                throw new IOException("fixture verification scope was already consumed");
+            }
+            claimed = true;
+            try {
+                sender.send(mentions, new SendGuard() {
+                    @Override
+                    public void verifyUnchanged() throws IOException {
+                        if (closed || guardInvoked) {
+                            throw new IOException(
+                                "fixture send guard escaped or was consumed twice"
+                            );
+                        }
+                        guardInvoked = true;
+                        if (failGuard) {
+                            throw new IOException(
+                                "fixture changed immediately before transport write"
+                            );
+                        }
+                    }
+                });
+                senderReturnedBeforeClose = !closed;
+            } finally {
+                close();
+            }
+        }
+
+        @Override
+        public synchronized void close() {
+            closed = true;
+        }
+    }
+
     private static final class FixtureServer implements CodexRpcTransport {
         private static final Object CLOSED = new Object();
         private final LinkedBlockingQueue<Object> incoming = new LinkedBlockingQueue<Object>();
@@ -2756,6 +2893,8 @@ public final class CodexSessionControllerTest {
         private volatile Map<String, Object> lastThreadStartParams;
         private volatile Map<String, Object> lastTurnStartParams;
         private volatile Map<String, Object> lastTurnSteerParams;
+        private volatile TestFileTransaction expectedTurnStartFileTransaction;
+        private volatile TestFileTransaction expectedTurnSteerFileTransaction;
         private volatile Map<String, Object> lastTurnInterruptParams;
         private volatile Map<String, Object> lastCommandExecParams;
         private volatile Map<String, Object> lastTerminalResizeParams;
@@ -2925,6 +3064,13 @@ public final class CodexSessionControllerTest {
                 ));
             } else if ("turn/start".equals(method)) {
                 lastTurnStartParams = JsonCodec.requireObject(request.get("params"), "params");
+                TestFileTransaction expectedTransaction =
+                    expectedTurnStartFileTransaction;
+                expectedTurnStartFileTransaction = null;
+                if (expectedTransaction != null) {
+                    expectedTransaction.transportObservedAfterGuard =
+                        expectedTransaction.guardInvoked && !expectedTransaction.closed;
+                }
                 turnStartRequestCount.incrementAndGet();
                 respond(request, JsonCodec.object(
                     "turn", JsonCodec.object(
@@ -3012,6 +3158,13 @@ public final class CodexSessionControllerTest {
                 ));
             } else if ("turn/steer".equals(method)) {
                 lastTurnSteerParams = JsonCodec.requireObject(request.get("params"), "params");
+                TestFileTransaction expectedTransaction =
+                    expectedTurnSteerFileTransaction;
+                expectedTurnSteerFileTransaction = null;
+                if (expectedTransaction != null) {
+                    expectedTransaction.transportObservedAfterGuard =
+                        expectedTransaction.guardInvoked && !expectedTransaction.closed;
+                }
                 if (emitSteerUserItemBeforeResponse) {
                     Map<String, Object> steerInput = JsonCodec.requireObject(
                         JsonCodec.requireArray(

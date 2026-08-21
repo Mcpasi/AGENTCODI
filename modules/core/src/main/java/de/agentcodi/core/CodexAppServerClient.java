@@ -101,6 +101,27 @@ public final class CodexAppServerClient implements AutoCloseable {
         return requestInternal(method, params, timeoutMilliseconds, false);
     }
 
+    Map<String, Object> requestWithFileGuard(
+        String method,
+        Map<String, Object> params,
+        long timeoutMilliseconds,
+        CodexFileMentionTransaction.SendGuard sendGuard
+    ) throws Exception {
+        if (!initialized) {
+            throw new IllegalStateException("Codex app-server connection is not initialized");
+        }
+        if (sendGuard == null) {
+            throw new IllegalArgumentException("Codex file send guard is required");
+        }
+        return requestInternal(
+            method,
+            params,
+            timeoutMilliseconds,
+            false,
+            sendGuard
+        );
+    }
+
     Map<String, Object> requestStreaming(
         final String method,
         final Map<String, Object> params,
@@ -266,6 +287,22 @@ public final class CodexAppServerClient implements AutoCloseable {
         long timeoutMilliseconds,
         boolean initializationRequest
     ) throws Exception {
+        return requestInternal(
+            method,
+            params,
+            timeoutMilliseconds,
+            initializationRequest,
+            null
+        );
+    }
+
+    private Map<String, Object> requestInternal(
+        final String method,
+        final Map<String, Object> params,
+        long timeoutMilliseconds,
+        boolean initializationRequest,
+        final CodexFileMentionTransaction.SendGuard sendGuard
+    ) throws Exception {
         return requestPrepared(
             method,
             timeoutMilliseconds,
@@ -280,7 +317,7 @@ public final class CodexAppServerClient implements AutoCloseable {
                     if (params != null) {
                         message.put("params", params);
                     }
-                    writeMessage(message);
+                    writeMessage(message, sendGuard);
                 }
             }
         );
@@ -397,6 +434,13 @@ public final class CodexAppServerClient implements AutoCloseable {
     }
 
     private void writeMessage(Map<String, Object> message) throws IOException {
+        writeMessage(message, null);
+    }
+
+    private void writeMessage(
+        Map<String, Object> message,
+        CodexFileMentionTransaction.SendGuard sendGuard
+    ) throws IOException {
         String line = JsonCodec.stringify(message);
         byte[] encoded = line.getBytes(StandardCharsets.UTF_8);
         try {
@@ -404,6 +448,9 @@ public final class CodexAppServerClient implements AutoCloseable {
                 throw new IOException("Outgoing Codex RPC message exceeds the byte limit");
             }
             synchronized (writeLock) {
+                if (sendGuard != null) {
+                    sendGuard.verifyUnchanged();
+                }
                 transport.writeBytes(encoded, encoded.length, MAX_OUTGOING_BYTES);
             }
         } finally {

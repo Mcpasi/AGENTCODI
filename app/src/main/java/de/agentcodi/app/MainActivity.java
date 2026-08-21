@@ -29,7 +29,7 @@ import android.widget.TextView;
 import android.widget.Toast;
 
 import de.agentcodi.core.ChatMessage;
-import de.agentcodi.core.CodexFileMention;
+import de.agentcodi.core.CodexFileMentionTransaction;
 import de.agentcodi.core.CodexModelOption;
 import de.agentcodi.core.CodexReasoningOption;
 import de.agentcodi.core.CodexSessionSnapshot;
@@ -49,6 +49,7 @@ import de.agentcodi.runtime.CrashDiagnostics;
 import de.agentcodi.runtime.WorkspaceFileImporter;
 import de.agentcodi.runtime.WorkspaceImageExporter;
 
+import java.io.IOException;
 import java.text.DateFormat;
 import java.util.ArrayList;
 import java.util.Date;
@@ -71,6 +72,7 @@ public final class MainActivity extends Activity {
         new ArrayList<TranscriptRow>();
     private final ExecutorService imageOperations = Executors.newSingleThreadExecutor();
     private final ExecutorService importOperations = Executors.newSingleThreadExecutor();
+    private final Object preparedImportSendLock = new Object();
     private final List<ImportedWorkspaceFile> pendingImports =
         new ArrayList<ImportedWorkspaceFile>();
     private final Runnable refreshTask = new Runnable() {
@@ -132,6 +134,7 @@ public final class MainActivity extends Activity {
     private String pendingImportsThreadId = "";
     private boolean importOperationActive;
     private boolean sendPreparationActive;
+    private CodexFileMentionTransaction preparedImportSend;
     private boolean destroyed;
     private long lastSessionRevision = Long.MIN_VALUE;
     private long lastRuntimeGeneration = Long.MIN_VALUE;
@@ -184,7 +187,13 @@ public final class MainActivity extends Activity {
 
     @Override
     protected void onDestroy() {
-        destroyed = true;
+        CodexFileMentionTransaction abandonedSend;
+        synchronized (preparedImportSendLock) {
+            destroyed = true;
+            abandonedSend = preparedImportSend;
+            preparedImportSend = null;
+        }
+        closeFileTransaction(abandonedSend);
         handler.removeCallbacksAndMessages(null);
         imageOperations.shutdownNow();
         importOperations.shutdownNow();
@@ -691,21 +700,35 @@ public final class MainActivity extends Activity {
             @Override
             public void run() {
                 try {
-                    final List<CodexFileMention> mentions =
-                        WorkspaceFileImporter.verifyForCodex(applicationContext, files);
-                    handler.post(new Runnable() {
-                        @Override
-                        public void run() {
-                            completePreparedSend(
-                                prompt,
-                                files,
-                                mentions,
-                                steering,
-                                threadId,
-                                turnId
-                            );
+                    final CodexFileMentionTransaction fileTransaction =
+                        WorkspaceFileImporter.prepareForCodex(
+                            applicationContext,
+                            files
+                        );
+                    boolean posted = false;
+                    try {
+                        if (!registerPreparedImportSend(fileTransaction)) {
+                            return;
                         }
-                    });
+                        posted = handler.post(new Runnable() {
+                            @Override
+                            public void run() {
+                                completePreparedSend(
+                                    prompt,
+                                    files,
+                                    fileTransaction,
+                                    steering,
+                                    threadId,
+                                    turnId
+                                );
+                            }
+                        });
+                    } finally {
+                        if (!posted) {
+                            releasePreparedImportSend(fileTransaction);
+                            closeFileTransaction(fileTransaction);
+                        }
+                    }
                 } catch (Throwable error) {
                     final String reason = importFailureReason(error);
                     handler.post(new Runnable() {
@@ -738,12 +761,17 @@ public final class MainActivity extends Activity {
     private void completePreparedSend(
         String prompt,
         List<ImportedWorkspaceFile> preparedFiles,
-        List<CodexFileMention> mentions,
+        CodexFileMentionTransaction fileTransaction,
         boolean steering,
         String threadId,
         String turnId
     ) {
+        if (!releasePreparedImportSend(fileTransaction)) {
+            closeFileTransaction(fileTransaction);
+            return;
+        }
         if (destroyed) {
+            closeFileTransaction(fileTransaction);
             return;
         }
         sendPreparationActive = false;
@@ -753,6 +781,7 @@ public final class MainActivity extends Activity {
             && (!steering || turnId.equals(current.getActiveTurnId()))
             && preparedFiles.equals(WorkspaceImportSelection.copyOf(pendingImports));
         if (!sameContext) {
+            closeFileTransaction(fileTransaction);
             refreshLocalComposerState();
             Toast.makeText(
                 this,
@@ -762,14 +791,51 @@ public final class MainActivity extends Activity {
             return;
         }
         boolean accepted = steering
-            ? AgentRuntimeService.steerTurn(prompt, mentions)
-            : AgentRuntimeService.sendMessage(prompt, mentions);
+            ? AgentRuntimeService.steerTurn(prompt, fileTransaction)
+            : AgentRuntimeService.sendMessage(prompt, fileTransaction);
         if (accepted) {
             composerInput.getText().clear();
             pendingImports.clear();
             pendingImportsThreadId = "";
         }
         refreshLocalComposerState();
+    }
+
+    private boolean registerPreparedImportSend(
+        CodexFileMentionTransaction fileTransaction
+    ) {
+        synchronized (preparedImportSendLock) {
+            if (destroyed || preparedImportSend != null) {
+                return false;
+            }
+            preparedImportSend = fileTransaction;
+            return true;
+        }
+    }
+
+    private boolean releasePreparedImportSend(
+        CodexFileMentionTransaction fileTransaction
+    ) {
+        synchronized (preparedImportSendLock) {
+            if (preparedImportSend != fileTransaction) {
+                return false;
+            }
+            preparedImportSend = null;
+            return true;
+        }
+    }
+
+    private static void closeFileTransaction(
+        CodexFileMentionTransaction fileTransaction
+    ) {
+        if (fileTransaction == null) {
+            return;
+        }
+        try {
+            fileTransaction.close();
+        } catch (IOException ignored) {
+            // The verified batch is already unusable and remains fail-closed.
+        }
     }
 
     private void openDocumentImportPicker() {

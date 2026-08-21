@@ -59,7 +59,7 @@ AGENTCODI does more than display a Codex conversation.
 | Python | Packaged runtime |
 | MCP management | Native Android interface backed by Codex configuration RPCs |
 
-The current AGENTCODI 0.5.7 runtime uses **Codex app-server 0.147.2**.
+The current AGENTCODI 0.5.8 runtime uses **Codex app-server 0.147.2**.
 
 ---
 
@@ -158,7 +158,9 @@ The application also validates canonical paths and rejects unsafe symbolic-link 
 
 ### Import
 
-The chat composer can import files selected through Android's system document picker. AGENTCODI consumes the temporary read grant, copies each selected document byte-for-byte into the private `workspace/imports` directory, and then attaches only that verified workspace copy. For both a new `turn/start` and attachment-only or text-backed `turn/steer`, the pinned app-server's native `mention` input preserves the visible attachment in user history while its native `additionalContext` field gives Codex the exact verified workspace path and requires it to read the actual file bytes with the existing workspace tools. No file is represented to the model by its display name alone, and the application creates no upload protocol, second process, listener, JNI gateway or filesystem root.
+The chat composer can import files selected through Android's system document picker. AGENTCODI requires the returned result intent itself to carry `FLAG_GRANT_READ_URI_PERMISSION`; requesting that flag when opening the picker or having some other way to read a `content:` URI is not accepted as proof. The UI rejects a result without the transient read grant before collecting its URIs, and the Runtime import facade verifies the same immutable, URI-free grant projection again before reading provider metadata or opening a stream. AGENTCODI then copies each selected document byte-for-byte into the private `workspace/imports` directory and attaches only that verified workspace copy. Single and multiple selection remain supported.
+
+For both a new `turn/start` and attachment-only or text-backed `turn/steer`, the pinned app-server's native `mention` input preserves the visible attachment in user history while its native `additionalContext` field gives Codex the exact verified workspace path and requires it to read the actual file bytes with the existing workspace tools. No file is represented to the model by its display name alone, and the application creates no upload protocol, second process, listener, JNI gateway or filesystem root.
 
 One message can attach at most 16 imported files, with a 512 MiB per-file limit and a 1 GiB combined limit. Pending and final files use random non-overwriting tokens plus at most a short strictly alphanumeric extension, owner-only permissions, bounded copying, descriptor-relative no-follow operations, cleanup after failure, and the same stable regular-file/link checks used by workspace export. The user-controlled display-name stem is therefore not part of the model-readable path. A transient SHA-256 binding is calculated while copying and checked from the stable workspace handle after installation and again immediately before the mention and model-readable path context are sent, so an equal-length content replacement also fails closed. Obvious credential filenames are rejected before copying. Provider URIs, grants, display labels and pending digest state never enter the model context; external storage never becomes a runtime workspace root or sandbox exception.
 
@@ -353,7 +355,7 @@ Several sensitive byte and character buffers are explicitly cleared after use.
 
 Current release line:
 
-### AGENTCODI 0.5.7
+### AGENTCODI 0.5.8
 
 | Requirement | Value |
 |---|---|
@@ -404,7 +406,7 @@ Physical Android hardware is used separately to validate installation, UI behavi
 
 AGENTCODI is under active development.
 
-Version 0.5.7 currently focuses heavily on:
+Version 0.5.8 currently focuses heavily on:
 
 - Native Codex runtime integration
 - Correlated in-flight turn steering without losing the separate stop action
@@ -413,7 +415,7 @@ Version 0.5.7 currently focuses heavily on:
 - Packaged development toolchains
 - Android runtime stability
 - Workspace boundaries
-- Direct, bounded external-document import whose actual workspace bytes are reachable through app-server-native attachment context and tools
+- Direct, bounded external-document import whose returned transient read grant is proven before provider access and whose actual workspace bytes are reachable through app-server-native attachment context and tools
 - Race-free individual-file, image and ZIP source opening
 - Complete PNG validation before materialization, recovery and export
 - SHA-256-bound image materialization proofs for resumed history

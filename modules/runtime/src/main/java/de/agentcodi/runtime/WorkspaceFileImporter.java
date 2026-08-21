@@ -8,6 +8,7 @@ import android.provider.OpenableColumns;
 
 import de.agentcodi.core.CodexFileMention;
 import de.agentcodi.imports.ImportedWorkspaceFile;
+import de.agentcodi.imports.WorkspaceImportGrant;
 import de.agentcodi.imports.WorkspaceImportLimits;
 import de.agentcodi.imports.WorkspaceImportSelection;
 import de.agentcodi.imports.client.WorkspaceDocumentImporter;
@@ -27,10 +28,11 @@ public final class WorkspaceFileImporter {
     public static ImportedWorkspaceFile importDocument(
         Context context,
         Uri sourceUri,
+        WorkspaceImportGrant sourceGrant,
         long maximumBytes
     ) throws IOException {
         Context applicationContext = requireContext(context);
-        requireContentSource(sourceUri);
+        requireContentSource(sourceUri, sourceGrant);
         if (maximumBytes <= 0L) {
             throw new IOException("No import capacity remains for this message");
         }
@@ -133,8 +135,17 @@ public final class WorkspaceFileImporter {
         return applicationContext == null ? context : applicationContext;
     }
 
-    private static void requireContentSource(Uri sourceUri) throws IOException {
-        if (sourceUri == null || !ContentResolver.SCHEME_CONTENT.equals(sourceUri.getScheme())) {
+    private static void requireContentSource(
+        Uri sourceUri,
+        WorkspaceImportGrant sourceGrant
+    ) throws IOException {
+        if (sourceGrant == null || !sourceGrant.hasTransientReadPermission()) {
+            throw new IOException(
+                "Android did not return transient read permission for the selected document"
+            );
+        }
+        if (sourceUri == null
+            || !ContentResolver.SCHEME_CONTENT.equals(sourceUri.getScheme())) {
             throw new IOException("Android did not provide a private content document source");
         }
     }

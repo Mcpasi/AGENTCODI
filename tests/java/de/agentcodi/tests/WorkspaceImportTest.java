@@ -2,6 +2,7 @@ package de.agentcodi.tests;
 
 import de.agentcodi.core.CodexFileMention;
 import de.agentcodi.imports.ImportedWorkspaceFile;
+import de.agentcodi.imports.WorkspaceImportGrant;
 import de.agentcodi.imports.WorkspaceImportLimits;
 import de.agentcodi.imports.WorkspaceImportSelection;
 import de.agentcodi.imports.client.WorkspaceDocumentImporter;
@@ -27,6 +28,7 @@ public final class WorkspaceImportTest {
     }
 
     public static int run() throws Exception {
+        validatesTransientResultReadGrant();
         importsAndVerifiesArbitraryBytes();
         sanitizesUntrustedMetadata();
         createsDistinctCopiesWithoutOverwriting();
@@ -36,7 +38,48 @@ public final class WorkspaceImportTest {
         rejectsSymbolicImportsRoot();
         rejectsChangedAndHardLinkedImportsBeforeCodex();
         validatesBoundedImmutableSelections();
-        return 9;
+        return 10;
+    }
+
+    private static void validatesTransientResultReadGrant() throws Exception {
+        final int readPermissionFlag = 1;
+        TestSupport.assertFalse(
+            WorkspaceImportGrant.fromResultIntentFlags(0, readPermissionFlag)
+                .hasTransientReadPermission(),
+            "a picker result without its read flag is not an import grant"
+        );
+        TestSupport.assertFalse(
+            WorkspaceImportGrant.fromResultIntentFlags(2, readPermissionFlag)
+                .hasTransientReadPermission(),
+            "an unrelated result flag cannot substitute for read permission"
+        );
+        TestSupport.assertTrue(
+            WorkspaceImportGrant.fromResultIntentFlags(
+                readPermissionFlag | 2 | 64,
+                readPermissionFlag
+            ).hasTransientReadPermission(),
+            "read permission remains valid alongside unrelated result flags"
+        );
+        TestSupport.expectThrows(
+            IllegalArgumentException.class,
+            new TestSupport.ThrowingRunnable() {
+                @Override
+                public void run() {
+                    WorkspaceImportGrant.fromResultIntentFlags(1, 0);
+                }
+            },
+            "a missing read-permission mask cannot authorize an import"
+        );
+        TestSupport.expectThrows(
+            IllegalArgumentException.class,
+            new TestSupport.ThrowingRunnable() {
+                @Override
+                public void run() {
+                    WorkspaceImportGrant.fromResultIntentFlags(3, 3);
+                }
+            },
+            "a multi-bit permission mask cannot authorize an import"
+        );
     }
 
     private static void importsAndVerifiesArbitraryBytes() throws Exception {

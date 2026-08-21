@@ -100,6 +100,7 @@
   <string name="chat_import_context_changed">Der aktive Chat oder Turn hat gewechselt. Die importierten Workspace-Kopien wurden nicht angehängt.</string>
   <string name="chat_import_verify_failed">Die importierten Dateien konnten nicht sicher angehängt werden: %1$s</string>
   <string name="chat_import_operation_start_failed">Der Dateiimport konnte nicht gestartet werden.</string>
+  <string name="chat_import_read_grant_missing">Android hat die für den Dokumentimport erforderliche transiente Leseberechtigung nicht zurückgegeben.</string>
   <string name="chat_import_partial">%1$d Datei(en) importiert; %2$d Auswahl(en) fehlgeschlagen.</string>
   <string name="chat_import_failed">Keine Datei wurde importiert: %1$s</string>
   <string name="chat_import_detached_notice">Die Dateien wurden von dieser Nachricht gelöst. Ihre privaten Kopien bleiben in workspace/imports erhalten.</string>

@@ -41,6 +41,7 @@ import de.agentcodi.core.RuntimePhase;
 import de.agentcodi.core.RuntimeSnapshot;
 import de.agentcodi.core.UiStartupState;
 import de.agentcodi.imports.ImportedWorkspaceFile;
+import de.agentcodi.imports.WorkspaceImportGrant;
 import de.agentcodi.imports.WorkspaceImportLimits;
 import de.agentcodi.imports.WorkspaceImportSelection;
 import de.agentcodi.runtime.AgentRuntimeService;
@@ -194,7 +195,20 @@ public final class MainActivity extends Activity {
     protected void onActivityResult(int requestCode, int resultCode, Intent data) {
         if (requestCode == FILE_IMPORT_REQUEST_CODE) {
             if (resultCode == RESULT_OK && data != null) {
-                beginDocumentImport(selectedDocumentUris(data));
+                WorkspaceImportGrant sourceGrant =
+                    WorkspaceImportGrant.fromResultIntentFlags(
+                        data.getFlags(),
+                        Intent.FLAG_GRANT_READ_URI_PERMISSION
+                    );
+                if (!sourceGrant.hasTransientReadPermission()) {
+                    Toast.makeText(
+                        this,
+                        R.string.chat_import_read_grant_missing,
+                        Toast.LENGTH_LONG
+                    ).show();
+                    return;
+                }
+                beginDocumentImport(selectedDocumentUris(data), sourceGrant);
             }
             return;
         }
@@ -807,8 +821,12 @@ public final class MainActivity extends Activity {
         return selected;
     }
 
-    private void beginDocumentImport(final List<Uri> sourceUris) {
+    private void beginDocumentImport(
+        final List<Uri> sourceUris,
+        final WorkspaceImportGrant sourceGrant
+    ) {
         if (sourceUris == null || sourceUris.isEmpty()
+            || sourceGrant == null || !sourceGrant.hasTransientReadPermission()
             || importOperationActive || sendPreparationActive) {
             return;
         }
@@ -844,6 +862,7 @@ public final class MainActivity extends Activity {
                     applicationContext,
                     threadId,
                     sourceUris,
+                    sourceGrant,
                     remainingBytes
                 );
             }
@@ -865,6 +884,7 @@ public final class MainActivity extends Activity {
         android.content.Context applicationContext,
         String threadId,
         List<Uri> sourceUris,
+        WorkspaceImportGrant sourceGrant,
         long initialRemainingBytes
     ) {
         final List<ImportedWorkspaceFile> imported =
@@ -887,6 +907,7 @@ public final class MainActivity extends Activity {
                 ImportedWorkspaceFile file = WorkspaceFileImporter.importDocument(
                     applicationContext,
                     sourceUri,
+                    sourceGrant,
                     remainingBytes
                 );
                 imported.add(file);

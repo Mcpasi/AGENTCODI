@@ -211,6 +211,7 @@ main_activity="$PROJECT_ROOT/app/src/main/java/de/agentcodi/app/MainActivity.jav
 workspace_importer="$PROJECT_ROOT/modules/runtime/src/main/java/de/agentcodi/runtime/WorkspaceFileImporter.java"
 document_importer="$import_client/de/agentcodi/imports/client/WorkspaceDocumentImporter.java"
 import_limits="$import_contracts/de/agentcodi/imports/WorkspaceImportLimits.java"
+import_grant="$import_contracts/de/agentcodi/imports/WorkspaceImportGrant.java"
 imported_file="$import_contracts/de/agentcodi/imports/ImportedWorkspaceFile.java"
 attachment_context="$PROJECT_ROOT/modules/core/src/main/java/de/agentcodi/core/CodexWorkspaceAttachmentContext.java"
 storage_layout="$PROJECT_ROOT/modules/storage/src/main/java/de/agentcodi/storage/WorkspaceLayout.java"
@@ -218,7 +219,15 @@ if ! rg -q 'Intent\.ACTION_OPEN_DOCUMENT' "$main_activity" \
     || ! rg -q 'Intent\.CATEGORY_OPENABLE' "$main_activity" \
     || ! rg -q 'Intent\.EXTRA_ALLOW_MULTIPLE' "$main_activity" \
     || ! rg -q 'Intent\.FLAG_GRANT_READ_URI_PERMISSION' "$main_activity" \
+    || ! rg -q 'WorkspaceImportGrant\.fromResultIntentFlags' "$main_activity" \
+    || ! rg -q 'data\.getFlags\(\)' "$main_activity" \
+    || ! rg -q '!sourceGrant\.hasTransientReadPermission\(\)' "$main_activity" \
     || rg -q 'takePersistableUriPermission|ACTION_OPEN_DOCUMENT_TREE' "$main_activity" "$workspace_importer" \
+    || ! rg -q 'WorkspaceImportGrant sourceGrant' "$workspace_importer" \
+    || ! rg -q 'requireContentSource\(sourceUri, sourceGrant\)' "$workspace_importer" \
+    || ! rg -q 'sourceGrant == null \|\| !sourceGrant\.hasTransientReadPermission\(\)' "$workspace_importer" \
+    || ! rg -q 'Integer\.bitCount\(readPermissionFlag\) != 1' "$import_grant" \
+    || rg -q 'android\.|content://' "$import_grant" \
     || ! rg -q 'ContentResolver\.SCHEME_CONTENT' "$workspace_importer" \
     || ! rg -q 'WorkspaceLayout\.create' "$workspace_importer" \
     || ! rg -q 'NativeWorkspaceFileAccess\.opener' "$workspace_importer" \
@@ -246,6 +255,7 @@ if ! rg -q 'Intent\.ACTION_OPEN_DOCUMENT' "$main_activity" \
     || ! rg -q 'isGeneratedImportStorageName' "$mcp_session" \
     || ! rg -q 'sendsImportedFilesWithModelReadableContext' "$PROJECT_ROOT/tests/java/de/agentcodi/tests/CodexSessionControllerTest.java" \
     || ! rg -q 'WorkspaceImportTest\.run' "$PROJECT_ROOT/tests/java/de/agentcodi/tests/TestMain.java" \
+    || ! rg -q 'a picker result without its read flag is not an import grant' "$PROJECT_ROOT/tests/java/de/agentcodi/tests/WorkspaceImportTest.java" \
     || ! rg -q 'model-readable storage path contains only randomness and a safe extension' "$PROJECT_ROOT/tests/java/de/agentcodi/tests/WorkspaceImportTest.java" \
     || ! rg -q 'same-size content replacement cannot enter a Codex turn' "$PROJECT_ROOT/tests/java/de/agentcodi/tests/WorkspaceImportTest.java" \
     || ! rg -q -- '--turn-import-roundtrip' "$PROJECT_ROOT/tests/cpp/agentcodi_engine_test.cpp"; then
@@ -563,13 +573,13 @@ if ! rg -q 'PYTHON_SOURCE_EXTENSION_COUNT="75"' "$apk_builder" \
   exit 1
 fi
 
-if ! rg -q 'VERSION_NAME = "0\.5\.7"' "$core_root/BuildIdentity.java" \
-    || ! rg -q 'VERSION_CODE = 44' "$core_root/BuildIdentity.java" \
-    || ! rg -q 'android:versionName="0\.5\.7"' "$manifest" \
-    || ! rg -q 'android:versionCode="44"' "$manifest" \
-    || ! rg -q 'APP_VERSION="0\.5\.7"' "$apk_builder" \
-    || ! rg -q 'VERSION_CODE="44"' "$apk_builder"; then
-  echo "The 0.5.7 identity is inconsistent." >&2
+if ! rg -q 'VERSION_NAME = "0\.5\.8"' "$core_root/BuildIdentity.java" \
+    || ! rg -q 'VERSION_CODE = 45' "$core_root/BuildIdentity.java" \
+    || ! rg -q 'android:versionName="0\.5\.8"' "$manifest" \
+    || ! rg -q 'android:versionCode="45"' "$manifest" \
+    || ! rg -q 'APP_VERSION="0\.5\.8"' "$apk_builder" \
+    || ! rg -q 'VERSION_CODE="45"' "$apk_builder"; then
+  echo "The 0.5.8 identity is inconsistent." >&2
   exit 1
 fi
 

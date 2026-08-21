@@ -100,6 +100,7 @@
   <string name="chat_import_context_changed">The active chat or turn changed. The imported workspace copies were not attached.</string>
   <string name="chat_import_verify_failed">The imported files could not be attached safely: %1$s</string>
   <string name="chat_import_operation_start_failed">The file-import operation could not be started.</string>
+  <string name="chat_import_read_grant_missing">Android did not return the transient read permission required for document import.</string>
   <string name="chat_import_partial">Imported %1$d file(s); %2$d selection(s) failed.</string>
   <string name="chat_import_failed">No file was imported: %1$s</string>
   <string name="chat_import_detached_notice">The files were detached from this message. Their private copies remain in workspace/imports.</string>

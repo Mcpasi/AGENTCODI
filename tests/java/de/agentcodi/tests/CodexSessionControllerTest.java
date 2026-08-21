@@ -2,6 +2,7 @@ package de.agentcodi.tests;
 
 import de.agentcodi.core.ChatMessage;
 import de.agentcodi.core.CodexApprovalDecision;
+import de.agentcodi.core.CodexFileMention;
 import de.agentcodi.core.CodexInteractiveRequest;
 import de.agentcodi.core.CodexModelOption;
 import de.agentcodi.core.CodexRateLimitWindow;
@@ -42,6 +43,8 @@ public final class CodexSessionControllerTest {
         keepsScrubbedResumeImagePathNonExportable();
         restoresCardsFromThreadHistory();
         reportsTransportFailureOnceAndReleasesTurn();
+        sendsImportedFilesWithModelReadableContext();
+        rejectsUnsafeImportedMentions();
         steersActiveTurnWithoutStartingAnotherTurn();
         rejectsUncorrelatedSteering();
         keepsApiKeyOutOfSnapshotsAndWipesCallerBuffer();
@@ -59,7 +62,298 @@ public final class CodexSessionControllerTest {
         terminatesTerminalWhenOutputCapIsReached();
         rejectsTerminalCredentialsAndMalformedOutput();
         usesVettedMcpConfigurationRpcs();
-        return 27;
+        return 29;
+    }
+
+    private static void sendsImportedFilesWithModelReadableContext() throws Exception {
+        FixtureServer server = new FixtureServer(true);
+        server.holdTurnOpen = true;
+        final CodexSessionController controller = new CodexSessionController(
+            server,
+            "/private/workspace"
+        );
+        controller.start();
+        controller.openThread("thr_existing");
+        waitFor(new Condition() {
+            @Override
+            public boolean isTrue() {
+                return "thr_existing".equals(controller.snapshot().getActiveThreadId())
+                    && !controller.snapshot().isOperationActive();
+            }
+        }, "thread ready for imported mentions");
+
+        List<CodexFileMention> mentions = Arrays.asList(
+            CodexFileMention.create(
+                "specification.pdf",
+                "/private/workspace/imports/0123456789abcdef0123456789abcdef.pdf"
+            ),
+            CodexFileMention.create(
+                "measurements.csv",
+                "/private/workspace/imports/fedcba9876543210fedcba9876543210.csv"
+            )
+        );
+        TestSupport.assertTrue(
+            controller.sendMessage("  Analysiere beide Dateien.  ", mentions),
+            "bounded imported mentions are accepted"
+        );
+        waitFor(new Condition() {
+            @Override
+            public boolean isTrue() {
+                return server.lastTurnStartParams != null
+                    && controller.snapshot().isTurnActive()
+                    && !controller.snapshot().isOperationActive();
+            }
+        }, "turn/start carries imported mentions");
+
+        Map<String, Object> start = server.lastTurnStartParams;
+        TestSupport.assertEquals(
+            Integer.valueOf(10),
+            Integer.valueOf(start.size()),
+            "turn/start adds only native attachment context to its existing fields"
+        );
+        List<Object> input = JsonCodec.requireArray(start.get("input"), "import turn input");
+        TestSupport.assertEquals(
+            Integer.valueOf(3),
+            Integer.valueOf(input.size()),
+            "text and two native mention inputs"
+        );
+        Map<String, Object> text = JsonCodec.requireObject(input.get(0), "import text");
+        TestSupport.assertEquals("text", text.get("type"), "text remains first input");
+        TestSupport.assertEquals(
+            "Analysiere beide Dateien.",
+            text.get("text"),
+            "import turn text is trimmed"
+        );
+        for (int index = 0; index < mentions.size(); index++) {
+            Map<String, Object> mention = JsonCodec.requireObject(
+                input.get(index + 1),
+                "native mention"
+            );
+            TestSupport.assertEquals("mention", mention.get("type"), "native mention type");
+            TestSupport.assertEquals(
+                mentions.get(index).getName(),
+                mention.get("name"),
+                "native mention name"
+            );
+            TestSupport.assertEquals(
+                mentions.get(index).getPath(),
+                mention.get("path"),
+                "native mention path"
+            );
+            TestSupport.assertEquals(
+                Integer.valueOf(3),
+                Integer.valueOf(mention.size()),
+                "mention has only the pinned app-server schema fields"
+            );
+        }
+        Map<String, Object> attachmentContext = JsonCodec.requireObject(
+            start.get("additionalContext"),
+            "import attachment context"
+        );
+        TestSupport.assertEquals(
+            Integer.valueOf(2),
+            Integer.valueOf(attachmentContext.size()),
+            "each verified import receives one native context fragment"
+        );
+        for (int index = 0; index < mentions.size(); index++) {
+            Map<String, Object> contextEntry = JsonCodec.requireObject(
+                attachmentContext.get("agentcodi-import-" + (index + 1)),
+                "import context entry"
+            );
+            TestSupport.assertEquals(
+                "application",
+                contextEntry.get("kind"),
+                "verified attachment path is application context"
+            );
+            String contextValue = JsonCodec.requireString(
+                contextEntry.get("value"),
+                "import context value"
+            );
+            TestSupport.assertTrue(
+                contextValue.contains(mentions.get(index).getPath())
+                    && contextValue.contains("actual bytes")
+                    && contextValue.contains("workspace tools"),
+                "Codex receives the exact path and an actual-byte read requirement"
+            );
+            TestSupport.assertFalse(
+                contextValue.contains("content://") || contextValue.contains("sha256"),
+                "provider URIs and import digests do not enter model context"
+            );
+        }
+        TestSupport.assertEquals(
+            "/private/workspace",
+            start.get("cwd"),
+            "import does not replace the canonical turn cwd"
+        );
+        TestSupport.assertEquals(
+            Collections.<Object>singletonList("/private/workspace"),
+            JsonCodec.requireArray(start.get("runtimeWorkspaceRoots"), "runtime roots"),
+            "external providers never become runtime workspace roots"
+        );
+        TestSupport.assertFalse(
+            start.containsKey("sandboxPolicy") || start.containsKey("readOnlyAccess"),
+            "import does not expand the workspace sandbox"
+        );
+        assertWorkspacePermissionRequest(start, "import turn/start");
+
+        server.notifyMessage("item/completed", JsonCodec.object(
+            "threadId", "thr_existing",
+            "turnId", "turn_fixture",
+            "item", JsonCodec.object(
+                "id", "import_user_fixture",
+                "type", "userMessage",
+                "content", input
+            )
+        ));
+        waitFor(new Condition() {
+            @Override
+            public boolean isTrue() {
+                return hasMessage(
+                    controller.snapshot(),
+                    "import_user_fixture",
+                    "Analysiere beide Dateien.\n@specification.pdf\n@measurements.csv"
+                );
+            }
+        }, "authoritative imported user item replaces local projection");
+
+        CodexFileMention steeringMention = CodexFileMention.create(
+            "correction.txt",
+            "/private/workspace/imports/aabbccddeeff0011aabbccddeeff0011.txt"
+        );
+        TestSupport.assertTrue(
+            controller.steerTurn("", Collections.singletonList(steeringMention)),
+            "attachment-only active-turn steering is accepted"
+        );
+        waitFor(new Condition() {
+            @Override
+            public boolean isTrue() {
+                return server.lastTurnSteerParams != null
+                    && !controller.snapshot().isOperationActive();
+            }
+        }, "turn/steer carries an attachment-only mention");
+        Map<String, Object> steer = server.lastTurnSteerParams;
+        TestSupport.assertEquals(
+            Integer.valueOf(4),
+            Integer.valueOf(steer.size()),
+            "attachment steering adds only native attachment context"
+        );
+        List<Object> steerInput = JsonCodec.requireArray(
+            steer.get("input"),
+            "attachment-only steer input"
+        );
+        TestSupport.assertEquals(
+            Integer.valueOf(1),
+            Integer.valueOf(steerInput.size()),
+            "attachment-only steer has one input"
+        );
+        Map<String, Object> steerMention = JsonCodec.requireObject(
+            steerInput.get(0),
+            "steer mention"
+        );
+        TestSupport.assertEquals("mention", steerMention.get("type"), "steer mention type");
+        TestSupport.assertEquals(
+            steeringMention.getPath(),
+            steerMention.get("path"),
+            "steer mention remains in workspace imports"
+        );
+        Map<String, Object> steerContext = JsonCodec.requireObject(
+            steer.get("additionalContext"),
+            "steer attachment context"
+        );
+        Map<String, Object> steerContextEntry = JsonCodec.requireObject(
+            steerContext.get("agentcodi-import-1"),
+            "steer attachment context entry"
+        );
+        TestSupport.assertTrue(
+            JsonCodec.requireString(steerContextEntry.get("value"), "steer context value")
+                .contains(steeringMention.getPath()),
+            "attachment-only steering gives Codex the verified readable path"
+        );
+        TestSupport.assertEquals(
+            "turn_fixture",
+            steer.get("expectedTurnId"),
+            "attachment-only steer remains correlated"
+        );
+        TestSupport.assertTrue(
+            hasMessage(controller.snapshot(), "", "@correction.txt"),
+            "attachment-only local projection remains visible"
+        );
+        controller.close();
+    }
+
+    private static void rejectsUnsafeImportedMentions() throws Exception {
+        FixtureServer server = new FixtureServer(true);
+        CodexSessionController controller = new CodexSessionController(
+            server,
+            "/private/workspace"
+        );
+        controller.start();
+        CodexFileMention outside = CodexFileMention.create(
+            "outside.txt",
+            "/private/outside/outside.txt"
+        );
+        TestSupport.assertFalse(
+            controller.sendMessage("Nicht senden", Collections.singletonList(outside)),
+            "outside mention is rejected synchronously"
+        );
+        TestSupport.assertEquals(
+            null,
+            server.lastTurnStartParams,
+            "outside mention never reaches transport"
+        );
+
+        CodexFileMention valid = CodexFileMention.create(
+            "inside.txt",
+            "/private/workspace/imports/0123456789abcdef0123456789abcdef.txt"
+        );
+        TestSupport.assertFalse(
+            controller.sendMessage("Nicht doppelt", Arrays.asList(valid, valid)),
+            "duplicate mention path is rejected"
+        );
+        CodexFileMention predictable = CodexFileMention.create(
+            "predictable.txt",
+            "/private/workspace/imports/predictable.txt"
+        );
+        TestSupport.assertFalse(
+            controller.sendMessage(
+                "Nicht mit nutzergesteuertem Speicherpfad",
+                Collections.singletonList(predictable)
+            ),
+            "non-random import storage name is rejected"
+        );
+        final List<CodexFileMention> tooMany = new ArrayList<CodexFileMention>();
+        for (int index = 0; index <= CodexFileMention.MAXIMUM_MENTIONS; index++) {
+            String token = "00000000000000000000000000000000"
+                + Integer.toHexString(index + 1);
+            tooMany.add(CodexFileMention.create(
+                "file-" + index + ".txt",
+                "/private/workspace/imports/"
+                    + token.substring(token.length() - 32) + ".txt"
+            ));
+        }
+        TestSupport.assertFalse(
+            controller.sendMessage("Nicht zu viele", tooMany),
+            "mention-count limit is rejected"
+        );
+        TestSupport.expectThrows(
+            IllegalArgumentException.class,
+            new TestSupport.ThrowingRunnable() {
+                @Override
+                public void run() {
+                    CodexFileMention.create(
+                        "auth.json",
+                        "/private/workspace/imports/token-auth.json"
+                    );
+                }
+            },
+            "credential filename cannot become a Codex mention"
+        );
+        TestSupport.assertEquals(
+            null,
+            server.lastTurnStartParams,
+            "invalid mention variants never reach transport"
+        );
+        controller.close();
     }
 
     private static void steersActiveTurnWithoutStartingAnotherTurn() throws Exception {

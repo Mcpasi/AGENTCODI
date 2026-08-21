@@ -26,6 +26,8 @@ mkdir -p "$TEST_BUILD/java-classes" "$TEST_BUILD/cpp"
 find \
   "$PROJECT_ROOT/modules/core/src/main/java" \
   "$PROJECT_ROOT/modules/storage/src/main/java" \
+  "$PROJECT_ROOT/modules/import-contracts/src/main/java" \
+  "$PROJECT_ROOT/modules/import-client/src/main/java" \
   "$PROJECT_ROOT/modules/mcp-contracts/src/main/java" \
   "$PROJECT_ROOT/modules/mcp-client/src/main/java" \
   "$PROJECT_ROOT/tests/java" \

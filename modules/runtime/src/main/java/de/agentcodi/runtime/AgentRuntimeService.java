@@ -13,6 +13,7 @@ import android.util.Log;
 
 import de.agentcodi.core.BuildIdentity;
 import de.agentcodi.core.CodexApprovalDecision;
+import de.agentcodi.core.CodexFileMention;
 import de.agentcodi.core.CrashReportFormatter;
 import de.agentcodi.core.CodexSessionController;
 import de.agentcodi.core.CodexSessionSnapshot;
@@ -31,6 +32,7 @@ import java.io.File;
 import java.io.IOException;
 import java.io.InputStream;
 import java.util.Arrays;
+import java.util.List;
 import java.util.Map;
 import java.util.concurrent.atomic.AtomicBoolean;
 
@@ -270,18 +272,34 @@ public final class AgentRuntimeService extends Service {
         }
     }
 
-    public static void sendMessage(String message) {
-        CodexSessionController controller = sessionController;
-        if (controller != null) {
-            controller.sendMessage(message);
-        }
+    public static boolean sendMessage(String message) {
+        return sendMessage(message, java.util.Collections.<CodexFileMention>emptyList());
     }
 
-    public static void steerTurn(String message) {
+    public static boolean sendMessage(
+        String message,
+        List<CodexFileMention> fileMentions
+    ) {
         CodexSessionController controller = sessionController;
         if (controller != null) {
-            controller.steerTurn(message);
+            return controller.sendMessage(message, fileMentions);
         }
+        return false;
+    }
+
+    public static boolean steerTurn(String message) {
+        return steerTurn(message, java.util.Collections.<CodexFileMention>emptyList());
+    }
+
+    public static boolean steerTurn(
+        String message,
+        List<CodexFileMention> fileMentions
+    ) {
+        CodexSessionController controller = sessionController;
+        if (controller != null) {
+            return controller.steerTurn(message, fileMentions);
+        }
+        return false;
     }
 
     public static void interruptTurn() {

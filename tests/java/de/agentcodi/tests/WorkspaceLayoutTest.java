@@ -71,6 +71,7 @@ public final class WorkspaceLayoutTest {
             WorkspaceLayout second = WorkspaceLayout.create(temporary.toFile());
             TestSupport.assertTrue(first.getRoot().isDirectory(), "root directory");
             TestSupport.assertTrue(first.getWorkspace().isDirectory(), "workspace directory");
+            TestSupport.assertTrue(first.getImports().isDirectory(), "imports directory");
             TestSupport.assertTrue(first.getToolchain().isDirectory(), "toolchain directory");
             TestSupport.assertTrue(first.getToolBin().isDirectory(), "tool binary directory");
             TestSupport.assertTrue(first.getToolRuntime().isDirectory(), "tool runtime directory");
@@ -86,6 +87,12 @@ public final class WorkspaceLayoutTest {
                     temporary.toFile().getCanonicalPath() + File.separator
                 ),
                 "workspace must remain below app files"
+            );
+            TestSupport.assertTrue(
+                first.getImports().getCanonicalPath().startsWith(
+                    first.getWorkspace().getCanonicalPath() + File.separator
+                ),
+                "imports must remain below workspace"
             );
             TestSupport.assertTrue(
                 first.getToolchain().getCanonicalPath().startsWith(

@@ -1,5 +1,7 @@
 package de.agentcodi.core;
 
+import java.util.Locale;
+
 public final class CredentialGuard {
     private static final int MINIMUM_OPAQUE_VALUE_CHARACTERS = 8;
     private static final int MINIMUM_PASSWORD_OR_CLIENT_SECRET_VALUE_CHARACTERS = 1;
@@ -117,6 +119,27 @@ public final class CredentialGuard {
             }
         }
         return false;
+    }
+
+    public static boolean isLikelyCredentialFileName(CharSequence value) {
+        if (value == null || value.length() == 0 || value.length() > 1024) {
+            return false;
+        }
+        String fileName = value.toString().trim().replace('\\', '/');
+        int slash = fileName.lastIndexOf('/');
+        if (slash >= 0) {
+            fileName = fileName.substring(slash + 1);
+        }
+        String lower = fileName.toLowerCase(Locale.ROOT);
+        if ("auth.json".equals(lower) || ".env".equals(lower)
+            || lower.startsWith(".env.")) {
+            return true;
+        }
+        int extension = lower.indexOf('.');
+        String stem = extension < 0 ? lower : lower.substring(0, extension);
+        return isLikelyCredentialName(stem)
+            || "credential".equals(stem) || "credentials".equals(stem)
+            || "secret".equals(stem) || "secrets".equals(stem);
     }
 
     private static boolean containsLikelyCredential(Characters value) {

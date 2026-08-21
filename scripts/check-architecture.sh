@@ -4,7 +4,7 @@ set -Eeuo pipefail
 SCRIPT_DIR="$(cd -- "$(dirname -- "$0")" && pwd -P)"
 PROJECT_ROOT="$(cd -- "$SCRIPT_DIR/.." && pwd -P)"
 
-unexpected_source="$(find "$PROJECT_ROOT/app/src/main/java" "$PROJECT_ROOT/modules/core/src/main/java" "$PROJECT_ROOT/modules/storage/src/main/java" "$PROJECT_ROOT/modules/mcp-contracts/src/main/java" "$PROJECT_ROOT/modules/mcp-client/src/main/java" "$PROJECT_ROOT/modules/runtime/src/main/java" "$PROJECT_ROOT/modules/native-engine/src/main/cpp" "$PROJECT_ROOT/tests/java" "$PROJECT_ROOT/tests/cpp" -type f ! -name '*.java' ! -name '*.cpp' ! -name '*.h' -print)"
+unexpected_source="$(find "$PROJECT_ROOT/app/src/main/java" "$PROJECT_ROOT/modules/core/src/main/java" "$PROJECT_ROOT/modules/storage/src/main/java" "$PROJECT_ROOT/modules/import-contracts/src/main/java" "$PROJECT_ROOT/modules/import-client/src/main/java" "$PROJECT_ROOT/modules/mcp-contracts/src/main/java" "$PROJECT_ROOT/modules/mcp-client/src/main/java" "$PROJECT_ROOT/modules/runtime/src/main/java" "$PROJECT_ROOT/modules/native-engine/src/main/cpp" "$PROJECT_ROOT/tests/java" "$PROJECT_ROOT/tests/cpp" -type f ! -name '*.java' ! -name '*.cpp' ! -name '*.h' -print)"
 if [ -n "$unexpected_source" ]; then
   echo "Only Java and C++ source files are accepted in source roots." >&2
   printf '%s\n' "$unexpected_source" >&2
@@ -16,14 +16,23 @@ if find "$PROJECT_ROOT/app" "$PROJECT_ROOT/modules" "$PROJECT_ROOT/tests" -type 
   exit 1
 fi
 
-if rg -n '^import android\.' "$PROJECT_ROOT/modules/core/src/main/java" "$PROJECT_ROOT/modules/storage/src/main/java" "$PROJECT_ROOT/modules/mcp-contracts/src/main/java" "$PROJECT_ROOT/modules/mcp-client/src/main/java"; then
+if rg -n '^import android\.' "$PROJECT_ROOT/modules/core/src/main/java" "$PROJECT_ROOT/modules/storage/src/main/java" "$PROJECT_ROOT/modules/import-contracts/src/main/java" "$PROJECT_ROOT/modules/import-client/src/main/java" "$PROJECT_ROOT/modules/mcp-contracts/src/main/java" "$PROJECT_ROOT/modules/mcp-client/src/main/java"; then
   echo "Pure Java modules must not import Android APIs." >&2
   exit 1
 fi
 
 mcp_contracts="$PROJECT_ROOT/modules/mcp-contracts/src/main/java"
 mcp_client="$PROJECT_ROOT/modules/mcp-client/src/main/java"
+import_contracts="$PROJECT_ROOT/modules/import-contracts/src/main/java"
+import_client="$PROJECT_ROOT/modules/import-client/src/main/java"
 manifest="$PROJECT_ROOT/app/src/main/AndroidManifest.xml"
+if rg -n '^import de\.agentcodi\.(core|storage|runtime|app|mcp|imports\.client)\.' "$import_contracts" \
+    || rg -n '^import de\.agentcodi\.(runtime|app|mcp)\.' "$import_client" \
+    || rg -n '^import de\.agentcodi\.imports\.client\.' "$PROJECT_ROOT/app/src/main/java" \
+    || rg -n '^import de\.agentcodi\.imports\.' "$PROJECT_ROOT/modules/core/src/main/java" "$PROJECT_ROOT/modules/storage/src/main/java"; then
+  echo "Import contracts, client dependencies, or UI/runtime boundaries are invalid." >&2
+  exit 1
+fi
 if rg -n '^import de\.agentcodi\.(core|mcp\.client|runtime|storage|app)\.' "$mcp_contracts" \
     || rg -n '^import de\.agentcodi\.(runtime|storage|app)\.' "$mcp_client" \
     || rg -n '^import de\.agentcodi\.mcp\.' "$PROJECT_ROOT/modules/core/src/main/java" \
@@ -191,10 +200,56 @@ if ! rg -q '"turn/steer"' "$mcp_session" \
     || ! rg -q '"expectedTurnId"' "$mcp_session" \
     || ! rg -q 'controller\.steerTurn' "$PROJECT_ROOT/modules/runtime/src/main/java/de/agentcodi/runtime/AgentRuntimeService.java" \
     || ! rg -q 'AgentRuntimeService\.steerTurn' "$PROJECT_ROOT/app/src/main/java/de/agentcodi/app/MainActivity.java" \
-    || ! rg -Fq 'composerInput.setEnabled(canChat && !interactionOpen)' "$PROJECT_ROOT/app/src/main/java/de/agentcodi/app/MainActivity.java" \
+    || ! rg -Fq 'composerInput.setEnabled(composerReady)' "$PROJECT_ROOT/app/src/main/java/de/agentcodi/app/MainActivity.java" \
     || ! rg -q 'turn/steer has only its supported fields' "$PROJECT_ROOT/tests/java/de/agentcodi/tests/CodexSessionControllerTest.java" \
     || ! rg -q -- '--turn-steer-roundtrip' "$PROJECT_ROOT/tests/cpp/agentcodi_engine_test.cpp"; then
   echo "Correlated active-turn steering is incomplete." >&2
+  exit 1
+fi
+
+main_activity="$PROJECT_ROOT/app/src/main/java/de/agentcodi/app/MainActivity.java"
+workspace_importer="$PROJECT_ROOT/modules/runtime/src/main/java/de/agentcodi/runtime/WorkspaceFileImporter.java"
+document_importer="$import_client/de/agentcodi/imports/client/WorkspaceDocumentImporter.java"
+import_limits="$import_contracts/de/agentcodi/imports/WorkspaceImportLimits.java"
+imported_file="$import_contracts/de/agentcodi/imports/ImportedWorkspaceFile.java"
+attachment_context="$PROJECT_ROOT/modules/core/src/main/java/de/agentcodi/core/CodexWorkspaceAttachmentContext.java"
+storage_layout="$PROJECT_ROOT/modules/storage/src/main/java/de/agentcodi/storage/WorkspaceLayout.java"
+if ! rg -q 'Intent\.ACTION_OPEN_DOCUMENT' "$main_activity" \
+    || ! rg -q 'Intent\.CATEGORY_OPENABLE' "$main_activity" \
+    || ! rg -q 'Intent\.EXTRA_ALLOW_MULTIPLE' "$main_activity" \
+    || ! rg -q 'Intent\.FLAG_GRANT_READ_URI_PERMISSION' "$main_activity" \
+    || rg -q 'takePersistableUriPermission|ACTION_OPEN_DOCUMENT_TREE' "$main_activity" "$workspace_importer" \
+    || ! rg -q 'ContentResolver\.SCHEME_CONTENT' "$workspace_importer" \
+    || ! rg -q 'WorkspaceLayout\.create' "$workspace_importer" \
+    || ! rg -q 'NativeWorkspaceFileAccess\.opener' "$workspace_importer" \
+    || ! rg -q 'SecureDirectoryStream' "$document_importer" \
+    || ! rg -q 'StandardOpenOption\.CREATE_NEW' "$document_importer" \
+    || ! rg -q 'LinkOption\.NOFOLLOW_LINKS' "$document_importer" \
+    || ! rg -q 'importRoot\.move' "$document_importer" \
+    || ! rg -q 'OWNER_READ' "$document_importer" \
+    || ! rg -q 'OWNER_WRITE' "$document_importer" \
+    || ! rg -q 'MessageDigest\.getInstance\("SHA-256"\)' "$document_importer" \
+    || ! rg -q 'MessageDigest\.isEqual' "$document_importer" \
+    || ! rg -q 'token \+ storageExtension' "$document_importer" \
+    || ! rg -q 'safeStorageExtension' "$document_importer" \
+    || ! rg -q 'getSha256' "$imported_file" "$document_importer" \
+    || ! rg -q 'MAXIMUM_FILES_PER_MESSAGE = 16' "$import_limits" \
+    || ! rg -q 'MAXIMUM_FILE_BYTES = 512L \* 1024L \* 1024L' "$import_limits" \
+    || ! rg -q 'MAXIMUM_TOTAL_BYTES = 1024L \* 1024L \* 1024L' "$import_limits" \
+    || rg -q 'android\.net\.Uri|content://' "$imported_file" "$document_importer" \
+    || ! rg -q 'getImports' "$storage_layout" \
+    || ! rg -q '"type", "mention"' "$mcp_session" \
+    || ! rg -q '"additionalContext", attachmentContext' "$mcp_session" \
+    || ! rg -q 'CONTEXT_KIND = "application"' "$attachment_context" \
+    || ! rg -q "Read the file's actual bytes with the workspace tools" "$attachment_context" \
+    || ! rg -q 'workspace \+ "/imports/"' "$mcp_session" \
+    || ! rg -q 'isGeneratedImportStorageName' "$mcp_session" \
+    || ! rg -q 'sendsImportedFilesWithModelReadableContext' "$PROJECT_ROOT/tests/java/de/agentcodi/tests/CodexSessionControllerTest.java" \
+    || ! rg -q 'WorkspaceImportTest\.run' "$PROJECT_ROOT/tests/java/de/agentcodi/tests/TestMain.java" \
+    || ! rg -q 'model-readable storage path contains only randomness and a safe extension' "$PROJECT_ROOT/tests/java/de/agentcodi/tests/WorkspaceImportTest.java" \
+    || ! rg -q 'same-size content replacement cannot enter a Codex turn' "$PROJECT_ROOT/tests/java/de/agentcodi/tests/WorkspaceImportTest.java" \
+    || ! rg -q -- '--turn-import-roundtrip' "$PROJECT_ROOT/tests/cpp/agentcodi_engine_test.cpp"; then
+  echo "The bounded in-chat workspace import, mention, or model-readable context path is incomplete." >&2
   exit 1
 fi
 
@@ -508,13 +563,13 @@ if ! rg -q 'PYTHON_SOURCE_EXTENSION_COUNT="75"' "$apk_builder" \
   exit 1
 fi
 
-if ! rg -q 'VERSION_NAME = "0\.5\.5"' "$core_root/BuildIdentity.java" \
-    || ! rg -q 'VERSION_CODE = 42' "$core_root/BuildIdentity.java" \
-    || ! rg -q 'android:versionName="0\.5\.5"' "$manifest" \
-    || ! rg -q 'android:versionCode="42"' "$manifest" \
-    || ! rg -q 'APP_VERSION="0\.5\.5"' "$apk_builder" \
-    || ! rg -q 'VERSION_CODE="42"' "$apk_builder"; then
-  echo "The 0.5.5 identity is inconsistent." >&2
+if ! rg -q 'VERSION_NAME = "0\.5\.7"' "$core_root/BuildIdentity.java" \
+    || ! rg -q 'VERSION_CODE = 44' "$core_root/BuildIdentity.java" \
+    || ! rg -q 'android:versionName="0\.5\.7"' "$manifest" \
+    || ! rg -q 'android:versionCode="44"' "$manifest" \
+    || ! rg -q 'APP_VERSION="0\.5\.7"' "$apk_builder" \
+    || ! rg -q 'VERSION_CODE="44"' "$apk_builder"; then
+  echo "The 0.5.7 identity is inconsistent." >&2
   exit 1
 fi
 

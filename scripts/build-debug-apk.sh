@@ -6,8 +6,8 @@ PROJECT_ROOT="$(cd -- "$SCRIPT_DIR/.." && pwd -P)"
 
 APP_NAME="AGENTCODI"
 APP_ID="de.agentcodi.app"
-APP_VERSION="0.5.5"
-VERSION_CODE="42"
+APP_VERSION="0.5.7"
+VERSION_CODE="44"
 MIN_SDK="29"
 TARGET_SDK="35"
 ABI="arm64-v8a"
@@ -584,6 +584,8 @@ env LD_LIBRARY_PATH="$AAPT2_LIBRARY_PATH" "$AAPT2_BIN" link -o "$UNSIGNED_APK" -
 echo "Compiling isolated Java modules..."
 CORE_CLASSES="$CLASSES_ROOT/core"
 STORAGE_CLASSES="$CLASSES_ROOT/storage"
+IMPORT_CONTRACTS_CLASSES="$CLASSES_ROOT/import-contracts"
+IMPORT_CLIENT_CLASSES="$CLASSES_ROOT/import-client"
 MCP_CONTRACTS_CLASSES="$CLASSES_ROOT/mcp-contracts"
 MCP_CLIENT_CLASSES="$CLASSES_ROOT/mcp-client"
 RUNTIME_CLASSES="$CLASSES_ROOT/runtime"
@@ -591,6 +593,8 @@ APP_CLASSES="$CLASSES_ROOT/app"
 mkdir -p \
   "$CORE_CLASSES" \
   "$STORAGE_CLASSES" \
+  "$IMPORT_CONTRACTS_CLASSES" \
+  "$IMPORT_CLIENT_CLASSES" \
   "$MCP_CONTRACTS_CLASSES" \
   "$MCP_CLIENT_CLASSES" \
   "$RUNTIME_CLASSES" \
@@ -606,6 +610,16 @@ find "$PROJECT_ROOT/modules/storage/src/main/java" -type f -name '*.java' -print
 STORAGE_JAR="$JARS_ROOT/storage.jar"
 "$JAR" cf "$STORAGE_JAR" -C "$STORAGE_CLASSES" .
 
+find "$PROJECT_ROOT/modules/import-contracts/src/main/java" -type f -name '*.java' -print | sort > "$WORK_DIR/import-contracts-sources.txt"
+"$JAVAC" -encoding UTF-8 -source 8 -target 8 -Xlint:-options -bootclasspath "$ANDROID_JAR" -d "$IMPORT_CONTRACTS_CLASSES" @"$WORK_DIR/import-contracts-sources.txt"
+IMPORT_CONTRACTS_JAR="$JARS_ROOT/import-contracts.jar"
+"$JAR" cf "$IMPORT_CONTRACTS_JAR" -C "$IMPORT_CONTRACTS_CLASSES" .
+
+find "$PROJECT_ROOT/modules/import-client/src/main/java" -type f -name '*.java' -print | sort > "$WORK_DIR/import-client-sources.txt"
+"$JAVAC" -encoding UTF-8 -source 8 -target 8 -Xlint:-options -bootclasspath "$ANDROID_JAR" -classpath "$CORE_JAR:$STORAGE_JAR:$IMPORT_CONTRACTS_JAR" -d "$IMPORT_CLIENT_CLASSES" @"$WORK_DIR/import-client-sources.txt"
+IMPORT_CLIENT_JAR="$JARS_ROOT/import-client.jar"
+"$JAR" cf "$IMPORT_CLIENT_JAR" -C "$IMPORT_CLIENT_CLASSES" .
+
 find "$PROJECT_ROOT/modules/mcp-contracts/src/main/java" -type f -name '*.java' -print | sort > "$WORK_DIR/mcp-contracts-sources.txt"
 "$JAVAC" -encoding UTF-8 -source 8 -target 8 -Xlint:-options -bootclasspath "$ANDROID_JAR" -d "$MCP_CONTRACTS_CLASSES" @"$WORK_DIR/mcp-contracts-sources.txt"
 MCP_CONTRACTS_JAR="$JARS_ROOT/mcp-contracts.jar"
@@ -617,12 +631,12 @@ MCP_CLIENT_JAR="$JARS_ROOT/mcp-client.jar"
 "$JAR" cf "$MCP_CLIENT_JAR" -C "$MCP_CLIENT_CLASSES" .
 
 find "$PROJECT_ROOT/modules/runtime/src/main/java" -type f -name '*.java' -print | sort > "$WORK_DIR/runtime-sources.txt"
-"$JAVAC" -encoding UTF-8 -source 8 -target 8 -Xlint:-options -bootclasspath "$ANDROID_JAR" -classpath "$CORE_JAR:$STORAGE_JAR:$MCP_CONTRACTS_JAR:$MCP_CLIENT_JAR" -d "$RUNTIME_CLASSES" @"$WORK_DIR/runtime-sources.txt"
+"$JAVAC" -encoding UTF-8 -source 8 -target 8 -Xlint:-options -bootclasspath "$ANDROID_JAR" -classpath "$CORE_JAR:$STORAGE_JAR:$IMPORT_CONTRACTS_JAR:$IMPORT_CLIENT_JAR:$MCP_CONTRACTS_JAR:$MCP_CLIENT_JAR" -d "$RUNTIME_CLASSES" @"$WORK_DIR/runtime-sources.txt"
 RUNTIME_JAR="$JARS_ROOT/runtime.jar"
 "$JAR" cf "$RUNTIME_JAR" -C "$RUNTIME_CLASSES" .
 
 find "$PROJECT_ROOT/app/src/main/java" "$GENERATED_JAVA" -type f -name '*.java' -print | sort > "$WORK_DIR/app-sources.txt"
-"$JAVAC" -encoding UTF-8 -source 8 -target 8 -Xlint:-options -bootclasspath "$ANDROID_JAR" -classpath "$CORE_JAR:$STORAGE_JAR:$MCP_CONTRACTS_JAR:$MCP_CLIENT_JAR:$RUNTIME_JAR" -d "$APP_CLASSES" @"$WORK_DIR/app-sources.txt"
+"$JAVAC" -encoding UTF-8 -source 8 -target 8 -Xlint:-options -bootclasspath "$ANDROID_JAR" -classpath "$CORE_JAR:$STORAGE_JAR:$IMPORT_CONTRACTS_JAR:$MCP_CONTRACTS_JAR:$MCP_CLIENT_JAR:$RUNTIME_JAR" -d "$APP_CLASSES" @"$WORK_DIR/app-sources.txt"
 APP_JAR="$JARS_ROOT/app.jar"
 "$JAR" cf "$APP_JAR" -C "$APP_CLASSES" .
 
@@ -1297,6 +1311,7 @@ BOOTSTRAP_SMOKE_BIN="$WORK_DIR/android-app-server-bootstrap-smoke"
 patch_elf_name "$BOOTSTRAP_SMOKE_BIN" 'libz.so.1' 'libz_1.so' 1
 BOOTSTRAP_SMOKE_ROOT="$WORK_DIR/supervisor-bootstrap-smoke"
 BOOTSTRAP_SMOKE_WORKSPACE="$BOOTSTRAP_SMOKE_ROOT/workspace"
+BOOTSTRAP_SMOKE_IMPORTS="$BOOTSTRAP_SMOKE_WORKSPACE/imports"
 BOOTSTRAP_SMOKE_TOOLCHAIN="$BOOTSTRAP_SMOKE_WORKSPACE/toolchain"
 BOOTSTRAP_SMOKE_TOOL_BIN="$BOOTSTRAP_SMOKE_ROOT/tool-bin"
 BOOTSTRAP_SMOKE_TOOL_RUNTIME="$TOOL_RUNTIME_STAGE"
@@ -1304,8 +1319,10 @@ BOOTSTRAP_SMOKE_CODEX_HOME="$BOOTSTRAP_SMOKE_ROOT/codex-home"
 BOOTSTRAP_SMOKE_HOME="$BOOTSTRAP_SMOKE_ROOT/home"
 BOOTSTRAP_SMOKE_STATE="$BOOTSTRAP_SMOKE_ROOT/state"
 BOOTSTRAP_SMOKE_TEMP="$BOOTSTRAP_SMOKE_ROOT/temp"
-mkdir -p "$BOOTSTRAP_SMOKE_WORKSPACE" "$BOOTSTRAP_SMOKE_TOOLCHAIN" "$BOOTSTRAP_SMOKE_TOOL_BIN" "$BOOTSTRAP_SMOKE_CODEX_HOME" "$BOOTSTRAP_SMOKE_HOME" "$BOOTSTRAP_SMOKE_STATE" "$BOOTSTRAP_SMOKE_TEMP"
-chmod 700 "$BOOTSTRAP_SMOKE_ROOT" "$BOOTSTRAP_SMOKE_WORKSPACE" "$BOOTSTRAP_SMOKE_TOOLCHAIN" "$BOOTSTRAP_SMOKE_TOOL_BIN" "$BOOTSTRAP_SMOKE_CODEX_HOME" "$BOOTSTRAP_SMOKE_HOME" "$BOOTSTRAP_SMOKE_STATE" "$BOOTSTRAP_SMOKE_TEMP"
+mkdir -p "$BOOTSTRAP_SMOKE_WORKSPACE" "$BOOTSTRAP_SMOKE_IMPORTS" "$BOOTSTRAP_SMOKE_TOOLCHAIN" "$BOOTSTRAP_SMOKE_TOOL_BIN" "$BOOTSTRAP_SMOKE_CODEX_HOME" "$BOOTSTRAP_SMOKE_HOME" "$BOOTSTRAP_SMOKE_STATE" "$BOOTSTRAP_SMOKE_TEMP"
+chmod 700 "$BOOTSTRAP_SMOKE_ROOT" "$BOOTSTRAP_SMOKE_WORKSPACE" "$BOOTSTRAP_SMOKE_IMPORTS" "$BOOTSTRAP_SMOKE_TOOLCHAIN" "$BOOTSTRAP_SMOKE_TOOL_BIN" "$BOOTSTRAP_SMOKE_CODEX_HOME" "$BOOTSTRAP_SMOKE_HOME" "$BOOTSTRAP_SMOKE_STATE" "$BOOTSTRAP_SMOKE_TEMP"
+printf '%s\n' 'agentcodi-import-content-smoke' > "$BOOTSTRAP_SMOKE_IMPORTS/0123456789abcdef0123456789abcdef.bin"
+chmod 600 "$BOOTSTRAP_SMOKE_IMPORTS/0123456789abcdef0123456789abcdef.bin"
 ln -s "$NATIVE_DIR/$TERMINAL_SHELL_NAME" "$BOOTSTRAP_SMOKE_TOOL_BIN/node"
 ln -s "$NATIVE_DIR/$TERMINAL_SHELL_NAME" "$BOOTSTRAP_SMOKE_TOOL_BIN/npm"
 ln -s "$NATIVE_DIR/$TERMINAL_SHELL_NAME" "$BOOTSTRAP_SMOKE_TOOL_BIN/python"
@@ -1356,7 +1373,7 @@ DEX_MODE="--debug"
 if [ "$BUILD_VARIANT" = "release" ]; then
   DEX_MODE="--release"
 fi
-"$JAVA" -cp "$R8_JAR" com.android.tools.r8.D8 "$DEX_MODE" --min-api "$MIN_SDK" --lib "$ANDROID_JAR" --output "$DEX_DIR" "$CORE_JAR" "$STORAGE_JAR" "$MCP_CONTRACTS_JAR" "$MCP_CLIENT_JAR" "$RUNTIME_JAR" "$APP_JAR"
+"$JAVA" -cp "$R8_JAR" com.android.tools.r8.D8 "$DEX_MODE" --min-api "$MIN_SDK" --lib "$ANDROID_JAR" --output "$DEX_DIR" "$CORE_JAR" "$STORAGE_JAR" "$IMPORT_CONTRACTS_JAR" "$IMPORT_CLIENT_JAR" "$MCP_CONTRACTS_JAR" "$MCP_CLIENT_JAR" "$RUNTIME_JAR" "$APP_JAR"
 cp "$DEX_DIR/classes.dex" "$ADDITIONS/classes.dex"
 
 UNALIGNED_APK="$WORK_DIR/unaligned.apk"
@@ -1533,6 +1550,8 @@ grep -Fq 'Lde/agentcodi/app/AgentCodiApplication;' "$WORK_DIR/dex-strings.txt"
 grep -Fq 'Lde/agentcodi/core/UiLanguage;' "$WORK_DIR/dex-strings.txt"
 grep -Fq 'Lde/agentcodi/core/CrashReportFormatter;' "$WORK_DIR/dex-strings.txt"
 grep -Fq 'Lde/agentcodi/core/CredentialGuard;' "$WORK_DIR/dex-strings.txt"
+grep -Fq 'Lde/agentcodi/core/CodexFileMention;' "$WORK_DIR/dex-strings.txt"
+grep -Fq 'Lde/agentcodi/core/CodexWorkspaceAttachmentContext;' "$WORK_DIR/dex-strings.txt"
 grep -Fq 'Lde/agentcodi/core/TerminalOutputBuffer;' "$WORK_DIR/dex-strings.txt"
 grep -Fq 'Lde/agentcodi/core/TerminalSessionSnapshot;' "$WORK_DIR/dex-strings.txt"
 grep -Fq 'Lde/agentcodi/core/CodexTerminalSession;' "$WORK_DIR/dex-strings.txt"
@@ -1552,6 +1571,7 @@ grep -Fq 'Lde/agentcodi/runtime/NativeAppServerTransport;' "$WORK_DIR/dex-string
 grep -Fq 'Lde/agentcodi/runtime/CrashDiagnostics;' "$WORK_DIR/dex-strings.txt"
 grep -Fq 'Lde/agentcodi/runtime/WorkspaceImageExporter;' "$WORK_DIR/dex-strings.txt"
 grep -Fq 'Lde/agentcodi/runtime/WorkspaceFileExporter;' "$WORK_DIR/dex-strings.txt"
+grep -Fq 'Lde/agentcodi/runtime/WorkspaceFileImporter;' "$WORK_DIR/dex-strings.txt"
 grep -Fq 'Lde/agentcodi/runtime/NativeEngine;' "$WORK_DIR/dex-strings.txt"
 grep -Fq 'libcodex.so' "$WORK_DIR/dex-strings.txt"
 grep -Fq "$CODEX_PACKAGED_HOST_NAME" "$WORK_DIR/dex-strings.txt"
@@ -1567,6 +1587,10 @@ grep -Fq 'Lde/agentcodi/storage/WorkspaceExportFile;' "$WORK_DIR/dex-strings.txt
 grep -Fq 'Lde/agentcodi/storage/WorkspaceArchive;' "$WORK_DIR/dex-strings.txt"
 grep -Fq 'Lde/agentcodi/storage/WorkspaceFileAccess;' "$WORK_DIR/dex-strings.txt"
 grep -Fq 'Lde/agentcodi/runtime/NativeWorkspaceFileAccess;' "$WORK_DIR/dex-strings.txt"
+grep -Fq 'Lde/agentcodi/imports/ImportedWorkspaceFile;' "$WORK_DIR/dex-strings.txt"
+grep -Fq 'Lde/agentcodi/imports/WorkspaceImportLimits;' "$WORK_DIR/dex-strings.txt"
+grep -Fq 'Lde/agentcodi/imports/client/WorkspaceDocumentImporter;' "$WORK_DIR/dex-strings.txt"
+grep -Fq 'android.intent.action.OPEN_DOCUMENT' "$WORK_DIR/dex-strings.txt"
 grep -Fq 'android.intent.action.CREATE_DOCUMENT' "$WORK_DIR/dex-strings.txt"
 grep -Fq 'image_export' "$WORK_DIR/dex-strings.txt"
 grep -Fq 'workspace_file_choose' "$WORK_DIR/dex-strings.txt"

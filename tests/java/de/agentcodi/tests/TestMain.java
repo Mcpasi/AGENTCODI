@@ -9,6 +9,7 @@ public final class TestMain {
         passed += BuildIdentityTest.run();
         passed += JsonCodecTest.run();
         passed += CodexAppServerClientTest.run();
+        passed += CodexWorkspaceAttachmentContextTest.run();
         passed += CodexSessionControllerTest.run();
         passed += McpCatalogLoaderTest.run();
         passed += McpConfigurationControllerTest.run();
@@ -22,6 +23,7 @@ public final class TestMain {
         passed += UiStartupStateTest.run();
         passed += UiLanguageTest.run();
         passed += WorkspaceLayoutTest.run();
+        passed += WorkspaceImportTest.run();
         passed += WorkspaceExportTest.run();
         System.out.println("Java tests passed: " + passed);
     }

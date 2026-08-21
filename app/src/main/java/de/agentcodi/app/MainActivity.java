@@ -1,6 +1,7 @@
 package de.agentcodi.app;
 
 import android.app.Activity;
+import android.content.ClipData;
 import android.content.Context;
 import android.content.Intent;
 import android.graphics.Color;
@@ -28,6 +29,7 @@ import android.widget.TextView;
 import android.widget.Toast;
 
 import de.agentcodi.core.ChatMessage;
+import de.agentcodi.core.CodexFileMention;
 import de.agentcodi.core.CodexModelOption;
 import de.agentcodi.core.CodexReasoningOption;
 import de.agentcodi.core.CodexSessionSnapshot;
@@ -38,8 +40,12 @@ import de.agentcodi.core.CredentialGuard;
 import de.agentcodi.core.RuntimePhase;
 import de.agentcodi.core.RuntimeSnapshot;
 import de.agentcodi.core.UiStartupState;
+import de.agentcodi.imports.ImportedWorkspaceFile;
+import de.agentcodi.imports.WorkspaceImportLimits;
+import de.agentcodi.imports.WorkspaceImportSelection;
 import de.agentcodi.runtime.AgentRuntimeService;
 import de.agentcodi.runtime.CrashDiagnostics;
+import de.agentcodi.runtime.WorkspaceFileImporter;
 import de.agentcodi.runtime.WorkspaceImageExporter;
 
 import java.text.DateFormat;
@@ -55,6 +61,7 @@ public final class MainActivity extends Activity {
     private static final long IDLE_REFRESH_INTERVAL_MS = 900L;
     private static final int MAX_VISIBLE_THREADS = 80;
     private static final int IMAGE_EXPORT_REQUEST_CODE = 7001;
+    private static final int FILE_IMPORT_REQUEST_CODE = 7002;
 
     private final Handler handler = new Handler(Looper.getMainLooper());
     private final UiStartupState startupState = new UiStartupState();
@@ -62,6 +69,9 @@ public final class MainActivity extends Activity {
     private final List<TranscriptRow> renderedTranscriptRows =
         new ArrayList<TranscriptRow>();
     private final ExecutorService imageOperations = Executors.newSingleThreadExecutor();
+    private final ExecutorService importOperations = Executors.newSingleThreadExecutor();
+    private final List<ImportedWorkspaceFile> pendingImports =
+        new ArrayList<ImportedWorkspaceFile>();
     private final Runnable refreshTask = new Runnable() {
         @Override
         public void run() {
@@ -106,6 +116,9 @@ public final class MainActivity extends Activity {
     private ScrollView messageScroll;
     private LinearLayout messagesContainer;
     private EditText composerInput;
+    private TextView importStatus;
+    private Button importButton;
+    private Button clearImportsButton;
     private Button sendButton;
     private Button stopButton;
     private boolean bindingSelectors;
@@ -115,6 +128,9 @@ public final class MainActivity extends Activity {
     private String newThreadBaseline = "";
     private String renderedThreadId = "";
     private String pendingImageExportPath = "";
+    private String pendingImportsThreadId = "";
+    private boolean importOperationActive;
+    private boolean sendPreparationActive;
     private boolean destroyed;
     private long lastSessionRevision = Long.MIN_VALUE;
     private long lastRuntimeGeneration = Long.MIN_VALUE;
@@ -170,11 +186,18 @@ public final class MainActivity extends Activity {
         destroyed = true;
         handler.removeCallbacksAndMessages(null);
         imageOperations.shutdownNow();
+        importOperations.shutdownNow();
         super.onDestroy();
     }
 
     @Override
     protected void onActivityResult(int requestCode, int resultCode, Intent data) {
+        if (requestCode == FILE_IMPORT_REQUEST_CODE) {
+            if (resultCode == RESULT_OK && data != null) {
+                beginDocumentImport(selectedDocumentUris(data));
+            }
+            return;
+        }
         if (requestCode != IMAGE_EXPORT_REQUEST_CODE) {
             super.onActivityResult(requestCode, resultCode, data);
             return;
@@ -534,6 +557,45 @@ public final class MainActivity extends Activity {
         );
         composer.addView(composerInput);
 
+        importStatus = theme.text("", 12, theme.secondary);
+        importStatus.setLineSpacing(0.0f, 1.15f);
+        importStatus.setMaxLines(4);
+        importStatus.setEllipsize(android.text.TextUtils.TruncateAt.END);
+        importStatus.setVisibility(View.GONE);
+        theme.addWithTopMargin(composer, importStatus, 6);
+
+        LinearLayout importRow = new LinearLayout(this);
+        importRow.setOrientation(LinearLayout.HORIZONTAL);
+        importButton = theme.secondaryButton(getString(R.string.chat_import_files));
+        importButton.setOnClickListener(new View.OnClickListener() {
+            @Override
+            public void onClick(View view) {
+                openDocumentImportPicker();
+            }
+        });
+        importRow.addView(importButton, new LinearLayout.LayoutParams(
+            0,
+            ViewGroup.LayoutParams.WRAP_CONTENT,
+            1.0f
+        ));
+        clearImportsButton = theme.compactButton(
+            getString(R.string.chat_import_detach)
+        );
+        clearImportsButton.setVisibility(View.GONE);
+        clearImportsButton.setOnClickListener(new View.OnClickListener() {
+            @Override
+            public void onClick(View view) {
+                detachPendingImports();
+            }
+        });
+        LinearLayout.LayoutParams clearImportParams = new LinearLayout.LayoutParams(
+            ViewGroup.LayoutParams.WRAP_CONTENT,
+            ViewGroup.LayoutParams.WRAP_CONTENT
+        );
+        clearImportParams.leftMargin = theme.dp(8);
+        importRow.addView(clearImportsButton, clearImportParams);
+        theme.addWithTopMargin(composer, importRow, 8);
+
         LinearLayout sendRow = new LinearLayout(this);
         sendRow.setOrientation(LinearLayout.HORIZONTAL);
         stopButton = theme.secondaryButton(getString(R.string.turn_stop));
@@ -552,26 +614,7 @@ public final class MainActivity extends Activity {
         sendButton.setOnClickListener(new View.OnClickListener() {
             @Override
             public void onClick(View view) {
-                Editable editable = composerInput.getText();
-                if (CredentialGuard.containsLikelyCredential(editable)) {
-                    editable.clear();
-                    Toast.makeText(
-                        MainActivity.this,
-                        R.string.user_input_credential_warning,
-                        Toast.LENGTH_LONG
-                    ).show();
-                    return;
-                }
-                String prompt = editable.toString();
-                if (prompt.trim().isEmpty()) {
-                    return;
-                }
-                editable.clear();
-                if (AgentRuntimeService.sessionSnapshot().isTurnActive()) {
-                    AgentRuntimeService.steerTurn(prompt);
-                } else {
-                    AgentRuntimeService.sendMessage(prompt);
-                }
+                sendComposerInput();
             }
         });
         LinearLayout.LayoutParams sendParams = new LinearLayout.LayoutParams(
@@ -586,6 +629,449 @@ public final class MainActivity extends Activity {
         return page;
     }
 
+    private void sendComposerInput() {
+        if (importOperationActive || sendPreparationActive) {
+            return;
+        }
+        Editable editable = composerInput.getText();
+        if (CredentialGuard.containsLikelyCredential(editable)) {
+            editable.clear();
+            Toast.makeText(
+                MainActivity.this,
+                R.string.user_input_credential_warning,
+                Toast.LENGTH_LONG
+            ).show();
+            return;
+        }
+        final String prompt = editable.toString();
+        if (prompt.trim().isEmpty() && pendingImports.isEmpty()) {
+            return;
+        }
+        final CodexSessionSnapshot snapshot = AgentRuntimeService.sessionSnapshot();
+        if (!pendingImports.isEmpty()
+            && !snapshot.getActiveThreadId().equals(pendingImportsThreadId)) {
+            Toast.makeText(this, R.string.chat_import_context_changed, Toast.LENGTH_LONG).show();
+            detachPendingImports();
+            return;
+        }
+        if (pendingImports.isEmpty()) {
+            boolean accepted = snapshot.isTurnActive()
+                ? AgentRuntimeService.steerTurn(prompt)
+                : AgentRuntimeService.sendMessage(prompt);
+            if (accepted) {
+                editable.clear();
+            }
+            return;
+        }
+
+        final List<ImportedWorkspaceFile> files = WorkspaceImportSelection.copyOf(
+            pendingImports
+        );
+        final boolean steering = snapshot.isTurnActive();
+        final String threadId = snapshot.getActiveThreadId();
+        final String turnId = snapshot.getActiveTurnId();
+        final android.content.Context applicationContext = getApplicationContext();
+        sendPreparationActive = true;
+        refreshLocalComposerState();
+        if (!submitImportOperation(new Runnable() {
+            @Override
+            public void run() {
+                try {
+                    final List<CodexFileMention> mentions =
+                        WorkspaceFileImporter.verifyForCodex(applicationContext, files);
+                    handler.post(new Runnable() {
+                        @Override
+                        public void run() {
+                            completePreparedSend(
+                                prompt,
+                                files,
+                                mentions,
+                                steering,
+                                threadId,
+                                turnId
+                            );
+                        }
+                    });
+                } catch (Throwable error) {
+                    final String reason = importFailureReason(error);
+                    handler.post(new Runnable() {
+                        @Override
+                        public void run() {
+                            sendPreparationActive = false;
+                            refreshLocalComposerState();
+                            if (!destroyed && !isFinishing()) {
+                                Toast.makeText(
+                                    MainActivity.this,
+                                    getString(R.string.chat_import_verify_failed, reason),
+                                    Toast.LENGTH_LONG
+                                ).show();
+                            }
+                        }
+                    });
+                }
+            }
+        })) {
+            sendPreparationActive = false;
+            refreshLocalComposerState();
+            Toast.makeText(
+                this,
+                R.string.chat_import_operation_start_failed,
+                Toast.LENGTH_LONG
+            ).show();
+        }
+    }
+
+    private void completePreparedSend(
+        String prompt,
+        List<ImportedWorkspaceFile> preparedFiles,
+        List<CodexFileMention> mentions,
+        boolean steering,
+        String threadId,
+        String turnId
+    ) {
+        if (destroyed) {
+            return;
+        }
+        sendPreparationActive = false;
+        CodexSessionSnapshot current = AgentRuntimeService.sessionSnapshot();
+        boolean sameContext = threadId.equals(current.getActiveThreadId())
+            && steering == current.isTurnActive()
+            && (!steering || turnId.equals(current.getActiveTurnId()))
+            && preparedFiles.equals(WorkspaceImportSelection.copyOf(pendingImports));
+        if (!sameContext) {
+            refreshLocalComposerState();
+            Toast.makeText(
+                this,
+                R.string.chat_import_context_changed,
+                Toast.LENGTH_LONG
+            ).show();
+            return;
+        }
+        boolean accepted = steering
+            ? AgentRuntimeService.steerTurn(prompt, mentions)
+            : AgentRuntimeService.sendMessage(prompt, mentions);
+        if (accepted) {
+            composerInput.getText().clear();
+            pendingImports.clear();
+            pendingImportsThreadId = "";
+        }
+        refreshLocalComposerState();
+    }
+
+    private void openDocumentImportPicker() {
+        if (importOperationActive || sendPreparationActive) {
+            return;
+        }
+        CodexSessionSnapshot snapshot = AgentRuntimeService.sessionSnapshot();
+        if (snapshot.getActiveThreadId().isEmpty()) {
+            Toast.makeText(this, R.string.chat_import_requires_chat, Toast.LENGTH_LONG).show();
+            return;
+        }
+        if (pendingImports.size() >= WorkspaceImportLimits.MAXIMUM_FILES_PER_MESSAGE
+            || WorkspaceImportSelection.totalBytes(pendingImports)
+                >= WorkspaceImportLimits.MAXIMUM_TOTAL_BYTES) {
+            Toast.makeText(this, R.string.chat_import_limit_reached, Toast.LENGTH_LONG).show();
+            return;
+        }
+        try {
+            Intent intent = new Intent(Intent.ACTION_OPEN_DOCUMENT);
+            intent.addCategory(Intent.CATEGORY_OPENABLE);
+            intent.setType("*/*");
+            intent.putExtra(Intent.EXTRA_ALLOW_MULTIPLE, true);
+            intent.addFlags(Intent.FLAG_GRANT_READ_URI_PERMISSION);
+            startActivityForResult(intent, FILE_IMPORT_REQUEST_CODE);
+        } catch (Throwable error) {
+            Toast.makeText(
+                this,
+                R.string.document_picker_open_failed,
+                Toast.LENGTH_LONG
+            ).show();
+        }
+    }
+
+    private List<Uri> selectedDocumentUris(Intent data) {
+        List<Uri> selected = new ArrayList<Uri>();
+        ClipData clipData = data.getClipData();
+        int maximum = WorkspaceImportLimits.MAXIMUM_FILES_PER_MESSAGE + 1;
+        if (clipData != null) {
+            int count = Math.min(clipData.getItemCount(), maximum);
+            for (int index = 0; index < count; index++) {
+                ClipData.Item item = clipData.getItemAt(index);
+                if (item != null && item.getUri() != null) {
+                    selected.add(item.getUri());
+                }
+            }
+        } else if (data.getData() != null) {
+            selected.add(data.getData());
+        }
+        return selected;
+    }
+
+    private void beginDocumentImport(final List<Uri> sourceUris) {
+        if (sourceUris == null || sourceUris.isEmpty()
+            || importOperationActive || sendPreparationActive) {
+            return;
+        }
+        final CodexSessionSnapshot snapshot = AgentRuntimeService.sessionSnapshot();
+        final String threadId = snapshot.getActiveThreadId();
+        if (threadId.isEmpty()) {
+            Toast.makeText(this, R.string.chat_import_requires_chat, Toast.LENGTH_LONG).show();
+            return;
+        }
+        int remainingFiles = WorkspaceImportLimits.MAXIMUM_FILES_PER_MESSAGE
+            - pendingImports.size();
+        if (sourceUris.size() > remainingFiles) {
+            Toast.makeText(this, R.string.chat_import_too_many, Toast.LENGTH_LONG).show();
+            return;
+        }
+        final long remainingBytes = WorkspaceImportLimits.MAXIMUM_TOTAL_BYTES
+            - WorkspaceImportSelection.totalBytes(pendingImports);
+        if (remainingBytes <= 0L) {
+            Toast.makeText(this, R.string.chat_import_limit_reached, Toast.LENGTH_LONG).show();
+            return;
+        }
+        if (!pendingImports.isEmpty() && !threadId.equals(pendingImportsThreadId)) {
+            detachPendingImports();
+        }
+        pendingImportsThreadId = threadId;
+        importOperationActive = true;
+        refreshLocalComposerState();
+        final android.content.Context applicationContext = getApplicationContext();
+        if (!submitImportOperation(new Runnable() {
+            @Override
+            public void run() {
+                importSelectedDocuments(
+                    applicationContext,
+                    threadId,
+                    sourceUris,
+                    remainingBytes
+                );
+            }
+        })) {
+            importOperationActive = false;
+            if (pendingImports.isEmpty()) {
+                pendingImportsThreadId = "";
+            }
+            refreshLocalComposerState();
+            Toast.makeText(
+                this,
+                R.string.chat_import_operation_start_failed,
+                Toast.LENGTH_LONG
+            ).show();
+        }
+    }
+
+    private void importSelectedDocuments(
+        android.content.Context applicationContext,
+        String threadId,
+        List<Uri> sourceUris,
+        long initialRemainingBytes
+    ) {
+        final List<ImportedWorkspaceFile> imported =
+            new ArrayList<ImportedWorkspaceFile>();
+        int failures = 0;
+        String firstFailure = "";
+        long remainingBytes = initialRemainingBytes;
+        for (Uri sourceUri : sourceUris) {
+            if (Thread.currentThread().isInterrupted()) {
+                break;
+            }
+            if (remainingBytes <= 0L) {
+                failures++;
+                if (firstFailure.isEmpty()) {
+                    firstFailure = getString(R.string.error_reason_limit);
+                }
+                continue;
+            }
+            try {
+                ImportedWorkspaceFile file = WorkspaceFileImporter.importDocument(
+                    applicationContext,
+                    sourceUri,
+                    remainingBytes
+                );
+                imported.add(file);
+                remainingBytes -= file.getByteCount();
+            } catch (Throwable error) {
+                failures++;
+                if (firstFailure.isEmpty()) {
+                    firstFailure = importFailureReason(error);
+                }
+            }
+        }
+        final int failedCount = failures;
+        final String failureReason = firstFailure;
+        handler.post(new Runnable() {
+            @Override
+            public void run() {
+                completeDocumentImport(threadId, imported, failedCount, failureReason);
+            }
+        });
+    }
+
+    private void completeDocumentImport(
+        String threadId,
+        List<ImportedWorkspaceFile> imported,
+        int failedCount,
+        String failureReason
+    ) {
+        if (destroyed) {
+            return;
+        }
+        importOperationActive = false;
+        boolean sameContext = threadId.equals(
+            AgentRuntimeService.sessionSnapshot().getActiveThreadId()
+        ) && threadId.equals(pendingImportsThreadId);
+        if (sameContext) {
+            List<ImportedWorkspaceFile> combined =
+                new ArrayList<ImportedWorkspaceFile>(pendingImports);
+            combined.addAll(imported);
+            try {
+                List<ImportedWorkspaceFile> validated =
+                    WorkspaceImportSelection.copyOf(combined);
+                pendingImports.clear();
+                pendingImports.addAll(validated);
+            } catch (IllegalArgumentException error) {
+                failedCount += imported.size();
+            }
+        }
+        if (pendingImports.isEmpty()) {
+            pendingImportsThreadId = "";
+        }
+        refreshLocalComposerState();
+        if (!sameContext) {
+            Toast.makeText(
+                this,
+                R.string.chat_import_context_changed,
+                Toast.LENGTH_LONG
+            ).show();
+        } else if (!imported.isEmpty() && failedCount == 0) {
+            Toast.makeText(
+                this,
+                getResources().getQuantityString(
+                    R.plurals.chat_import_completed,
+                    imported.size(),
+                    Integer.valueOf(imported.size())
+                ),
+                Toast.LENGTH_SHORT
+            ).show();
+        } else if (!imported.isEmpty()) {
+            Toast.makeText(
+                this,
+                getString(
+                    R.string.chat_import_partial,
+                    Integer.valueOf(imported.size()),
+                    Integer.valueOf(failedCount)
+                ),
+                Toast.LENGTH_LONG
+            ).show();
+        } else if (failedCount > 0) {
+            Toast.makeText(
+                this,
+                getString(
+                    R.string.chat_import_failed,
+                    failureReason.isEmpty()
+                        ? getString(R.string.common_unknown_error)
+                        : failureReason
+                ),
+                Toast.LENGTH_LONG
+            ).show();
+        }
+    }
+
+    private void detachPendingImports() {
+        if (importOperationActive || sendPreparationActive) {
+            return;
+        }
+        boolean hadImports = !pendingImports.isEmpty();
+        pendingImports.clear();
+        pendingImportsThreadId = "";
+        refreshLocalComposerState();
+        if (hadImports) {
+            Toast.makeText(
+                this,
+                R.string.chat_import_detached_notice,
+                Toast.LENGTH_LONG
+            ).show();
+        }
+    }
+
+    private void reconcilePendingImports(CodexSessionSnapshot session) {
+        if (!pendingImports.isEmpty()
+            && !session.getActiveThreadId().equals(pendingImportsThreadId)) {
+            pendingImports.clear();
+            pendingImportsThreadId = "";
+        }
+    }
+
+    private void renderImportSelection() {
+        if (importOperationActive) {
+            importStatus.setVisibility(View.VISIBLE);
+            importStatus.setText(R.string.chat_import_importing);
+            return;
+        }
+        if (sendPreparationActive) {
+            importStatus.setVisibility(View.VISIBLE);
+            importStatus.setText(R.string.chat_import_verifying);
+            return;
+        }
+        if (pendingImports.isEmpty()) {
+            importStatus.setVisibility(View.GONE);
+            importStatus.setText("");
+            return;
+        }
+        long totalBytes = WorkspaceImportSelection.totalBytes(pendingImports);
+        StringBuilder names = new StringBuilder();
+        int visible = Math.min(3, pendingImports.size());
+        for (int index = 0; index < visible; index++) {
+            if (names.length() != 0) {
+                names.append(" · ");
+            }
+            names.append(pendingImports.get(index).getDisplayName());
+        }
+        if (pendingImports.size() > visible) {
+            names.append(" · …");
+        }
+        String summary = getResources().getQuantityString(
+            R.plurals.chat_import_selected,
+            pendingImports.size(),
+            Integer.valueOf(pendingImports.size()),
+            readableByteCount(totalBytes)
+        );
+        importStatus.setText(summary + "\n" + names.toString());
+        importStatus.setVisibility(View.VISIBLE);
+    }
+
+    private boolean submitImportOperation(Runnable operation) {
+        if (destroyed || importOperations.isShutdown()) {
+            return false;
+        }
+        try {
+            importOperations.execute(operation);
+            return true;
+        } catch (RejectedExecutionException ignored) {
+            return false;
+        }
+    }
+
+    private void refreshLocalComposerState() {
+        if (destroyed || !startupState.shouldRefresh()) {
+            return;
+        }
+        lastSessionRevision = Long.MIN_VALUE;
+        render(AgentRuntimeService.snapshot(), AgentRuntimeService.sessionSnapshot());
+    }
+
+    private String importFailureReason(Throwable error) {
+        String message = error == null ? "" : error.getMessage();
+        if (message == null || message.trim().isEmpty()) {
+            return getString(R.string.common_unknown_error);
+        }
+        return UiText.errorReason(
+            this,
+            CrashReportFormatter.redactVisibleText(message, 180)
+        );
+    }
+
     private void render(RuntimeSnapshot runtime, CodexSessionSnapshot session) {
         boolean runtimeChanged = runtime.getGeneration() != lastRuntimeGeneration
             || runtime.getPhase() != lastRuntimePhase;
@@ -598,6 +1084,7 @@ public final class MainActivity extends Activity {
         lastSessionRevision = session.getRevision();
 
         reconcileNavigation(session);
+        reconcilePendingImports(session);
         renderStatus(runtime, session);
         boolean actionReady = session.isReady() && !session.isOperationActive();
         boolean canChat = actionReady
@@ -613,8 +1100,20 @@ public final class MainActivity extends Activity {
             steering ? R.string.composer_steer_hint : R.string.composer_hint
         );
         sendButton.setText(steering ? R.string.turn_steer : R.string.message_send);
-        composerInput.setEnabled(canChat && !interactionOpen);
-        theme.setEnabled(sendButton, canChat && !interactionOpen);
+        boolean composerReady = canChat && !interactionOpen
+            && !importOperationActive && !sendPreparationActive;
+        composerInput.setEnabled(composerReady);
+        theme.setEnabled(sendButton, composerReady);
+        theme.setEnabled(
+            importButton,
+            composerReady
+                && pendingImports.size() < WorkspaceImportLimits.MAXIMUM_FILES_PER_MESSAGE
+        );
+        clearImportsButton.setVisibility(
+            pendingImports.isEmpty() ? View.GONE : View.VISIBLE
+        );
+        theme.setEnabled(clearImportsButton, composerReady && !pendingImports.isEmpty());
+        renderImportSelection();
         theme.setEnabled(stopButton, session.isReady() && session.isTurnActive());
         threadAdapter.setData(
             session.getThreads(),

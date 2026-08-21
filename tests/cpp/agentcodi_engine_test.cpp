@@ -417,6 +417,49 @@ int main(int argc, char* argv[]) {
         << std::endl;
     return 0;
   }
+  if (argc == 2 && std::string(argv[1]) == "--turn-import-roundtrip") {
+    std::string request;
+    if (!std::getline(std::cin, request)
+        || request.find("\"method\":\"turn/start\"") == std::string::npos
+        || request.find("\"threadId\":\"thr_import\"") == std::string::npos
+        || request.find("\"type\":\"text\",\"text\":\"Analyze it.\"")
+            == std::string::npos
+        || request.find("\"type\":\"mention\"") == std::string::npos
+        || request.find("\"name\":\"outside-data.csv\"") == std::string::npos
+        || request.find(
+            "\"path\":\"/private/workspace/imports/0123456789abcdef-outside-data.csv\"")
+            == std::string::npos
+        || request.find("\"additionalContext\":{") == std::string::npos
+        || request.find("\"agentcodi-import-1\":{") == std::string::npos
+        || request.find("\"kind\":\"application\"") == std::string::npos
+        || request.find("Read the file's actual bytes with the workspace tools")
+            == std::string::npos
+        || request.find("\"cwd\":\"/private/workspace\"") == std::string::npos
+        || request.find("\"runtimeWorkspaceRoots\":[\"/private/workspace\"]")
+            == std::string::npos
+        || request.find("\"approvalPolicy\":\"on-request\"")
+            == std::string::npos
+        || request.find("\"id\":\"agentcodi-workspace\"")
+            == std::string::npos
+        || request.find("content://") != std::string::npos
+        || request.find("/external/") != std::string::npos
+        || request.find("\"sandboxPolicy\"") != std::string::npos) {
+      return 36;
+    }
+    std::cout
+        << "{\"id\":66,\"result\":{\"turn\":{"
+        << "\"id\":\"turn_import\",\"status\":\"inProgress\","
+        << "\"items\":[],\"error\":null}}}" << std::endl;
+    std::cout
+        << "{\"method\":\"item/completed\",\"params\":{"
+        << "\"threadId\":\"thr_import\",\"turnId\":\"turn_import\","
+        << "\"item\":{\"id\":\"import_user_fixture\","
+        << "\"type\":\"userMessage\",\"content\":[{"
+        << "\"type\":\"mention\",\"name\":\"outside-data.csv\","
+        << "\"path\":\"/private/workspace/imports/"
+        << "0123456789abcdef-outside-data.csv\"}]}}}" << std::endl;
+    return 0;
+  }
   if (argc == 2 && std::string(argv[1]) == "--mcp-config-roundtrip") {
     std::string request;
     if (!std::getline(std::cin, request)
@@ -454,7 +497,7 @@ int main(int argc, char* argv[]) {
   }
 
   const std::string version = agentcodi::engine_version();
-  expect(version == "agentcodi-native/0.5.5", "engine version");
+  expect(version == "agentcodi-native/0.5.7", "engine version");
   expect(agentcodi::run_self_test() == 0, "native self-test");
   const std::string abc = "abc";
   expect(
@@ -1665,6 +1708,57 @@ int main(int argc, char* argv[]) {
             "preserve steering user item without inventing a new turn");
         expect(process->Stop(500) == 0,
                "stop turn-steer framing fixture");
+      }
+
+      config.arguments = {"--turn-import-roundtrip"};
+      error.clear();
+      process = agentcodi::AppServerProcess::Start(config, &error);
+      expect(process != nullptr, "spawn turn-import framing fixture");
+      if (process != nullptr) {
+        const std::string import_request =
+            "{\"id\":66,\"method\":\"turn/start\",\"params\":{"
+            "\"threadId\":\"thr_import\",\"input\":[{"
+            "\"type\":\"text\",\"text\":\"Analyze it.\"},{"
+            "\"type\":\"mention\",\"name\":\"outside-data.csv\","
+            "\"path\":\"/private/workspace/imports/"
+            "0123456789abcdef-outside-data.csv\"}],"
+            "\"additionalContext\":{\"agentcodi-import-1\":{"
+            "\"kind\":\"application\",\"value\":\"The current user turn "
+            "includes an imported regular file at this canonical private workspace "
+            "path:\\n/private/workspace/imports/"
+            "0123456789abcdef-outside-data.csv\\nRead the file's actual bytes "
+            "with the workspace tools before answering. Do not infer its contents "
+            "from the visible attachment label.\"}},"
+            "\"cwd\":\"/private/workspace\","
+            "\"runtimeWorkspaceRoots\":[\"/private/workspace\"],"
+            "\"approvalPolicy\":\"on-request\","
+            "\"permissions\":{\"id\":\"agentcodi-workspace\"},"
+            "\"model\":\"gpt-5.6-sol\",\"effort\":\"high\","
+            "\"summary\":\"auto\"}}";
+        expect(
+            process->WriteLine(import_request, 16U * 1024U, &error),
+            "write bounded turn/start request with mention and native file context");
+        std::string import_response;
+        expect(
+            process->ReadLine(16U * 1024U, &import_response, &error)
+                    == agentcodi::LineReadStatus::kLine
+                && import_response.find("\"id\":66") != std::string::npos
+                && import_response.find("\"id\":\"turn_import\"")
+                    != std::string::npos,
+            "preserve imported-file turn/start response");
+        std::string import_item;
+        expect(
+            process->ReadLine(16U * 1024U, &import_item, &error)
+                    == agentcodi::LineReadStatus::kLine
+                && import_item.find("\"type\":\"mention\"")
+                    != std::string::npos
+                && import_item.find("outside-data.csv") != std::string::npos
+                && import_item.find("/private/workspace/imports/")
+                    != std::string::npos
+                && import_item.find("content://") == std::string::npos,
+            "preserve authoritative native mention without exposing provider URI");
+        expect(process->Stop(500) == 0,
+               "stop turn-import framing fixture");
       }
 
       config.arguments = {"--exit-with-code"};

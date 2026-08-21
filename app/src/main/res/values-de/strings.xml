@@ -90,6 +90,27 @@
   <string name="turn_stop">Stopp</string>
   <string name="turn_steer">Ergänzen</string>
   <string name="message_send">Senden</string>
+  <string name="chat_import_files">Dateien importieren</string>
+  <string name="chat_import_detach">Lösen</string>
+  <string name="chat_import_requires_chat">Öffne einen Chat, bevor du Dateien importierst.</string>
+  <string name="chat_import_limit_reached">Die begrenzte Dateiimport-Kapazität für diese Nachricht ist ausgeschöpft.</string>
+  <string name="chat_import_too_many">Es wurden zu viele Dateien ausgewählt. Pro Nachricht können höchstens 16 Dateien angehängt werden.</string>
+  <string name="chat_import_importing">Ausgewählte Dateien werden in den privaten Workspace importiert…</string>
+  <string name="chat_import_verifying">Importierte Dateien werden vor dem Senden geprüft…</string>
+  <string name="chat_import_context_changed">Der aktive Chat oder Turn hat gewechselt. Die importierten Workspace-Kopien wurden nicht angehängt.</string>
+  <string name="chat_import_verify_failed">Die importierten Dateien konnten nicht sicher angehängt werden: %1$s</string>
+  <string name="chat_import_operation_start_failed">Der Dateiimport konnte nicht gestartet werden.</string>
+  <string name="chat_import_partial">%1$d Datei(en) importiert; %2$d Auswahl(en) fehlgeschlagen.</string>
+  <string name="chat_import_failed">Keine Datei wurde importiert: %1$s</string>
+  <string name="chat_import_detached_notice">Die Dateien wurden von dieser Nachricht gelöst. Ihre privaten Kopien bleiben in workspace/imports erhalten.</string>
+  <plurals name="chat_import_completed">
+    <item quantity="one">%1$d Datei importiert.</item>
+    <item quantity="other">%1$d Dateien importiert.</item>
+  </plurals>
+  <plurals name="chat_import_selected">
+    <item quantity="one">%1$d importierte Datei angehängt · %2$s</item>
+    <item quantity="other">%1$d importierte Dateien angehängt · %2$s</item>
+  </plurals>
 
   <string name="transcript_role_you">DU</string>
   <string name="transcript_role_codex" translatable="false">CODEX</string>

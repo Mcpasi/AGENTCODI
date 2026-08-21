@@ -22,6 +22,7 @@ public final class WorkspaceLayout {
 
     private final File root;
     private final File workspace;
+    private final File imports;
     private final File toolchain;
     private final File toolBin;
     private final File toolRuntime;
@@ -33,6 +34,7 @@ public final class WorkspaceLayout {
     private WorkspaceLayout(
         File root,
         File workspace,
+        File imports,
         File toolchain,
         File toolBin,
         File toolRuntime,
@@ -43,6 +45,7 @@ public final class WorkspaceLayout {
     ) {
         this.root = root;
         this.workspace = workspace;
+        this.imports = imports;
         this.toolchain = toolchain;
         this.toolBin = toolBin;
         this.toolRuntime = toolRuntime;
@@ -56,6 +59,7 @@ public final class WorkspaceLayout {
         File canonicalBase = prepareCanonicalBase(appFilesDirectory);
         File root = secureChild(canonicalBase, "agentcodi");
         File workspace = secureChild(root, "workspace");
+        File imports = secureChild(workspace, "imports");
         File toolchain = secureChild(workspace, "toolchain");
         File toolBin = secureChild(root, "tool-bin");
         File toolRuntime = secureChild(root, "tool-runtime");
@@ -69,6 +73,7 @@ public final class WorkspaceLayout {
         return new WorkspaceLayout(
             root,
             workspace,
+            imports,
             toolchain,
             toolBin,
             toolRuntime,
@@ -91,6 +96,10 @@ public final class WorkspaceLayout {
 
     public File getWorkspace() {
         return workspace;
+    }
+
+    public File getImports() {
+        return imports;
     }
 
     public File getToolchain() {

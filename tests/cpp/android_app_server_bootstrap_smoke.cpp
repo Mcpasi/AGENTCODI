@@ -1,9 +1,17 @@
 #include "app_server_process.h"
 
+#include <arpa/inet.h>
 #include <climits>
+#include <cerrno>
+#include <cstdlib>
+#include <cstring>
 #include <iostream>
 #include <memory>
+#include <poll.h>
+#include <sys/socket.h>
+#include <unistd.h>
 #include <string>
+#include <thread>
 #include <vector>
 
 namespace {
@@ -244,6 +252,183 @@ bool read_model_shell_completion(
   return false;
 }
 
+bool read_import_content_completion(
+    const std::shared_ptr<agentcodi::AppServerProcess>& process,
+    std::string* error) {
+  bool command_completed = false;
+  std::string output;
+  for (int attempt = 0; attempt < 64; ++attempt) {
+    std::string line;
+    const agentcodi::LineReadStatus status = process->ReadLine(
+        kMaximumLineBytes,
+        &line,
+        error);
+    if (status != agentcodi::LineReadStatus::kLine) {
+      std::cerr << "Imported-content command response failed: " << *error << '\n';
+      return false;
+    }
+    if (line.find("\"method\":\"command/exec/outputDelta\"")
+            != std::string::npos
+        && line.find("\"processId\":\"agentcodi-build-import-read\"")
+            != std::string::npos) {
+      std::string delta;
+      if (!extract_json_string(line, "deltaBase64", &delta)
+          || !append_base64(delta, &output)) {
+        std::cerr << "Imported-content output was not bounded Base64\n";
+        return false;
+      }
+    } else if (line.find("\"id\":23") != std::string::npos) {
+      if (line.find("\"exitCode\":0") == std::string::npos
+          || line.find("\"stderr\":\"\"") == std::string::npos) {
+        std::cerr << "Imported-content completion response was malformed\n";
+        return false;
+      }
+      if (line.find("\"stdout\":\"\"") == std::string::npos) {
+        return line.find("agentcodi-import-content-smoke") != std::string::npos;
+      }
+      command_completed = true;
+    }
+    if (command_completed
+        && output.find("agentcodi-import-content-smoke") != std::string::npos) {
+      return true;
+    }
+  }
+  std::cerr << "App-server could not read the imported workspace bytes\n";
+  return false;
+}
+
+bool parse_content_length(
+    const std::string& headers,
+    std::size_t* content_length) {
+  const std::string lower_marker = "\r\ncontent-length:";
+  const std::string upper_marker = "\r\nContent-Length:";
+  std::size_t marker = headers.find(lower_marker);
+  std::size_t marker_size = lower_marker.size();
+  if (marker == std::string::npos) {
+    marker = headers.find(upper_marker);
+    marker_size = upper_marker.size();
+  }
+  if (marker == std::string::npos) {
+    return false;
+  }
+  std::size_t begin = marker + marker_size;
+  while (begin < headers.size() && headers[begin] == ' ') {
+    ++begin;
+  }
+  std::size_t end = begin;
+  while (end < headers.size() && headers[end] >= '0' && headers[end] <= '9') {
+    ++end;
+  }
+  if (end == begin || end - begin > 9U) {
+    return false;
+  }
+  const unsigned long parsed = std::strtoul(
+      headers.substr(begin, end - begin).c_str(),
+      nullptr,
+      10);
+  if (parsed > 256U * 1024U) {
+    return false;
+  }
+  *content_length = static_cast<std::size_t>(parsed);
+  return true;
+}
+
+bool capture_one_http_request(
+    int listener,
+    std::string* request,
+    std::string* error) {
+  pollfd pending {};
+  pending.fd = listener;
+  pending.events = POLLIN;
+  const int ready = poll(&pending, 1, 15'000);
+  if (ready <= 0 || (pending.revents & POLLIN) == 0) {
+    *error = ready == 0
+        ? "Timed out waiting for the pinned app-server model request"
+        : std::string("Model capture poll failed: ") + std::strerror(errno);
+    close(listener);
+    return false;
+  }
+  const int connection = accept(listener, nullptr, nullptr);
+  close(listener);
+  if (connection < 0) {
+    *error = std::string("Model capture accept failed: ") + std::strerror(errno);
+    return false;
+  }
+  request->clear();
+  std::size_t expected_bytes = 0U;
+  bool have_length = false;
+  while (request->size() <= 256U * 1024U) {
+    char buffer[4096];
+    const ssize_t count = read(connection, buffer, sizeof(buffer));
+    if (count <= 0) {
+      break;
+    }
+    request->append(buffer, static_cast<std::size_t>(count));
+    const std::size_t header_end = request->find("\r\n\r\n");
+    if (header_end != std::string::npos && !have_length) {
+      std::size_t content_length = 0U;
+      if (!parse_content_length(request->substr(0U, header_end), &content_length)) {
+        *error = "Pinned app-server model request omitted a bounded content length";
+        close(connection);
+        return false;
+      }
+      expected_bytes = header_end + 4U + content_length;
+      have_length = true;
+    }
+    if (have_length && request->size() >= expected_bytes) {
+      break;
+    }
+  }
+  const std::string response =
+      "HTTP/1.1 400 Bad Request\r\nContent-Length: 0\r\n"
+      "Connection: close\r\n\r\n";
+  const ssize_t ignored = send(connection, response.data(), response.size(), 0);
+  (void) ignored;
+  close(connection);
+  if (!have_length || request->size() < expected_bytes
+      || request->size() > 256U * 1024U) {
+    *error = "Pinned app-server model request was incomplete or oversized";
+    return false;
+  }
+  request->resize(expected_bytes);
+  return true;
+}
+
+int create_loopback_listener(unsigned short* port, std::string* error) {
+  const int listener = socket(AF_INET, SOCK_STREAM, 0);
+  if (listener < 0) {
+    *error = std::string("Model capture socket failed: ") + std::strerror(errno);
+    return -1;
+  }
+  int reuse = 1;
+  if (setsockopt(listener, SOL_SOCKET, SO_REUSEADDR, &reuse, sizeof(reuse)) != 0) {
+    *error = std::string("Model capture socket option failed: ")
+        + std::strerror(errno);
+    close(listener);
+    return -1;
+  }
+  sockaddr_in address {};
+  address.sin_family = AF_INET;
+  address.sin_addr.s_addr = htonl(INADDR_LOOPBACK);
+  address.sin_port = 0;
+  if (bind(listener, reinterpret_cast<sockaddr*>(&address), sizeof(address)) != 0
+      || listen(listener, 1) != 0) {
+    *error = std::string("Model capture bind/listen failed: ")
+        + std::strerror(errno);
+    close(listener);
+    return -1;
+  }
+  socklen_t size = sizeof(address);
+  if (getsockname(listener, reinterpret_cast<sockaddr*>(&address), &size) != 0) {
+    *error = std::string("Model capture port lookup failed: ")
+        + std::strerror(errno);
+    close(listener);
+    return -1;
+  }
+  *port = ntohs(address.sin_port);
+  return listener;
+}
+
 bool read_terminated_terminal_completion(
     const std::shared_ptr<agentcodi::AppServerProcess>& process,
     std::string* error) {
@@ -290,8 +475,11 @@ int main(int argc, char* argv[]) {
   }
   const std::string workspace = argv[6];
   const std::string shell = argv[3];
-  if (!safe_json_path(workspace) || !safe_json_path(shell)) {
-    std::cerr << "Workspace or shell path is not safe for the bootstrap fixture\n";
+  const std::string imported_file =
+      workspace + "/imports/0123456789abcdef0123456789abcdef.bin";
+  if (!safe_json_path(workspace) || !safe_json_path(shell)
+      || !safe_json_path(imported_file)) {
+    std::cerr << "Workspace, import or shell path is not safe for the bootstrap fixture\n";
     return 2;
   }
 
@@ -322,7 +510,7 @@ int main(int argc, char* argv[]) {
   const std::string initialize =
       "{\"method\":\"initialize\",\"id\":1,\"params\":{"
       "\"clientInfo\":{\"name\":\"agentcodi_android\","
-      "\"title\":\"AGENTCODI\",\"version\":\"0.5.5\"},"
+      "\"title\":\"AGENTCODI\",\"version\":\"0.5.7\"},"
       "\"capabilities\":{\"experimentalApi\":true,"
       "\"optOutNotificationMethods\":[\"rawResponseItem/completed\","
       "\"rawResponse/completed\"]}}}";
@@ -403,6 +591,20 @@ int main(int argc, char* argv[]) {
           process,
           config.tool_binary_directory + "/node",
           &error)) {
+    process->Stop(2'000);
+    return 1;
+  }
+
+  const std::string import_read_request =
+      "{\"method\":\"command/exec\",\"id\":23,\"params\":{"
+      "\"command\":[\"/system/bin/sh\",\"-c\",\"cat \\\"$1\\\"\","
+      "\"agentcodi-import-smoke\",\"" + imported_file + "\"],"
+      "\"cwd\":\"" + workspace + "\","
+      "\"processId\":\"agentcodi-build-import-read\","
+      "\"permissionProfile\":\"agentcodi-workspace\","
+      "\"tty\":false,\"outputBytesCap\":65536,\"timeoutMs\":10000}}";
+  if (!write_request(process, import_read_request, &error)
+      || !read_import_content_completion(process, &error)) {
     process->Stop(2'000);
     return 1;
   }
@@ -526,6 +728,135 @@ int main(int argc, char* argv[]) {
   const int exit_code = process->Stop(2'000);
   if (exit_code == INT_MIN) {
     std::cerr << "Bootstrap supervisor did not stop its child\n";
+    return 1;
+  }
+
+  unsigned short capture_port = 0;
+  const int capture_listener = create_loopback_listener(&capture_port, &error);
+  if (capture_listener < 0) {
+    std::cerr << error << '\n';
+    return 1;
+  }
+  std::string captured_request;
+  std::string capture_error;
+  std::thread capture_thread(
+      capture_one_http_request,
+      capture_listener,
+      &captured_request,
+      &capture_error);
+
+  agentcodi::ProcessConfig probe_config = config;
+  const std::string provider_url =
+      "model_providers.agentcodi-import-probe.base_url=\"http://127.0.0.1:"
+      + std::to_string(capture_port) + "/v1\"";
+  probe_config.arguments = {
+      "app-server",
+      "--stdio",
+      "--strict-config",
+      "-c",
+      "cli_auth_credentials_store=\"file\"",
+      "-c",
+      "approval_policy=\"never\"",
+      "-c",
+      "analytics.enabled=false",
+      "-c",
+      "otel.exporter=\"none\"",
+      "-c",
+      "feedback.enabled=false",
+      "-c",
+      "check_for_update_on_startup=false",
+      "-c",
+      "model_provider=\"agentcodi-import-probe\"",
+      "-c",
+      "model_providers.agentcodi-import-probe.name=\"Import probe\"",
+      "-c",
+      provider_url,
+      "-c",
+      "model_providers.agentcodi-import-probe.wire_api=\"responses\"",
+      "-c",
+      "model_providers.agentcodi-import-probe.requires_openai_auth=false",
+      "-c",
+      "model_providers.agentcodi-import-probe.supports_websockets=false",
+  };
+  std::shared_ptr<agentcodi::AppServerProcess> probe =
+      agentcodi::AppServerProcess::Start(probe_config, &error);
+  if (probe == nullptr) {
+    std::cerr << "Pinned app-server import probe failed to start: " << error << '\n';
+    capture_thread.join();
+    return 1;
+  }
+  const std::string probe_initialize =
+      "{\"method\":\"initialize\",\"id\":30,\"params\":{"
+      "\"clientInfo\":{\"name\":\"agentcodi_import_probe\","
+      "\"title\":\"AGENTCODI import probe\",\"version\":\"0.5.7\"},"
+      "\"capabilities\":{\"experimentalApi\":true}}}";
+  if (!write_request(probe, probe_initialize, &error)
+      || !read_response(probe, "\"id\":30", "\"codexHome\":", &error)
+      || !write_request(probe, "{\"method\":\"initialized\",\"params\":{}}", &error)
+      || !write_request(
+          probe,
+          "{\"method\":\"thread/start\",\"id\":31,\"params\":{"
+          "\"cwd\":\"" + workspace + "\","
+          "\"model\":\"gpt-5.1-codex\","
+          "\"modelProvider\":\"agentcodi-import-probe\","
+          "\"approvalPolicy\":\"never\",\"sandbox\":\"workspace-write\","
+          "\"runtimeWorkspaceRoots\":[\"" + workspace + "\"]}}",
+          &error)) {
+    probe->Stop(2'000);
+    capture_thread.join();
+    return 1;
+  }
+  std::string probe_thread_id;
+  for (int attempt = 0; attempt < 16 && probe_thread_id.empty(); ++attempt) {
+    std::string line;
+    if (probe->ReadLine(kMaximumLineBytes, &line, &error)
+        != agentcodi::LineReadStatus::kLine) {
+      break;
+    }
+    if (line.find("\"id\":31") != std::string::npos
+        && line.find("\"thread\":{") != std::string::npos) {
+      extract_json_string(line, "id", &probe_thread_id);
+    }
+  }
+  const std::string visible_label = "VISIBLE-LABEL-MUST-NOT-BE-MODEL-CONTEXT.bin";
+  const std::string context_value =
+      "The current user turn includes an imported regular file at this canonical "
+      "private workspace path:\\n" + imported_file
+      + "\\nRead the file's actual bytes with the workspace tools before answering. "
+      "Do not infer its contents from the visible attachment label.";
+  if (probe_thread_id.empty()
+      || !write_request(
+          probe,
+          "{\"method\":\"turn/start\",\"id\":32,\"params\":{"
+          "\"threadId\":\"" + probe_thread_id + "\",\"input\":[{"
+          "\"type\":\"text\",\"text\":\"Inspect the attached file.\"},{"
+          "\"type\":\"mention\",\"name\":\"" + visible_label + "\","
+          "\"path\":\"" + imported_file + "\"}],"
+          "\"additionalContext\":{\"agentcodi-import-1\":{"
+          "\"kind\":\"application\",\"value\":\"" + context_value + "\"}},"
+          "\"cwd\":\"" + workspace + "\",\"model\":\"gpt-5.1-codex\","
+          "\"approvalPolicy\":\"never\",\"sandboxPolicy\":{"
+          "\"type\":\"workspaceWrite\",\"writableRoots\":[\""
+          + workspace + "\"],\"networkAccess\":false}}}",
+          &error)
+      || !read_response(probe, "\"id\":32", "\"status\":\"inProgress\"", &error)) {
+    probe->Stop(2'000);
+    capture_thread.join();
+    return 1;
+  }
+  capture_thread.join();
+  probe->Stop(2'000);
+  if (!capture_error.empty()
+      || captured_request.find("Inspect the attached file.") == std::string::npos
+      || captured_request.find(imported_file) == std::string::npos
+      || captured_request.find("Read the file's actual bytes with the workspace tools")
+          == std::string::npos
+      || captured_request.find(visible_label) != std::string::npos
+      || captured_request.find("content://") != std::string::npos
+      || captured_request.find("agentcodi-import-content-smoke")
+          != std::string::npos) {
+    std::cerr << "Pinned app-server did not bind the verified import path to model "
+              << "context: " << capture_error << '\n';
     return 1;
   }
   std::cout << "Android app-server supervisor bootstrap passed.\n";

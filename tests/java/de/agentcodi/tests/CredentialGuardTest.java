@@ -13,9 +13,29 @@ public final class CredentialGuardTest {
         detectsCredentialShapesWithoutStringifyingMutableInput();
         detectsPasswordAndClientSecretForms();
         detectsCredentialValuesSplitAcrossArguments();
+        detectsCredentialFileNames();
         permitsOrdinaryConversationText();
         redactsCredentialShapesAtTheChatProjectionBoundary();
-        return 5;
+        return 6;
+    }
+
+    private static void detectsCredentialFileNames() {
+        TestSupport.assertTrue(
+            CredentialGuard.isLikelyCredentialFileName("auth.json"),
+            "canonical Codex credential filename"
+        );
+        TestSupport.assertTrue(
+            CredentialGuard.isLikelyCredentialFileName("folder/.env.production"),
+            "environment credential filename"
+        );
+        TestSupport.assertTrue(
+            CredentialGuard.isLikelyCredentialFileName("password.txt"),
+            "named credential filename"
+        );
+        TestSupport.assertFalse(
+            CredentialGuard.isLikelyCredentialFileName("credential-input.txt"),
+            "ordinary credential documentation filename"
+        );
     }
 
     private static void detectsPasswordAndClientSecretForms() {

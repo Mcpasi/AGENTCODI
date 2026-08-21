@@ -552,19 +552,43 @@ public final class CodexSessionController
         });
     }
 
-    public void sendMessage(final String input) {
+    public boolean sendMessage(final String input) {
+        return sendMessage(input, Collections.<CodexFileMention>emptyList());
+    }
+
+    public boolean sendMessage(
+        final String input,
+        List<CodexFileMention> fileMentions
+    ) {
         if (CredentialGuard.containsLikelyCredential(input)) {
             setUserError(
                 "OpenAI-Zugangsdaten dürfen nur im geschützten Kontobereich eingegeben werden."
             );
-            return;
+            return false;
         }
         final String prompt = input == null ? "" : input.trim();
-        if (prompt.isEmpty() || prompt.length() > MAX_PROMPT_CHARACTERS) {
-            setUserError("Nachrichten müssen 1 bis 32768 Zeichen enthalten.");
-            return;
+        final List<CodexFileMention> mentions;
+        try {
+            mentions = validateFileMentions(fileMentions);
+        } catch (IllegalArgumentException error) {
+            setUserError("Importierte Dateien konnten nicht sicher angehängt werden.");
+            return false;
         }
-        submit("Nachricht wird gesendet.", new Operation() {
+        if ((prompt.isEmpty() && mentions.isEmpty())
+            || prompt.length() > MAX_PROMPT_CHARACTERS) {
+            setUserError(
+                "Nachrichten benötigen Text oder importierte Dateien und dürfen höchstens "
+                    + "32768 Textzeichen enthalten."
+            );
+            return false;
+        }
+        final List<Object> userInput = buildUserInput(prompt, mentions);
+        final Map<String, Object> attachmentContext =
+            CodexWorkspaceAttachmentContext.create(mentions);
+        final String projectedUserText = extractUserText(JsonCodec.object(
+            "content", userInput
+        ));
+        return submit("Nachricht wird gesendet.", new Operation() {
             @Override
             public void run() throws Exception {
                 String threadId;
@@ -598,7 +622,7 @@ public final class CodexSessionController
                     addBoundedMessageLocked(new ChatMessage(
                         localId,
                         ChatMessage.Role.USER,
-                        prompt,
+                        projectedUserText,
                         false
                     ));
                     turnActive = true;
@@ -608,7 +632,7 @@ public final class CodexSessionController
 
                 Map<String, Object> params = JsonCodec.object(
                     "threadId", threadId,
-                    "input", JsonCodec.array(JsonCodec.object("type", "text", "text", prompt)),
+                    "input", userInput,
                     "cwd", workspacePath,
                     "runtimeWorkspaceRoots", JsonCodec.array(workspacePath),
                     "approvalPolicy", "on-request",
@@ -617,6 +641,9 @@ public final class CodexSessionController
                     "effort", requestEffort,
                     "summary", "auto"
                 );
+                if (!attachmentContext.isEmpty()) {
+                    params.put("additionalContext", attachmentContext);
+                }
                 try {
                     Map<String, Object> result = client.request(
                         "turn/start",
@@ -654,19 +681,43 @@ public final class CodexSessionController
         });
     }
 
-    public void steerTurn(final String input) {
+    public boolean steerTurn(final String input) {
+        return steerTurn(input, Collections.<CodexFileMention>emptyList());
+    }
+
+    public boolean steerTurn(
+        final String input,
+        List<CodexFileMention> fileMentions
+    ) {
         if (CredentialGuard.containsLikelyCredential(input)) {
             setUserError(
                 "OpenAI-Zugangsdaten dürfen nur im geschützten Kontobereich eingegeben werden."
             );
-            return;
+            return false;
         }
         final String prompt = input == null ? "" : input.trim();
-        if (prompt.isEmpty() || prompt.length() > MAX_PROMPT_CHARACTERS) {
-            setUserError("Nachrichten müssen 1 bis 32768 Zeichen enthalten.");
-            return;
+        final List<CodexFileMention> mentions;
+        try {
+            mentions = validateFileMentions(fileMentions);
+        } catch (IllegalArgumentException error) {
+            setUserError("Importierte Dateien konnten nicht sicher angehängt werden.");
+            return false;
         }
-        submit("Ergänzung wird an den laufenden Turn gesendet.", new Operation() {
+        if ((prompt.isEmpty() && mentions.isEmpty())
+            || prompt.length() > MAX_PROMPT_CHARACTERS) {
+            setUserError(
+                "Nachrichten benötigen Text oder importierte Dateien und dürfen höchstens "
+                    + "32768 Textzeichen enthalten."
+            );
+            return false;
+        }
+        final List<Object> userInput = buildUserInput(prompt, mentions);
+        final Map<String, Object> attachmentContext =
+            CodexWorkspaceAttachmentContext.create(mentions);
+        final String projectedUserText = extractUserText(JsonCodec.object(
+            "content", userInput
+        ));
+        return submit("Ergänzung wird an den laufenden Turn gesendet.", new Operation() {
             @Override
             public void run() throws Exception {
                 String threadId;
@@ -687,22 +738,24 @@ public final class CodexSessionController
                     addBoundedMessageLocked(new ChatMessage(
                         localId,
                         ChatMessage.Role.USER,
-                        prompt,
+                        projectedUserText,
                         false
                     ));
                     publishLocked();
                 }
 
                 try {
+                    Map<String, Object> params = JsonCodec.object(
+                        "threadId", threadId,
+                        "input", userInput,
+                        "expectedTurnId", expectedTurnId
+                    );
+                    if (!attachmentContext.isEmpty()) {
+                        params.put("additionalContext", attachmentContext);
+                    }
                     Map<String, Object> result = client.request(
                         "turn/steer",
-                        JsonCodec.object(
-                            "threadId", threadId,
-                            "input", JsonCodec.array(
-                                JsonCodec.object("type", "text", "text", prompt)
-                            ),
-                            "expectedTurnId", expectedTurnId
-                        ),
+                        params,
                         NORMAL_TIMEOUT_MS
                     );
                     String returnedTurnId = JsonCodec.optionalString(result.get("turnId"));
@@ -3662,14 +3715,103 @@ public final class CodexSessionController
         }
     }
 
+    private List<CodexFileMention> validateFileMentions(
+        List<CodexFileMention> values
+    ) {
+        if (values == null || values.isEmpty()) {
+            return Collections.emptyList();
+        }
+        if (values.size() > CodexFileMention.MAXIMUM_MENTIONS) {
+            throw new IllegalArgumentException("Too many Codex file mentions");
+        }
+        String workspace = workspacePath.endsWith("/")
+            ? workspacePath.substring(0, workspacePath.length() - 1)
+            : workspacePath;
+        String prefix = workspace + "/imports/";
+        Set<String> paths = new HashSet<String>();
+        List<CodexFileMention> mentions =
+            new ArrayList<CodexFileMention>(values.size());
+        for (CodexFileMention value : values) {
+            if (value == null || !value.getPath().startsWith(prefix)) {
+                throw new IllegalArgumentException(
+                    "Codex file mention is outside the workspace imports directory"
+                );
+            }
+            String fileName = value.getPath().substring(prefix.length());
+            if (fileName.isEmpty() || ".".equals(fileName) || "..".equals(fileName)
+                || fileName.indexOf('/') >= 0 || fileName.indexOf(':') >= 0
+                || !isGeneratedImportStorageName(fileName)
+                || !paths.add(value.getPath())) {
+                throw new IllegalArgumentException("Codex file mention path is unsafe");
+            }
+            mentions.add(value);
+        }
+        return Collections.unmodifiableList(mentions);
+    }
+
+    private static boolean isGeneratedImportStorageName(String fileName) {
+        if (fileName.length() < 32 || fileName.length() > 45) {
+            return false;
+        }
+        for (int index = 0; index < 32; index++) {
+            char character = fileName.charAt(index);
+            if (!(character >= '0' && character <= '9')
+                && !(character >= 'a' && character <= 'f')) {
+                return false;
+            }
+        }
+        if (fileName.length() == 32) {
+            return true;
+        }
+        if (fileName.charAt(32) != '.' || fileName.length() == 33) {
+            return false;
+        }
+        for (int index = 33; index < fileName.length(); index++) {
+            char character = fileName.charAt(index);
+            if (!(character >= '0' && character <= '9')
+                && !(character >= 'a' && character <= 'z')) {
+                return false;
+            }
+        }
+        return true;
+    }
+
+    private static List<Object> buildUserInput(
+        String prompt,
+        List<CodexFileMention> mentions
+    ) {
+        List<Object> input = new ArrayList<Object>(mentions.size() + 1);
+        if (!prompt.isEmpty()) {
+            input.add(JsonCodec.object("type", "text", "text", prompt));
+        }
+        for (CodexFileMention mention : mentions) {
+            input.add(JsonCodec.object(
+                "type", "mention",
+                "name", mention.getName(),
+                "path", mention.getPath()
+            ));
+        }
+        return Collections.unmodifiableList(input);
+    }
+
     private static String extractUserText(Map<String, Object> item) {
         StringBuilder text = new StringBuilder();
         for (Object inputValue : JsonCodec.optionalArray(item.get("content"))) {
             Map<String, Object> input = JsonCodec.requireObject(inputValue, "user input");
-            if (!"text".equals(JsonCodec.optionalString(input.get("type")))) {
-                continue;
+            String type = JsonCodec.optionalString(input.get("type"));
+            String part = "";
+            if ("text".equals(type)) {
+                part = JsonCodec.optionalString(input.get("text"));
+            } else if ("mention".equals(type)) {
+                part = visibleNamedInput("@", JsonCodec.optionalString(input.get("name")));
+            } else if ("skill".equals(type)) {
+                part = visibleNamedInput("$", JsonCodec.optionalString(input.get("name")));
+            } else if ("localImage".equals(type) || "localAudio".equals(type)) {
+                part = visibleNamedInput(
+                    "@",
+                    fileNameFromLocalInput(JsonCodec.optionalString(input.get("path")))
+                );
             }
-            String part = JsonCodec.optionalString(input.get("text"));
             if (!part.isEmpty()) {
                 if (text.length() != 0) {
                     text.append('\n');
@@ -3682,6 +3824,33 @@ public final class CodexSessionController
             }
         }
         return text.toString();
+    }
+
+    private static String visibleNamedInput(String prefix, String name) {
+        if (name == null || name.isEmpty()) {
+            return "";
+        }
+        StringBuilder safe = new StringBuilder();
+        for (int index = 0;
+             index < name.length() && safe.length() < CodexFileMention.MAXIMUM_NAME_CHARACTERS;
+             index++) {
+            char character = name.charAt(index);
+            if (character < 0x20 || character == 0x7f
+                || character == '/' || character == '\\') {
+                return "";
+            }
+            safe.append(character);
+        }
+        return safe.length() == 0 ? "" : prefix + safe.toString();
+    }
+
+    private static String fileNameFromLocalInput(String path) {
+        if (path == null || path.isEmpty() || path.length() > 4096
+            || path.indexOf('\\') >= 0) {
+            return "";
+        }
+        int slash = path.lastIndexOf('/');
+        return slash < 0 ? path : path.substring(slash + 1);
     }
 
     private static String titleForThread(Map<String, Object> thread) {

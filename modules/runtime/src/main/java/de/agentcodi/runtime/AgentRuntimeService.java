@@ -454,6 +454,7 @@ public final class AgentRuntimeService extends Service {
                 McpConfigurationController startedConfigurationController = null;
                 try {
                     WorkspaceLayout layout = WorkspaceLayout.create(getFilesDir());
+                    WorkspaceFileImporter.recoverPendingImports(layout);
                     NativeEngine engine = new NativeEngine();
                     int result = engine.selfTest();
                     if (result != 0) {

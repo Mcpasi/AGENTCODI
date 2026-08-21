@@ -48,7 +48,16 @@ public final class WorkspaceDocumentImporter {
     private static final int BUFFER_BYTES = 8192;
     private static final int MAXIMUM_ZERO_PROGRESS_OPERATIONS = 1024;
     private static final int RANDOM_TOKEN_BYTES = 16;
+    private static final String PENDING_PREFIX = ".pending-";
+    private static final Object IMPORT_LOCK = new Object();
     private static final SecureRandom RANDOM = new SecureRandom();
+    private static final DirectoryOpener NIO_DIRECTORY_OPENER =
+        new DirectoryOpener() {
+            @Override
+            public DirectoryStream<Path> open(Path directory) throws IOException {
+                return Files.newDirectoryStream(directory);
+            }
+        };
     private static final Set<PosixFilePermission> OWNER_FILE_PERMISSIONS =
         Collections.unmodifiableSet(EnumSet.of(
             PosixFilePermission.OWNER_READ,
@@ -57,6 +66,11 @@ public final class WorkspaceDocumentImporter {
 
     private final long maximumFileBytes;
     private final WorkspaceDocumentInstaller installer;
+    private final DirectoryOpener directoryOpener;
+
+    interface DirectoryOpener {
+        DirectoryStream<Path> open(Path directory) throws IOException;
+    }
 
     public WorkspaceDocumentImporter(WorkspaceDocumentInstaller documentInstaller) {
         this(WorkspaceImportLimits.MAXIMUM_FILE_BYTES, documentInstaller);
@@ -67,6 +81,15 @@ public final class WorkspaceDocumentImporter {
         long maximumFileBytes,
         WorkspaceDocumentInstaller documentInstaller
     ) {
+        this(maximumFileBytes, documentInstaller, NIO_DIRECTORY_OPENER);
+    }
+
+    /** Package-private injection keeps close-failure regression tests off Android. */
+    WorkspaceDocumentImporter(
+        long maximumFileBytes,
+        WorkspaceDocumentInstaller documentInstaller,
+        DirectoryOpener importDirectoryOpener
+    ) {
         if (maximumFileBytes <= 0L
             || maximumFileBytes > WorkspaceImportLimits.MAXIMUM_FILE_BYTES) {
             throw new IllegalArgumentException("Document import limit is invalid");
@@ -74,8 +97,12 @@ public final class WorkspaceDocumentImporter {
         if (documentInstaller == null) {
             throw new IllegalArgumentException("Atomic document installer is required");
         }
+        if (importDirectoryOpener == null) {
+            throw new IllegalArgumentException("Secure import directory opener is required");
+        }
         this.maximumFileBytes = maximumFileBytes;
         installer = documentInstaller;
+        directoryOpener = importDirectoryOpener;
     }
 
     public ImportedWorkspaceFile importDocument(
@@ -97,6 +124,10 @@ public final class WorkspaceDocumentImporter {
         );
     }
 
+    /**
+     * Takes ownership of {@code source}. Every exit attempts to close it once;
+     * a close failure after a fully verified commit cannot revoke that commit.
+     */
     public ImportedWorkspaceFile importDocument(
         File workspaceDirectory,
         File importsDirectory,
@@ -109,35 +140,87 @@ public final class WorkspaceDocumentImporter {
         if (source == null) {
             throw new IllegalArgumentException("Document source must not be null");
         }
-        if (verificationOpener == null) {
-            throw new IllegalArgumentException("Document verification opener is required");
+        ImportedWorkspaceFile committed = null;
+        Throwable failure = null;
+        try {
+            if (verificationOpener == null) {
+                throw new IllegalArgumentException(
+                    "Document verification opener is required"
+                );
+            }
+            if (declaredByteCount < -1L || declaredByteCount > maximumFileBytes) {
+                throw new IOException("Selected document size exceeds the import limit");
+            }
+            String displayName = sanitizeDisplayName(proposedDisplayName);
+            String storageExtension = safeStorageExtension(displayName);
+            String mediaType = sanitizeMediaType(proposedMediaType);
+            Path workspace = requireWorkspace(workspaceDirectory);
+            Path imports = requireImportsDirectory(workspace, importsDirectory);
+            synchronized (IMPORT_LOCK) {
+                committed = importDocumentLocked(
+                    workspace,
+                    imports,
+                    displayName,
+                    storageExtension,
+                    mediaType,
+                    source,
+                    verificationOpener
+                );
+            }
+            return committed;
+        } catch (IOException | RuntimeException | Error error) {
+            failure = error;
+            throw error;
+        } finally {
+            closeOwnedSource(source, committed != null, failure);
         }
-        if (declaredByteCount < -1L || declaredByteCount > maximumFileBytes) {
-            throw new IOException("Selected document size exceeds the import limit");
-        }
-        String displayName = sanitizeDisplayName(proposedDisplayName);
-        String storageExtension = safeStorageExtension(displayName);
-        String mediaType = sanitizeMediaType(proposedMediaType);
+    }
+
+    /**
+     * Removes private pending files left by a terminated materialization. The
+     * same process-wide lock prevents recovery from racing a live import.
+     */
+    public void recoverPendingImports(
+        File workspaceDirectory,
+        File importsDirectory
+    ) throws IOException {
         Path workspace = requireWorkspace(workspaceDirectory);
         Path imports = requireImportsDirectory(workspace, importsDirectory);
-
-        DirectoryStream<Path> rawRoot = Files.newDirectoryStream(workspace);
-        if (!(rawRoot instanceof SecureDirectoryStream<?>)) {
-            rawRoot.close();
-            throw new IOException(
-                "Filesystem cannot create imported files without path races"
-            );
+        synchronized (IMPORT_LOCK) {
+            recoverPendingImportsLocked(workspace);
         }
-        @SuppressWarnings("unchecked")
-        SecureDirectoryStream<Path> root = (SecureDirectoryStream<Path>) rawRoot;
-        try (DirectoryStream<Path> closingRoot = rawRoot;
-             SecureDirectoryStream<Path> importRoot = root.newDirectoryStream(
-                 workspace.getFileSystem().getPath(
-                     WorkspaceImportLimits.IMPORT_DIRECTORY_NAME
-                 ),
-                 LinkOption.NOFOLLOW_LINKS
-             )) {
-            return materialize(
+    }
+
+    private ImportedWorkspaceFile importDocumentLocked(
+        Path workspace,
+        Path imports,
+        String displayName,
+        String storageExtension,
+        String mediaType,
+        InputStream source,
+        WorkspaceFileAccess.Opener verificationOpener
+    ) throws IOException {
+        DirectoryStream<Path> rawRoot = null;
+        SecureDirectoryStream<Path> importRoot = null;
+        ImportedWorkspaceFile committed = null;
+        Throwable failure = null;
+        try {
+            rawRoot = directoryOpener.open(workspace);
+            if (!(rawRoot instanceof SecureDirectoryStream<?>)) {
+                throw new IOException(
+                    "Filesystem cannot create imported files without path races"
+                );
+            }
+            @SuppressWarnings("unchecked")
+            SecureDirectoryStream<Path> root = (SecureDirectoryStream<Path>) rawRoot;
+            importRoot = root.newDirectoryStream(
+                workspace.getFileSystem().getPath(
+                    WorkspaceImportLimits.IMPORT_DIRECTORY_NAME
+                ),
+                LinkOption.NOFOLLOW_LINKS
+            );
+            cleanupAbandonedPendingFiles(importRoot);
+            committed = materialize(
                 workspace,
                 imports,
                 importRoot,
@@ -146,6 +229,48 @@ public final class WorkspaceDocumentImporter {
                 mediaType,
                 source,
                 verificationOpener
+            );
+            return committed;
+        } catch (IOException | RuntimeException | Error error) {
+            failure = error;
+            throw error;
+        } finally {
+            handleCloseFailure(
+                closeDirectoryStreams(importRoot, rawRoot),
+                committed != null,
+                failure
+            );
+        }
+    }
+
+    private void recoverPendingImportsLocked(Path workspace) throws IOException {
+        DirectoryStream<Path> rawRoot = null;
+        SecureDirectoryStream<Path> importRoot = null;
+        Throwable failure = null;
+        try {
+            rawRoot = directoryOpener.open(workspace);
+            if (!(rawRoot instanceof SecureDirectoryStream<?>)) {
+                throw new IOException(
+                    "Filesystem cannot recover imported files without path races"
+                );
+            }
+            @SuppressWarnings("unchecked")
+            SecureDirectoryStream<Path> root = (SecureDirectoryStream<Path>) rawRoot;
+            importRoot = root.newDirectoryStream(
+                workspace.getFileSystem().getPath(
+                    WorkspaceImportLimits.IMPORT_DIRECTORY_NAME
+                ),
+                LinkOption.NOFOLLOW_LINKS
+            );
+            cleanupAbandonedPendingFiles(importRoot);
+        } catch (IOException | RuntimeException | Error error) {
+            failure = error;
+            throw error;
+        } finally {
+            handleCloseFailure(
+                closeDirectoryStreams(importRoot, rawRoot),
+                false,
+                failure
             );
         }
     }
@@ -249,7 +374,7 @@ public final class WorkspaceDocumentImporter {
         WorkspaceFileAccess.Opener verificationOpener
     ) throws IOException {
         String token = randomToken();
-        Path pendingName = relativeName(imports, ".pending-" + token);
+        Path pendingName = relativeName(imports, PENDING_PREFIX + token);
         Path finalName = relativeName(imports, token + storageExtension);
         boolean pendingCreated = false;
         boolean finalCreated = false;
@@ -654,6 +779,101 @@ public final class WorkspaceDocumentImporter {
             throw new IOException("Imported workspace entry is not a regular file");
         }
         return attributes;
+    }
+
+    private static void cleanupAbandonedPendingFiles(
+        SecureDirectoryStream<Path> importRoot
+    ) throws IOException {
+        for (Path entry : importRoot) {
+            Path fileName = entry.getFileName();
+            if (fileName == null || !isPendingStorageName(fileName.toString())) {
+                continue;
+            }
+            try {
+                readRegularAttributes(importRoot, fileName);
+            } catch (NoSuchFileException ignored) {
+                continue;
+            }
+            deleteFileIfPresent(importRoot, fileName);
+        }
+    }
+
+    private static boolean isPendingStorageName(String value) {
+        if (value == null
+            || value.length() != PENDING_PREFIX.length() + RANDOM_TOKEN_BYTES * 2
+            || !value.startsWith(PENDING_PREFIX)) {
+            return false;
+        }
+        for (int index = PENDING_PREFIX.length(); index < value.length(); index++) {
+            char character = value.charAt(index);
+            if (!(character >= '0' && character <= '9')
+                && !(character >= 'a' && character <= 'f')) {
+                return false;
+            }
+        }
+        return true;
+    }
+
+    private static Throwable closeDirectoryStreams(
+        DirectoryStream<Path> importRoot,
+        DirectoryStream<Path> rawRoot
+    ) {
+        Throwable failure = closeDirectoryStream(importRoot, null);
+        return closeDirectoryStream(rawRoot, failure);
+    }
+
+    private static Throwable closeDirectoryStream(
+        DirectoryStream<Path> directory,
+        Throwable failure
+    ) {
+        if (directory == null) {
+            return failure;
+        }
+        try {
+            directory.close();
+        } catch (IOException | RuntimeException error) {
+            if (failure == null) {
+                return error;
+            }
+            if (failure != error) {
+                failure.addSuppressed(error);
+            }
+        }
+        return failure;
+    }
+
+    private static void closeOwnedSource(
+        InputStream source,
+        boolean committed,
+        Throwable operationFailure
+    ) throws IOException {
+        Throwable closeFailure = null;
+        try {
+            source.close();
+        } catch (IOException | RuntimeException error) {
+            closeFailure = error;
+        }
+        handleCloseFailure(closeFailure, committed, operationFailure);
+    }
+
+    private static void handleCloseFailure(
+        Throwable closeFailure,
+        boolean committed,
+        Throwable operationFailure
+    ) throws IOException {
+        if (closeFailure == null || committed) {
+            return;
+        }
+        if (operationFailure != null) {
+            if (operationFailure != closeFailure) {
+                operationFailure.addSuppressed(closeFailure);
+            }
+            return;
+        }
+        if (closeFailure instanceof IOException) {
+            throw (IOException) closeFailure;
+        }
+        throw (RuntimeException) closeFailure;
     }
 
     private static void enforceOwnerFilePermissions(

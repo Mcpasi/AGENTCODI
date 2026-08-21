@@ -54,17 +54,28 @@ public final class WorkspaceFileImporter {
         if (opened == null) {
             throw new IOException("Android did not provide selected document content");
         }
-        try (InputStream source = opened) {
-            return importer.importDocument(
-                layout.getWorkspace(),
-                layout.getImports(),
-                metadata.displayName,
-                metadata.mediaType,
-                metadata.byteCount,
-                source,
-                NativeWorkspaceFileAccess.opener()
-            );
+        return importer.importDocument(
+            layout.getWorkspace(),
+            layout.getImports(),
+            metadata.displayName,
+            metadata.mediaType,
+            metadata.byteCount,
+            opened,
+            NativeWorkspaceFileAccess.opener()
+        );
+    }
+
+    static void recoverPendingImports(WorkspaceLayout layout) throws IOException {
+        if (layout == null) {
+            throw new IllegalArgumentException("workspace layout must not be null");
         }
+        WorkspaceDocumentImporter importer = new WorkspaceDocumentImporter(
+            NativeWorkspaceDocumentInstaller.instance()
+        );
+        importer.recoverPendingImports(
+            layout.getWorkspace(),
+            layout.getImports()
+        );
     }
 
     public static CodexFileMentionTransaction prepareForCodex(

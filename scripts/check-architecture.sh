@@ -209,8 +209,10 @@ fi
 
 main_activity="$PROJECT_ROOT/app/src/main/java/de/agentcodi/app/MainActivity.java"
 workspace_importer="$PROJECT_ROOT/modules/runtime/src/main/java/de/agentcodi/runtime/WorkspaceFileImporter.java"
+runtime_service="$PROJECT_ROOT/modules/runtime/src/main/java/de/agentcodi/runtime/AgentRuntimeService.java"
 document_importer="$import_client/de/agentcodi/imports/client/WorkspaceDocumentImporter.java"
 document_installer="$import_client/de/agentcodi/imports/client/WorkspaceDocumentInstaller.java"
+import_lifecycle_test="$PROJECT_ROOT/tests/java/de/agentcodi/imports/client/WorkspaceImportLifecycleTest.java"
 native_document_installer="$PROJECT_ROOT/modules/runtime/src/main/java/de/agentcodi/runtime/NativeWorkspaceDocumentInstaller.java"
 native_import_installer="$PROJECT_ROOT/modules/native-engine/src/main/cpp/workspace_import_installer.cpp"
 import_limits="$import_contracts/de/agentcodi/imports/WorkspaceImportLimits.java"
@@ -237,6 +239,8 @@ if ! rg -q 'Intent\.ACTION_OPEN_DOCUMENT' "$main_activity" \
     || ! rg -q 'WorkspaceLayout\.create' "$workspace_importer" \
     || ! rg -q 'NativeWorkspaceFileAccess\.opener' "$workspace_importer" \
     || ! rg -q 'NativeWorkspaceDocumentInstaller\.instance' "$workspace_importer" \
+    || rg -q 'try \(InputStream source = opened\)' "$workspace_importer" \
+    || ! rg -q 'WorkspaceFileImporter\.recoverPendingImports\(layout\)' "$runtime_service" \
     || ! rg -q 'CodexFileMentionTransaction prepareForCodex' "$workspace_importer" \
     || ! rg -q 'prepareForCodex\(' "$main_activity" "$document_importer" \
     || rg -q 'List<CodexFileMention>|verifyForCodex\(applicationContext' "$main_activity" "$workspace_importer" \
@@ -250,6 +254,8 @@ if ! rg -q 'Intent\.ACTION_OPEN_DOCUMENT' "$main_activity" \
     || ! rg -q 'LinkOption\.NOFOLLOW_LINKS' "$document_importer" \
     || ! rg -q 'interface WorkspaceDocumentInstaller' "$document_installer" \
     || ! rg -q 'installer\.installNoReplace' "$document_importer" \
+    || ! rg -q 'cleanupAbandonedPendingFiles\(importRoot\)' "$document_importer" \
+    || ! rg -q 'closeOwnedSource\(source, committed != null, failure\)' "$document_importer" \
     || rg -q 'requireMissing|importRoot\.move' "$document_importer" \
     || ! rg -q 'NativeEngine\.installWorkspaceImportNoReplace' "$native_document_installer" \
     || ! rg -q 'SYS_renameat2' "$native_import_installer" \
@@ -277,6 +283,7 @@ if ! rg -q 'Intent\.ACTION_OPEN_DOCUMENT' "$main_activity" \
     || ! rg -q 'isGeneratedImportStorageName' "$mcp_session" \
     || ! rg -q 'sendsImportedFilesWithModelReadableContext' "$PROJECT_ROOT/tests/java/de/agentcodi/tests/CodexSessionControllerTest.java" \
     || ! rg -q 'WorkspaceImportTest\.run' "$PROJECT_ROOT/tests/java/de/agentcodi/tests/TestMain.java" \
+    || ! rg -q 'WorkspaceImportLifecycleTest\.run' "$PROJECT_ROOT/tests/java/de/agentcodi/tests/TestMain.java" \
     || ! rg -q 'a picker result without its read flag is not an import grant' "$PROJECT_ROOT/tests/java/de/agentcodi/tests/WorkspaceImportTest.java" \
     || ! rg -q 'model-readable storage path contains only randomness and a safe extension' "$PROJECT_ROOT/tests/java/de/agentcodi/tests/WorkspaceImportTest.java" \
     || ! rg -q 'same-size content replacement cannot enter a Codex turn' "$PROJECT_ROOT/tests/java/de/agentcodi/tests/WorkspaceImportTest.java" \
@@ -285,6 +292,10 @@ if ! rg -q 'Intent\.ACTION_OPEN_DOCUMENT' "$main_activity" \
     || ! rg -q 'same-size replacement immediately before RPC write fails closed' "$PROJECT_ROOT/tests/java/de/agentcodi/tests/WorkspaceImportTest.java" \
     || ! rg -q 'first attachment replacement while hashing a later file fails closed' "$PROJECT_ROOT/tests/java/de/agentcodi/tests/WorkspaceImportTest.java" \
     || ! rg -q 'the final installation race never overwrites competing bytes' "$PROJECT_ROOT/tests/java/de/agentcodi/tests/WorkspaceImportTest.java" \
+    || ! rg -q 'a source-close failure cannot hide a committed import' "$import_lifecycle_test" \
+    || ! rg -q 'outer directory-close failures cannot hide a committed import' "$import_lifecycle_test" \
+    || ! rg -q 'startup recovery removes an exact abandoned pending import' "$import_lifecycle_test" \
+    || ! rg -q 'recovery does not follow or reinterpret the reserved symlink' "$import_lifecycle_test" \
     || ! rg -q 'never_overwrites_a_parallel_creator' "$PROJECT_ROOT/tests/cpp/workspace_import_installer_test.cpp" \
     || ! rg -q 'turn/start revalidates at transport write while verified handles remain open' "$PROJECT_ROOT/tests/java/de/agentcodi/tests/CodexSessionControllerTest.java" \
     || ! rg -q 'failed final guard prevents transport write and closes transaction' "$PROJECT_ROOT/tests/java/de/agentcodi/tests/CodexSessionControllerTest.java" \
@@ -603,13 +614,13 @@ if ! rg -q 'PYTHON_SOURCE_EXTENSION_COUNT="75"' "$apk_builder" \
   exit 1
 fi
 
-if ! rg -q 'VERSION_NAME = "0\.5\.10"' "$core_root/BuildIdentity.java" \
-    || ! rg -q 'VERSION_CODE = 47' "$core_root/BuildIdentity.java" \
-    || ! rg -q 'android:versionName="0\.5\.10"' "$manifest" \
-    || ! rg -q 'android:versionCode="47"' "$manifest" \
-    || ! rg -q 'APP_VERSION="0\.5\.10"' "$apk_builder" \
-    || ! rg -q 'VERSION_CODE="47"' "$apk_builder"; then
-  echo "The 0.5.10 identity is inconsistent." >&2
+if ! rg -q 'VERSION_NAME = "0\.5\.11"' "$core_root/BuildIdentity.java" \
+    || ! rg -q 'VERSION_CODE = 48' "$core_root/BuildIdentity.java" \
+    || ! rg -q 'android:versionName="0\.5\.11"' "$manifest" \
+    || ! rg -q 'android:versionCode="48"' "$manifest" \
+    || ! rg -q 'APP_VERSION="0\.5\.11"' "$apk_builder" \
+    || ! rg -q 'VERSION_CODE="48"' "$apk_builder"; then
+  echo "The 0.5.11 identity is inconsistent." >&2
   exit 1
 fi
 

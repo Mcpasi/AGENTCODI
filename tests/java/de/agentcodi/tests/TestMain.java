@@ -24,6 +24,7 @@ public final class TestMain {
         passed += UiLanguageTest.run();
         passed += WorkspaceLayoutTest.run();
         passed += WorkspaceImportTest.run();
+        passed += de.agentcodi.imports.client.WorkspaceImportLifecycleTest.run();
         passed += WorkspaceExportTest.run();
         System.out.println("Java tests passed: " + passed);
     }

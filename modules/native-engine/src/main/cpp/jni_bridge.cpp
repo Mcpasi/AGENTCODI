@@ -97,6 +97,7 @@ Java_de_agentcodi_runtime_NativeEngine_nativeStartAppServer(
     jstring shell_executable,
     jstring node_executable,
     jstring python_executable,
+    jstring ripgrep_executable,
     jstring workspace,
     jstring toolchain,
     jstring tool_binary_directory,
@@ -128,6 +129,11 @@ Java_de_agentcodi_runtime_NativeEngine_nativeStartAppServer(
           python_executable,
           "Python executable",
           &config.python_executable)
+      || !from_java_string(
+          environment,
+          ripgrep_executable,
+          "ripgrep executable",
+          &config.ripgrep_executable)
       || !from_java_string(environment, workspace, "Workspace", &config.working_directory)
       || !from_java_string(
           environment,

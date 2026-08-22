@@ -161,6 +161,18 @@ public final class AgentRuntimeService extends Service {
         }
     }
 
+    public static boolean isRipgrepRuntimeEnabled() {
+        WorkspaceLayout layout = activeWorkspaceLayout;
+        if (layout == null) {
+            return false;
+        }
+        try {
+            return layout.isRipgrepRuntimeEnabled(BuildIdentity.RIPGREP_RUNTIME_VERSION);
+        } catch (IOException error) {
+            return false;
+        }
+    }
+
     public static void sendTerminalInput(char[] input) throws java.io.IOException {
         CodexSessionController controller = sessionController;
         if (controller == null) {
@@ -481,6 +493,10 @@ public final class AgentRuntimeService extends Service {
                         nativeLibraryDirectory,
                         BuildIdentity.PYTHON_RUNTIME_LIBRARY
                     );
+                    File ripgrepExecutable = new File(
+                        nativeLibraryDirectory,
+                        BuildIdentity.RIPGREP_RUNTIME_LIBRARY
+                    );
                     layout.preparePackagedToolAliases(shellExecutable);
                     File toolRuntimeDirectory;
                     try (
@@ -507,6 +523,7 @@ public final class AgentRuntimeService extends Service {
                         shellExecutable.getAbsolutePath(),
                         nodeExecutable.getAbsolutePath(),
                         pythonExecutable.getAbsolutePath(),
+                        ripgrepExecutable.getAbsolutePath(),
                         layout.getWorkspace().getAbsolutePath(),
                         layout.getToolchain().getAbsolutePath(),
                         layout.getToolBin().getAbsolutePath(),

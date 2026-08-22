@@ -12,8 +12,8 @@ public final class BuildIdentityTest {
     }
 
     private static void pinsCompleteCodeModeRuntime() {
-        TestSupport.assertEquals("0.5.11", BuildIdentity.VERSION_NAME, "app version");
-        TestSupport.assertEquals(48, BuildIdentity.VERSION_CODE, "app version code");
+        TestSupport.assertEquals("0.5.13", BuildIdentity.VERSION_NAME, "app version");
+        TestSupport.assertEquals(50, BuildIdentity.VERSION_CODE, "app version code");
         TestSupport.assertEquals(
             "0.147.2",
             BuildIdentity.CODEX_RUNTIME_VERSION,
@@ -58,6 +58,16 @@ public final class BuildIdentityTest {
             "libpython-bin.so",
             BuildIdentity.PYTHON_RUNTIME_LIBRARY,
             "Python runtime library"
+        );
+        TestSupport.assertEquals(
+            "15.2.0",
+            BuildIdentity.RIPGREP_RUNTIME_VERSION,
+            "ripgrep runtime version"
+        );
+        TestSupport.assertEquals(
+            "libripgrep.so",
+            BuildIdentity.RIPGREP_RUNTIME_LIBRARY,
+            "ripgrep runtime library"
         );
     }
 }

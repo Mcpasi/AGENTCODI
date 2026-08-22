@@ -497,7 +497,7 @@ int main(int argc, char* argv[]) {
   }
 
   const std::string version = agentcodi::engine_version();
-  expect(version == "agentcodi-native/0.5.11", "engine version");
+  expect(version == "agentcodi-native/0.5.13", "engine version");
   expect(agentcodi::run_self_test() == 0, "native self-test");
   const std::string abc = "abc";
   expect(
@@ -534,6 +534,7 @@ int main(int argc, char* argv[]) {
   argument_config.shell_executable = "/private/native/libagentcodi-shell.so";
   argument_config.node_executable = "/private/native/libnode.so";
   argument_config.python_executable = "/private/native/libpython-bin.so";
+  argument_config.ripgrep_executable = "/private/native/libripgrep.so";
   argument_config.working_directory = "/private/workspace";
   argument_config.toolchain_directory = "/private/workspace/toolchain";
   argument_config.tool_binary_directory = "/private/tool-bin";
@@ -593,7 +594,8 @@ int main(int argc, char* argv[]) {
   expect(joined_arguments.find("AGENTCODI_TOOL_RUNTIME=\"/private/tool-runtime\"")
              != std::string::npos,
          "Codex tools receive the verified packaged runtime path");
-  expect(joined_arguments.find("AGENTCODI_TOOLCHAIN_PACKAGES=\"node,npm,python\"")
+  expect(joined_arguments.find(
+             "AGENTCODI_TOOLCHAIN_PACKAGES=\"node,npm,python,ripgrep\"")
              != std::string::npos,
          "Codex tools receive all packaged tool names");
   expect(joined_arguments.find("AGENTCODI_SHELL_PATH") == std::string::npos
@@ -782,6 +784,7 @@ int main(int argc, char* argv[]) {
     const std::string supervised_npm_alias = tool_binary + "/npm";
     const std::string supervised_python_alias = tool_binary + "/python";
     const std::string supervised_python3_alias = tool_binary + "/python3";
+    const std::string supervised_ripgrep_alias = tool_binary + "/rg";
     const std::string supervised_toolchain_alias = tool_binary + "/agentcodi-toolchain";
     expect(symlink("/system/bin/sh", supervised_node_alias.c_str()) == 0,
            "process-test Node alias");
@@ -791,6 +794,8 @@ int main(int argc, char* argv[]) {
            "process-test Python alias");
     expect(symlink("/system/bin/sh", supervised_python3_alias.c_str()) == 0,
            "process-test Python 3 alias");
+    expect(symlink("/system/bin/sh", supervised_ripgrep_alias.c_str()) == 0,
+           "process-test ripgrep alias");
     expect(symlink("/system/bin/sh", supervised_toolchain_alias.c_str()) == 0,
            "process-test toolchain alias");
     expect(mkdir(codex_home.c_str(), 0700) == 0, "process-test Codex home");
@@ -1220,6 +1225,7 @@ int main(int argc, char* argv[]) {
     config.shell_executable = "/system/bin/sh";
     config.node_executable = "/system/bin/sh";
     config.python_executable = "/system/bin/sh";
+    config.ripgrep_executable = "/system/bin/sh";
     config.working_directory = workspace;
     config.toolchain_directory = toolchain;
     config.tool_binary_directory = tool_binary;
@@ -1440,6 +1446,45 @@ int main(int argc, char* argv[]) {
               toolchain, &shell_output, &shell_exit)
               && shell_exit == 0,
           "deactivate packaged Python through shared toolchain interface");
+      expect(
+          run_toolchain_shell(
+              argv[1], {"--toolchain", "install", "ripgrep"}, workspace,
+              toolchain, &shell_output, &shell_exit)
+              && shell_exit == 0
+              && shell_output.find("Enabled packaged ripgrep 15.2.0")
+                  != std::string::npos,
+          "activate packaged ripgrep through shared toolchain interface");
+      expect(
+          run_toolchain_shell(
+              argv[1], {"--ripgrep", "-c", "printf 'rg-ready'"}, workspace,
+              toolchain, &shell_output, &shell_exit)
+              && shell_exit == 0
+              && shell_output.find("rg-ready") != std::string::npos,
+          "activated ripgrep routes through packaged executable");
+      expect(
+          run_toolchain_shell(
+              argv[1], {"--ripgrep", "--follow", "needle", "."}, workspace,
+              toolchain, &shell_output, &shell_exit)
+              && shell_exit == 2
+              && shell_output.find("--pre, --search-zip and --follow")
+                  != std::string::npos,
+          "ripgrep bridge rejects symlink-follow mode");
+      expect(setenv("RIPGREP_CONFIG_PATH", "/private/unsafe-config", 1) == 0,
+             "set ripgrep config bridge fixture");
+      expect(
+          run_toolchain_shell(
+              argv[1],
+              {"--ripgrep", "-c", "test -z \"${RIPGREP_CONFIG_PATH-}\""},
+              workspace, toolchain, &shell_output, &shell_exit)
+              && shell_exit == 0,
+          "ripgrep bridge clears external configuration");
+      unsetenv("RIPGREP_CONFIG_PATH");
+      expect(
+          run_toolchain_shell(
+              argv[1], {"--toolchain", "remove", "ripgrep"}, workspace,
+              toolchain, &shell_output, &shell_exit)
+              && shell_exit == 0,
+          "deactivate packaged ripgrep through shared toolchain interface");
       expect(rmdir((toolchain + "/installed").c_str()) == 0,
              "remove toolchain activation directory");
 
@@ -1448,6 +1493,7 @@ int main(int argc, char* argv[]) {
       const std::string bridge_npm_alias = bridge_tool_binary + "/npm";
       const std::string bridge_python_alias = bridge_tool_binary + "/python";
       const std::string bridge_python3_alias = bridge_tool_binary + "/python3";
+      const std::string bridge_ripgrep_alias = bridge_tool_binary + "/rg";
       const std::string bridge_toolchain_alias =
           bridge_tool_binary + "/agentcodi-toolchain";
       expect(mkdir(bridge_tool_binary.c_str(), 0700) == 0,
@@ -1460,6 +1506,8 @@ int main(int argc, char* argv[]) {
              "create packaged Python command alias");
       expect(symlink(argv[1], bridge_python3_alias.c_str()) == 0,
              "create packaged Python 3 command alias");
+      expect(symlink(argv[1], bridge_ripgrep_alias.c_str()) == 0,
+             "create packaged ripgrep command alias");
       expect(symlink(argv[1], bridge_toolchain_alias.c_str()) == 0,
              "create packaged toolchain command alias");
       expect(
@@ -1487,6 +1535,8 @@ int main(int argc, char* argv[]) {
              "remove Python alias fixture");
       expect(unlink(bridge_python3_alias.c_str()) == 0,
              "remove Python 3 alias fixture");
+      expect(unlink(bridge_ripgrep_alias.c_str()) == 0,
+             "remove ripgrep alias fixture");
       expect(unlink(bridge_toolchain_alias.c_str()) == 0,
              "remove toolchain alias fixture");
       expect(rmdir(bridge_tool_binary.c_str()) == 0,
@@ -1870,6 +1920,7 @@ int main(int argc, char* argv[]) {
     unlink(supervised_npm_alias.c_str());
     unlink(supervised_python_alias.c_str());
     unlink(supervised_python3_alias.c_str());
+    unlink(supervised_ripgrep_alias.c_str());
     unlink(supervised_toolchain_alias.c_str());
     rmdir(tool_binary.c_str());
     unlink((tool_runtime + "/npm/node_modules/npm/bin/npm-cli.js").c_str());

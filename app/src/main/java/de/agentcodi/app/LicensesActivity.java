@@ -149,6 +149,23 @@ public final class LicensesActivity extends Activity {
         );
         addLicenseCard(
             page,
+            R.string.license_ripgrep_runtime_title,
+            R.string.license_ripgrep_runtime_summary,
+            R.string.license_show_notice,
+            new LicenseLoader() {
+                @Override
+                public String load() throws IOException {
+                    return "PROVENANCE\n\n"
+                        + readAsset("third-party/ripgrep/PROVENANCE")
+                        + "\n\nDEPENDENCY INVENTORY\n\n"
+                        + readAsset("third-party/ripgrep/DEPENDENCIES")
+                        + "\n\nLICENSES\n\n"
+                        + readAsset("third-party/ripgrep/LICENSES");
+                }
+            }
+        );
+        addLicenseCard(
+            page,
             R.string.license_third_party_title,
             R.string.license_third_party_summary,
             R.string.license_show_notice,

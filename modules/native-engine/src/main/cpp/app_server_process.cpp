@@ -1730,8 +1730,9 @@ std::vector<std::string> child_environment(const ProcessConfig& config) {
       "AGENTCODI_NODE_VERSION=24.18.0",
       "AGENTCODI_NPM_VERSION=11.19.0",
       "AGENTCODI_PYTHON_VERSION=3.14.6",
+      "AGENTCODI_RIPGREP_VERSION=15.2.0",
       "AGENTCODI_TOOLCHAIN_COMMAND=agentcodi-toolchain",
-      "AGENTCODI_TOOLCHAIN_PACKAGES=node,npm,python",
+      "AGENTCODI_TOOLCHAIN_PACKAGES=node,npm,python,ripgrep",
       "CODEX_SELF_EXE=" + config.executable,
       "CODEX_CODE_MODE_HOST_PATH=" + config.code_mode_host_executable,
   };
@@ -1926,8 +1927,9 @@ std::vector<std::string> CodexAppServerArguments(const ProcessConfig& config) {
       + ",AGENTCODI_NODE_VERSION=\"24.18.0\""
       + ",AGENTCODI_NPM_VERSION=\"11.19.0\""
       + ",AGENTCODI_PYTHON_VERSION=\"3.14.6\""
+      + ",AGENTCODI_RIPGREP_VERSION=\"15.2.0\""
       + ",AGENTCODI_TOOLCHAIN_COMMAND=\"agentcodi-toolchain\""
-      + ",AGENTCODI_TOOLCHAIN_PACKAGES=\"node,npm,python\"}}";
+      + ",AGENTCODI_TOOLCHAIN_PACKAGES=\"node,npm,python,ripgrep\"}}";
   return {
       "app-server",
       "--stdio",
@@ -2013,6 +2015,11 @@ std::shared_ptr<AppServerProcess> AppServerProcess::Start(
           requested_config.python_executable,
           "Python executable",
           &config.python_executable,
+          error)
+      || !canonical_regular_executable(
+          requested_config.ripgrep_executable,
+          "ripgrep executable",
+          &config.ripgrep_executable,
           error)
       || !canonical_directory(
           requested_config.working_directory,
@@ -2137,6 +2144,11 @@ std::shared_ptr<AppServerProcess> AppServerProcess::Start(
           error)
       || !validate_tool_alias(
           config.tool_binary_directory,
+          "rg",
+          config.shell_executable,
+          error)
+      || !validate_tool_alias(
+          config.tool_binary_directory,
           "agentcodi-toolchain",
           config.shell_executable,
           error)) {
@@ -2155,7 +2167,9 @@ std::shared_ptr<AppServerProcess> AppServerProcess::Start(
     return nullptr;
   }
   if (contains_path(config.working_directory, config.python_executable)
-      || contains_path(config.codex_home, config.python_executable)) {
+      || contains_path(config.codex_home, config.python_executable)
+      || contains_path(config.working_directory, config.ripgrep_executable)
+      || contains_path(config.codex_home, config.ripgrep_executable)) {
     *error = "Packaged executables must remain outside workspace and Codex home";
     return nullptr;
   }

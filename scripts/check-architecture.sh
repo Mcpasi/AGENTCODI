@@ -471,6 +471,9 @@ if ! rg -q 'LicensesActivity' "$PROJECT_ROOT/app/src/main/AndroidManifest.xml" \
     || ! rg -q 'license_show_text' "$licenses_activity" "$default_strings" "$german_strings" \
     || ! rg -q 'third-party/codex/LICENSE' "$licenses_activity" \
     || ! rg -q 'third-party/codex/NOTICE' "$licenses_activity" \
+    || ! rg -q 'third-party/ripgrep/DEPENDENCIES' "$licenses_activity" \
+    || ! rg -q 'third-party/ripgrep/LICENSES' "$licenses_activity" \
+    || ! rg -q 'third-party/ripgrep/PROVENANCE' "$licenses_activity" \
     || ! rg -q 'R\.raw\.third_party_notices' "$licenses_activity" \
     || ! rg -q '<string name="license_agentcodi_summary">Copyright 2026 Pascal \(Mc Pasi\) · Apache License 2\.0\.</string>' "$default_strings" \
     || ! rg -q '<string name="license_agentcodi_summary">Copyright 2026 Pascal \(Mc Pasi\) · Apache License 2\.0\.</string>' "$german_strings" \
@@ -495,6 +498,12 @@ session_controller="$core_root/CodexSessionController.java"
 app_server_client="$core_root/CodexAppServerClient.java"
 runtime_service="$PROJECT_ROOT/modules/runtime/src/main/java/de/agentcodi/runtime/AgentRuntimeService.java"
 toolchain_shell="$PROJECT_ROOT/modules/native-engine/src/main/cpp/toolchain_shell_main.cpp"
+ripgrep_policy="$PROJECT_ROOT/modules/native-engine/src/main/cpp/ripgrep_bridge_policy.cpp"
+ripgrep_policy_test="$PROJECT_ROOT/tests/cpp/ripgrep_bridge_policy_test.cpp"
+ripgrep_artifact="$PROJECT_ROOT/third_party/ripgrep/ripgrep-15.2.0-android-arm64.elf"
+ripgrep_dependencies="$PROJECT_ROOT/third_party/ripgrep/DEPENDENCIES"
+ripgrep_licenses="$PROJECT_ROOT/third_party/ripgrep/LICENSES"
+ripgrep_provenance="$PROJECT_ROOT/third_party/ripgrep/PROVENANCE"
 if ! rg -Uq 'android:name="\.TerminalActivity"[[:space:][:print:]]{0,220}android:exported="false"' "$manifest" \
     || ! rg -q 'openTerminal' "$PROJECT_ROOT/app/src/main/java/de/agentcodi/app/MainActivity.java" \
     || ! rg -q 'AgentRuntimeService\.startTerminal' "$terminal_activity" \
@@ -534,13 +543,16 @@ if ! rg -q 'getToolchain\(\)' "$storage_layout" \
     || ! rg -q 'isNodeRuntimeEnabled' "$storage_layout" \
     || ! rg -q 'isNpmRuntimeEnabled' "$storage_layout" \
     || ! rg -q 'isPythonRuntimeEnabled' "$storage_layout" \
+    || ! rg -q 'isRipgrepRuntimeEnabled' "$storage_layout" \
     || ! rg -q 'preparePackagedToolRuntime' "$storage_layout" \
-    || ! rg -q 'install <node|npm|python>' "$toolchain_shell" \
+    || ! rg -q 'install <node|npm|python|ripgrep>' "$toolchain_shell" \
     || ! rg -q 'Ask the user for permission' "$toolchain_shell" \
     || ! rg -q 'node-24\.18\.0' "$toolchain_shell" \
     || ! rg -q 'npm-11\.19\.0' "$toolchain_shell" \
     || ! rg -q 'python-3\.14\.6' "$toolchain_shell" \
+    || ! rg -q 'ripgrep-15\.2\.0' "$toolchain_shell" \
     || ! rg -q 'kPackagedNodeName = "libnode\.so"' "$toolchain_shell" \
+    || ! rg -q 'kPackagedRipgrepName = "libripgrep\.so"' "$toolchain_shell" \
     || ! rg -q 'realpath\("/proc/self/exe"' "$toolchain_shell" \
     || rg -q 'required_environment\("AGENTCODI_NODE_PATH"\)' "$toolchain_shell" \
     || rg -q 'AGENTCODI_(SHELL|NODE)_PATH=' "$native_process" \
@@ -552,13 +564,30 @@ if ! rg -q 'getToolchain\(\)' "$storage_layout" \
     || ! rg -q 'terminal_node_enabled' "$terminal_activity" \
     || ! rg -q 'terminal_npm_enabled' "$terminal_activity" \
     || ! rg -q 'terminal_python_enabled' "$terminal_activity" \
-    || ! rg -q 'AGENTCODI_TOOLCHAIN_PACKAGES=node,npm,python' "$native_process" \
+    || ! rg -q 'terminal_ripgrep_enabled' "$terminal_activity" \
+    || ! rg -q 'AGENTCODI_TOOLCHAIN_PACKAGES=node,npm,python,ripgrep' "$native_process" \
     || ! rg -q 'AGENTCODI_TOOL_BIN=' "$native_process" \
     || ! rg -q 'AGENTCODI_TOOL_RUNTIME=' "$native_process" \
     || ! rg -q 'SHELL=" \+ std::string\(kSystemShell\)' "$native_process" \
     || ! rg -q 'config\.tool_binary_directory \+ ":"' "$native_process" \
     || ! rg -q 'validate_tool_alias' "$native_process"; then
-  echo "The user-mediated Node.js, npm, or Python toolchain activation path is incomplete." >&2
+  echo "The user-mediated Node.js, npm, Python, or ripgrep toolchain activation path is incomplete." >&2
+  exit 1
+fi
+
+if [ ! -f "$ripgrep_artifact" ] \
+    || [ ! -f "$ripgrep_dependencies" ] \
+    || [ ! -f "$ripgrep_licenses" ] \
+    || [ ! -f "$ripgrep_provenance" ] \
+    || ! rg -q 'ValidateRipgrepArguments' "$toolchain_shell" "$ripgrep_policy" \
+    || ! rg -q 'PrepareRipgrepEnvironment' "$toolchain_shell" "$ripgrep_policy" \
+    || ! rg -q 'RIPGREP_CONFIG_PATH' "$ripgrep_policy" "$ripgrep_policy_test" \
+    || ! rg -q -- '--pre' "$ripgrep_policy" "$ripgrep_policy_test" \
+    || ! rg -q -- '--search-zip' "$ripgrep_policy" "$ripgrep_policy_test" \
+    || ! rg -q -- '--follow' "$ripgrep_policy" "$ripgrep_policy_test" \
+    || ! rg -q 'ripgrep_bridge_policy_test\.cpp' "$PROJECT_ROOT/scripts/test.sh" \
+    || ! rg -q 'ripgrep_bridge_policy\.cpp' "$PROJECT_ROOT/scripts/test.sh" "$apk_builder"; then
+  echo "The ripgrep bridge policy or its focused C++ regression coverage is incomplete." >&2
   exit 1
 fi
 
@@ -591,6 +620,22 @@ if ! rg -q 'NODE_VERSION="24\.18\.0"' "$apk_builder" \
   exit 1
 fi
 
+if ! rg -q 'RIPGREP_VERSION="15\.2\.0"' "$apk_builder" \
+    || ! rg -q 'RIPGREP_RUNTIME_SHA256="4eb0d0c70d2e3c760cab4f478c7eb715082ae1d8b5f4a23bb14515154348b04d"' "$apk_builder" \
+    || ! rg -q 'RIPGREP_LIBRARY_NAME="libripgrep\.so"' "$apk_builder" \
+    || ! rg -q 'features:-pcre2' "$apk_builder" \
+    || ! rg -q 'Normal target package count: 34' "$ripgrep_dependencies" \
+    || rg -iq '^(pcre2|pcre2-sys) [0-9]' "$ripgrep_dependencies" \
+    || ! rg -q 'MIT License' "$ripgrep_licenses" \
+    || ! rg -q 'toolchain_smoke --ripgrep' "$apk_builder" \
+    || ! rg -q 'blocked_ripgrep_option' "$apk_builder" \
+    || ! rg -q 'RIPGREP_CONFIG_PATH' "$apk_builder" \
+    || ! rg -q 'assets/third-party/ripgrep/' "$PROJECT_ROOT/app/src/main/res/raw/third_party_notices.txt" \
+    || ! rg -q 'third-party/ripgrep/PROVENANCE' "$licenses_activity"; then
+  echo "Pinned ripgrep packaging, dependency inventory, policy smokes, or legal notices are incomplete." >&2
+  exit 1
+fi
+
 if rg -q '^(GDBM|READLINE)_(URL|SHA256|ARCHIVE|SOURCE)' "$apk_builder" \
     || rg -q 'cp -L .*lib(gdbm|readline)' "$apk_builder"; then
   echo "The APK builder must not fetch or package GNU dbm/readline runtimes." >&2
@@ -614,13 +659,13 @@ if ! rg -q 'PYTHON_SOURCE_EXTENSION_COUNT="75"' "$apk_builder" \
   exit 1
 fi
 
-if ! rg -q 'VERSION_NAME = "0\.5\.11"' "$core_root/BuildIdentity.java" \
-    || ! rg -q 'VERSION_CODE = 48' "$core_root/BuildIdentity.java" \
-    || ! rg -q 'android:versionName="0\.5\.11"' "$manifest" \
-    || ! rg -q 'android:versionCode="48"' "$manifest" \
-    || ! rg -q 'APP_VERSION="0\.5\.11"' "$apk_builder" \
-    || ! rg -q 'VERSION_CODE="48"' "$apk_builder"; then
-  echo "The 0.5.11 identity is inconsistent." >&2
+if ! rg -q 'VERSION_NAME = "0\.5\.13"' "$core_root/BuildIdentity.java" \
+    || ! rg -q 'VERSION_CODE = 50' "$core_root/BuildIdentity.java" \
+    || ! rg -q 'android:versionName="0\.5\.13"' "$manifest" \
+    || ! rg -q 'android:versionCode="50"' "$manifest" \
+    || ! rg -q 'APP_VERSION="0\.5\.13"' "$apk_builder" \
+    || ! rg -q 'VERSION_CODE="50"' "$apk_builder"; then
+  echo "The 0.5.13 identity is inconsistent." >&2
   exit 1
 fi
 

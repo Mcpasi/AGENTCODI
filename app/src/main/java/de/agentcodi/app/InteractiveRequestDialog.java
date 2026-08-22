@@ -612,6 +612,9 @@ final class InteractiveRequestDialog {
         if ("python".equals(packageName)) {
             return de.agentcodi.core.BuildIdentity.PYTHON_RUNTIME_VERSION;
         }
+        if ("ripgrep".equals(packageName)) {
+            return de.agentcodi.core.BuildIdentity.RIPGREP_RUNTIME_VERSION;
+        }
         return "";
     }
 

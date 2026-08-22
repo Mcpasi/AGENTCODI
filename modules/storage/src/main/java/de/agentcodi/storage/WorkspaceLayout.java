@@ -18,6 +18,7 @@ public final class WorkspaceLayout {
     public static final String NPM_TOOL_ALIAS = "npm";
     public static final String PYTHON_TOOL_ALIAS = "python";
     public static final String PYTHON3_TOOL_ALIAS = "python3";
+    public static final String RIPGREP_TOOL_ALIAS = "rg";
     public static final String TOOLCHAIN_TOOL_ALIAS = "agentcodi-toolchain";
 
     private final File root;
@@ -120,6 +121,7 @@ public final class WorkspaceLayout {
         prepareToolAlias(NPM_TOOL_ALIAS, canonicalShell);
         prepareToolAlias(PYTHON_TOOL_ALIAS, canonicalShell);
         prepareToolAlias(PYTHON3_TOOL_ALIAS, canonicalShell);
+        prepareToolAlias(RIPGREP_TOOL_ALIAS, canonicalShell);
         prepareToolAlias(TOOLCHAIN_TOOL_ALIAS, canonicalShell);
         requireOnlyPackagedToolAliases();
     }
@@ -149,6 +151,10 @@ public final class WorkspaceLayout {
 
     public boolean isPythonRuntimeEnabled(String version) throws IOException {
         return isPackagedToolEnabled("python", version);
+    }
+
+    public boolean isRipgrepRuntimeEnabled(String version) throws IOException {
+        return isPackagedToolEnabled("ripgrep", version);
     }
 
     private boolean isPackagedToolEnabled(String packageName, String version)
@@ -256,6 +262,7 @@ public final class WorkspaceLayout {
                     && !NPM_TOOL_ALIAS.equals(name)
                     && !PYTHON_TOOL_ALIAS.equals(name)
                     && !PYTHON3_TOOL_ALIAS.equals(name)
+                    && !RIPGREP_TOOL_ALIAS.equals(name)
                     && !TOOLCHAIN_TOOL_ALIAS.equals(name)) {
                     throw new IOException("Unexpected entry in packaged tool directory");
                 }
@@ -265,7 +272,7 @@ public final class WorkspaceLayout {
                 count++;
             }
         }
-        if (count != 5) {
+        if (count != 6) {
             throw new IOException("Packaged tool aliases are incomplete");
         }
     }

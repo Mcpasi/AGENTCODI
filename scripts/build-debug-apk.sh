@@ -6,8 +6,8 @@ PROJECT_ROOT="$(cd -- "$SCRIPT_DIR/.." && pwd -P)"
 
 APP_NAME="AGENTCODI"
 APP_ID="de.agentcodi.app"
-APP_VERSION="0.5.11"
-VERSION_CODE="48"
+APP_VERSION="0.5.13"
+VERSION_CODE="50"
 MIN_SDK="29"
 TARGET_SDK="35"
 ABI="arm64-v8a"
@@ -102,6 +102,17 @@ PYTHON_LICENSES_SHA256="b25c84cf10f0797356b67dd6b27d5a2cdff1c2a2bc098b2ee678c601
 PYTHON_SOURCE_EXTENSION_COUNT="75"
 PYTHON_PACKAGED_EXTENSION_COUNT="72"
 
+RIPGREP_VERSION="15.2.0"
+RIPGREP_LIBRARY_NAME="libripgrep.so"
+RIPGREP_SOURCE_BINARY="$PROJECT_ROOT/third_party/ripgrep/ripgrep-15.2.0-android-arm64.elf"
+RIPGREP_RUNTIME_SHA256="4eb0d0c70d2e3c760cab4f478c7eb715082ae1d8b5f4a23bb14515154348b04d"
+RIPGREP_DEPENDENCIES_SOURCE="$PROJECT_ROOT/third_party/ripgrep/DEPENDENCIES"
+RIPGREP_DEPENDENCIES_SHA256="373bca4f92736c1d185462b7d5722d9a98097ba4c696c4f62752d0ecd91ebcf6"
+RIPGREP_LICENSES_SOURCE="$PROJECT_ROOT/third_party/ripgrep/LICENSES"
+RIPGREP_LICENSES_SHA256="43ba0c48735498436470bc5ceddbd1286b694b17235f6f571b14dc3bfc43d678"
+RIPGREP_PROVENANCE_SOURCE="$PROJECT_ROOT/third_party/ripgrep/PROVENANCE"
+RIPGREP_PROVENANCE_SHA256="dda94ec73d14990f746373f3100d718a6dcb608c994c89a3c4081fb1535d80b0"
+
 PLATFORM_URL="https://dl.google.com/android/repository/platform-35_r02.zip"
 PLATFORM_SHA256="0988cacad01b38a18a47bac14a0695f246bc76c1b06c0eeb8eb0dc825ab0c8e0"
 R8_VERSION="9.2.23"
@@ -146,7 +157,7 @@ require_command() {
   fi
 }
 
-for command_name in apksigner awk cmp curl dd dpkg-deb file grep readelf realpath rg script sha256sum stat strings tar timeout tr unzip wc xargs zip zipalign zipinfo; do
+for command_name in apksigner awk cmp curl dd dpkg-deb file grep readelf realpath rg script sed sha256sum stat strings tar timeout tr unzip wc xargs zip zipalign zipinfo; do
   require_command "$command_name"
 done
 for executable in "$JAVA" "$JAVAC" "$JAR" "$KEYTOOL" "$CLANGXX" "$LLVM_STRIP"; do
@@ -383,6 +394,22 @@ download_verified "$ICU_LICENSE_URL" "$ICU_LICENSE_SHA256" "$ICU_LICENSE_FILE"
 download_verified "$OPENSSL_LICENSE_URL" "$OPENSSL_LICENSE_SHA256" "$OPENSSL_LICENSE_FILE"
 download_verified "$ZSTD_LICENSE_URL" "$ZSTD_LICENSE_SHA256" "$ZSTD_LICENSE_FILE"
 
+for ripgrep_input in \
+    "$RIPGREP_SOURCE_BINARY" \
+    "$RIPGREP_DEPENDENCIES_SOURCE" \
+    "$RIPGREP_LICENSES_SOURCE" \
+    "$RIPGREP_PROVENANCE_SOURCE"; do
+  if [ ! -f "$ripgrep_input" ] || [ -L "$ripgrep_input" ] \
+      || [ "$(stat -c '%h' "$ripgrep_input")" -ne 1 ]; then
+    echo "Pinned ripgrep input is missing or has unsafe metadata: $ripgrep_input" >&2
+    exit 1
+  fi
+done
+verify_file_sha256 "$RIPGREP_SOURCE_BINARY" "$RIPGREP_RUNTIME_SHA256"
+verify_file_sha256 "$RIPGREP_DEPENDENCIES_SOURCE" "$RIPGREP_DEPENDENCIES_SHA256"
+verify_file_sha256 "$RIPGREP_LICENSES_SOURCE" "$RIPGREP_LICENSES_SHA256"
+verify_file_sha256 "$RIPGREP_PROVENANCE_SOURCE" "$RIPGREP_PROVENANCE_SHA256"
+
 echo "Running Java, C++, and architecture tests..."
 "$SCRIPT_DIR/test.sh"
 
@@ -409,11 +436,12 @@ THIRD_PARTY_ASSETS="$ADDITIONS/assets/third-party/codex"
 NODE_THIRD_PARTY_ASSETS="$ADDITIONS/assets/third-party/node"
 NPM_THIRD_PARTY_ASSETS="$ADDITIONS/assets/third-party/npm"
 PYTHON_THIRD_PARTY_ASSETS="$ADDITIONS/assets/third-party/python"
+RIPGREP_THIRD_PARTY_ASSETS="$ADDITIONS/assets/third-party/ripgrep"
 TOOL_RUNTIME_ASSETS="$ADDITIONS/assets/third-party/toolchain"
 TOOL_RUNTIME_STAGE="$WORK_DIR/tool-runtime-stage"
 TOOL_RUNTIME_MANIFEST="$TOOL_RUNTIME_ASSETS/RUNTIME-MANIFEST"
 TOOL_RUNTIME_ARCHIVE="$TOOL_RUNTIME_ASSETS/RUNTIME.zip"
-mkdir -p "$EXTRACT_DIR" "$AAPT2_EXTRACT" "$GENERATED_JAVA" "$CLASSES_ROOT" "$JARS_ROOT" "$DEX_DIR" "$NATIVE_DIR" "$CODEX_EXTRACT" "$THIRD_PARTY_ASSETS" "$NODE_THIRD_PARTY_ASSETS" "$NPM_THIRD_PARTY_ASSETS" "$PYTHON_THIRD_PARTY_ASSETS" "$TOOL_RUNTIME_ASSETS" "$TOOL_RUNTIME_STAGE"
+mkdir -p "$EXTRACT_DIR" "$AAPT2_EXTRACT" "$GENERATED_JAVA" "$CLASSES_ROOT" "$JARS_ROOT" "$DEX_DIR" "$NATIVE_DIR" "$CODEX_EXTRACT" "$THIRD_PARTY_ASSETS" "$NODE_THIRD_PARTY_ASSETS" "$NPM_THIRD_PARTY_ASSETS" "$PYTHON_THIRD_PARTY_ASSETS" "$RIPGREP_THIRD_PARTY_ASSETS" "$TOOL_RUNTIME_ASSETS" "$TOOL_RUNTIME_STAGE"
 
 (
   cd "$EXTRACT_DIR"
@@ -645,7 +673,7 @@ echo "Compiling ARM64 JNI engine..."
 "$LLVM_STRIP" --strip-unneeded "$NATIVE_DIR/libagentcodi.so"
 
 echo "Compiling packaged terminal shell bridge..."
-"$CLANGXX" --target=aarch64-linux-android"$MIN_SDK" -fPIE -pie -std=c++17 -O2 -Wall -Wextra -Werror -pthread "$PROJECT_ROOT/modules/native-engine/src/main/cpp/toolchain_shell_main.cpp" -o "$NATIVE_DIR/$TERMINAL_SHELL_NAME"
+"$CLANGXX" --target=aarch64-linux-android"$MIN_SDK" -fPIE -pie -std=c++17 -O2 -Wall -Wextra -Werror -pthread -I"$PROJECT_ROOT/modules/native-engine/src/main/cpp" "$PROJECT_ROOT/modules/native-engine/src/main/cpp/toolchain_shell_main.cpp" "$PROJECT_ROOT/modules/native-engine/src/main/cpp/ripgrep_bridge_policy.cpp" -o "$NATIVE_DIR/$TERMINAL_SHELL_NAME"
 "$LLVM_STRIP" --strip-unneeded "$NATIVE_DIR/$TERMINAL_SHELL_NAME"
 
 cp "$LIBCXX_SHARED" "$NATIVE_DIR/libc++_shared.so"
@@ -661,6 +689,7 @@ cp -L "$ICUUC_SOURCE_LIBRARY" "$NATIVE_DIR/libicuuc_78.so"
 cp -L "$ICUI18N_SOURCE_LIBRARY" "$NATIVE_DIR/libicui18n_78.so"
 cp -L "$ZLIB_SOURCE_LIBRARY" "$NATIVE_DIR/libz_1.so"
 cp -L "$PYTHON_SOURCE_BINARY" "$NATIVE_DIR/$PYTHON_LIBRARY_NAME"
+cp "$RIPGREP_SOURCE_BINARY" "$NATIVE_DIR/$RIPGREP_LIBRARY_NAME"
 cp -L "$PYTHON_SOURCE_LIBRARY" "$NATIVE_DIR/libpython3.14.so"
 cp -L "$ANDROID_POSIX_SEMAPHORE_SOURCE_LIBRARY" "$NATIVE_DIR/libandroid-posix-semaphore.so"
 cp -L "$ANDROID_SUPPORT_SOURCE_LIBRARY" "$NATIVE_DIR/libandroid-support.so"
@@ -786,7 +815,11 @@ verify_file_sha256 "$NATIVE_DIR/libicuuc_78.so" "$ICUUC_RUNTIME_SHA256"
 verify_file_sha256 "$NATIVE_DIR/libsqlite3.so" "$SQLITE_RUNTIME_SHA256"
 verify_file_sha256 "$NATIVE_DIR/libssl_3.so" "$SSL_RUNTIME_SHA256"
 verify_file_sha256 "$NATIVE_DIR/libz_1.so" "$ZLIB_RUNTIME_SHA256"
-chmod 755 "$NATIVE_DIR/$TERMINAL_SHELL_NAME" "$NATIVE_DIR/$NODE_LIBRARY_NAME"
+verify_file_sha256 "$NATIVE_DIR/$RIPGREP_LIBRARY_NAME" "$RIPGREP_RUNTIME_SHA256"
+chmod 755 \
+  "$NATIVE_DIR/$TERMINAL_SHELL_NAME" \
+  "$NATIVE_DIR/$NODE_LIBRARY_NAME" \
+  "$NATIVE_DIR/$RIPGREP_LIBRARY_NAME"
 
 cp "$CODEX_LICENSE" "$THIRD_PARTY_ASSETS/LICENSE"
 cp "$CODEX_NOTICE" "$THIRD_PARTY_ASSETS/NOTICE"
@@ -795,6 +828,9 @@ cp "$CARES_LICENSE_SOURCE" "$NODE_THIRD_PARTY_ASSETS/CARES-LICENSE"
 cp "$ICU_LICENSE_FILE" "$NODE_THIRD_PARTY_ASSETS/ICU-LICENSE"
 cp "$OPENSSL_LICENSE_FILE" "$NODE_THIRD_PARTY_ASSETS/OPENSSL-LICENSE"
 cp "$ZLIB_LICENSE_SOURCE" "$NODE_THIRD_PARTY_ASSETS/ZLIB-LICENSE"
+cp "$RIPGREP_DEPENDENCIES_SOURCE" "$RIPGREP_THIRD_PARTY_ASSETS/DEPENDENCIES"
+cp "$RIPGREP_LICENSES_SOURCE" "$RIPGREP_THIRD_PARTY_ASSETS/LICENSES"
+cp "$RIPGREP_PROVENANCE_SOURCE" "$RIPGREP_THIRD_PARTY_ASSETS/PROVENANCE"
 
 NPM_LICENSES="$NPM_THIRD_PARTY_ASSETS/NPM-LICENSES"
 : > "$NPM_LICENSES"
@@ -1014,13 +1050,41 @@ if ! grep -aFq "$CODEX_PACKAGED_HOST_NAME" "$NATIVE_DIR/libcodex.so" \
   echo "Packaged app-server does not resolve the Android-native host sibling." >&2
   exit 1
 fi
-for packaged_executable in "$NATIVE_DIR/$TERMINAL_SHELL_NAME" "$NATIVE_DIR/$NODE_LIBRARY_NAME" "$NATIVE_DIR/$PYTHON_LIBRARY_NAME"; do
+for packaged_executable in \
+    "$NATIVE_DIR/$TERMINAL_SHELL_NAME" \
+    "$NATIVE_DIR/$NODE_LIBRARY_NAME" \
+    "$NATIVE_DIR/$PYTHON_LIBRARY_NAME" \
+    "$NATIVE_DIR/$RIPGREP_LIBRARY_NAME"; do
   if ! file "$packaged_executable" | grep -q 'ARM aarch64' \
       || ! readelf -l "$packaged_executable" | grep -q '/system/bin/linker64'; then
     echo "Packaged terminal executable is not an Android ARM64 binary: $packaged_executable" >&2
     exit 1
   fi
 done
+if readelf -dW "$NATIVE_DIR/$RIPGREP_LIBRARY_NAME" | grep -Eq '(RPATH|RUNPATH)' \
+    || [ "$(readelf -dW "$NATIVE_DIR/$RIPGREP_LIBRARY_NAME" | awk '/NEEDED/ {gsub(/[][]/, "", $NF); print $NF}' | sort | tr '\n' ' ')" != "libc.so libdl.so " ] \
+    || strings "$NATIVE_DIR/$RIPGREP_LIBRARY_NAME" | grep -Fq '/data/data/com.termux' \
+    || strings "$NATIVE_DIR/$RIPGREP_LIBRARY_NAME" | grep -Fq "$PROJECT_ROOT"; then
+  echo "Packaged ripgrep has an unsafe host path or unexpected ELF dependency." >&2
+  exit 1
+fi
+ripgrep_version_output="$("$NATIVE_DIR/$RIPGREP_LIBRARY_NAME" --version)"
+if [ "$(printf '%s\n' "$ripgrep_version_output" | sed -n '1p')" != "ripgrep $RIPGREP_VERSION" ] \
+    || ! printf '%s\n' "$ripgrep_version_output" | grep -Fq 'features:-pcre2'; then
+  echo "Packaged ripgrep version or no-PCRE2 feature marker is invalid." >&2
+  exit 1
+fi
+if ripgrep_pcre2_output="$("$NATIVE_DIR/$RIPGREP_LIBRARY_NAME" --pcre2-version 2>&1)"; then
+  echo "Packaged ripgrep unexpectedly provides PCRE2." >&2
+  exit 1
+fi
+if ! printf '%s\n' "$ripgrep_pcre2_output" \
+    | grep -Fq 'PCRE2 is not available in this build of ripgrep.' \
+    || ! grep -Fq 'Normal target package count: 34' "$RIPGREP_DEPENDENCIES_SOURCE" \
+    || grep -Eiq '^(pcre2|pcre2-sys) [0-9]' "$RIPGREP_DEPENDENCIES_SOURCE"; then
+  echo "Packaged ripgrep feature or dependency inventory is inconsistent." >&2
+  exit 1
+fi
 for dependency in libcares.so libcrypto_3.so libicudata_78.so libicui18n_78.so libicuuc_78.so libsqlite3.so libssl_3.so libz_1.so libpython3.14.so libandroid-posix-semaphore.so libandroid-support.so libbz2_1_0.so libexpat_1.so libffi.so liblzma_5.so libncursesw_6.so libpanelw_6.so libzstd_1.so; do
   if ! file "$NATIVE_DIR/$dependency" | grep -q 'ARM aarch64'; then
     echo "Packaged Node.js dependency is not ARM64: $dependency" >&2
@@ -1100,6 +1164,7 @@ ln -s "$NATIVE_DIR/$TERMINAL_SHELL_NAME" "$TOOLCHAIN_SMOKE_TOOL_BIN/node"
 ln -s "$NATIVE_DIR/$TERMINAL_SHELL_NAME" "$TOOLCHAIN_SMOKE_TOOL_BIN/npm"
 ln -s "$NATIVE_DIR/$TERMINAL_SHELL_NAME" "$TOOLCHAIN_SMOKE_TOOL_BIN/python"
 ln -s "$NATIVE_DIR/$TERMINAL_SHELL_NAME" "$TOOLCHAIN_SMOKE_TOOL_BIN/python3"
+ln -s "$NATIVE_DIR/$TERMINAL_SHELL_NAME" "$TOOLCHAIN_SMOKE_TOOL_BIN/rg"
 ln -s "$NATIVE_DIR/$TERMINAL_SHELL_NAME" "$TOOLCHAIN_SMOKE_TOOL_BIN/agentcodi-toolchain"
 while IFS=$'\t' read -r ignored record_type ignored_sha native_name runtime_path; do
   if [ "$record_type" = "L" ]; then
@@ -1125,8 +1190,10 @@ toolchain_smoke() {
     AGENTCODI_NODE_VERSION="$NODE_VERSION" \
     AGENTCODI_NPM_VERSION="$NPM_VERSION" \
     AGENTCODI_PYTHON_VERSION="$PYTHON_VERSION" \
+    AGENTCODI_RIPGREP_VERSION="$RIPGREP_VERSION" \
     AGENTCODI_TOOLCHAIN_COMMAND="agentcodi-toolchain" \
-    AGENTCODI_TOOLCHAIN_PACKAGES="node,npm,python" \
+    AGENTCODI_TOOLCHAIN_PACKAGES="node,npm,python,ripgrep" \
+    RIPGREP_CONFIG_PATH="${RIPGREP_CONFIG_PATH-}" \
     "$NATIVE_DIR/$TERMINAL_SHELL_NAME" "$@"
 }
 toolchain_model_smoke() {
@@ -1148,11 +1215,13 @@ toolchain_model_smoke() {
     AGENTCODI_NODE_VERSION="$NODE_VERSION" \
     AGENTCODI_NPM_VERSION="$NPM_VERSION" \
     AGENTCODI_PYTHON_VERSION="$PYTHON_VERSION" \
+    AGENTCODI_RIPGREP_VERSION="$RIPGREP_VERSION" \
     AGENTCODI_TOOLCHAIN_COMMAND="agentcodi-toolchain" \
-    AGENTCODI_TOOLCHAIN_PACKAGES="node,npm,python" \
+    AGENTCODI_TOOLCHAIN_PACKAGES="node,npm,python,ripgrep" \
     /system/bin/sh -c "$1"
 }
 if ! toolchain_smoke --toolchain list | grep -Fq "python $PYTHON_VERSION — available, not enabled" \
+    || ! toolchain_smoke --toolchain list | grep -Fq "ripgrep $RIPGREP_VERSION — available, not enabled" \
     || ! toolchain_smoke --toolchain install npm | grep -Fq "Enabled packaged npm $NPM_VERSION." \
     || [ "$(stat -c '%a' "$TOOLCHAIN_SMOKE_DIRECTORY/installed/node-$NODE_VERSION")" != "600" ] \
     || [ "$(stat -c '%a' "$TOOLCHAIN_SMOKE_DIRECTORY/installed/npm-$NPM_VERSION")" != "600" ] \
@@ -1161,8 +1230,34 @@ if ! toolchain_smoke --toolchain list | grep -Fq "python $PYTHON_VERSION — ava
     || ! toolchain_smoke --toolchain install python | grep -Fq "Enabled packaged Python $PYTHON_VERSION." \
     || [ "$(stat -c '%a' "$TOOLCHAIN_SMOKE_DIRECTORY/installed/python-$PYTHON_VERSION")" != "600" ] \
     || [ "$(toolchain_smoke --python --version 2>&1 | tr -d '\r')" != "Python $PYTHON_VERSION" ] \
-    || [ "$(toolchain_smoke --python -c "import json, ssl, sqlite3, zlib; print('python-imports-ok')" | tr -d '\r')" != "python-imports-ok" ]; then
-  echo "Packaged terminal shell and npm/Python activation smoke test failed." >&2
+    || [ "$(toolchain_smoke --python -c "import json, ssl, sqlite3, zlib; print('python-imports-ok')" | tr -d '\r')" != "python-imports-ok" ] \
+    || ! toolchain_smoke --toolchain install ripgrep | grep -Fq "Enabled packaged ripgrep $RIPGREP_VERSION." \
+    || [ "$(stat -c '%a' "$TOOLCHAIN_SMOKE_DIRECTORY/installed/ripgrep-$RIPGREP_VERSION")" != "600" ] \
+    || [ "$(toolchain_smoke --ripgrep --version | sed -n '1p')" != "ripgrep $RIPGREP_VERSION" ]; then
+  echo "Packaged terminal shell and npm/Python/ripgrep activation smoke test failed." >&2
+  exit 1
+fi
+for blocked_ripgrep_option in --pre=/system/bin/sh --search-zip --follow -z -L; do
+  if toolchain_smoke --ripgrep "$blocked_ripgrep_option" needle . \
+      >"$WORK_DIR/ripgrep-blocked.out" 2>&1 \
+      || ! grep -Fq 'options --pre, --search-zip and --follow are disabled' \
+        "$WORK_DIR/ripgrep-blocked.out"; then
+    echo "Packaged ripgrep bridge accepted a blocked option: $blocked_ripgrep_option" >&2
+    exit 1
+  fi
+done
+printf '%s\n' '--max-count=0' > "$TOOLCHAIN_SMOKE_ROOT/ripgrep-config"
+printf '%s\n' 'agentcodi-ripgrep-config-scrub-proof' \
+  > "$TOOLCHAIN_SMOKE_WORKSPACE/ripgrep-config-proof.txt"
+ripgrep_config_output="$(
+  RIPGREP_CONFIG_PATH="$TOOLCHAIN_SMOKE_ROOT/ripgrep-config" \
+    toolchain_smoke --ripgrep \
+      --no-filename --no-line-number \
+      agentcodi-ripgrep-config-scrub-proof \
+      "$TOOLCHAIN_SMOKE_WORKSPACE/ripgrep-config-proof.txt"
+)"
+if [ "$ripgrep_config_output" != 'agentcodi-ripgrep-config-scrub-proof' ]; then
+  echo "Packaged ripgrep bridge did not clear RIPGREP_CONFIG_PATH." >&2
   exit 1
 fi
 python_dbm_output="$(toolchain_smoke --python -c \
@@ -1173,14 +1268,15 @@ if [ "$python_dbm_output" != "python-sqlite-dbm-shelve-ok" ]; then
   exit 1
 fi
 printf -v python_repl_command \
-  'env -i HOME=%q TMPDIR=%q TMP=%q TEMP=%q PATH=%q SHELL=%q LD_LIBRARY_PATH=%q HISTFILE=%q NODE_REPL_HISTORY=%q SSL_CERT_DIR=%q AGENTCODI_WORKSPACE=%q AGENTCODI_TOOLCHAIN=%q AGENTCODI_TOOL_BIN=%q AGENTCODI_TOOL_RUNTIME=%q AGENTCODI_NODE_VERSION=%q AGENTCODI_NPM_VERSION=%q AGENTCODI_PYTHON_VERSION=%q AGENTCODI_TOOLCHAIN_COMMAND=%q AGENTCODI_TOOLCHAIN_PACKAGES=%q %q --python' \
+  'env -i HOME=%q TMPDIR=%q TMP=%q TEMP=%q PATH=%q SHELL=%q LD_LIBRARY_PATH=%q HISTFILE=%q NODE_REPL_HISTORY=%q SSL_CERT_DIR=%q AGENTCODI_WORKSPACE=%q AGENTCODI_TOOLCHAIN=%q AGENTCODI_TOOL_BIN=%q AGENTCODI_TOOL_RUNTIME=%q AGENTCODI_NODE_VERSION=%q AGENTCODI_NPM_VERSION=%q AGENTCODI_PYTHON_VERSION=%q AGENTCODI_RIPGREP_VERSION=%q AGENTCODI_TOOLCHAIN_COMMAND=%q AGENTCODI_TOOLCHAIN_PACKAGES=%q %q --python' \
   "$TOOLCHAIN_SMOKE_HOME" "$TOOLCHAIN_SMOKE_TEMP" "$TOOLCHAIN_SMOKE_TEMP" \
   "$TOOLCHAIN_SMOKE_TEMP" "$TOOLCHAIN_SMOKE_TOOL_BIN:$NATIVE_DIR:/system/bin:/system/xbin" \
   '/system/bin/sh' "$NATIVE_DIR" '/dev/null' '/dev/null' \
   '/system/etc/security/cacerts' "$TOOLCHAIN_SMOKE_WORKSPACE" \
   "$TOOLCHAIN_SMOKE_DIRECTORY" "$TOOLCHAIN_SMOKE_TOOL_BIN" \
   "$TOOLCHAIN_SMOKE_RUNTIME" "$NODE_VERSION" "$NPM_VERSION" "$PYTHON_VERSION" \
-  'agentcodi-toolchain' 'node,npm,python' "$NATIVE_DIR/$TERMINAL_SHELL_NAME"
+  "$RIPGREP_VERSION" 'agentcodi-toolchain' 'node,npm,python,ripgrep' \
+  "$NATIVE_DIR/$TERMINAL_SHELL_NAME"
 if ! python_repl_output="$(
     printf '%s\n' 'print(__import__("_pyrepl").__name__ + "-ok")' 'exit()' \
       | timeout 30s script -qfec "$python_repl_command" /dev/null \
@@ -1190,18 +1286,21 @@ if ! python_repl_output="$(
   echo "Packaged Python interactive PyREPL smoke test failed." >&2
   exit 1
 fi
-toolchain_model_output="$(toolchain_model_smoke 'command -v node; command -v npm; command -v python; command -v agentcodi-toolchain; node --version; npm --version; python --version; agentcodi-toolchain status' 2>&1 | tr -d '\r')"
+toolchain_model_output="$(toolchain_model_smoke 'command -v node; command -v npm; command -v python; command -v rg; command -v agentcodi-toolchain; node --version; npm --version; python --version; rg --version; agentcodi-toolchain status' 2>&1 | tr -d '\r')"
 for expected_tool_output in \
     "$TOOLCHAIN_SMOKE_TOOL_BIN/node" \
     "$TOOLCHAIN_SMOKE_TOOL_BIN/npm" \
     "$TOOLCHAIN_SMOKE_TOOL_BIN/python" \
+    "$TOOLCHAIN_SMOKE_TOOL_BIN/rg" \
     "$TOOLCHAIN_SMOKE_TOOL_BIN/agentcodi-toolchain" \
     "v$NODE_VERSION" \
     "$NPM_VERSION" \
     "Python $PYTHON_VERSION" \
+    "ripgrep $RIPGREP_VERSION" \
     "node $NODE_VERSION — enabled" \
     "npm $NPM_VERSION — enabled" \
-    "python $PYTHON_VERSION — enabled"; do
+    "python $PYTHON_VERSION — enabled" \
+    "ripgrep $RIPGREP_VERSION — enabled"; do
   if ! printf '%s\n' "$toolchain_model_output" | grep -Fq "$expected_tool_output"; then
     echo "Model-shell toolchain smoke omitted: $expected_tool_output" >&2
     exit 1
@@ -1209,7 +1308,8 @@ for expected_tool_output in \
 done
 if ! toolchain_smoke --toolchain remove node | grep -Fq "Disabled Node.js $NODE_VERSION." \
     || [ -e "$TOOLCHAIN_SMOKE_DIRECTORY/installed/npm-$NPM_VERSION" ] \
-    || ! toolchain_smoke --toolchain remove python | grep -Fq "Disabled Python $PYTHON_VERSION."; then
+    || ! toolchain_smoke --toolchain remove python | grep -Fq "Disabled Python $PYTHON_VERSION." \
+    || ! toolchain_smoke --toolchain remove ripgrep | grep -Fq "Disabled ripgrep $RIPGREP_VERSION."; then
   echo "Packaged toolchain dependency removal smoke test failed." >&2
   exit 1
 fi
@@ -1235,6 +1335,7 @@ ln -s "$NATIVE_DIR/$TERMINAL_SHELL_NAME" "$CONFIG_SMOKE_TOOL_BIN/node"
 ln -s "$NATIVE_DIR/$TERMINAL_SHELL_NAME" "$CONFIG_SMOKE_TOOL_BIN/npm"
 ln -s "$NATIVE_DIR/$TERMINAL_SHELL_NAME" "$CONFIG_SMOKE_TOOL_BIN/python"
 ln -s "$NATIVE_DIR/$TERMINAL_SHELL_NAME" "$CONFIG_SMOKE_TOOL_BIN/python3"
+ln -s "$NATIVE_DIR/$TERMINAL_SHELL_NAME" "$CONFIG_SMOKE_TOOL_BIN/rg"
 ln -s "$NATIVE_DIR/$TERMINAL_SHELL_NAME" "$CONFIG_SMOKE_TOOL_BIN/agentcodi-toolchain"
 printf '%s\n' \
   'approval_policy="never"' \
@@ -1266,14 +1367,15 @@ config_smoke_status=0
     AGENTCODI_NODE_VERSION="$NODE_VERSION" \
     AGENTCODI_NPM_VERSION="$NPM_VERSION" \
     AGENTCODI_PYTHON_VERSION="$PYTHON_VERSION" \
+    AGENTCODI_RIPGREP_VERSION="$RIPGREP_VERSION" \
     AGENTCODI_TOOLCHAIN_COMMAND="agentcodi-toolchain" \
-    AGENTCODI_TOOLCHAIN_PACKAGES="node,npm,python" \
+    AGENTCODI_TOOLCHAIN_PACKAGES="node,npm,python,ripgrep" \
     CODEX_SELF_EXE="$NATIVE_DIR/libcodex.so" \
     CODEX_CODE_MODE_HOST_PATH="$NATIVE_DIR/$CODEX_PACKAGED_HOST_NAME" \
     "$NATIVE_DIR/libcodex.so" app-server --stdio --strict-config \
     -c 'cli_auth_credentials_store="file"' \
     -c 'approval_policy="on-request"' \
-    -c "shell_environment_policy={inherit=\"none\",ignore_default_excludes=false,set={PATH=\"$CONFIG_SMOKE_TOOL_BIN:$NATIVE_DIR:/system/bin:/system/xbin\",SHELL=\"/system/bin/sh\",HOME=\"$CONFIG_SMOKE_HOME\",TMPDIR=\"$CONFIG_SMOKE_TEMP\",TMP=\"$CONFIG_SMOKE_TEMP\",TEMP=\"$CONFIG_SMOKE_TEMP\",LD_LIBRARY_PATH=\"$NATIVE_DIR\",HISTFILE=\"/dev/null\",NODE_REPL_HISTORY=\"/dev/null\",SSL_CERT_DIR=\"/system/etc/security/cacerts\",AGENTCODI_WORKSPACE=\"$CONFIG_SMOKE_WORKSPACE\",AGENTCODI_TOOLCHAIN=\"$CONFIG_SMOKE_TOOLCHAIN\",AGENTCODI_TOOL_BIN=\"$CONFIG_SMOKE_TOOL_BIN\",AGENTCODI_TOOL_RUNTIME=\"$CONFIG_SMOKE_TOOL_RUNTIME\",AGENTCODI_NODE_VERSION=\"$NODE_VERSION\",AGENTCODI_NPM_VERSION=\"$NPM_VERSION\",AGENTCODI_PYTHON_VERSION=\"$PYTHON_VERSION\",AGENTCODI_TOOLCHAIN_COMMAND=\"agentcodi-toolchain\",AGENTCODI_TOOLCHAIN_PACKAGES=\"node,npm,python\"}}" \
+    -c "shell_environment_policy={inherit=\"none\",ignore_default_excludes=false,set={PATH=\"$CONFIG_SMOKE_TOOL_BIN:$NATIVE_DIR:/system/bin:/system/xbin\",SHELL=\"/system/bin/sh\",HOME=\"$CONFIG_SMOKE_HOME\",TMPDIR=\"$CONFIG_SMOKE_TEMP\",TMP=\"$CONFIG_SMOKE_TEMP\",TEMP=\"$CONFIG_SMOKE_TEMP\",LD_LIBRARY_PATH=\"$NATIVE_DIR\",HISTFILE=\"/dev/null\",NODE_REPL_HISTORY=\"/dev/null\",SSL_CERT_DIR=\"/system/etc/security/cacerts\",AGENTCODI_WORKSPACE=\"$CONFIG_SMOKE_WORKSPACE\",AGENTCODI_TOOLCHAIN=\"$CONFIG_SMOKE_TOOLCHAIN\",AGENTCODI_TOOL_BIN=\"$CONFIG_SMOKE_TOOL_BIN\",AGENTCODI_TOOL_RUNTIME=\"$CONFIG_SMOKE_TOOL_RUNTIME\",AGENTCODI_NODE_VERSION=\"$NODE_VERSION\",AGENTCODI_NPM_VERSION=\"$NPM_VERSION\",AGENTCODI_PYTHON_VERSION=\"$PYTHON_VERSION\",AGENTCODI_RIPGREP_VERSION=\"$RIPGREP_VERSION\",AGENTCODI_TOOLCHAIN_COMMAND=\"agentcodi-toolchain\",AGENTCODI_TOOLCHAIN_PACKAGES=\"node,npm,python,ripgrep\"}}" \
     -c 'analytics.enabled=false' \
     -c 'otel.exporter="none"' \
     -c 'otel.log_user_prompt=false' \
@@ -1328,6 +1430,7 @@ ln -s "$NATIVE_DIR/$TERMINAL_SHELL_NAME" "$BOOTSTRAP_SMOKE_TOOL_BIN/node"
 ln -s "$NATIVE_DIR/$TERMINAL_SHELL_NAME" "$BOOTSTRAP_SMOKE_TOOL_BIN/npm"
 ln -s "$NATIVE_DIR/$TERMINAL_SHELL_NAME" "$BOOTSTRAP_SMOKE_TOOL_BIN/python"
 ln -s "$NATIVE_DIR/$TERMINAL_SHELL_NAME" "$BOOTSTRAP_SMOKE_TOOL_BIN/python3"
+ln -s "$NATIVE_DIR/$TERMINAL_SHELL_NAME" "$BOOTSTRAP_SMOKE_TOOL_BIN/rg"
 ln -s "$NATIVE_DIR/$TERMINAL_SHELL_NAME" "$BOOTSTRAP_SMOKE_TOOL_BIN/agentcodi-toolchain"
 printf '%s\n' \
   'approval_policy="never"' \
@@ -1345,6 +1448,7 @@ if ! timeout 30s env -i \
     "$NATIVE_DIR/$TERMINAL_SHELL_NAME" \
     "$NATIVE_DIR/$NODE_LIBRARY_NAME" \
     "$NATIVE_DIR/$PYTHON_LIBRARY_NAME" \
+    "$NATIVE_DIR/$RIPGREP_LIBRARY_NAME" \
     "$BOOTSTRAP_SMOKE_WORKSPACE" \
     "$BOOTSTRAP_SMOKE_TOOLCHAIN" \
     "$BOOTSTRAP_SMOKE_TOOL_BIN" \
@@ -1454,6 +1558,7 @@ grep -Fx "lib/$ABI/$CODEX_PACKAGED_HOST_NAME" "$WORK_DIR/apk-entries.txt"
 grep -Fx "lib/$ABI/$TERMINAL_SHELL_NAME" "$WORK_DIR/apk-entries.txt"
 grep -Fx "lib/$ABI/$NODE_LIBRARY_NAME" "$WORK_DIR/apk-entries.txt"
 grep -Fx "lib/$ABI/$PYTHON_LIBRARY_NAME" "$WORK_DIR/apk-entries.txt"
+grep -Fx "lib/$ABI/$RIPGREP_LIBRARY_NAME" "$WORK_DIR/apk-entries.txt"
 for dependency in libcares.so libcrypto_3.so libicudata_78.so libicui18n_78.so libicuuc_78.so libsqlite3.so libssl_3.so libz_1.so libpython3.14.so libandroid-posix-semaphore.so libandroid-support.so libbz2_1_0.so libexpat_1.so libffi.so liblzma_5.so libncursesw_6.so libpanelw_6.so libzstd_1.so; do
   grep -Fx "lib/$ABI/$dependency" "$WORK_DIR/apk-entries.txt"
 done
@@ -1480,6 +1585,9 @@ for license_file in NODE-LICENSE CARES-LICENSE ICU-LICENSE OPENSSL-LICENSE ZLIB-
 done
 grep -Fx 'assets/third-party/npm/NPM-LICENSES' "$WORK_DIR/apk-entries.txt"
 grep -Fx 'assets/third-party/python/PYTHON-LICENSES' "$WORK_DIR/apk-entries.txt"
+for ripgrep_asset in DEPENDENCIES LICENSES PROVENANCE; do
+  grep -Fx "assets/third-party/ripgrep/$ripgrep_asset" "$WORK_DIR/apk-entries.txt"
+done
 grep -Fx 'assets/third-party/toolchain/RUNTIME-MANIFEST' "$WORK_DIR/apk-entries.txt"
 grep -Fx 'assets/third-party/toolchain/RUNTIME.zip' "$WORK_DIR/apk-entries.txt"
 grep -Fx 'res/raw/third_party_notices.txt' "$WORK_DIR/apk-entries.txt"
@@ -1501,6 +1609,21 @@ if ! cmp -s "$PYTHON_LICENSES" "$WORK_DIR/apk-python-licenses" \
     || grep -Fq 'GNU GENERAL PUBLIC LICENSE' "$WORK_DIR/apk-python-licenses" \
     || [ "$(wc -c < "$WORK_DIR/apk-python-licenses")" -gt 131072 ]; then
   echo "APK Python license inventory is stale, overbroad, or oversized." >&2
+  exit 1
+fi
+for ripgrep_asset in DEPENDENCIES LICENSES PROVENANCE; do
+  unzip -p "$VERSIONED_APK" "assets/third-party/ripgrep/$ripgrep_asset" \
+    > "$WORK_DIR/apk-ripgrep-$ripgrep_asset"
+  if ! cmp -s \
+      "$RIPGREP_THIRD_PARTY_ASSETS/$ripgrep_asset" \
+      "$WORK_DIR/apk-ripgrep-$ripgrep_asset"; then
+    echo "APK ripgrep legal/provenance asset differs: $ripgrep_asset" >&2
+    exit 1
+  fi
+done
+if [ "$(wc -c < "$WORK_DIR/apk-ripgrep-LICENSES")" -gt 131072 ] \
+    || grep -Eiq '(^|/)(pcre2|pcre2-sys)(/|$)' "$WORK_DIR/apk-entries.txt"; then
+  echo "APK ripgrep license bundle is oversized or a PCRE2 payload was included." >&2
   exit 1
 fi
 unzip -p "$VERSIONED_APK" 'assets/third-party/toolchain/RUNTIME.zip' \
@@ -1531,12 +1654,13 @@ for runtime_spec in \
     "libicuuc_78.so:$ICUUC_RUNTIME_SHA256" \
     "libsqlite3.so:$SQLITE_RUNTIME_SHA256" \
     "libssl_3.so:$SSL_RUNTIME_SHA256" \
-    "libz_1.so:$ZLIB_RUNTIME_SHA256"; do
+    "libz_1.so:$ZLIB_RUNTIME_SHA256" \
+    "$RIPGREP_LIBRARY_NAME:$RIPGREP_RUNTIME_SHA256"; do
   runtime_name="${runtime_spec%%:*}"
   expected_runtime_sha="${runtime_spec#*:}"
   packaged_runtime_sha="$(unzip -p "$VERSIONED_APK" "lib/$ABI/$runtime_name" | sha256sum | awk '{print $1}')"
   if [ "$packaged_runtime_sha" != "$expected_runtime_sha" ]; then
-    echo "APK contains an unexpected Node.js runtime file: $runtime_name" >&2
+      echo "APK contains an unexpected pinned runtime file: $runtime_name" >&2
     exit 1
   fi
 done
@@ -1582,6 +1706,8 @@ grep -Fq "$NODE_LIBRARY_NAME" "$WORK_DIR/dex-strings.txt"
 grep -Fq "$NODE_VERSION" "$WORK_DIR/dex-strings.txt"
 grep -Fq "$NPM_VERSION" "$WORK_DIR/dex-strings.txt"
 grep -Fq "$PYTHON_VERSION" "$WORK_DIR/dex-strings.txt"
+grep -Fq "$RIPGREP_LIBRARY_NAME" "$WORK_DIR/dex-strings.txt"
+grep -Fq "$RIPGREP_VERSION" "$WORK_DIR/dex-strings.txt"
 grep -Fq 'Lde/agentcodi/storage/PackagedToolRuntime;' "$WORK_DIR/dex-strings.txt"
 grep -Fq 'Lde/agentcodi/storage/CrashReportStore;' "$WORK_DIR/dex-strings.txt"
 grep -Fq 'Lde/agentcodi/storage/WorkspaceImageFile;' "$WORK_DIR/dex-strings.txt"

@@ -77,6 +77,25 @@ and SHA-256 before owner-only materialization. The narrowly selected Python
 and dependency license texts for files actually bundled are packaged at:
 assets/third-party/python/PYTHON-LICENSES
 
+ripgrep 15.2.0 Android ARM64 toolchain
+
+AGENTCODI packages a source-built, SHA-256-pinned ripgrep 15.2.0 ELF with
+PCRE2 disabled. It is linked for Android ARM64, has no RPATH or RUNPATH, and
+depends dynamically only on Android's platform-provided libc.so and libdl.so.
+The ripgrep and normal Cargo dependency code is statically linked. ripgrep and
+the selected license alternatives for those Cargo crates use the MIT License,
+with the required BSD-3-Clause encoding_rs notice. The statically linked Rust
+standard-library material uses its selected MIT terms and Unicode attribution;
+the LLVM compiler-rt link input uses Apache-2.0 with the LLVM exception. These
+are all permissive terms. No PCRE2 library or crate is bundled.
+
+The exact 34-package normal Cargo dependency closure, all source and license
+hashes, Rust/LLVM link inputs, Android dynamic dependencies, complete selected
+license texts, and reproducible-build provenance are packaged at:
+assets/third-party/ripgrep/DEPENDENCIES
+assets/third-party/ripgrep/LICENSES
+assets/third-party/ripgrep/PROVENANCE
+
 LLVM libc++ shared runtime from the pinned Termux libc++ package.
 The following is the distributor-supplied license text.
 

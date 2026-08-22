@@ -57,9 +57,10 @@ AGENTCODI does more than display a Codex conversation.
 | Node.js | Packaged runtime |
 | npm | Packaged runtime |
 | Python | Packaged runtime |
+| ripgrep | Packaged no-PCRE2 runtime exposed as `rg` |
 | MCP management | Native Android interface backed by Codex configuration RPCs |
 
-The current AGENTCODI 0.5.11 runtime uses **Codex app-server 0.147.2**.
+The current AGENTCODI 0.5.13 runtime uses **Codex app-server 0.147.2**.
 
 ---
 
@@ -210,12 +211,18 @@ AGENTCODI currently packages:
 | Node.js | 24.18.0 |
 | npm | 11.19.0 |
 | Python | 3.14.6 |
+| ripgrep | 15.2.0, without PCRE2 |
 
 The toolchains are prepared inside the private AGENTCODI environment and remain inactive until explicitly enabled.
 
 AGENTCODI validates its packaged tool aliases and runtime files before making them available to the workspace.
 
 Python includes SQLite-backed `dbm` and `shelve` support as well as PyREPL.
+
+ripgrep is a SHA-256-pinned Android ARM64 ELF bundled in the APK. The private
+`rg` bridge clears external ripgrep configuration and rejects `--pre`,
+`--search-zip`, `--follow` and their short forms before execution; it is never
+downloaded or installed at runtime.
 
 ---
 
@@ -305,7 +312,7 @@ Pinned Codex app-server
        +---- Private workspace
        +---- Codex home
        +---- Interactive terminal
-       +---- Node.js / npm / Python
+       +---- Node.js / npm / Python / ripgrep
        +---- MCP / Skills / Tools
 ```
 
@@ -340,6 +347,7 @@ Current safeguards include:
 - Private SHA-256 materialization proofs before resumed images regain an export path
 - Bounded protocol messages
 - Bounded terminal input and output
+- A private `rg` bridge that blocks preprocessor, archive-search and symlink-follow modes
 - Credential detection and redaction in sensitive paths
 - Explicit approval handling
 - C++ ownership of child processes
@@ -355,7 +363,7 @@ Several sensitive byte and character buffers are explicitly cleared after use.
 
 Current release line:
 
-### AGENTCODI 0.5.11
+### AGENTCODI 0.5.13
 
 | Requirement | Value |
 |---|---|
@@ -406,13 +414,13 @@ Physical Android hardware is used separately to validate installation, UI behavi
 
 AGENTCODI is under active development.
 
-Version 0.5.11 currently focuses heavily on:
+Version 0.5.13 currently focuses heavily on:
 
 - Native Codex runtime integration
 - Correlated in-flight turn steering without losing the separate stop action
 - Read-only, app-server-owned ChatGPT quota visibility
 - MCP visibility and guarded configuration
-- Packaged development toolchains
+- Packaged development toolchains, including a pinned no-PCRE2 ripgrep bridge
 - Android runtime stability
 - Workspace boundaries
 - Direct, bounded external-document import with a proven transient read grant, crash-recovery cleanup, commit-stable resource closing, atomic no-replace installation, retained verification handles across queue hand-offs, and final batch revalidation coupled to the app-server JSONL write

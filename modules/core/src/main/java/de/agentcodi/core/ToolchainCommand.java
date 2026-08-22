@@ -1,7 +1,7 @@
 package de.agentcodi.core;
 
 public final class ToolchainCommand {
-    private static final String[] PACKAGES = {"node", "npm", "python"};
+    private static final String[] PACKAGES = {"node", "npm", "python", "ripgrep"};
 
     private ToolchainCommand() {
     }

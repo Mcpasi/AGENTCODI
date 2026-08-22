@@ -188,7 +188,9 @@ bool read_interactive_terminal_completion(
     if (write_acknowledged && command_completed
         && output.find("terminal-protocol-smoke") != std::string::npos
         && output.find("Enabled packaged Node.js 24.18.0") != std::string::npos
-        && output.find("v24.18.0") != std::string::npos) {
+        && output.find("Enabled packaged ripgrep 15.2.0") != std::string::npos
+        && output.find("v24.18.0") != std::string::npos
+        && output.find("ripgrep 15.2.0") != std::string::npos) {
       return true;
     }
   }
@@ -199,6 +201,7 @@ bool read_interactive_terminal_completion(
 bool read_model_shell_completion(
     const std::shared_ptr<agentcodi::AppServerProcess>& process,
     const std::string& expected_node_alias,
+    const std::string& expected_ripgrep_alias,
     std::string* error) {
   bool command_completed = false;
   std::string output;
@@ -230,8 +233,10 @@ bool read_model_shell_completion(
       }
       if (line.find("\"stdout\":\"\"") == std::string::npos) {
         if (line.find(expected_node_alias) == std::string::npos
+            || line.find(expected_ripgrep_alias) == std::string::npos
             || line.find("v24.18.0") == std::string::npos
             || line.find("node 24.18.0") == std::string::npos
+            || line.find("ripgrep 15.2.0") == std::string::npos
             || line.find("enabled") == std::string::npos) {
           std::cerr << "Inline model shell output omitted the packaged Node contract\n";
           return false;
@@ -242,8 +247,10 @@ bool read_model_shell_completion(
     }
     if (command_completed
         && output.find(expected_node_alias) != std::string::npos
+        && output.find(expected_ripgrep_alias) != std::string::npos
         && output.find("v24.18.0") != std::string::npos
         && output.find("node 24.18.0") != std::string::npos
+        && output.find("ripgrep 15.2.0") != std::string::npos
         && output.find("enabled") != std::string::npos) {
       return true;
     }
@@ -469,11 +476,11 @@ bool read_terminated_terminal_completion(
 }  // namespace
 
 int main(int argc, char* argv[]) {
-  if (argc != 15) {
-    std::cerr << "Expected app-server, host, shell, Node, Python, workspace, toolchain, tool-bin, tool-runtime, Codex home, home, state, temp and library paths\n";
+  if (argc != 16) {
+    std::cerr << "Expected app-server, host, shell, Node, Python, ripgrep, workspace, toolchain, tool-bin, tool-runtime, Codex home, home, state, temp and library paths\n";
     return 2;
   }
-  const std::string workspace = argv[6];
+  const std::string workspace = argv[7];
   const std::string shell = argv[3];
   const std::string imported_file =
       workspace + "/imports/0123456789abcdef0123456789abcdef.bin";
@@ -489,15 +496,16 @@ int main(int argc, char* argv[]) {
   config.shell_executable = argv[3];
   config.node_executable = argv[4];
   config.python_executable = argv[5];
+  config.ripgrep_executable = argv[6];
   config.working_directory = workspace;
-  config.toolchain_directory = argv[7];
-  config.tool_binary_directory = argv[8];
-  config.tool_runtime_directory = argv[9];
-  config.codex_home = argv[10];
-  config.home_directory = argv[11];
-  config.state_directory = argv[12];
-  config.temporary_directory = argv[13];
-  config.library_directory = argv[14];
+  config.toolchain_directory = argv[8];
+  config.tool_binary_directory = argv[9];
+  config.tool_runtime_directory = argv[10];
+  config.codex_home = argv[11];
+  config.home_directory = argv[12];
+  config.state_directory = argv[13];
+  config.temporary_directory = argv[14];
+  config.library_directory = argv[15];
 
   std::string error;
   std::shared_ptr<agentcodi::AppServerProcess> process =
@@ -510,7 +518,7 @@ int main(int argc, char* argv[]) {
   const std::string initialize =
       "{\"method\":\"initialize\",\"id\":1,\"params\":{"
       "\"clientInfo\":{\"name\":\"agentcodi_android\","
-      "\"title\":\"AGENTCODI\",\"version\":\"0.5.11\"},"
+      "\"title\":\"AGENTCODI\",\"version\":\"0.5.13\"},"
       "\"capabilities\":{\"experimentalApi\":true,"
       "\"optOutNotificationMethods\":[\"rawResponseItem/completed\","
       "\"rawResponse/completed\"]}}}";
@@ -570,7 +578,7 @@ int main(int argc, char* argv[]) {
           "{\"method\":\"command/exec/write\",\"id\":8,\"params\":{"
           "\"processId\":\"agentcodi-build-terminal\","
           "\"deltaBase64\":"
-          "\"cHJpbnRmIHRlcm1pbmFsLXByb3RvY29sLXNtb2tlCmFnZW50Y29kaS10b29sY2hhaW4gaW5zdGFsbCBub2RlCm5vZGUgLS12ZXJzaW9uCmV4aXQK\"}}",
+          "\"cHJpbnRmIHRlcm1pbmFsLXByb3RvY29sLXNtb2tlCmFnZW50Y29kaS10b29sY2hhaW4gaW5zdGFsbCBub2RlCmFnZW50Y29kaS10b29sY2hhaW4gaW5zdGFsbCByaXBncmVwCm5vZGUgLS12ZXJzaW9uCnJnIC0tdmVyc2lvbgpleGl0Cg==\"}}",
           &error)
       || !read_interactive_terminal_completion(process, &error)) {
     process->Stop(2'000);
@@ -580,8 +588,8 @@ int main(int argc, char* argv[]) {
   const std::string model_shell_request =
       "{\"method\":\"command/exec\",\"id\":9,\"params\":{"
       "\"command\":[\"/system/bin/sh\",\"-c\","
-      "\"command -v node && command -v agentcodi-toolchain && "
-      "node --version && agentcodi-toolchain status\"],"
+      "\"command -v node && command -v rg && command -v agentcodi-toolchain && "
+      "node --version && rg --version && agentcodi-toolchain status\"],"
       "\"cwd\":\"" + workspace + "\","
       "\"processId\":\"agentcodi-build-model-shell\","
       "\"permissionProfile\":\"agentcodi-workspace\","
@@ -590,6 +598,7 @@ int main(int argc, char* argv[]) {
       || !read_model_shell_completion(
           process,
           config.tool_binary_directory + "/node",
+          config.tool_binary_directory + "/rg",
           &error)) {
     process->Stop(2'000);
     return 1;
@@ -788,7 +797,7 @@ int main(int argc, char* argv[]) {
   const std::string probe_initialize =
       "{\"method\":\"initialize\",\"id\":30,\"params\":{"
       "\"clientInfo\":{\"name\":\"agentcodi_import_probe\","
-      "\"title\":\"AGENTCODI import probe\",\"version\":\"0.5.11\"},"
+      "\"title\":\"AGENTCODI import probe\",\"version\":\"0.5.13\"},"
       "\"capabilities\":{\"experimentalApi\":true}}}";
   if (!write_request(probe, probe_initialize, &error)
       || !read_response(probe, "\"id\":30", "\"codexHome\":", &error)

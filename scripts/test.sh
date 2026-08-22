@@ -37,10 +37,20 @@ find \
 "$JAVA" -cp "$TEST_BUILD/java-classes" de.agentcodi.tests.TestMain
 
 "$CLANGXX" -std=c++17 -O2 -Wall -Wextra -Werror -pthread \
+  -I"$PROJECT_ROOT/modules/native-engine/src/main/cpp" \
   "$PROJECT_ROOT/modules/native-engine/src/main/cpp/toolchain_shell_main.cpp" \
+  "$PROJECT_ROOT/modules/native-engine/src/main/cpp/ripgrep_bridge_policy.cpp" \
   -o "$TEST_BUILD/cpp/libagentcodi-shell.so"
 cp /system/bin/sh "$TEST_BUILD/cpp/libnode.so"
 cp /system/bin/sh "$TEST_BUILD/cpp/libpython-bin.so"
+cp /system/bin/sh "$TEST_BUILD/cpp/libripgrep.so"
+
+"$CLANGXX" -std=c++17 -O2 -Wall -Wextra -Werror \
+  -I"$PROJECT_ROOT/modules/native-engine/src/main/cpp" \
+  "$PROJECT_ROOT/modules/native-engine/src/main/cpp/ripgrep_bridge_policy.cpp" \
+  "$PROJECT_ROOT/tests/cpp/ripgrep_bridge_policy_test.cpp" \
+  -o "$TEST_BUILD/cpp/ripgrep-bridge-policy-test"
+"$TEST_BUILD/cpp/ripgrep-bridge-policy-test"
 
 "$CLANGXX" -std=c++17 -O2 -Wall -Wextra -Werror -pthread -I"$PROJECT_ROOT/modules/native-engine/src/main/cpp" "$PROJECT_ROOT/modules/native-engine/src/main/cpp/agentcodi_engine.cpp" "$PROJECT_ROOT/modules/native-engine/src/main/cpp/app_server_process.cpp" "$PROJECT_ROOT/modules/native-engine/src/main/cpp/png_validator.cpp" "$PROJECT_ROOT/modules/native-engine/src/main/cpp/sha256.cpp" "$PROJECT_ROOT/tests/cpp/agentcodi_engine_test.cpp" -lz -o "$TEST_BUILD/cpp/agentcodi-engine-test"
 

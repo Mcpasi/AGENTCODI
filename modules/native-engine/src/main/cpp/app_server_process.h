@@ -18,6 +18,7 @@ struct ProcessConfig {
   std::string shell_executable;
   std::string node_executable;
   std::string python_executable;
+  std::string ripgrep_executable;
   std::string working_directory;
   std::string toolchain_directory;
   std::string tool_binary_directory;

@@ -36,6 +36,13 @@ public final class ToolchainCommandTest {
             ),
             "direct Python shell bridge activation"
         );
+        TestSupport.assertEquals(
+            "ripgrep",
+            ToolchainCommand.requestedInstallationPackage(
+                "agentcodi-toolchain install ripgrep"
+            ),
+            "ripgrep activation"
+        );
     }
 
     private static void rejectsUnrelatedOrEmbeddedText() {

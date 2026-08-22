@@ -134,6 +134,9 @@ public final class WorkspaceLayoutTest {
             Path python3 = layout.getToolBin().toPath().resolve(
                 WorkspaceLayout.PYTHON3_TOOL_ALIAS
             );
+            Path ripgrep = layout.getToolBin().toPath().resolve(
+                WorkspaceLayout.RIPGREP_TOOL_ALIAS
+            );
             Path toolchain = layout.getToolBin().toPath().resolve(
                 WorkspaceLayout.TOOLCHAIN_TOOL_ALIAS
             );
@@ -141,6 +144,7 @@ public final class WorkspaceLayoutTest {
             TestSupport.assertTrue(Files.isSymbolicLink(npm), "npm tool alias");
             TestSupport.assertTrue(Files.isSymbolicLink(python), "Python tool alias");
             TestSupport.assertTrue(Files.isSymbolicLink(python3), "Python 3 tool alias");
+            TestSupport.assertTrue(Files.isSymbolicLink(ripgrep), "ripgrep tool alias");
             TestSupport.assertTrue(Files.isSymbolicLink(toolchain), "toolchain command alias");
             TestSupport.assertEquals(
                 firstShell.toRealPath(),
@@ -157,6 +161,11 @@ public final class WorkspaceLayoutTest {
                 firstShell.toRealPath(),
                 python3.toRealPath(),
                 "Python 3 alias target"
+            );
+            TestSupport.assertEquals(
+                firstShell.toRealPath(),
+                ripgrep.toRealPath(),
+                "ripgrep alias target"
             );
             layout.preparePackagedToolAliases(firstShell.toFile());
             layout.preparePackagedToolAliases(secondShell.toFile());

@@ -1,0 +1,61 @@
+AGENTCODI RIPGREP RUNTIME DEPENDENCY INVENTORY V1
+
+Artifact: ripgrep 15.2.0 Android ARM64 ELF
+Artifact SHA-256: 4eb0d0c70d2e3c760cab4f478c7eb715082ae1d8b5f4a23bb14515154348b04d
+Feature set: --no-default-features; features:-pcre2
+Cargo target: aarch64-linux-android
+Cargo profile: release-lto
+Source archive SHA-256: 7605249d3eb0d5f170e3414498e3344e26b1e7a147aec518b57090b80036a562
+Cargo.lock SHA-256: 7a7d39cda8a03930e578f1dbb724e055771901842eca239e03b01e19da946a64
+Normal target package count: 34
+
+The Cargo set below is the complete normal-dependency closure selected by
+Cargo.lock for aarch64-linux-android with default features disabled. Build,
+development, Windows-only, and optional PCRE2 packages are not linked.
+
+FORMAT: name version | linkage | source SHA-256 | selected license | license file SHA-256
+
+ripgrep 15.2.0 | static, upstream archive | 7605249d3eb0d5f170e3414498e3344e26b1e7a147aec518b57090b80036a562 | MIT | 0f96a83840e146e43c0ec96a22ec1f392e0680e6c1226e6f3ba87e0740af850f
+globset 0.4.19 | static, upstream archive | 7605249d3eb0d5f170e3414498e3344e26b1e7a147aec518b57090b80036a562 | MIT | 0f96a83840e146e43c0ec96a22ec1f392e0680e6c1226e6f3ba87e0740af850f
+grep 0.4.1 | static, upstream archive | 7605249d3eb0d5f170e3414498e3344e26b1e7a147aec518b57090b80036a562 | MIT | 0f96a83840e146e43c0ec96a22ec1f392e0680e6c1226e6f3ba87e0740af850f
+grep-cli 0.1.12 | static, upstream archive | 7605249d3eb0d5f170e3414498e3344e26b1e7a147aec518b57090b80036a562 | MIT | 0f96a83840e146e43c0ec96a22ec1f392e0680e6c1226e6f3ba87e0740af850f
+grep-matcher 0.1.9 | static, upstream archive | 7605249d3eb0d5f170e3414498e3344e26b1e7a147aec518b57090b80036a562 | MIT | 0f96a83840e146e43c0ec96a22ec1f392e0680e6c1226e6f3ba87e0740af850f
+grep-printer 0.3.1 | static, upstream archive | 7605249d3eb0d5f170e3414498e3344e26b1e7a147aec518b57090b80036a562 | MIT | 0f96a83840e146e43c0ec96a22ec1f392e0680e6c1226e6f3ba87e0740af850f
+grep-regex 0.1.14 | static, upstream archive | 7605249d3eb0d5f170e3414498e3344e26b1e7a147aec518b57090b80036a562 | MIT | 0f96a83840e146e43c0ec96a22ec1f392e0680e6c1226e6f3ba87e0740af850f
+grep-searcher 0.1.17 | static, upstream archive | 7605249d3eb0d5f170e3414498e3344e26b1e7a147aec518b57090b80036a562 | MIT | 0f96a83840e146e43c0ec96a22ec1f392e0680e6c1226e6f3ba87e0740af850f
+ignore 0.4.29 | static, upstream archive | 7605249d3eb0d5f170e3414498e3344e26b1e7a147aec518b57090b80036a562 | MIT | 0f96a83840e146e43c0ec96a22ec1f392e0680e6c1226e6f3ba87e0740af850f
+aho-corasick 1.1.4 | static, crates.io | ddd31a130427c27518df266943a5308ed92d4b226cc639f5a8f1002816174301 | MIT | 0f96a83840e146e43c0ec96a22ec1f392e0680e6c1226e6f3ba87e0740af850f
+anyhow 1.0.103 | static, crates.io | 2a4385e2e34eb35d6b3efe798b9eb88096925d87726c0798709bf56d9ed84af3 | MIT | 23f18e03dc49df91622fe2a76176497404e46ced8a715d9d2b67a7446571cca3
+bstr 1.13.0 | static, crates.io | 1f7dc094d718f2e1c1559ad110e27eeaae14a5465d3d56dd6dbd793079fbd530 | MIT | 6b7374c39a57e57fc2c38eb529c4c88340152b10f51dd5ae2d819dfa67f61715
+cfg-if 1.0.4 | static, crates.io | 9330f8b2ff13f34540b44e946ef35111825727b38d33286ef986142615121801 | MIT | 378f5840b258e2779c39418f3f2d7b2ba96f1c7917dd6be0713f88305dbda397
+crossbeam-deque 0.8.7 | static, crates.io | 5181e0de7b61eb03a81e347d6dd8797bae9da5146707b51077e2d71a54ec0ceb | MIT | 5734ed989dfca1f625b40281ee9f4530f91b2411ec01cb748223e7eb87e201ab
+crossbeam-epoch 0.9.20 | static, crates.io | 2d6914041f254d6e9176c01941b21115dcfb7089e55135a35411081bd106ef3f | MIT | 5734ed989dfca1f625b40281ee9f4530f91b2411ec01cb748223e7eb87e201ab
+crossbeam-utils 0.8.22 | static, crates.io | 61803da095bee82a81bb1a452ecc25d3b2f1416d1897eb86430c6159ef717c17 | MIT | 5734ed989dfca1f625b40281ee9f4530f91b2411ec01cb748223e7eb87e201ab
+encoding_rs 0.8.35 | static, crates.io | 75030f3c4f45dafd7586dd6780965a8c7e8e285a5ecb86713e63a79c5b2766f3 | MIT AND BSD-3-Clause | 3fa4ca83dcc9237839b1bdeb2e6d16bdfb5ec0c5ce42b24694d8bbf0dcbef72c, 838118388fe5c2e7f1dbbaeed13e1c7f3ebf88be91319c7c1d77c18e987d1a50
+encoding_rs_io 0.1.7 | static, crates.io | 1cc3c5651fb62ab8aa3103998dade57efdd028544bd300516baa31840c252a83 | MIT | 0f96a83840e146e43c0ec96a22ec1f392e0680e6c1226e6f3ba87e0740af850f
+itoa 1.0.18 | static, crates.io | 8f42a60cbdf9a97f5d2305f08a87dc4e09308d1276d28c869c684d7777685682 | MIT | 23f18e03dc49df91622fe2a76176497404e46ced8a715d9d2b67a7446571cca3
+lexopt 0.3.2 | static, crates.io | 803ec87c9cfb29b9d2633f20cba1f488db3fd53f2158b1024cbefb47ba05d413 | MIT | 8d43b7fa3b2f928cd4ea6346853b95f1ca5d883f4eaad3a40f8af202bfb45d6f
+libc 0.2.186 | static, crates.io | 68ab91017fe16c622486840e4c83c9a37afeff978bd239b5293d61ece587de66 | MIT | 123a331b5dbf04c30097fa43b8f858bc85df671fe776de498d01f3d6b7c1f69e
+log 0.4.33 | static, crates.io | 0ceec5bc11778974d1bcb055b18002eba7f4b3518b6a0081b3af5f21666da9ad | MIT | 6485b8ed310d3f0340bf1ad1f47645069ce4069dcc6bb46c7d5c6faf41de1fdb
+memchr 2.8.3 | static, crates.io | cf8baf1c55e62ffcace7a9f06f4bd9cd3f0c4beb022d3b367256b91b87513d98 | MIT | 0f96a83840e146e43c0ec96a22ec1f392e0680e6c1226e6f3ba87e0740af850f
+memmap2 0.9.11 | static, crates.io | d1219ed1b7f229ee7104d281dd01d6802fe28bb6e95d292942c4daacdeb798c0 | MIT | 0d25d03b5ab49576178ad0cae7a2648d12c17ad0452fe49c07e55e4b59aa5257
+regex-automata 0.4.15 | static, crates.io | 1f388202e4b80542a0921078cc23b6333bcf1409c1e3f86404cae4766a6131db | MIT | 6485b8ed310d3f0340bf1ad1f47645069ce4069dcc6bb46c7d5c6faf41de1fdb
+regex-syntax 0.8.11 | static, crates.io | d6f6ff9a378485b298a5286656da665ba74413d36db0979633275d2e708145d4 | MIT | 6485b8ed310d3f0340bf1ad1f47645069ce4069dcc6bb46c7d5c6faf41de1fdb
+same-file 1.0.6 | static, crates.io | 93fc1dc3aaa9bfed95e02e6eadabb4baf7e3078b0bd1b4d7b6b0b68378900502 | MIT | cb3c929a05e6cbc9de9ab06a4c57eeb60ca8c724bef6c138c87d3a577e27aa14
+serde 1.0.228 | static, crates.io | 9a8e94ea7f378bd32cbbd37198a4a91436180c5bb472411e48b5ec2e2124ae9e | MIT | 23f18e03dc49df91622fe2a76176497404e46ced8a715d9d2b67a7446571cca3
+serde_core 1.0.228 | static, crates.io | 41d385c7d4ca58e59fc732af25c3983b67ac852c1a25000afe1175de458b67ad | MIT | 23f18e03dc49df91622fe2a76176497404e46ced8a715d9d2b67a7446571cca3
+serde_json 1.0.150 | static, crates.io | e8014e44b4736ed0538adeecded0fce2a272f22dc9578a7eb6b2d9993c74cfb9 | MIT | 23f18e03dc49df91622fe2a76176497404e46ced8a715d9d2b67a7446571cca3
+termcolor 1.4.1 | static, crates.io | 06794f8f6c5c898b3275aebefa6b8a1cb24cd2c6c79397ab15774837a0bc5755 | MIT | 0f96a83840e146e43c0ec96a22ec1f392e0680e6c1226e6f3ba87e0740af850f
+textwrap 0.16.2 | static, crates.io | c13547615a44dc9c452a8a534638acdf07120d4b6847c8178705da06306a3057 | MIT | ce93600c49fbb3e14df32efe752264644f6a2f8e08a735ba981725799e5309ef
+walkdir 2.5.0 | static, crates.io | 29790946404f91d9c5d06f9874efddea1dc06c5efe94541a7d6863108e3a5e4b | MIT | 0f96a83840e146e43c0ec96a22ec1f392e0680e6c1226e6f3ba87e0740af850f
+zmij 1.0.23 | static, crates.io | 29666d0abbfad1e3dc4dcf6144730dd3a3ab225bbbdac83319345b1b44ccfc1b | MIT | 23f18e03dc49df91622fe2a76176497404e46ced8a715d9d2b67a7446571cca3
+
+Non-Cargo link inputs and platform dependencies:
+
+Rust standard library 1.97.1 | static | rust-std-aarch64-linux-android Debian archive SHA-256 98eeb5a632468a9d067b4ff7b5a2b263ae1ba9b16dc14464c96396041b68033e | MIT with Unicode-3.0 attribution | MIT 8d07f0c9c9966be0aaec4196d7863b56ade114e9714dbc31ebba576c0446d2fc; Unicode-3.0 f5062c9a188d81dfe66b56db4182dcf9e4b17c0d9b0d311a8e20b3a1b075c443
+LLVM compiler-rt builtins 21.1.8 | static link input | archive SHA-256 9aeed0613b933c2c79a7c366371b5910681b740b78093d33237fd31c67345cb2 | Apache-2.0 WITH LLVM-exception | 8d85c1057d742e597985c7d4e6320b015a9139385cff4cbae06ffc0ebe89afee
+Android libc.so | dynamic, platform-provided, not bundled | DT_NEEDED | Android platform license, outside APK payload | not bundled
+Android libdl.so | dynamic, platform-provided, not bundled | DT_NEEDED | Android platform license, outside APK payload | not bundled
+
+No PCRE2 library, pcre2 crate, pcre2-sys crate, decompressor, or other shared
+third-party runtime is linked or bundled for ripgrep.

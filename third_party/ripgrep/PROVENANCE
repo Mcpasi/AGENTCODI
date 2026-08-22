@@ -1,0 +1,82 @@
+AGENTCODI packaged ripgrep provenance
+
+Runtime artifact
+----------------
+Component: ripgrep 15.2.0
+Target: Android ARM64 (aarch64-linux-android)
+APK entry: lib/arm64-v8a/libripgrep.so
+Repository artifact: third_party/ripgrep/ripgrep-15.2.0-android-arm64.elf
+Byte count: 3250552
+SHA-256: 4eb0d0c70d2e3c760cab4f478c7eb715082ae1d8b5f4a23bb14515154348b04d
+ELF interpreter: /system/bin/linker64
+ELF DT_NEEDED, exact: libc.so, libdl.so
+ELF RPATH/RUNPATH: none
+ELF PT_LOAD alignment, every segment: 0x4000 (16384 bytes)
+ELF Android note: NDK r29 (14206865), API 24 baseline
+Application minimum API: 29
+
+The lower ELF baseline is intentional and compatible with the application's
+higher API 29 minimum. The binary is never downloaded, installed, rebuilt, or
+modified at Android runtime. The APK builder only verifies and copies these
+pinned bytes.
+
+Upstream source
+---------------
+URL: https://github.com/BurntSushi/ripgrep/archive/refs/tags/15.2.0.tar.gz
+SHA-256: 7605249d3eb0d5f170e3414498e3344e26b1e7a147aec518b57090b80036a562
+Cargo.lock SHA-256: 7a7d39cda8a03930e578f1dbb724e055771901842eca239e03b01e19da946a64
+Selected ripgrep license: MIT
+Upstream LICENSE-MIT SHA-256: 0f96a83840e146e43c0ec96a22ec1f392e0680e6c1226e6f3ba87e0740af850f
+
+Pinned build tools
+------------------
+Rust/Cargo: Termux rust 1.97.1, host and target aarch64-linux-android
+Rust package URL: https://packages.termux.dev/apt/termux-main/pool/main/r/rust/rust_1.97.1_aarch64.deb
+Rust package SHA-256: 55c7eae124034fb8cf738f58031b4b7d0182e84325675d7e6da116cf3af0ca41
+Rust std package URL: https://packages.termux.dev/apt/termux-main/pool/main/r/rust-std-aarch64-linux-android/rust-std-aarch64-linux-android_1.97.1_aarch64.deb
+Rust std package SHA-256: 98eeb5a632468a9d067b4ff7b5a2b263ae1ba9b16dc14464c96396041b68033e
+Rust host support package URL: https://packages.termux.dev/apt/termux-main/pool/main/liba/libandroid-execinfo/libandroid-execinfo_0.1-3_aarch64.deb
+Rust host support package SHA-256: 725dd2c6da7fc96e860fcc928e18aa9fb0e85e0bdcaf4f8ce0f0654ca6860fc2
+rustc commit: 8bab26f4f68e0e26f0bb7960be334d5b520ea452
+rustc LLVM: 21.1.8
+Clang: Termux clang 21.1.8, aarch64-unknown-linux-android24, NDK r29
+clang-21 executable SHA-256: 3599a121ecc11b433d23bc43545bc0441f9a8ffcc587ea18e312d88188fcf282
+LLD: 21.1.8
+ld.lld executable SHA-256: 7a0e3dad3eaeaf7ec0e85337ab1047470141e95aae11e4b51eb12c749c1a561a
+compiler-rt builtins archive SHA-256: 9aeed0613b933c2c79a7c366371b5910681b740b78093d33237fd31c67345cb2
+patchelf: Termux patchelf 0.19.1, build-time only and absent from the APK
+patchelf package URL: https://packages.termux.dev/apt/termux-main/pool/main/p/patchelf/patchelf_0.19.1_aarch64.deb
+patchelf package SHA-256: a08bea49b3c9c3bf449ee0c7b7ee9c97a9f3ab84ae06ace08a564d0903a23c3f
+
+Build contract
+--------------
+Cargo command: build --locked --offline --target aarch64-linux-android
+               --profile release-lto --no-default-features
+SOURCE_DATE_EPOCH: 1784131200
+CARGO_INCREMENTAL: 0
+Source remap: upstream source -> /usr/src/ripgrep-15.2.0
+Registry remap: Cargo registry -> /usr/src/cargo
+Link target request: aarch64-linux-android29
+Link alignment flags: -Wl,-z,max-page-size=16384
+                      -Wl,-z,common-page-size=16384
+Post-link operations: patchelf --remove-rpath; after confirming that no
+                      dynamic entry references it, overwrite the one stale
+                      49-byte Termux build-host dynstr value with zero bytes
+
+Two complete optimized link runs produced the same pre-sanitization SHA-256,
+ad956fdd0b372556e4d97fcc74f56eb222882d29490bb4dbcedd4c7837a4b9c6.
+Removing the Termux compiler's injected build-host RUNPATH produced SHA-256
+8c357566aa70063c6e5a6b6ad34312304901150cf8fbde29055f10d02e1c3753.
+Zeroing its single unreachable stale dynstr value deterministically produced
+the repository artifact SHA-256 above.
+
+Verification results
+--------------------
+`rg --version` reports ripgrep 15.2.0, `features:-pcre2`, and NEON support.
+`rg --pcre2-version` reports that PCRE2 is unavailable and exits nonzero.
+The target-specific Cargo normal-dependency closure contains exactly 34
+packages and contains neither pcre2 nor pcre2-sys. The complete closure,
+source checksums, selected license files, Rust standard-library input, LLVM
+link input, and Android dynamic dependencies are recorded in DEPENDENCIES.
+No absolute project or Termux build-host path remains in the ELF. Remapped
+`/usr/src/ripgrep-15.2.0` and `/usr/src/cargo` diagnostic source paths remain.

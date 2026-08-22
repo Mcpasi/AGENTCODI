@@ -49,7 +49,7 @@
   <string name="terminal_status_checking">Checking terminal runtime…</string>
   <string name="terminal_status_runtime_required">Start the Codex runtime in Settings before opening a terminal.</string>
   <string name="terminal_status_starting">Starting the bounded PTY shell…</string>
-  <string name="terminal_status_running">Terminal is running · packaged Node.js, npm, and Python are available for explicit activation.</string>
+  <string name="terminal_status_running">Terminal is running · packaged Node.js, npm, Python, and ripgrep are available for explicit activation.</string>
   <string name="terminal_status_running_tools_enabled">Terminal is running · enabled: %1$s.</string>
   <string name="terminal_status_failed">Terminal failed: %1$s</string>
   <string name="terminal_status_exited">Terminal exited with code %1$d.</string>
@@ -62,6 +62,8 @@
   <string name="terminal_npm_enabled">npm %1$s enabled</string>
   <string name="terminal_enable_python">Enable Python %1$s</string>
   <string name="terminal_python_enabled">Python %1$s enabled</string>
+  <string name="terminal_enable_ripgrep">Enable rg %1$s</string>
+  <string name="terminal_ripgrep_enabled">rg %1$s enabled</string>
   <string name="terminal_output_empty">Terminal output will appear here.</string>
   <string name="terminal_clear">Clear</string>
   <string name="terminal_control_c" translatable="false">Ctrl-C</string>
@@ -395,6 +397,8 @@
   <string name="license_npm_runtime_summary">npm 11.19.0 and its bundled dependency licenses · runs through the pinned Node.js runtime and uses only workspace/toolchain for writable cache and prefix data.</string>
   <string name="license_python_runtime_title">Packaged Python toolchain</string>
   <string name="license_python_runtime_summary">Python 3.14.6 with its bytecode standard library and 72 native extension modules · SQLite-backed dbm/shelve and PyREPL remain available; GNU Readline and GNU dbm are not bundled. All retained Android dependencies use permissive terms.</string>
+  <string name="license_ripgrep_runtime_title">Packaged ripgrep toolchain</string>
+  <string name="license_ripgrep_runtime_summary">ripgrep 15.2.0 for Android ARM64, built without PCRE2 · SHA-256 pinned in the APK with its complete statically linked dependency inventory and permissive license texts.</string>
   <string name="license_third_party_title">Additional third-party notices</string>
   <string name="license_third_party_summary">Includes the LLVM libc++ runtime under the University of Illinois/NCSA Open Source License.</string>
   <string name="license_show_notice">Show LICENSE and NOTICE</string>

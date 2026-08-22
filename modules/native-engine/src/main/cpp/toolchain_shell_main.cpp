@@ -10,12 +10,15 @@
 #include <sys/stat.h>
 #include <unistd.h>
 
+#include "ripgrep_bridge_policy.h"
+
 namespace {
 
 constexpr const char* kSystemShell = "/system/bin/sh";
 constexpr const char* kPackagedShellName = "libagentcodi-shell.so";
 constexpr const char* kPackagedNodeName = "libnode.so";
 constexpr const char* kPackagedPythonName = "libpython-bin.so";
+constexpr const char* kPackagedRipgrepName = "libripgrep.so";
 constexpr const char* kNpmCliRelativePath =
     "npm/node_modules/npm/bin/npm-cli.js";
 constexpr const char* kPythonHomeRelativePath = "python";
@@ -37,10 +40,13 @@ constexpr PackageSpec kNpmPackage {
     "npm", "npm", "11.19.0", "npm-11.19.0"};
 constexpr PackageSpec kPythonPackage {
     "python", "Python", "3.14.6", "python-3.14.6"};
+constexpr PackageSpec kRipgrepPackage {
+    "ripgrep", "ripgrep", "15.2.0", "ripgrep-15.2.0"};
 constexpr const PackageSpec* kPackages[] = {
     &kNodePackage,
     &kNpmPackage,
     &kPythonPackage,
+    &kRipgrepPackage,
 };
 
 std::string errno_message(const char* operation, int error_number) {
@@ -295,6 +301,14 @@ bool canonical_packaged_python(std::string* python, std::string* error) {
       kPackagedPythonName,
       "Python",
       python,
+      error);
+}
+
+bool canonical_packaged_ripgrep(std::string* ripgrep, std::string* error) {
+  return canonical_packaged_sibling(
+      kPackagedRipgrepName,
+      "ripgrep",
+      ripgrep,
       error);
 }
 
@@ -585,7 +599,8 @@ int toolchain_command(int argc, char* argv[]) {
   }
   std::cerr
       << "Usage: agentcodi-toolchain "
-      << "[list|install <node|npm|python>|remove <node|npm|python>]\n";
+      << "[list|install <node|npm|python|ripgrep>|"
+      << "remove <node|npm|python|ripgrep>]\n";
   return 2;
 }
 
@@ -596,7 +611,8 @@ std::string shell_functions(const std::string& bridge) {
       "node() { " + command + " --node \"$@\"; }; "
       "npm() { " + command + " --npm \"$@\"; }; "
       "python() { " + command + " --python \"$@\"; }; "
-      "python3() { " + command + " --python \"$@\"; }; ";
+      "python3() { " + command + " --python \"$@\"; }; "
+      "rg() { " + command + " --ripgrep \"$@\"; }; ";
 }
 
 int run_shell_command(const char* command) {
@@ -789,6 +805,38 @@ int run_python(int argc, char* argv[]) {
   return 126;
 }
 
+int run_ripgrep(int argc, char* argv[]) {
+  std::string error;
+  if (!require_enabled(kRipgrepPackage, &error)) {
+    return error.empty() ? 127 : 126;
+  }
+  std::vector<std::string> supplied_arguments;
+  supplied_arguments.reserve(static_cast<std::size_t>(argc));
+  for (int index = 0; index < argc; ++index) {
+    supplied_arguments.emplace_back(argv[index]);
+  }
+  if (!agentcodi::ValidateRipgrepArguments(supplied_arguments, &error)
+      || !agentcodi::PrepareRipgrepEnvironment(&error)) {
+    std::cerr << error << '\n';
+    return 2;
+  }
+  std::string ripgrep_path;
+  if (!canonical_packaged_ripgrep(&ripgrep_path, &error)) {
+    std::cerr << error << '\n';
+    return 126;
+  }
+  std::vector<char*> arguments;
+  arguments.reserve(static_cast<std::size_t>(argc) + 2U);
+  arguments.push_back(const_cast<char*>("rg"));
+  for (int index = 0; index < argc; ++index) {
+    arguments.push_back(argv[index]);
+  }
+  arguments.push_back(nullptr);
+  execv(ripgrep_path.c_str(), arguments.data());
+  std::cerr << errno_message("Packaged ripgrep", errno) << '\n';
+  return 126;
+}
+
 }  // namespace
 
 int main(int argc, char* argv[]) {
@@ -802,6 +850,9 @@ int main(int argc, char* argv[]) {
   }
   if (invoked_as == "python" || invoked_as == "python3") {
     return run_python(argc - 1, argv + 1);
+  }
+  if (invoked_as == "rg") {
+    return run_ripgrep(argc - 1, argv + 1);
   }
   if (invoked_as == "agentcodi-toolchain") {
     return toolchain_command(argc - 1, argv + 1);
@@ -821,11 +872,15 @@ int main(int argc, char* argv[]) {
   if (argc >= 2 && std::string(argv[1]) == "--python") {
     return run_python(argc - 2, argv + 2);
   }
+  if (argc >= 2 && std::string(argv[1]) == "--ripgrep") {
+    return run_ripgrep(argc - 2, argv + 2);
+  }
   if (argc == 3 && std::string(argv[1]) == "-c") {
     return run_shell_command(argv[2]);
   }
   std::cerr
       << "Usage: libagentcodi-shell.so "
-      << "[--interactive|-c command|--toolchain ...|--node ...|--npm ...|--python ...]\n";
+      << "[--interactive|-c command|--toolchain ...|--node ...|--npm ...|"
+      << "--python ...|--ripgrep ...]\n";
   return 2;
 }

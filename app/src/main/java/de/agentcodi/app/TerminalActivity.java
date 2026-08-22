@@ -66,6 +66,7 @@ public final class TerminalActivity extends Activity {
     private Button nodeButton;
     private Button npmButton;
     private Button pythonButton;
+    private Button ripgrepButton;
     private Button controlCButton;
     private Button tabButton;
     private Button escapeButton;
@@ -74,6 +75,7 @@ public final class TerminalActivity extends Activity {
     private boolean renderedNodeEnabled;
     private boolean renderedNpmEnabled;
     private boolean renderedPythonEnabled;
+    private boolean renderedRipgrepEnabled;
     private boolean refreshActive;
     private boolean uiReady;
     private boolean destroyed;
@@ -224,6 +226,9 @@ public final class TerminalActivity extends Activity {
             }
         });
         toolActions.addView(npmButton, weightedButtonParams(1.0f, 6));
+
+        LinearLayout secondaryToolActions = new LinearLayout(this);
+        secondaryToolActions.setOrientation(LinearLayout.HORIZONTAL);
         pythonButton = theme.compactButton(getString(
             R.string.terminal_enable_python,
             BuildIdentity.PYTHON_RUNTIME_VERSION
@@ -234,8 +239,20 @@ public final class TerminalActivity extends Activity {
                 sendLiteral("agentcodi-toolchain install python\n");
             }
         });
-        toolActions.addView(pythonButton, weightedButtonParams(1.0f, 6));
+        secondaryToolActions.addView(pythonButton, weightedButtonParams(1.0f, 0));
+        ripgrepButton = theme.compactButton(getString(
+            R.string.terminal_enable_ripgrep,
+            BuildIdentity.RIPGREP_RUNTIME_VERSION
+        ));
+        ripgrepButton.setOnClickListener(new View.OnClickListener() {
+            @Override
+            public void onClick(View view) {
+                sendLiteral("agentcodi-toolchain install ripgrep\n");
+            }
+        });
+        secondaryToolActions.addView(ripgrepButton, weightedButtonParams(1.0f, 6));
         theme.addWithTopMargin(root, toolActions, 6);
+        theme.addWithTopMargin(root, secondaryToolActions, 6);
 
         outputScroll = new ScrollView(this);
         outputScroll.setFillViewport(true);
@@ -407,11 +424,13 @@ public final class TerminalActivity extends Activity {
             renderedNodeEnabled = AgentRuntimeService.isNodeRuntimeEnabled();
             renderedNpmEnabled = AgentRuntimeService.isNpmRuntimeEnabled();
             renderedPythonEnabled = AgentRuntimeService.isPythonRuntimeEnabled();
+            renderedRipgrepEnabled = AgentRuntimeService.isRipgrepRuntimeEnabled();
             toolStatusCheckedAt = now;
         }
         boolean nodeEnabled = renderedNodeEnabled;
         boolean npmEnabled = renderedNpmEnabled;
         boolean pythonEnabled = renderedPythonEnabled;
+        boolean ripgrepEnabled = renderedRipgrepEnabled;
         if (!runtimeReady) {
             statusView.setText(R.string.terminal_status_runtime_required);
             statusView.setTextColor(theme.danger);
@@ -425,7 +444,12 @@ public final class TerminalActivity extends Activity {
             ));
             statusView.setTextColor(theme.danger);
         } else if (terminal.isRunning()) {
-            String enabledTools = enabledTools(nodeEnabled, npmEnabled, pythonEnabled);
+            String enabledTools = enabledTools(
+                nodeEnabled,
+                npmEnabled,
+                pythonEnabled,
+                ripgrepEnabled
+            );
             statusView.setText(enabledTools.isEmpty()
                 ? getString(R.string.terminal_status_running)
                 : getString(R.string.terminal_status_running_tools_enabled, enabledTools));
@@ -454,12 +478,19 @@ public final class TerminalActivity extends Activity {
             pythonEnabled ? R.string.terminal_python_enabled : R.string.terminal_enable_python,
             BuildIdentity.PYTHON_RUNTIME_VERSION
         ));
+        ripgrepButton.setText(getString(
+            ripgrepEnabled
+                ? R.string.terminal_ripgrep_enabled
+                : R.string.terminal_enable_ripgrep,
+            BuildIdentity.RIPGREP_RUNTIME_VERSION
+        ));
         theme.setEnabled(startButton, runtimeReady && !running && !terminal.isStarting());
         theme.setEnabled(stopButton, running || terminal.isStarting());
         theme.setEnabled(sendButton, running);
         theme.setEnabled(nodeButton, running && !nodeEnabled);
         theme.setEnabled(npmButton, running && !npmEnabled);
         theme.setEnabled(pythonButton, running && !pythonEnabled);
+        theme.setEnabled(ripgrepButton, running && !ripgrepEnabled);
         theme.setEnabled(controlCButton, running);
         theme.setEnabled(tabButton, running);
         theme.setEnabled(escapeButton, running);
@@ -481,7 +512,12 @@ public final class TerminalActivity extends Activity {
         }
     }
 
-    private String enabledTools(boolean nodeEnabled, boolean npmEnabled, boolean pythonEnabled) {
+    private String enabledTools(
+        boolean nodeEnabled,
+        boolean npmEnabled,
+        boolean pythonEnabled,
+        boolean ripgrepEnabled
+    ) {
         StringBuilder enabled = new StringBuilder();
         if (nodeEnabled) {
             enabled.append("Node.js ").append(BuildIdentity.NODE_RUNTIME_VERSION);
@@ -491,6 +527,9 @@ public final class TerminalActivity extends Activity {
         }
         if (pythonEnabled) {
             appendEnabledTool(enabled, "Python " + BuildIdentity.PYTHON_RUNTIME_VERSION);
+        }
+        if (ripgrepEnabled) {
+            appendEnabledTool(enabled, "ripgrep " + BuildIdentity.RIPGREP_RUNTIME_VERSION);
         }
         return enabled.toString();
     }

@@ -16,6 +16,8 @@ import java.util.Comparator;
 import java.util.List;
 
 public final class WorkspaceExportFile {
+    private static final int DEFAULT_SCANNED_ENTRIES_PER_FILE = 32;
+
     private final File file;
     private final String relativePath;
     private final String displayName;
@@ -75,21 +77,39 @@ public final class WorkspaceExportFile {
         int maximumRelativePathCharacters,
         int maximumDepth
     ) throws IOException {
-        if (maximumFiles <= 0 || maximumRelativePathCharacters <= 0 || maximumDepth <= 0) {
+        return list(
+            workspaceDirectory,
+            maximumFiles,
+            defaultMaximumScannedEntries(maximumFiles),
+            maximumRelativePathCharacters,
+            maximumDepth
+        );
+    }
+
+    public static List<WorkspaceExportFile> list(
+        File workspaceDirectory,
+        int maximumFiles,
+        int maximumScannedEntries,
+        int maximumRelativePathCharacters,
+        int maximumDepth
+    ) throws IOException {
+        if (maximumFiles <= 0 || maximumScannedEntries < maximumFiles
+            || maximumRelativePathCharacters <= 0 || maximumDepth <= 0) {
             throw new IllegalArgumentException("Workspace catalog limits must be positive");
         }
         Path workspace = WorkspaceFileBoundary.requireWorkspace(workspaceDirectory);
         List<WorkspaceExportFile> files = new ArrayList<WorkspaceExportFile>();
-        int[] entryCount = new int[] {0};
+        int[] scannedEntryCount = new int[] {0};
         collect(
             workspace,
             workspace,
             0,
             maximumFiles,
+            maximumScannedEntries,
             maximumRelativePathCharacters,
             maximumDepth,
             files,
-            entryCount
+            scannedEntryCount
         );
         Collections.sort(files, new Comparator<WorkspaceExportFile>() {
             @Override
@@ -98,6 +118,16 @@ public final class WorkspaceExportFile {
             }
         });
         return Collections.unmodifiableList(files);
+    }
+
+    static int defaultMaximumScannedEntries(int maximumFiles) {
+        if (maximumFiles <= 0) {
+            throw new IllegalArgumentException("maximumFiles must be positive");
+        }
+        if (maximumFiles > Integer.MAX_VALUE / DEFAULT_SCANNED_ENTRIES_PER_FILE) {
+            return Integer.MAX_VALUE;
+        }
+        return maximumFiles * DEFAULT_SCANNED_ENTRIES_PER_FILE;
     }
 
     public static WorkspaceExportFile copyTo(
@@ -205,10 +235,11 @@ public final class WorkspaceExportFile {
         Path directory,
         int depth,
         int maximumFiles,
+        int maximumScannedEntries,
         int maximumRelativePathCharacters,
         int maximumDepth,
         List<WorkspaceExportFile> files,
-        int[] entryCount
+        int[] scannedEntryCount
     ) throws IOException {
         if (depth > maximumDepth) {
             throw new IOException("Workspace directory depth exceeds the export limit");
@@ -216,10 +247,12 @@ public final class WorkspaceExportFile {
         List<Path> children = new ArrayList<Path>();
         try (DirectoryStream<Path> stream = Files.newDirectoryStream(directory)) {
             for (Path child : stream) {
-                if (entryCount[0] >= maximumFiles) {
-                    throw new IOException("Workspace entry count exceeds the export limit");
+                if (scannedEntryCount[0] >= maximumScannedEntries) {
+                    throw new IOException(
+                        "Workspace scan entry count exceeds the export limit"
+                    );
                 }
-                entryCount[0]++;
+                scannedEntryCount[0]++;
                 children.add(child);
             }
         }
@@ -239,7 +272,10 @@ public final class WorkspaceExportFile {
                 LinkOption.NOFOLLOW_LINKS
             );
             if (attributes.isSymbolicLink()) {
-                throw new IOException("Symbolic workspace entries are not exportable");
+                // The entry remains non-exportable, but its presence must not
+                // suppress unrelated regular files. Do not canonicalize or
+                // traverse the target.
+                continue;
             }
             Path canonicalChild = child.toFile().getCanonicalFile().toPath();
             if (!canonicalChild.startsWith(workspace) || canonicalChild.equals(workspace)) {
@@ -255,12 +291,18 @@ public final class WorkspaceExportFile {
                     canonicalChild,
                     depth + 1,
                     maximumFiles,
+                    maximumScannedEntries,
                     maximumRelativePathCharacters,
                     maximumDepth,
                     files,
-                    entryCount
+                    scannedEntryCount
                 );
             } else if (attributes.isRegularFile()) {
+                if (files.size() >= maximumFiles) {
+                    throw new IOException(
+                        "Workspace regular-file count exceeds the export limit"
+                    );
+                }
                 WorkspaceFileBoundary.requireSingleLink(canonicalChild);
                 files.add(new WorkspaceExportFile(
                     canonicalChild.toFile(),

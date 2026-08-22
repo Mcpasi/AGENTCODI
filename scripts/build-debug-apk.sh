@@ -6,8 +6,8 @@ PROJECT_ROOT="$(cd -- "$SCRIPT_DIR/.." && pwd -P)"
 
 APP_NAME="AGENTCODI"
 APP_ID="de.agentcodi.app"
-APP_VERSION="0.5.13"
-VERSION_CODE="50"
+APP_VERSION="0.5.16"
+VERSION_CODE="53"
 MIN_SDK="29"
 TARGET_SDK="35"
 ABI="arm64-v8a"
@@ -21,15 +21,23 @@ case "$BUILD_VARIANT" in
     ;;
 esac
 
-CODEX_ANDROID_VERSION="0.147.2"
+CODEX_ANDROID_VERSION="0.148.1"
 CODEX_ANDROID_URL="https://registry.npmjs.org/@mmmbuto/codex-cli-termux/-/codex-cli-termux-$CODEX_ANDROID_VERSION.tgz"
-CODEX_ANDROID_SHA256="4b70bca7004402cf445670efe43775e76ac598f719c72a8d6c83ac8494bb2b5c"
-CODEX_APP_SERVER_SOURCE_SHA256="c95b61282ed0086b9895b8d401fda274ef9ddf1a80fe808f3fad93f4444d8dc4"
-CODEX_CODE_MODE_HOST_SHA256="aa90fc2ce11bc309a08ea25836019fda6c7ff7edc9eaa35f8f3746a37979fc18"
-CODEX_APP_SERVER_ANDROID_SHA256="11db4fdd763e21fa81f4fb47d61c4bcbea145e817364eaa35f6e75146f85beee"
+CODEX_ANDROID_SHA256="b68a6c6770752deb045db084a9637b8cf1647b996a57d454e599981b963c4092"
+CODEX_TERMUX_SOURCE_TAG="v0.148.1"
+CODEX_TERMUX_SOURCE_COMMIT="9d48c76abec320ae3724164d0177299b1acd31ca"
+CODEX_UPSTREAM_SOURCE_TAG="rust-v0.148.0"
+CODEX_UPSTREAM_SOURCE_COMMIT="3ba0f711642a888aec92a611a3f3b2211157ff89"
+CODEX_APP_SERVER_SOURCE_SHA256="35c76bc8a75fc768ea44433bcc755be931a3d73215d8324a182020b57ff1aa49"
+CODEX_CODE_MODE_HOST_SHA256="da7bc9b805dd069f9b4008cb749d0f192cfd83445ed6ba7202ffd5aa51c1f855"
+CODEX_APP_SERVER_ANDROID_SHA256="9c74afbfa027b840228278f4483405f59dc03393185e6e3a52fbc7ca64b921b9"
+CODEX_LICENSE_SHA256="d17f227e4df5da1600391338865ce0f3055211760a36688f816941d58232d8dc"
+CODEX_NOTICE_SHA256="8228749dd4dd6026baed0442f80e911308430478449285c865b188d97e6a013c"
+CODEX_SCHEMA_BUNDLE_SHA256="819fe7b47288cc74da5190743390c8d1faef403f5401a1868b306dac195b1944"
+CODEX_V2_SCHEMA_BUNDLE_SHA256="e5a20eb7211c21540a2d4e0106479285e13778e9c53d5837cfc735a71316a51e"
 CODEX_DEFAULT_HOST_NAME="codex-code-mode-host"
 CODEX_PACKAGED_HOST_NAME="libcodex-codehost.so"
-CODEX_DEFAULT_HOST_OFFSET="10754589"
+CODEX_DEFAULT_HOST_OFFSET="10731233"
 
 NODE_VERSION="24.18.0"
 NODE_URL="https://packages.termux.dev/apt/termux-main/pool/main/n/nodejs-lts/nodejs-lts_${NODE_VERSION}_aarch64.deb"
@@ -432,6 +440,9 @@ DEX_DIR="$WORK_DIR/dex"
 ADDITIONS="$WORK_DIR/additions"
 NATIVE_DIR="$ADDITIONS/lib/$ABI"
 CODEX_EXTRACT="$WORK_DIR/codex"
+CODEX_SCHEMA_DIR="$WORK_DIR/codex-schema"
+CODEX_SCHEMA_HOME="$WORK_DIR/codex-schema-home"
+CODEX_SCHEMA_TMP="$WORK_DIR/codex-schema-tmp"
 THIRD_PARTY_ASSETS="$ADDITIONS/assets/third-party/codex"
 NODE_THIRD_PARTY_ASSETS="$ADDITIONS/assets/third-party/node"
 NPM_THIRD_PARTY_ASSETS="$ADDITIONS/assets/third-party/npm"
@@ -442,6 +453,8 @@ TOOL_RUNTIME_STAGE="$WORK_DIR/tool-runtime-stage"
 TOOL_RUNTIME_MANIFEST="$TOOL_RUNTIME_ASSETS/RUNTIME-MANIFEST"
 TOOL_RUNTIME_ARCHIVE="$TOOL_RUNTIME_ASSETS/RUNTIME.zip"
 mkdir -p "$EXTRACT_DIR" "$AAPT2_EXTRACT" "$GENERATED_JAVA" "$CLASSES_ROOT" "$JARS_ROOT" "$DEX_DIR" "$NATIVE_DIR" "$CODEX_EXTRACT" "$THIRD_PARTY_ASSETS" "$NODE_THIRD_PARTY_ASSETS" "$NPM_THIRD_PARTY_ASSETS" "$PYTHON_THIRD_PARTY_ASSETS" "$RIPGREP_THIRD_PARTY_ASSETS" "$TOOL_RUNTIME_ASSETS" "$TOOL_RUNTIME_STAGE"
+mkdir -m 700 "$CODEX_SCHEMA_DIR" "$CODEX_SCHEMA_HOME" "$CODEX_SCHEMA_TMP"
+mkdir -m 700 "$CODEX_SCHEMA_HOME/codex-home"
 
 (
   cd "$EXTRACT_DIR"
@@ -469,6 +482,8 @@ CODEX_BINARY="$WORK_DIR/codex-app-server-android"
 CODEX_CODE_MODE_HOST_BINARY="$CODEX_EXTRACT/package/bin/codex-code-mode-host"
 CODEX_LICENSE="$CODEX_EXTRACT/package/LICENSE"
 CODEX_NOTICE="$CODEX_EXTRACT/package/NOTICE"
+CODEX_PACKAGE_JSON="$CODEX_EXTRACT/package/package.json"
+CODEX_PACKAGE_README="$CODEX_EXTRACT/package/README.md"
 TERMUX_RUNTIME_PREFIX="$AAPT2_EXTRACT/data/data/com.termux/files/usr"
 NODE_SOURCE_BINARY="$TERMUX_RUNTIME_PREFIX/bin/node"
 CARES_SOURCE_LIBRARY="$TERMUX_RUNTIME_PREFIX/lib/libcares.so"
@@ -501,7 +516,7 @@ if [ ! -f "$LIBCXX_SHARED" ] || ! file "$LIBCXX_SHARED" | grep -q 'ARM aarch64';
   echo "Pinned libc++ runtime is missing or not ARM64." >&2
   exit 1
 fi
-for codex_file in "$CODEX_SOURCE_BINARY" "$CODEX_CODE_MODE_HOST_BINARY" "$CODEX_LICENSE" "$CODEX_NOTICE"; do
+for codex_file in "$CODEX_SOURCE_BINARY" "$CODEX_CODE_MODE_HOST_BINARY" "$CODEX_LICENSE" "$CODEX_NOTICE" "$CODEX_PACKAGE_JSON" "$CODEX_PACKAGE_README"; do
   if [ ! -f "$codex_file" ]; then
     echo "Pinned Codex archive is missing: $codex_file" >&2
     exit 1
@@ -539,6 +554,41 @@ if ! printf '%s  %s\n' "$CODEX_APP_SERVER_SOURCE_SHA256" "$CODEX_SOURCE_BINARY" 
   echo "Pinned Codex archive contains an unexpected executable." >&2
   exit 1
 fi
+verify_file_sha256 "$CODEX_LICENSE" "$CODEX_LICENSE_SHA256"
+verify_file_sha256 "$CODEX_NOTICE" "$CODEX_NOTICE_SHA256"
+if ! grep -Fq "\"version\": \"$CODEX_ANDROID_VERSION\"" "$CODEX_PACKAGE_JSON" \
+    || ! grep -Fq "upstream $CODEX_UPSTREAM_SOURCE_TAG" "$CODEX_PACKAGE_JSON" \
+    || ! grep -Fq "built from upstream OpenAI Codex \`$CODEX_UPSTREAM_SOURCE_TAG\`" "$CODEX_PACKAGE_README"; then
+  echo "Pinned Codex package metadata does not match the reviewed runtime/source tag." >&2
+  exit 1
+fi
+env -i \
+  HOME="$CODEX_SCHEMA_HOME" \
+  CODEX_HOME="$CODEX_SCHEMA_HOME/codex-home" \
+  TMPDIR="$CODEX_SCHEMA_TMP" \
+  LD_LIBRARY_PATH="$CODEX_EXTRACT/package/bin" \
+  "$CODEX_SOURCE_BINARY" app-server generate-json-schema --out "$CODEX_SCHEMA_DIR"
+verify_file_sha256 \
+  "$CODEX_SCHEMA_DIR/codex_app_server_protocol.schemas.json" \
+  "$CODEX_SCHEMA_BUNDLE_SHA256"
+verify_file_sha256 \
+  "$CODEX_SCHEMA_DIR/codex_app_server_protocol.v2.schemas.json" \
+  "$CODEX_V2_SCHEMA_BUNDLE_SHA256"
+for required_schema_method in \
+    'item/commandExecution/requestApproval' \
+    'item/fileChange/requestApproval' \
+    'item/tool/requestUserInput' \
+    'thread/list' \
+    'thread/resume' \
+    'turn/start' \
+    'turn/steer' \
+    'command/exec'; do
+  if ! grep -Fq "$required_schema_method" \
+      "$CODEX_SCHEMA_DIR/codex_app_server_protocol.schemas.json"; then
+    echo "Pinned Codex schema is missing required method: $required_schema_method" >&2
+    exit 1
+  fi
+done
 if [ "${#CODEX_DEFAULT_HOST_NAME}" -ne "${#CODEX_PACKAGED_HOST_NAME}" ]; then
   echo "Android host-name relocation must preserve the Codex binary layout." >&2
   exit 1

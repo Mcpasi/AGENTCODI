@@ -189,7 +189,7 @@
 
   <string name="workspace_export_section">WORKSPACE-EXPORT</string>
   <string name="workspace_export_description">Reguläre Workspace-Dateien werden unabhängig von Typ oder Endung bytegenau an einen im Android-Dokumentdialog gewählten Ort kopiert. Alternativ enthält das ZIP alle regulären Dateien mit ihrer relativen Verzeichnisstruktur. Symbolische oder harte Links, fremde Pfade und das getrennte CODEX_HOME werden nie exportiert.</string>
-  <string name="workspace_export_ready">Bereit. Einzeldateien: maximal 512 MiB; ZIP: 2.048 Einträge und 1 GiB Inhalt.</string>
+  <string name="workspace_export_ready">Bereit. Einzeldateien: maximal 512 MiB; ZIP: 2.048 reguläre Dateien und 1 GiB Inhalt; Katalogscan: maximal 65.536 Dateisystemeinträge.</string>
   <string name="workspace_file_choose">Workspace-Datei auswählen</string>
   <string name="workspace_archive_export">Gesamten Workspace als ZIP exportieren</string>
   <string name="workspace_file_export_cancelled">Dateiexport wurde abgebrochen.</string>
@@ -390,7 +390,7 @@
   <string name="license_agentcodi_title">AGENTCODI-Urheberschaft</string>
   <string name="license_agentcodi_summary">Copyright 2026 Pascal (Mc Pasi) · Apache License 2.0.</string>
   <string name="license_codex_runtime_title">Codex Android Community-Runtime</string>
-  <string name="license_codex_runtime_summary">OpenAI Codex 0.147.2 und die Android-/Termux-Community-Distribution · Apache License 2.0. Dies ist keine offizielle OpenAI-Android-APK.</string>
+  <string name="license_codex_runtime_summary">OpenAI Codex 0.148.1 und die Android-/Termux-Community-Distribution · Apache License 2.0. Dies ist keine offizielle OpenAI-Android-APK.</string>
   <string name="license_node_runtime_title">Mitgelieferte Node.js-Toolchain</string>
   <string name="license_node_runtime_summary">Node.js LTS 24.18.0 und seine gepinnten Android-Runtime-Abhängigkeiten · in der APK enthalten und nur durch eine ausdrückliche Nutzeraktion oder einen genehmigten Codex-Befehl aktiviert. Enthält Komponenten unter MIT-, Unicode-3.0-, Apache-2.0- und zlib-Lizenz sowie gemeinfreie Komponenten.</string>
   <string name="license_npm_runtime_title">Paketierte npm-Toolchain</string>

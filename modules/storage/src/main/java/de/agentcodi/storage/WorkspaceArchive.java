@@ -23,12 +23,33 @@ public final class WorkspaceArchive {
         int maximumRelativePathCharacters,
         int maximumDepth
     ) throws IOException {
+        return inspect(
+            workspaceDirectory,
+            maximumFiles,
+            WorkspaceExportFile.defaultMaximumScannedEntries(maximumFiles),
+            maximumFileBytes,
+            maximumTotalBytes,
+            maximumRelativePathCharacters,
+            maximumDepth
+        );
+    }
+
+    public static Summary inspect(
+        File workspaceDirectory,
+        int maximumFiles,
+        int maximumScannedEntries,
+        long maximumFileBytes,
+        long maximumTotalBytes,
+        int maximumRelativePathCharacters,
+        int maximumDepth
+    ) throws IOException {
         if (maximumFileBytes < 0L || maximumTotalBytes < 0L) {
             throw new IllegalArgumentException("Workspace archive byte limits must not be negative");
         }
         List<WorkspaceExportFile> files = WorkspaceExportFile.list(
             workspaceDirectory,
             maximumFiles,
+            maximumScannedEntries,
             maximumRelativePathCharacters,
             maximumDepth
         );
@@ -59,6 +80,30 @@ public final class WorkspaceArchive {
             workspaceDirectory,
             destination,
             maximumFiles,
+            WorkspaceExportFile.defaultMaximumScannedEntries(maximumFiles),
+            maximumFileBytes,
+            maximumTotalBytes,
+            maximumRelativePathCharacters,
+            maximumDepth,
+            WorkspaceFileAccess.secureNioOpener()
+        );
+    }
+
+    public static Summary write(
+        File workspaceDirectory,
+        OutputStream destination,
+        int maximumFiles,
+        int maximumScannedEntries,
+        long maximumFileBytes,
+        long maximumTotalBytes,
+        int maximumRelativePathCharacters,
+        int maximumDepth
+    ) throws IOException {
+        return write(
+            workspaceDirectory,
+            destination,
+            maximumFiles,
+            maximumScannedEntries,
             maximumFileBytes,
             maximumTotalBytes,
             maximumRelativePathCharacters,
@@ -77,6 +122,30 @@ public final class WorkspaceArchive {
         int maximumDepth,
         WorkspaceFileAccess.Opener opener
     ) throws IOException {
+        return write(
+            workspaceDirectory,
+            destination,
+            maximumFiles,
+            WorkspaceExportFile.defaultMaximumScannedEntries(maximumFiles),
+            maximumFileBytes,
+            maximumTotalBytes,
+            maximumRelativePathCharacters,
+            maximumDepth,
+            opener
+        );
+    }
+
+    public static Summary write(
+        File workspaceDirectory,
+        OutputStream destination,
+        int maximumFiles,
+        int maximumScannedEntries,
+        long maximumFileBytes,
+        long maximumTotalBytes,
+        int maximumRelativePathCharacters,
+        int maximumDepth,
+        WorkspaceFileAccess.Opener opener
+    ) throws IOException {
         if (destination == null) {
             throw new IllegalArgumentException("destination must not be null");
         }
@@ -86,6 +155,7 @@ public final class WorkspaceArchive {
         Summary before = inspect(
             workspaceDirectory,
             maximumFiles,
+            maximumScannedEntries,
             maximumFileBytes,
             maximumTotalBytes,
             maximumRelativePathCharacters,
@@ -128,6 +198,7 @@ public final class WorkspaceArchive {
         Summary after = inspect(
             workspaceDirectory,
             maximumFiles,
+            maximumScannedEntries,
             maximumFileBytes,
             maximumTotalBytes,
             maximumRelativePathCharacters,

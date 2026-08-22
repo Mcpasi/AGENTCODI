@@ -1,10 +1,16 @@
 AGENTCODI THIRD-PARTY NOTICE
 
-Codex CLI/app-server Android ARM64 community build 0.147.2
+Codex CLI/app-server Android ARM64 community build 0.148.1
 (@mmmbuto/codex-cli-termux), Apache License 2.0.
 OpenAI Codex Copyright 2025 OpenAI.
 Android/Termux compatibility work Copyright 2026 Davide A. Guglielmi.
 This community build is not an official OpenAI Android APK.
+Distribution source: v0.148.1, commit
+9d48c76abec320ae3724164d0177299b1acd31ca.
+OpenAI source base: rust-v0.148.0, commit
+3ba0f711642a888aec92a611a3f3b2211157ff89.
+Package SHA-256:
+b68a6c6770752deb045db084a9637b8cf1647b996a57d454e599981b963c4092.
 AGENTCODI deterministically changes one equal-length app-server data field
 from codex-code-mode-host to libcodex-codehost.so so Android Package Manager
 can install the matching, otherwise unchanged host beside the app-server.

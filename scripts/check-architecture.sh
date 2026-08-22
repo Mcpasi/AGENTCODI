@@ -311,7 +311,7 @@ if rg -n 'approvalPolicy", "never"' "$PROJECT_ROOT/modules/core/src/main/java/de
 fi
 
 if rg -n 'projects\..*trust_level' "$PROJECT_ROOT/modules/native-engine/src/main/cpp/app_server_process.cpp"; then
-  echo "Pinned Codex 0.147.2 rejects project trust CLI overrides under strict config." >&2
+  echo "The pinned Codex runtime rejects project trust CLI overrides under strict config." >&2
   exit 1
 fi
 
@@ -406,6 +406,8 @@ settings_activity="$PROJECT_ROOT/app/src/main/java/de/agentcodi/app/SettingsActi
 workspace_reader="$PROJECT_ROOT/modules/native-engine/src/main/cpp/workspace_file_reader.cpp"
 workspace_access="$PROJECT_ROOT/modules/storage/src/main/java/de/agentcodi/storage/WorkspaceFileAccess.java"
 workspace_archive="$PROJECT_ROOT/modules/storage/src/main/java/de/agentcodi/storage/WorkspaceArchive.java"
+workspace_export_file="$PROJECT_ROOT/modules/storage/src/main/java/de/agentcodi/storage/WorkspaceExportFile.java"
+workspace_export_test="$PROJECT_ROOT/tests/java/de/agentcodi/tests/WorkspaceExportTest.java"
 if ! rg -q 'WorkspaceExportFile\.list' "$workspace_exporter" \
     || ! rg -q 'WorkspaceExportFile\.copyTo' "$workspace_exporter" \
     || ! rg -q 'WorkspaceArchive\.write' "$workspace_exporter" \
@@ -415,8 +417,15 @@ if ! rg -q 'WorkspaceExportFile\.list' "$workspace_exporter" \
     || ! rg -q 'expectedFileKey\.equals\(fileKey\)' "$PROJECT_ROOT/modules/storage/src/main/java/de/agentcodi/storage/WorkspaceFileBoundary.java" \
     || ! rg -q 'SecureDirectoryStream' "$workspace_access" \
     || ! rg -q 'hasSameOpenedSnapshot' "$workspace_archive" \
-    || ! rg -q 'getNano\(\) / 1000' "$PROJECT_ROOT/modules/storage/src/main/java/de/agentcodi/storage/WorkspaceExportFile.java" \
-    || ! rg -q 'archivesAcrossProviderTimestampPrecision' "$PROJECT_ROOT/tests/java/de/agentcodi/tests/WorkspaceExportTest.java" \
+    || ! rg -q 'maximumScannedEntries' "$workspace_archive" \
+    || ! rg -q 'MAXIMUM_SCANNED_ENTRIES = 65536' "$workspace_exporter" \
+    || ! rg -q 'scannedEntryCount' "$workspace_export_file" \
+    || ! rg -q 'files\.size\(\) >= maximumFiles' "$workspace_export_file" \
+    || ! rg -q 'defaultMaximumScannedEntries' "$workspace_export_file" \
+    || ! rg -q 'getNano\(\) / 1000' "$workspace_export_file" \
+    || ! rg -q 'doesNotChargeSkippedEntriesAgainstRegularFileLimit' "$workspace_export_test" \
+    || ! rg -q 'keepsSkippedEntriesBoundedBySeparateScanLimit' "$workspace_export_test" \
+    || ! rg -q 'archivesAcrossProviderTimestampPrecision' "$workspace_export_test" \
     || ! rg -q 'openat\(' "$workspace_reader" \
     || ! rg -q 'O_NOFOLLOW' "$workspace_reader" \
     || ! rg -q 'fstat\(' "$workspace_reader" \
@@ -659,13 +668,34 @@ if ! rg -q 'PYTHON_SOURCE_EXTENSION_COUNT="75"' "$apk_builder" \
   exit 1
 fi
 
-if ! rg -q 'VERSION_NAME = "0\.5\.13"' "$core_root/BuildIdentity.java" \
-    || ! rg -q 'VERSION_CODE = 50' "$core_root/BuildIdentity.java" \
-    || ! rg -q 'android:versionName="0\.5\.13"' "$manifest" \
-    || ! rg -q 'android:versionCode="50"' "$manifest" \
-    || ! rg -q 'APP_VERSION="0\.5\.13"' "$apk_builder" \
-    || ! rg -q 'VERSION_CODE="50"' "$apk_builder"; then
-  echo "The 0.5.13 identity is inconsistent." >&2
+if ! rg -q 'VERSION_NAME = "0\.5\.16"' "$core_root/BuildIdentity.java" \
+    || ! rg -q 'VERSION_CODE = 53' "$core_root/BuildIdentity.java" \
+    || ! rg -q 'CODEX_RUNTIME_VERSION = "0\.148\.1"' "$core_root/BuildIdentity.java" \
+    || ! rg -q 'android:versionName="0\.5\.16"' "$manifest" \
+    || ! rg -q 'android:versionCode="53"' "$manifest" \
+    || ! rg -q 'APP_VERSION="0\.5\.16"' "$apk_builder" \
+    || ! rg -q 'VERSION_CODE="53"' "$apk_builder" \
+    || ! rg -q 'CODEX_ANDROID_VERSION="0\.148\.1"' "$apk_builder" \
+    || ! rg -q 'CODEX_TERMUX_SOURCE_TAG="v0\.148\.1"' "$apk_builder" \
+    || ! rg -q 'CODEX_TERMUX_SOURCE_COMMIT="9d48c76abec320ae3724164d0177299b1acd31ca"' "$apk_builder" \
+    || ! rg -q 'CODEX_UPSTREAM_SOURCE_TAG="rust-v0\.148\.0"' "$apk_builder" \
+    || ! rg -q 'CODEX_UPSTREAM_SOURCE_COMMIT="3ba0f711642a888aec92a611a3f3b2211157ff89"' "$apk_builder" \
+    || ! rg -q 'CODEX_ANDROID_SHA256="b68a6c6770752deb045db084a9637b8cf1647b996a57d454e599981b963c4092"' "$apk_builder" \
+    || ! rg -q 'CODEX_APP_SERVER_SOURCE_SHA256="35c76bc8a75fc768ea44433bcc755be931a3d73215d8324a182020b57ff1aa49"' "$apk_builder" \
+    || ! rg -q 'CODEX_CODE_MODE_HOST_SHA256="da7bc9b805dd069f9b4008cb749d0f192cfd83445ed6ba7202ffd5aa51c1f855"' "$apk_builder" \
+    || ! rg -q 'CODEX_APP_SERVER_ANDROID_SHA256="9c74afbfa027b840228278f4483405f59dc03393185e6e3a52fbc7ca64b921b9"' "$apk_builder" \
+    || ! rg -q 'CODEX_LICENSE_SHA256="d17f227e4df5da1600391338865ce0f3055211760a36688f816941d58232d8dc"' "$apk_builder" \
+    || ! rg -q 'CODEX_NOTICE_SHA256="8228749dd4dd6026baed0442f80e911308430478449285c865b188d97e6a013c"' "$apk_builder" \
+    || ! rg -q 'CODEX_SCHEMA_BUNDLE_SHA256="819fe7b47288cc74da5190743390c8d1faef403f5401a1868b306dac195b1944"' "$apk_builder" \
+    || ! rg -q 'CODEX_V2_SCHEMA_BUNDLE_SHA256="e5a20eb7211c21540a2d4e0106479285e13778e9c53d5837cfc735a71316a51e"' "$apk_builder" \
+    || ! rg -q 'app-server generate-json-schema' "$apk_builder" \
+    || ! rg -q '0\.148\.1' "$PROJECT_ROOT/NOTICE.md" \
+    || ! rg -q '0\.148\.1' "$PROJECT_ROOT/app/src/main/res/raw/third_party_notices.txt" \
+    || ! rg -q '9d48c76abec320ae3724164d0177299b1acd31ca' "$PROJECT_ROOT/NOTICE.md" \
+    || ! rg -q '9d48c76abec320ae3724164d0177299b1acd31ca' "$PROJECT_ROOT/app/src/main/res/raw/third_party_notices.txt" \
+    || ! rg -q '3ba0f711642a888aec92a611a3f3b2211157ff89' "$PROJECT_ROOT/NOTICE.md" \
+    || ! rg -q '3ba0f711642a888aec92a611a3f3b2211157ff89' "$PROJECT_ROOT/app/src/main/res/raw/third_party_notices.txt"; then
+  echo "The 0.5.16 / Codex 0.148.1 identity is inconsistent." >&2
   exit 1
 fi
 

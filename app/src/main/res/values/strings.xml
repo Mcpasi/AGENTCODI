@@ -189,7 +189,7 @@
 
   <string name="workspace_export_section">WORKSPACE EXPORT</string>
   <string name="workspace_export_description">Regular workspace files are copied byte for byte, regardless of type or extension, to a location chosen in Android’s document picker. Alternatively, the ZIP contains all regular files with their relative directory structure. Symbolic links, hard links, outside paths, and the separate CODEX_HOME are never exported.</string>
-  <string name="workspace_export_ready">Ready. Individual files: up to 512 MiB; ZIP: 2,048 entries and 1 GiB of content.</string>
+  <string name="workspace_export_ready">Ready. Individual files: up to 512 MiB; ZIP: 2,048 regular files and 1 GiB of content; catalog scan: up to 65,536 filesystem entries.</string>
   <string name="workspace_file_choose">Choose workspace file</string>
   <string name="workspace_archive_export">Export entire workspace as ZIP</string>
   <string name="workspace_file_export_cancelled">File export was cancelled.</string>
@@ -390,7 +390,7 @@
   <string name="license_agentcodi_title">AGENTCODI authorship</string>
   <string name="license_agentcodi_summary">Copyright 2026 Pascal (Mc Pasi) · Apache License 2.0.</string>
   <string name="license_codex_runtime_title">Codex Android community runtime</string>
-  <string name="license_codex_runtime_summary">OpenAI Codex 0.147.2 and the Android/Termux community distribution · Apache License 2.0. This is not an official OpenAI Android APK.</string>
+  <string name="license_codex_runtime_summary">OpenAI Codex 0.148.1 and the Android/Termux community distribution · Apache License 2.0. This is not an official OpenAI Android APK.</string>
   <string name="license_node_runtime_title">Packaged Node.js toolchain</string>
   <string name="license_node_runtime_summary">Node.js LTS 24.18.0 and its pinned Android runtime dependencies · bundled in the APK and enabled only by an explicit user action or approved Codex command. Includes MIT, Unicode-3.0, Apache-2.0, zlib, and public-domain components.</string>
   <string name="license_npm_runtime_title">Packaged npm toolchain</string>

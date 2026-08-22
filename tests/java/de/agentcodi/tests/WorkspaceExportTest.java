@@ -29,7 +29,10 @@ public final class WorkspaceExportTest {
         copiesUnknownBinaryTypeExactly();
         acceptsCanonicalWorkspaceAlias();
         rejectsFileOutsideWorkspace();
-        rejectsSymbolicCatalogEntry();
+        skipsSymbolicCatalogEntriesWithoutFollowingTargets();
+        doesNotChargeSkippedEntriesAgainstRegularFileLimit();
+        keepsSkippedEntriesBoundedBySeparateScanLimit();
+        rejectsDirectSymbolicFileExportWithoutWritingBytes();
         rejectsHardLinkToPrivateSibling();
         rejectsFileSymlinkSwapBeforeOpenWithoutWritingBytes();
         rejectsFileHardLinkSwapBeforeOpenWithoutWritingBytes();
@@ -43,7 +46,8 @@ public final class WorkspaceExportTest {
         archivesAcrossProviderTimestampPrecision();
         rejectsWorkspaceMutationDuringArchive();
         rejectsArchiveSymlinkSwapBeforeOpen();
-        return 18;
+        archivesRegularFilesWhileOmittingSymbolicEntries();
+        return 22;
     }
 
     private static void catalogsAllRegularFileTypes() throws Exception {
@@ -156,24 +160,203 @@ public final class WorkspaceExportTest {
         }
     }
 
-    private static void rejectsSymbolicCatalogEntry() throws Exception {
+    private static void skipsSymbolicCatalogEntriesWithoutFollowingTargets()
+        throws Exception {
         final Path base = Files.createTempDirectory("agentcodi-export-symlink-");
         Path outside = Files.createTempFile("agentcodi-export-link-target-", ".txt");
+        Path outsideDirectory = Files.createTempDirectory(
+            "agentcodi-export-link-directory-target-"
+        );
         try {
             final WorkspaceLayout layout = WorkspaceLayout.create(base.toFile());
+            Path workspace = layout.getWorkspace().toPath();
+            Files.write(workspace.resolve("regular.txt"), "workspace".getBytes("UTF-8"));
+            Files.write(
+                outsideDirectory.resolve("foreign.txt"),
+                "foreign".getBytes("UTF-8")
+            );
             Files.createSymbolicLink(
-                layout.getWorkspace().toPath().resolve("linked.txt"),
+                workspace.resolve("linked.txt"),
                 outside
             );
+            Files.createSymbolicLink(
+                workspace.resolve("linked-directory"),
+                outsideDirectory
+            );
+
+            List<WorkspaceExportFile> files = WorkspaceExportFile.list(
+                layout.getWorkspace(),
+                10,
+                256,
+                8
+            );
+            TestSupport.assertEquals(
+                Integer.valueOf(1),
+                Integer.valueOf(files.size()),
+                "symbolic entries do not block the regular-file catalog"
+            );
+            TestSupport.assertEquals(
+                "regular.txt",
+                files.get(0).getRelativePath(),
+                "catalog omits symbolic files and never traverses symbolic directories"
+            );
+        } finally {
+            deleteRecursively(base);
+            Files.deleteIfExists(outside);
+            deleteRecursively(outsideDirectory);
+        }
+    }
+
+    private static void rejectsDirectSymbolicFileExportWithoutWritingBytes()
+        throws Exception {
+        final Path base = Files.createTempDirectory("agentcodi-export-direct-symlink-");
+        final Path outside = Files.createTempFile(
+            "agentcodi-export-direct-symlink-target-",
+            ".txt"
+        );
+        try {
+            final WorkspaceLayout layout = WorkspaceLayout.create(base.toFile());
+            final Path link = layout.getWorkspace().toPath().resolve("linked.txt");
+            Files.write(outside, "foreign".getBytes("UTF-8"));
+            Files.createSymbolicLink(link, outside);
             TestSupport.expectThrows(
                 IOException.class,
                 new TestSupport.ThrowingRunnable() {
                     @Override
                     public void run() throws Exception {
-                        WorkspaceExportFile.list(layout.getWorkspace(), 10, 256, 8);
+                        WorkspaceExportFile.inspect(
+                            layout.getWorkspace(),
+                            link.toString(),
+                            1024L
+                        );
                     }
                 },
-                "catalog must reject symbolic entries"
+                "a symbolic path must remain unavailable for direct export"
+            );
+            final ByteArrayOutputStream destination = new ByteArrayOutputStream();
+            TestSupport.expectThrows(
+                IOException.class,
+                new TestSupport.ThrowingRunnable() {
+                    @Override
+                    public void run() throws Exception {
+                        WorkspaceExportFile.copyTo(
+                            layout.getWorkspace(),
+                            link.toString(),
+                            1024L,
+                            destination
+                        );
+                    }
+                },
+                "a symbolic path must never be copied"
+            );
+            TestSupport.assertEquals(
+                Integer.valueOf(0),
+                Integer.valueOf(destination.size()),
+                "direct symbolic export must not write target bytes"
+            );
+        } finally {
+            deleteRecursively(base);
+            Files.deleteIfExists(outside);
+        }
+    }
+
+    private static void doesNotChargeSkippedEntriesAgainstRegularFileLimit()
+        throws Exception {
+        Path base = Files.createTempDirectory("agentcodi-export-separate-counts-");
+        Path outside = Files.createTempFile(
+            "agentcodi-export-separate-counts-target-",
+            ".txt"
+        );
+        Path outsideDirectory = Files.createTempDirectory(
+            "agentcodi-export-separate-counts-directory-target-"
+        );
+        try {
+            WorkspaceLayout layout = WorkspaceLayout.create(base.toFile());
+            Path workspace = layout.getWorkspace().toPath();
+            byte[] expected = "regular".getBytes("UTF-8");
+            Files.write(workspace.resolve("regular.txt"), expected);
+            Files.createDirectories(workspace.resolve("empty-directory"));
+            Files.createSymbolicLink(workspace.resolve("linked.txt"), outside);
+            Files.createSymbolicLink(
+                workspace.resolve("linked-directory"),
+                outsideDirectory
+            );
+
+            List<WorkspaceExportFile> files = WorkspaceExportFile.list(
+                layout.getWorkspace(),
+                1,
+                256,
+                8
+            );
+            TestSupport.assertEquals(
+                Integer.valueOf(1),
+                Integer.valueOf(files.size()),
+                "only regular files consume the regular-file export limit"
+            );
+            TestSupport.assertEquals(
+                "regular.txt",
+                files.get(0).getRelativePath(),
+                "the regular file remains catalogued at the exact file limit"
+            );
+
+            ByteArrayOutputStream destination = new ByteArrayOutputStream();
+            WorkspaceArchive.Summary summary = WorkspaceArchive.write(
+                layout.getWorkspace(),
+                destination,
+                1,
+                6,
+                1024L,
+                4096L,
+                256,
+                8
+            );
+            Map<String, byte[]> entries = unzip(destination.toByteArray());
+            TestSupport.assertEquals(
+                Integer.valueOf(1),
+                Integer.valueOf(summary.getFileCount()),
+                "ZIP file limit is based on exported regular files"
+            );
+            TestSupport.assertTrue(
+                java.util.Arrays.equals(expected, entries.get("regular.txt")),
+                "ZIP retains the regular file when skipped entries are present"
+            );
+        } finally {
+            deleteRecursively(base);
+            Files.deleteIfExists(outside);
+            deleteRecursively(outsideDirectory);
+        }
+    }
+
+    private static void keepsSkippedEntriesBoundedBySeparateScanLimit()
+        throws Exception {
+        final Path base = Files.createTempDirectory(
+            "agentcodi-export-separate-scan-limit-"
+        );
+        Path outside = Files.createTempFile(
+            "agentcodi-export-separate-scan-limit-target-",
+            ".txt"
+        );
+        try {
+            final WorkspaceLayout layout = WorkspaceLayout.create(base.toFile());
+            Path workspace = layout.getWorkspace().toPath();
+            Files.createSymbolicLink(workspace.resolve("linked-1"), outside);
+            Files.createSymbolicLink(workspace.resolve("linked-2"), outside);
+            Files.createSymbolicLink(workspace.resolve("linked-3"), outside);
+            TestSupport.expectThrows(
+                IOException.class,
+                new TestSupport.ThrowingRunnable() {
+                    @Override
+                    public void run() throws Exception {
+                        WorkspaceExportFile.list(
+                            layout.getWorkspace(),
+                            1,
+                            2,
+                            256,
+                            8
+                        );
+                    }
+                },
+                "skipped entries remain bounded by the independent scan limit"
             );
         } finally {
             deleteRecursively(base);
@@ -712,6 +895,69 @@ public final class WorkspaceExportTest {
         } finally {
             deleteRecursively(base);
             Files.deleteIfExists(outside);
+        }
+    }
+
+    private static void archivesRegularFilesWhileOmittingSymbolicEntries()
+        throws Exception {
+        Path base = Files.createTempDirectory("agentcodi-export-zip-symlink-");
+        Path outside = Files.createTempFile(
+            "agentcodi-export-zip-symlink-target-",
+            ".bin"
+        );
+        Path outsideDirectory = Files.createTempDirectory(
+            "agentcodi-export-zip-symlink-directory-target-"
+        );
+        try {
+            WorkspaceLayout layout = WorkspaceLayout.create(base.toFile());
+            Path workspace = layout.getWorkspace().toPath();
+            byte[] expected = "workspace".getBytes("UTF-8");
+            Files.write(workspace.resolve("regular.bin"), expected);
+            Files.write(outside, "foreign-file".getBytes("UTF-8"));
+            Files.write(
+                outsideDirectory.resolve("foreign-directory-file.bin"),
+                "foreign-directory".getBytes("UTF-8")
+            );
+            Files.createSymbolicLink(workspace.resolve("linked.bin"), outside);
+            Files.createSymbolicLink(
+                workspace.resolve("linked-directory"),
+                outsideDirectory
+            );
+
+            ByteArrayOutputStream destination = new ByteArrayOutputStream();
+            WorkspaceArchive.Summary summary = WorkspaceArchive.write(
+                layout.getWorkspace(),
+                destination,
+                10,
+                1024L,
+                4096L,
+                256,
+                8
+            );
+            Map<String, byte[]> entries = unzip(destination.toByteArray());
+            TestSupport.assertEquals(
+                Integer.valueOf(1),
+                Integer.valueOf(summary.getFileCount()),
+                "ZIP summary includes only regular workspace files"
+            );
+            TestSupport.assertEquals(
+                Integer.valueOf(1),
+                Integer.valueOf(entries.size()),
+                "ZIP omits symbolic file and directory entries"
+            );
+            TestSupport.assertTrue(
+                java.util.Arrays.equals(expected, entries.get("regular.bin")),
+                "ZIP preserves the regular workspace file"
+            );
+            TestSupport.assertFalse(
+                entries.containsKey("linked.bin")
+                    || entries.containsKey("linked-directory/foreign-directory-file.bin"),
+                "ZIP never includes symbolic targets"
+            );
+        } finally {
+            deleteRecursively(base);
+            Files.deleteIfExists(outside);
+            deleteRecursively(outsideDirectory);
         }
     }
 

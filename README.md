@@ -10,7 +10,7 @@
 
 ![Android](https://img.shields.io/badge/Android-10%2B-3DDC84?logo=android&logoColor=white)
 ![Architecture](https://img.shields.io/badge/Architecture-ARM64-555555)
-![Codex](https://img.shields.io/badge/Codex%20app--server-0.147.2-111111)
+![Codex](https://img.shields.io/badge/Codex%20app--server-0.148.1-111111)
 ![Source](https://img.shields.io/badge/Source-Java%20%2B%20C%2B%2B-00599C)
 ![License](https://img.shields.io/badge/License-Apache%202.0-blue)
 
@@ -60,7 +60,7 @@ AGENTCODI does more than display a Codex conversation.
 | ripgrep | Packaged no-PCRE2 runtime exposed as `rg` |
 | MCP management | Native Android interface backed by Codex configuration RPCs |
 
-The current AGENTCODI 0.5.13 runtime uses **Codex app-server 0.147.2**.
+The current AGENTCODI 0.5.16 runtime uses **Codex app-server 0.148.1** together with the matching code-mode host from the same pinned artifact.
 
 ---
 
@@ -176,6 +176,8 @@ Supported workspace exports include:
 - Bounded ZIP archives
 
 Export paths and archive contents pass through dedicated validation before leaving the private workspace. Since version 0.5.3, each exported file is read from a descriptor opened component by component relative to the private workspace without following links, then that same descriptor and its workspace name are verified again. A concurrent path, symlink, parent-directory or hard-link exchange therefore fails without redirecting reads outside the workspace. ZIP correlation compares Java and native modification times at their common microsecond precision, while the native descriptor still validates its full nanosecond `mtime`/`ctime` snapshot and the Java catalog remains exactly checked before and after the archive.
+
+Version 0.5.16 keeps the ZIP limit at 2,048 regular files and gives catalog traversal its own finite 65,536-entry limit. Directories and omitted symbolic links therefore cannot consume the regular-file allowance, while symbolic links are still never followed or exported and hard links, special entries, unsafe paths, races, file sizes and total archive size remain fail-closed.
 
 Version 0.5.4 introduced complete PNG validation before native materialization and again before workspace image export or resumed-history reuse. Validation covers the complete chunk boundaries and ordering, CRCs, `IHDR` dimensions and format fields, palette rules, the bounded zlib stream, the exact interlaced or non-interlaced scanline shape and filter bytes, and a final `IEND` with no trailing data. A PNG signature followed by arbitrary bytes is rejected rather than materialized or offered for export.
 
@@ -363,7 +365,7 @@ Several sensitive byte and character buffers are explicitly cleared after use.
 
 Current release line:
 
-### AGENTCODI 0.5.13
+### AGENTCODI 0.5.16
 
 | Requirement | Value |
 |---|---|
@@ -371,7 +373,7 @@ Current release line:
 | Target SDK | API 35 |
 | Architecture | ARM64 |
 | Application source | Java + C++ |
-| Codex runtime | 0.147.2 |
+| Codex runtime | 0.148.1 |
 | Languages | English and German |
 | Themes | Light and dark |
 | License | Apache 2.0 |
@@ -414,7 +416,7 @@ Physical Android hardware is used separately to validate installation, UI behavi
 
 AGENTCODI is under active development.
 
-Version 0.5.13 currently focuses heavily on:
+Version 0.5.16 currently focuses heavily on:
 
 - Native Codex runtime integration
 - Correlated in-flight turn steering without losing the separate stop action
@@ -425,6 +427,7 @@ Version 0.5.13 currently focuses heavily on:
 - Workspace boundaries
 - Direct, bounded external-document import with a proven transient read grant, crash-recovery cleanup, commit-stable resource closing, atomic no-replace installation, retained verification handles across queue hand-offs, and final batch revalidation coupled to the app-server JSONL write
 - Race-free individual-file, image and ZIP source opening
+- Workspace catalogs and ZIP exports with separate finite scan and regular-file limits, omitting symbolic links without following them or blocking regular-file export
 - Complete PNG validation before materialization, recovery and export
 - SHA-256-bound image materialization proofs for resumed history
 - Approval handling

@@ -18,6 +18,7 @@ import java.util.Locale;
 
 public final class WorkspaceFileExporter {
     public static final int MAXIMUM_FILES = 2048;
+    public static final int MAXIMUM_SCANNED_ENTRIES = 65536;
     public static final int MAXIMUM_RELATIVE_PATH_CHARACTERS = 2048;
     public static final int MAXIMUM_DIRECTORY_DEPTH = 64;
     public static final long MAXIMUM_FILE_BYTES = 512L * 1024L * 1024L;
@@ -32,6 +33,7 @@ public final class WorkspaceFileExporter {
         List<WorkspaceExportFile> sources = WorkspaceExportFile.list(
             layout.getWorkspace(),
             MAXIMUM_FILES,
+            MAXIMUM_SCANNED_ENTRIES,
             MAXIMUM_RELATIVE_PATH_CHARACTERS,
             MAXIMUM_DIRECTORY_DEPTH
         );
@@ -83,6 +85,7 @@ public final class WorkspaceFileExporter {
         WorkspaceArchive.Summary summary = WorkspaceArchive.inspect(
             layout(context).getWorkspace(),
             MAXIMUM_FILES,
+            MAXIMUM_SCANNED_ENTRIES,
             MAXIMUM_FILE_BYTES,
             MAXIMUM_ARCHIVE_BYTES,
             MAXIMUM_RELATIVE_PATH_CHARACTERS,
@@ -102,6 +105,7 @@ public final class WorkspaceFileExporter {
         WorkspaceArchive.inspect(
             layout.getWorkspace(),
             MAXIMUM_FILES,
+            MAXIMUM_SCANNED_ENTRIES,
             MAXIMUM_FILE_BYTES,
             MAXIMUM_ARCHIVE_BYTES,
             MAXIMUM_RELATIVE_PATH_CHARACTERS,
@@ -114,6 +118,7 @@ public final class WorkspaceFileExporter {
                 layout.getWorkspace(),
                 destinationStream,
                 MAXIMUM_FILES,
+                MAXIMUM_SCANNED_ENTRIES,
                 MAXIMUM_FILE_BYTES,
                 MAXIMUM_ARCHIVE_BYTES,
                 MAXIMUM_RELATIVE_PATH_CHARACTERS,

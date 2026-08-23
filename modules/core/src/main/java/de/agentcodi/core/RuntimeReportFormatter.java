@@ -18,6 +18,16 @@ public final class RuntimeReportFormatter {
         if (!snapshot.getWorkspacePath().isEmpty()) {
             report.append("Workspace: ").append(snapshot.getWorkspacePath()).append('\n');
         }
+        if (!snapshot.getExecutionModeId().isEmpty()) {
+            report.append("Execution mode: ")
+                .append(snapshot.getExecutionModeId())
+                .append('\n');
+        }
+        if (!snapshot.getPermissionProfileId().isEmpty()) {
+            report.append("Permission profile: ")
+                .append(snapshot.getPermissionProfileId())
+                .append('\n');
+        }
         return report.toString();
     }
 }

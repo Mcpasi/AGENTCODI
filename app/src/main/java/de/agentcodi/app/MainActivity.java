@@ -1331,10 +1331,17 @@ public final class MainActivity extends Activity {
         } else if (session.isTurnActive()) {
             message = getString(R.string.chat_streaming_response);
         }
+        if (session.isReady() && session.isDangerousExecutionMode()) {
+            String warning = getString(R.string.chat_compatibility_mode_active);
+            message = message.isEmpty() ? warning : warning + "\n" + message;
+            settingsAction = true;
+        }
         statusBanner.setVisibility(message.isEmpty() ? View.GONE : View.VISIBLE);
         statusText.setText(message);
         statusText.setTextColor(
-            !session.getErrorMessage().isEmpty() ? theme.danger : theme.primary
+            !session.getErrorMessage().isEmpty() || session.isDangerousExecutionMode()
+                ? theme.danger
+                : theme.primary
         );
         statusSettingsButton.setVisibility(settingsAction ? View.VISIBLE : View.GONE);
     }

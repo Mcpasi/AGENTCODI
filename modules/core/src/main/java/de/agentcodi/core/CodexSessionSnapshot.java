@@ -8,6 +8,9 @@ public final class CodexSessionSnapshot {
     private final long revision;
     private final boolean ready;
     private final String connectionMessage;
+    private final String executionModeId;
+    private final String permissionProfileId;
+    private final boolean dangerousExecutionMode;
     private final boolean requiresOpenaiAuth;
     private final String authMode;
     private final String accountEmail;
@@ -35,6 +38,9 @@ public final class CodexSessionSnapshot {
         long revision,
         boolean ready,
         String connectionMessage,
+        String executionModeId,
+        String permissionProfileId,
+        boolean dangerousExecutionMode,
         boolean requiresOpenaiAuth,
         String authMode,
         String accountEmail,
@@ -60,6 +66,9 @@ public final class CodexSessionSnapshot {
         this.revision = revision;
         this.ready = ready;
         this.connectionMessage = nonNull(connectionMessage);
+        this.executionModeId = nonNull(executionModeId);
+        this.permissionProfileId = nonNull(permissionProfileId);
+        this.dangerousExecutionMode = dangerousExecutionMode;
         this.requiresOpenaiAuth = requiresOpenaiAuth;
         this.authMode = nonNull(authMode);
         this.accountEmail = nonNull(accountEmail);
@@ -91,6 +100,9 @@ public final class CodexSessionSnapshot {
             0L,
             false,
             "Codex App-Server ist nicht gestartet.",
+            CodexExecutionMode.PROTECTED_ID,
+            CodexExecutionMode.PROTECTED_PERMISSION_PROFILE_ID,
+            false,
             true,
             "",
             "",
@@ -125,6 +137,18 @@ public final class CodexSessionSnapshot {
 
     public String getConnectionMessage() {
         return connectionMessage;
+    }
+
+    public String getExecutionModeId() {
+        return executionModeId;
+    }
+
+    public String getPermissionProfileId() {
+        return permissionProfileId;
+    }
+
+    public boolean isDangerousExecutionMode() {
+        return dangerousExecutionMode;
     }
 
     public boolean requiresOpenaiAuth() {

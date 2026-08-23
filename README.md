@@ -60,7 +60,7 @@ AGENTCODI does more than display a Codex conversation.
 | ripgrep | Packaged no-PCRE2 runtime exposed as `rg` |
 | MCP management | Native Android interface backed by Codex configuration RPCs |
 
-The current AGENTCODI 0.5.19 runtime uses **Codex app-server 0.148.1** together with the matching code-mode host from the same pinned artifact.
+The current AGENTCODI 0.5.20 runtime uses **Codex app-server 0.148.1** together with the matching code-mode host from the same pinned artifact.
 
 ---
 
@@ -111,6 +111,19 @@ You can change:
 - Reasoning effort
 
 Selections are validated against the options reported by the app-server.
+
+### Execution modes
+
+AGENTCODI 0.5.20 offers two explicitly separated execution modes:
+
+| Mode | App-server profile | Filesystem behavior |
+|---|---|---|
+| Protected – default | `agentcodi-workspace` | Workspace only; changes are grouped into one patch with a preview where possible |
+| Compatibility – experimental | `:danger-full-access` | Direct file editing is possible, but there is no effective filesystem isolation |
+
+Compatibility mode exists for Android environments where the pinned app-server cannot provide reliable access through its protected sandbox. Before it can be activated, AGENTCODI always shows a native warning requiring an explicit acknowledgement. The active risk remains visible, the choice is not persisted, and an unconfirmed system restart returns to protected mode. Full access remains subject to Android's app UID, but it can reach files outside the workspace that are available to that UID, including private sibling directories.
+
+The selection is carried only in the app-server's native `permissions` and `permissionProfile` fields for threads, turns and the terminal. AGENTCODI does not inject a system prompt, developer prompt or base instructions to implement either mode.
 
 ### Authentication
 
@@ -194,7 +207,7 @@ Version 0.5.5 additionally binds resumed generated images to an owner-only SHA-2
 
 AGENTCODI includes an interactive terminal for the active workspace.
 
-The terminal is started through the Codex app-server command interface and uses AGENTCODI's workspace permission profile.
+The terminal is started through the Codex app-server command interface and uses the currently selected, verified execution-mode profile.
 
 It supports:
 
@@ -308,6 +321,9 @@ Native Android UI
        v
 AgentRuntimeService
        |
+       +---- protected-mode (`agentcodi-workspace`)
+       +---- compatibility-mode (`:danger-full-access`)
+       |
        v
 CodexSessionController
        |
@@ -363,6 +379,8 @@ Current safeguards include:
 - A private alias-only tool `PATH`, mandatory Node.js/Python/ripgrep ELF guards, and in-binary guard attestation that enforce activation and block ripgrep preprocessor, archive-search and symlink-follow modes even for absolute invocations or substituted policy libraries
 - Credential detection and redaction in sensitive paths
 - Explicit approval handling
+- Protected execution by default and an unpersisted, explicitly warned compatibility mode
+- Permission-profile-only mode transport with no injected system or developer prompts
 - C++ ownership of child processes
 - External release-signing configuration
 - Release certificate verification
@@ -376,7 +394,7 @@ Several sensitive byte and character buffers are explicitly cleared after use.
 
 Current release line:
 
-### AGENTCODI 0.5.19
+### AGENTCODI 0.5.20
 
 | Requirement | Value |
 |---|---|
@@ -427,9 +445,10 @@ Physical Android hardware is used separately to validate installation, UI behavi
 
 AGENTCODI is under active development.
 
-Version 0.5.19 currently focuses heavily on:
+Version 0.5.20 currently focuses heavily on:
 
 - Native Codex runtime integration
+- Separate protected and experimental compatibility-mode modules, mandatory danger warning and native profile propagation without prompt injection
 - Bounded active/archive thread views with app-server-backed archive, restore and confirmed permanent deletion
 - Correlated in-flight turn steering without losing the separate stop action
 - Read-only, app-server-owned ChatGPT quota visibility

@@ -15,7 +15,6 @@ import java.util.concurrent.RejectedExecutionException;
 
 final class CodexTerminalSession implements AutoCloseable {
     static final String OUTPUT_DELTA_METHOD = "command/exec/outputDelta";
-    static final String PERMISSION_PROFILE = "agentcodi-workspace";
     static final int MAXIMUM_INPUT_CHARACTERS = 4096;
     static final int MAXIMUM_INPUT_BYTES = 16 * 1024;
     static final int MAXIMUM_OUTPUT_CHUNK_BYTES = 64 * 1024;
@@ -31,6 +30,7 @@ final class CodexTerminalSession implements AutoCloseable {
     private final CodexAppServerClient client;
     private final String workspacePath;
     private final String shellExecutable;
+    private String permissionProfileId;
     private final TerminalOutputBuffer output = new TerminalOutputBuffer();
     private final ExecutorService commandOperations =
         Executors.newSingleThreadExecutor();
@@ -53,7 +53,8 @@ final class CodexTerminalSession implements AutoCloseable {
     CodexTerminalSession(
         CodexAppServerClient client,
         String workspacePath,
-        String shellExecutable
+        String shellExecutable,
+        String permissionProfileId
     ) {
         if (client == null) {
             throw new IllegalArgumentException("Codex app-server client is required");
@@ -61,6 +62,19 @@ final class CodexTerminalSession implements AutoCloseable {
         this.client = client;
         this.workspacePath = requiredAbsolute(workspacePath, "Workspace path");
         this.shellExecutable = requiredAbsolute(shellExecutable, "Terminal shell path");
+        this.permissionProfileId = requiredPermissionProfile(permissionProfileId);
+    }
+
+    void setPermissionProfile(String requestedPermissionProfileId) {
+        String validated = requiredPermissionProfile(requestedPermissionProfileId);
+        synchronized (lock) {
+            if (closed || running || starting) {
+                throw new IllegalStateException(
+                    "Terminal must be stopped before changing its permission profile"
+                );
+            }
+            permissionProfileId = validated;
+        }
     }
 
     TerminalSessionSnapshot snapshot() {
@@ -331,9 +345,11 @@ final class CodexTerminalSession implements AutoCloseable {
         try {
             final int initialRows;
             final int initialColumns;
+            final String requestedPermissionProfile;
             synchronized (lock) {
                 initialRows = rows;
                 initialColumns = columns;
+                requestedPermissionProfile = permissionProfileId;
             }
             Map<String, Object> result = client.requestStreaming(
                 "command/exec",
@@ -341,7 +357,7 @@ final class CodexTerminalSession implements AutoCloseable {
                     "command", JsonCodec.array(shellExecutable, "--interactive"),
                     "cwd", workspacePath,
                     "processId", requestedProcessId,
-                    "permissionProfile", PERMISSION_PROFILE,
+                    "permissionProfile", requestedPermissionProfile,
                     "tty", Boolean.TRUE,
                     "size", terminalSize(initialRows, initialColumns),
                     "outputBytesCap", Long.valueOf(OUTPUT_BYTES_CAP),
@@ -598,6 +614,14 @@ final class CodexTerminalSession implements AutoCloseable {
     private static String requiredAbsolute(String value, String label) {
         if (value == null || value.isEmpty() || !value.startsWith("/")) {
             throw new IllegalArgumentException(label + " must be absolute");
+        }
+        return value;
+    }
+
+    private static String requiredPermissionProfile(String value) {
+        if (!CodexExecutionMode.PROTECTED_PERMISSION_PROFILE_ID.equals(value)
+            && !CodexExecutionMode.COMPATIBILITY_PERMISSION_PROFILE_ID.equals(value)) {
+            throw new IllegalArgumentException("Unsupported terminal permission profile");
         }
         return value;
     }

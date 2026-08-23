@@ -15,7 +15,8 @@ public final class RuntimeStateMachineTest {
         invalidTransitionsFailClosed();
         stopInvalidatesInFlightCompletion();
         readyRuntimeCanFailAndRestart();
-        return 6;
+        retainsSelectedExecutionModeAcrossRuntimeStates();
+        return 7;
     }
 
     private static void initialStateIsIdle() {
@@ -121,5 +122,55 @@ public final class RuntimeStateMachineTest {
         );
         long second = machine.beginStart();
         TestSupport.assertTrue(second > first, "failed runtime can restart explicitly");
+    }
+
+    private static void retainsSelectedExecutionModeAcrossRuntimeStates() {
+        RuntimeStateMachine machine = new RuntimeStateMachine();
+        long generation = machine.beginStart("compatibility", ":danger-full-access");
+        RuntimeSnapshot starting = machine.snapshot();
+        TestSupport.assertEquals(
+            "compatibility",
+            starting.getExecutionModeId(),
+            "starting execution mode"
+        );
+        TestSupport.assertEquals(
+            ":danger-full-access",
+            starting.getPermissionProfileId(),
+            "starting permission profile"
+        );
+        TestSupport.assertTrue(
+            machine.markReady(
+                generation,
+                "native/1",
+                "transport=stdio",
+                "/private/workspace"
+            ),
+            "compatibility runtime becomes ready"
+        );
+        machine.markFailed(generation, "transport failed");
+        TestSupport.assertEquals(
+            ":danger-full-access",
+            machine.snapshot().getPermissionProfileId(),
+            "failed state retains selected profile for diagnosis"
+        );
+        RuntimeSnapshot projected = machine.snapshot().withExecutionMode(
+            "protected",
+            "agentcodi-workspace"
+        );
+        TestSupport.assertEquals(
+            RuntimePhase.FAILED,
+            projected.getPhase(),
+            "mode projection preserves runtime phase"
+        );
+        TestSupport.assertEquals(
+            "agentcodi-workspace",
+            projected.getPermissionProfileId(),
+            "mode projection can reflect a live session switch"
+        );
+        TestSupport.assertEquals(
+            "transport=stdio",
+            projected.getDiagnostics(),
+            "mode projection preserves diagnostics"
+        );
     }
 }

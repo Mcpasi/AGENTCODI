@@ -22,13 +22,25 @@ public final class RuntimeReportFormatterTest {
             "bereit",
             "native/1",
             "abi=arm64",
-            "/private/workspace"
+            "/private/workspace",
+            "compatibility",
+            ":danger-full-access"
         );
         String report = RuntimeReportFormatter.format(snapshot);
         TestSupport.assertContains(report, BuildIdentity.summary(), "identity");
         TestSupport.assertContains(report, "Phase: READY", "phase");
         TestSupport.assertContains(report, "Engine: native/1", "engine");
         TestSupport.assertContains(report, "Workspace: /private/workspace", "workspace");
+        TestSupport.assertContains(
+            report,
+            "Execution mode: compatibility",
+            "execution mode"
+        );
+        TestSupport.assertContains(
+            report,
+            "Permission profile: :danger-full-access",
+            "permission profile"
+        );
     }
 
     private static void omitsUnavailableOptionalFields() {
@@ -45,4 +57,3 @@ public final class RuntimeReportFormatterTest {
         TestSupport.assertFalse(report.contains("Workspace:"), "empty workspace omitted");
     }
 }
-

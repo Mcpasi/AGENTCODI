@@ -460,6 +460,63 @@ int main(int argc, char* argv[]) {
         << "0123456789abcdef-outside-data.csv\"}]}}}" << std::endl;
     return 0;
   }
+  if (argc == 2 && std::string(argv[1]) == "--execution-mode-roundtrip") {
+    std::string request;
+    if (!std::getline(std::cin, request)
+        || request.find("\"method\":\"thread/start\"") == std::string::npos
+        || request.find("\"permissions\":\":danger-full-access\"")
+            == std::string::npos
+        || request.find("\"approvalPolicy\":\"on-request\"")
+            == std::string::npos
+        || request.find("\"runtimeWorkspaceRoots\":[\"/private/workspace\"]")
+            == std::string::npos
+        || request.find("\"baseInstructions\":") != std::string::npos
+        || request.find("\"developerInstructions\":") != std::string::npos
+        || request.find("\"systemPrompt\":") != std::string::npos
+        || request.find("\"system_prompt\":") != std::string::npos
+        || request.find("\"sandbox\":") != std::string::npos
+        || request.find("\"sandboxPolicy\":") != std::string::npos) {
+      return 41;
+    }
+    std::cout
+        << "{\"id\":71,\"result\":{\"thread\":{"
+        << "\"id\":\"thr_compatibility\",\"modelProvider\":"
+        << "\"agentcodi-openai-http\"},\"activePermissionProfile\":{"
+        << "\"id\":\":danger-full-access\",\"extends\":null}}}"
+        << std::endl;
+
+    if (!std::getline(std::cin, request)
+        || request.find("\"method\":\"turn/start\"") == std::string::npos
+        || request.find("\"threadId\":\"thr_compatibility\"")
+            == std::string::npos
+        || request.find("\"permissions\":\":danger-full-access\"")
+            == std::string::npos
+        || request.find("\"baseInstructions\":") != std::string::npos
+        || request.find("\"developerInstructions\":") != std::string::npos
+        || request.find("\"systemPrompt\":") != std::string::npos
+        || request.find("\"system_prompt\":") != std::string::npos
+        || request.find("\"sandboxPolicy\":") != std::string::npos) {
+      return 42;
+    }
+    std::cout
+        << "{\"id\":72,\"result\":{\"turn\":{"
+        << "\"id\":\"turn_compatibility\",\"status\":\"completed\","
+        << "\"items\":[],\"error\":null}}}"
+        << std::endl;
+
+    if (!std::getline(std::cin, request)
+        || request.find("\"method\":\"command/exec\"") == std::string::npos
+        || request.find("\"permissionProfile\":\":danger-full-access\"")
+            == std::string::npos
+        || request.find("\"sandboxPolicy\":") != std::string::npos) {
+      return 43;
+    }
+    std::cout
+        << "{\"id\":73,\"result\":{\"exitCode\":0,"
+        << "\"stdout\":\"\",\"stderr\":\"\"}}"
+        << std::endl;
+    return 0;
+  }
   if (argc == 2 && std::string(argv[1]) == "--thread-management-roundtrip") {
     std::string request;
     if (!std::getline(std::cin, request)
@@ -548,7 +605,7 @@ int main(int argc, char* argv[]) {
   }
 
   const std::string version = agentcodi::engine_version();
-  expect(version == "agentcodi-native/0.5.19", "engine version");
+  expect(version == "agentcodi-native/0.5.20", "engine version");
   expect(agentcodi::run_self_test() == 0, "native self-test");
   const std::string abc = "abc";
   expect(
@@ -1875,6 +1932,68 @@ int main(int argc, char* argv[]) {
             "preserve authoritative native mention without exposing provider URI");
         expect(process->Stop(500) == 0,
                "stop turn-import framing fixture");
+      }
+
+      config.arguments = {"--execution-mode-roundtrip"};
+      error.clear();
+      process = agentcodi::AppServerProcess::Start(config, &error);
+      expect(process != nullptr, "spawn execution-mode framing fixture");
+      if (process != nullptr) {
+        const std::string thread_request =
+            "{\"id\":71,\"method\":\"thread/start\",\"params\":{"
+            "\"cwd\":\"/private/workspace\","
+            "\"runtimeWorkspaceRoots\":[\"/private/workspace\"],"
+            "\"approvalPolicy\":\"on-request\","
+            "\"permissions\":\":danger-full-access\","
+            "\"modelProvider\":\"agentcodi-openai-http\","
+            "\"model\":\"gpt-5.6-sol\"}}";
+        expect(
+            process->WriteLine(thread_request, 16U * 1024U, &error),
+            "write compatibility thread request without prompt overrides");
+        std::string mode_line;
+        expect(
+            process->ReadLine(16U * 1024U, &mode_line, &error)
+                    == agentcodi::LineReadStatus::kLine
+                && mode_line.find("\"id\":\":danger-full-access\"")
+                    != std::string::npos,
+            "preserve active compatibility permission profile");
+
+        const std::string turn_request =
+            "{\"id\":72,\"method\":\"turn/start\",\"params\":{"
+            "\"threadId\":\"thr_compatibility\",\"input\":[{"
+            "\"type\":\"text\",\"text\":\"Edit the file.\"}],"
+            "\"cwd\":\"/private/workspace\","
+            "\"runtimeWorkspaceRoots\":[\"/private/workspace\"],"
+            "\"approvalPolicy\":\"on-request\","
+            "\"permissions\":\":danger-full-access\","
+            "\"model\":\"gpt-5.6-sol\",\"effort\":\"high\","
+            "\"summary\":\"auto\"}}";
+        expect(
+            process->WriteLine(turn_request, 16U * 1024U, &error),
+            "write compatibility turn request without system prompt fields");
+        expect(
+            process->ReadLine(16U * 1024U, &mode_line, &error)
+                    == agentcodi::LineReadStatus::kLine
+                && mode_line.find("\"id\":\"turn_compatibility\"")
+                    != std::string::npos,
+            "preserve compatibility turn response");
+
+        const std::string terminal_request =
+            "{\"id\":73,\"method\":\"command/exec\",\"params\":{"
+            "\"command\":[\"/system/bin/sh\",\"-c\",\"true\"],"
+            "\"cwd\":\"/private/workspace\","
+            "\"permissionProfile\":\":danger-full-access\","
+            "\"timeoutMs\":10000}}";
+        expect(
+            process->WriteLine(terminal_request, 16U * 1024U, &error),
+            "write compatibility terminal permission profile");
+        expect(
+            process->ReadLine(16U * 1024U, &mode_line, &error)
+                    == agentcodi::LineReadStatus::kLine
+                && mode_line.find("\"exitCode\":0") != std::string::npos,
+            "preserve compatibility terminal response");
+        expect(process->Stop(500) == 0,
+               "stop execution-mode framing fixture");
       }
 
       config.arguments = {"--thread-management-roundtrip"};

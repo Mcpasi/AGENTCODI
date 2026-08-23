@@ -6,8 +6,8 @@ PROJECT_ROOT="$(cd -- "$SCRIPT_DIR/.." && pwd -P)"
 
 APP_NAME="AGENTCODI"
 APP_ID="de.agentcodi.app"
-APP_VERSION="0.5.19"
-VERSION_CODE="56"
+APP_VERSION="0.5.20"
+VERSION_CODE="57"
 MIN_SDK="29"
 TARGET_SDK="35"
 ABI="arm64-v8a"
@@ -690,6 +690,8 @@ env LD_LIBRARY_PATH="$AAPT2_LIBRARY_PATH" "$AAPT2_BIN" link -o "$UNSIGNED_APK" -
 
 echo "Compiling isolated Java modules..."
 CORE_CLASSES="$CLASSES_ROOT/core"
+PROTECTED_MODE_CLASSES="$CLASSES_ROOT/protected-mode"
+COMPATIBILITY_MODE_CLASSES="$CLASSES_ROOT/compatibility-mode"
 STORAGE_CLASSES="$CLASSES_ROOT/storage"
 IMPORT_CONTRACTS_CLASSES="$CLASSES_ROOT/import-contracts"
 IMPORT_CLIENT_CLASSES="$CLASSES_ROOT/import-client"
@@ -699,6 +701,8 @@ RUNTIME_CLASSES="$CLASSES_ROOT/runtime"
 APP_CLASSES="$CLASSES_ROOT/app"
 mkdir -p \
   "$CORE_CLASSES" \
+  "$PROTECTED_MODE_CLASSES" \
+  "$COMPATIBILITY_MODE_CLASSES" \
   "$STORAGE_CLASSES" \
   "$IMPORT_CONTRACTS_CLASSES" \
   "$IMPORT_CLIENT_CLASSES" \
@@ -711,6 +715,16 @@ find "$PROJECT_ROOT/modules/core/src/main/java" -type f -name '*.java' -print | 
 "$JAVAC" -encoding UTF-8 -source 8 -target 8 -Xlint:-options -bootclasspath "$ANDROID_JAR" -d "$CORE_CLASSES" @"$WORK_DIR/core-sources.txt"
 CORE_JAR="$JARS_ROOT/core.jar"
 "$JAR" cf "$CORE_JAR" -C "$CORE_CLASSES" .
+
+find "$PROJECT_ROOT/modules/protected-mode/src/main/java" -type f -name '*.java' -print | sort > "$WORK_DIR/protected-mode-sources.txt"
+"$JAVAC" -encoding UTF-8 -source 8 -target 8 -Xlint:-options -bootclasspath "$ANDROID_JAR" -classpath "$CORE_JAR" -d "$PROTECTED_MODE_CLASSES" @"$WORK_DIR/protected-mode-sources.txt"
+PROTECTED_MODE_JAR="$JARS_ROOT/protected-mode.jar"
+"$JAR" cf "$PROTECTED_MODE_JAR" -C "$PROTECTED_MODE_CLASSES" .
+
+find "$PROJECT_ROOT/modules/compatibility-mode/src/main/java" -type f -name '*.java' -print | sort > "$WORK_DIR/compatibility-mode-sources.txt"
+"$JAVAC" -encoding UTF-8 -source 8 -target 8 -Xlint:-options -bootclasspath "$ANDROID_JAR" -classpath "$CORE_JAR" -d "$COMPATIBILITY_MODE_CLASSES" @"$WORK_DIR/compatibility-mode-sources.txt"
+COMPATIBILITY_MODE_JAR="$JARS_ROOT/compatibility-mode.jar"
+"$JAR" cf "$COMPATIBILITY_MODE_JAR" -C "$COMPATIBILITY_MODE_CLASSES" .
 
 find "$PROJECT_ROOT/modules/storage/src/main/java" -type f -name '*.java' -print | sort > "$WORK_DIR/storage-sources.txt"
 "$JAVAC" -encoding UTF-8 -source 8 -target 8 -Xlint:-options -bootclasspath "$ANDROID_JAR" -d "$STORAGE_CLASSES" @"$WORK_DIR/storage-sources.txt"
@@ -738,12 +752,12 @@ MCP_CLIENT_JAR="$JARS_ROOT/mcp-client.jar"
 "$JAR" cf "$MCP_CLIENT_JAR" -C "$MCP_CLIENT_CLASSES" .
 
 find "$PROJECT_ROOT/modules/runtime/src/main/java" -type f -name '*.java' -print | sort > "$WORK_DIR/runtime-sources.txt"
-"$JAVAC" -encoding UTF-8 -source 8 -target 8 -Xlint:-options -bootclasspath "$ANDROID_JAR" -classpath "$CORE_JAR:$STORAGE_JAR:$IMPORT_CONTRACTS_JAR:$IMPORT_CLIENT_JAR:$MCP_CONTRACTS_JAR:$MCP_CLIENT_JAR" -d "$RUNTIME_CLASSES" @"$WORK_DIR/runtime-sources.txt"
+"$JAVAC" -encoding UTF-8 -source 8 -target 8 -Xlint:-options -bootclasspath "$ANDROID_JAR" -classpath "$CORE_JAR:$PROTECTED_MODE_JAR:$COMPATIBILITY_MODE_JAR:$STORAGE_JAR:$IMPORT_CONTRACTS_JAR:$IMPORT_CLIENT_JAR:$MCP_CONTRACTS_JAR:$MCP_CLIENT_JAR" -d "$RUNTIME_CLASSES" @"$WORK_DIR/runtime-sources.txt"
 RUNTIME_JAR="$JARS_ROOT/runtime.jar"
 "$JAR" cf "$RUNTIME_JAR" -C "$RUNTIME_CLASSES" .
 
 find "$PROJECT_ROOT/app/src/main/java" "$GENERATED_JAVA" -type f -name '*.java' -print | sort > "$WORK_DIR/app-sources.txt"
-"$JAVAC" -encoding UTF-8 -source 8 -target 8 -Xlint:-options -bootclasspath "$ANDROID_JAR" -classpath "$CORE_JAR:$STORAGE_JAR:$IMPORT_CONTRACTS_JAR:$MCP_CONTRACTS_JAR:$MCP_CLIENT_JAR:$RUNTIME_JAR" -d "$APP_CLASSES" @"$WORK_DIR/app-sources.txt"
+"$JAVAC" -encoding UTF-8 -source 8 -target 8 -Xlint:-options -bootclasspath "$ANDROID_JAR" -classpath "$CORE_JAR:$PROTECTED_MODE_JAR:$COMPATIBILITY_MODE_JAR:$STORAGE_JAR:$IMPORT_CONTRACTS_JAR:$MCP_CONTRACTS_JAR:$MCP_CLIENT_JAR:$RUNTIME_JAR" -d "$APP_CLASSES" @"$WORK_DIR/app-sources.txt"
 APP_JAR="$JARS_ROOT/app.jar"
 "$JAR" cf "$APP_JAR" -C "$APP_CLASSES" .
 
@@ -1844,7 +1858,7 @@ DEX_MODE="--debug"
 if [ "$BUILD_VARIANT" = "release" ]; then
   DEX_MODE="--release"
 fi
-"$JAVA" -cp "$R8_JAR" com.android.tools.r8.D8 "$DEX_MODE" --min-api "$MIN_SDK" --lib "$ANDROID_JAR" --output "$DEX_DIR" "$CORE_JAR" "$STORAGE_JAR" "$IMPORT_CONTRACTS_JAR" "$IMPORT_CLIENT_JAR" "$MCP_CONTRACTS_JAR" "$MCP_CLIENT_JAR" "$RUNTIME_JAR" "$APP_JAR"
+"$JAVA" -cp "$R8_JAR" com.android.tools.r8.D8 "$DEX_MODE" --min-api "$MIN_SDK" --lib "$ANDROID_JAR" --output "$DEX_DIR" "$CORE_JAR" "$PROTECTED_MODE_JAR" "$COMPATIBILITY_MODE_JAR" "$STORAGE_JAR" "$IMPORT_CONTRACTS_JAR" "$IMPORT_CLIENT_JAR" "$MCP_CONTRACTS_JAR" "$MCP_CLIENT_JAR" "$RUNTIME_JAR" "$APP_JAR"
 cp "$DEX_DIR/classes.dex" "$ADDITIONS/classes.dex"
 
 UNALIGNED_APK="$WORK_DIR/unaligned.apk"

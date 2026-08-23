@@ -13,6 +13,7 @@ import android.util.Log;
 
 import de.agentcodi.core.BuildIdentity;
 import de.agentcodi.core.CodexApprovalDecision;
+import de.agentcodi.core.CodexExecutionMode;
 import de.agentcodi.core.CodexFileMentionTransaction;
 import de.agentcodi.core.CrashReportFormatter;
 import de.agentcodi.core.CodexSessionController;
@@ -26,6 +27,8 @@ import de.agentcodi.mcp.McpConfigurationSnapshot;
 import de.agentcodi.mcp.McpServerDraft;
 import de.agentcodi.mcp.client.McpCatalogController;
 import de.agentcodi.mcp.client.McpConfigurationController;
+import de.agentcodi.mode.compatibility.CompatibilityExecutionMode;
+import de.agentcodi.mode.protectedmode.ProtectedExecutionMode;
 import de.agentcodi.storage.WorkspaceLayout;
 
 import java.io.File;
@@ -40,6 +43,10 @@ public final class AgentRuntimeService extends Service {
     private static final String TAG = "AgentCodiRuntime";
     private static final String CHANNEL_ID = "agentcodi-runtime";
     private static final int NOTIFICATION_ID = 1001;
+    private static final String EXTRA_EXECUTION_MODE =
+        "de.agentcodi.runtime.extra.EXECUTION_MODE";
+    private static final String EXTRA_DANGER_WARNING_ACKNOWLEDGED =
+        "de.agentcodi.runtime.extra.DANGER_WARNING_ACKNOWLEDGED";
     private static final RuntimeStateMachine STATE = new RuntimeStateMachine();
     private static final AtomicBoolean BOOTSTRAP_ACTIVE = new AtomicBoolean(false);
     private static final CodexSessionSnapshot STOPPED_SESSION = CodexSessionSnapshot.stopped();
@@ -59,7 +66,55 @@ public final class AgentRuntimeService extends Service {
     private volatile String notificationTextKey = RuntimeText.NOTIFICATION_STARTING;
 
     public static RuntimeSnapshot snapshot() {
-        return STATE.snapshot();
+        RuntimeSnapshot runtime = STATE.snapshot();
+        CodexSessionController controller = sessionController;
+        if (runtime.getPhase() != RuntimePhase.READY || controller == null) {
+            return runtime;
+        }
+        CodexSessionSnapshot session = controller.snapshot();
+        if (!session.isReady()
+            || (runtime.getExecutionModeId().equals(session.getExecutionModeId())
+                && runtime.getPermissionProfileId().equals(
+                    session.getPermissionProfileId()
+                ))) {
+            return runtime;
+        }
+        return runtime.withExecutionMode(
+            session.getExecutionModeId(),
+            session.getPermissionProfileId()
+        );
+    }
+
+    public static Intent createLaunchIntent(
+        Context context,
+        String executionModeId,
+        boolean dangerWarningAcknowledged
+    ) {
+        if (context == null) {
+            throw new IllegalArgumentException("Context is required");
+        }
+        CodexExecutionMode mode = resolveExecutionMode(
+            executionModeId,
+            dangerWarningAcknowledged
+        );
+        return new Intent(context, AgentRuntimeService.class)
+            .putExtra(EXTRA_EXECUTION_MODE, mode.getId())
+            .putExtra(
+                EXTRA_DANGER_WARNING_ACKNOWLEDGED,
+                dangerWarningAcknowledged
+            );
+    }
+
+    public static boolean selectExecutionMode(
+        String executionModeId,
+        boolean dangerWarningAcknowledged
+    ) {
+        CodexExecutionMode mode = resolveExecutionMode(
+            executionModeId,
+            dangerWarningAcknowledged
+        );
+        CodexSessionController controller = sessionController;
+        return controller != null && controller.selectExecutionMode(mode);
     }
 
     public static CodexSessionSnapshot sessionSnapshot() {
@@ -416,7 +471,6 @@ public final class AgentRuntimeService extends Service {
             createNotificationChannel();
             notificationTextKey = RuntimeText.NOTIFICATION_STARTING;
             startForeground(NOTIFICATION_ID, buildNotification(notificationTextKey));
-            startRuntimeIfNeeded();
         } catch (Throwable error) {
             recordServiceFailure("service-onCreate", error);
             stopSelf();
@@ -426,7 +480,7 @@ public final class AgentRuntimeService extends Service {
     @Override
     public int onStartCommand(Intent intent, int flags, int startId) {
         try {
-            startRuntimeIfNeeded();
+            startRuntimeIfNeeded(executionModeFromIntent(intent));
         } catch (Throwable error) {
             recordServiceFailure("service-onStartCommand", error);
             stopSelf(startId);
@@ -476,7 +530,7 @@ public final class AgentRuntimeService extends Service {
         super.onDestroy();
     }
 
-    private void startRuntimeIfNeeded() {
+    private void startRuntimeIfNeeded(final CodexExecutionMode executionMode) {
         RuntimePhase phase = STATE.snapshot().getPhase();
         if (phase == RuntimePhase.STARTING || phase == RuntimePhase.READY) {
             return;
@@ -487,7 +541,10 @@ public final class AgentRuntimeService extends Service {
 
         final long generation;
         try {
-            generation = STATE.beginStart();
+            generation = STATE.beginStart(
+                executionMode.getId(),
+                executionMode.getPermissionProfileId()
+            );
         } catch (RuntimeException error) {
             BOOTSTRAP_ACTIVE.set(false);
             return;
@@ -585,7 +642,8 @@ public final class AgentRuntimeService extends Service {
                                 );
                             }
                         },
-                        shellExecutable.getAbsolutePath()
+                        shellExecutable.getAbsolutePath(),
+                        executionMode
                     );
                     startedController.start();
                     startedCatalogController = new McpCatalogController(
@@ -813,6 +871,32 @@ public final class AgentRuntimeService extends Service {
             return RuntimeText.get(this, textKey, "Runtime error");
         }
         return RuntimeText.get(this, RuntimeText.NOTIFICATION_STARTING, "Native runtime is starting");
+    }
+
+    private static CodexExecutionMode executionModeFromIntent(Intent intent) {
+        if (intent == null) {
+            return ProtectedExecutionMode.get();
+        }
+        return resolveExecutionMode(
+            intent.getStringExtra(EXTRA_EXECUTION_MODE),
+            intent.getBooleanExtra(EXTRA_DANGER_WARNING_ACKNOWLEDGED, false)
+        );
+    }
+
+    private static CodexExecutionMode resolveExecutionMode(
+        String executionModeId,
+        boolean dangerWarningAcknowledged
+    ) {
+        if (executionModeId == null
+            || CodexExecutionMode.PROTECTED_ID.equals(executionModeId)) {
+            return ProtectedExecutionMode.get();
+        }
+        if (CodexExecutionMode.COMPATIBILITY_ID.equals(executionModeId)) {
+            return CompatibilityExecutionMode.afterWarningAcknowledged(
+                dangerWarningAcknowledged
+            );
+        }
+        throw new IllegalArgumentException("Unsupported runtime execution mode");
     }
 
     private static String safeMessage(String message) {

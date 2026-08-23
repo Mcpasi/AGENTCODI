@@ -15,6 +15,16 @@ public final class RuntimeStateMachine {
     }
 
     public synchronized long beginStart() {
+        return beginStart(
+            CodexExecutionMode.PROTECTED_ID,
+            CodexExecutionMode.PROTECTED_PERMISSION_PROFILE_ID
+        );
+    }
+
+    public synchronized long beginStart(
+        String executionModeId,
+        String permissionProfileId
+    ) {
         RuntimePhase phase = snapshot.getPhase();
         if (phase == RuntimePhase.STARTING || phase == RuntimePhase.READY) {
             throw new IllegalStateException("Runtime cannot start from " + phase);
@@ -26,7 +36,9 @@ public final class RuntimeStateMachine {
             "Java/C++-Runtime und Codex App-Server werden gestartet.",
             "",
             "",
-            ""
+            "",
+            requiredModeValue(executionModeId, "Execution mode"),
+            requiredModeValue(permissionProfileId, "Permission profile")
         );
         return generation;
     }
@@ -49,7 +61,9 @@ public final class RuntimeStateMachine {
             "Codex App-Server ist initialisiert.",
             engineVersion,
             diagnostics,
-            workspacePath
+            workspacePath,
+            snapshot.getExecutionModeId(),
+            snapshot.getPermissionProfileId()
         );
         return true;
     }
@@ -66,7 +80,9 @@ public final class RuntimeStateMachine {
             isBlank(message) ? "Unbekannter Runtime-Fehler." : message,
             phase == RuntimePhase.READY ? snapshot.getEngineVersion() : "",
             phase == RuntimePhase.READY ? snapshot.getDiagnostics() : "",
-            phase == RuntimePhase.READY ? snapshot.getWorkspacePath() : ""
+            phase == RuntimePhase.READY ? snapshot.getWorkspacePath() : "",
+            snapshot.getExecutionModeId(),
+            snapshot.getPermissionProfileId()
         );
         return true;
     }
@@ -78,7 +94,9 @@ public final class RuntimeStateMachine {
             "Runtime wurde gestoppt.",
             snapshot.getEngineVersion(),
             snapshot.getDiagnostics(),
-            snapshot.getWorkspacePath()
+            snapshot.getWorkspacePath(),
+            snapshot.getExecutionModeId(),
+            snapshot.getPermissionProfileId()
         );
     }
 
@@ -89,5 +107,12 @@ public final class RuntimeStateMachine {
 
     private static boolean isBlank(String value) {
         return value == null || value.trim().isEmpty();
+    }
+
+    private static String requiredModeValue(String value, String label) {
+        if (value == null || value.isEmpty() || value.length() > 80) {
+            throw new IllegalArgumentException(label + " is invalid");
+        }
+        return value;
     }
 }

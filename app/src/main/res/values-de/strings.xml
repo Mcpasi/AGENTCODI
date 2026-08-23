@@ -51,6 +51,7 @@
   <string name="chat_sign_in_required">Bitte in den Einstellungen mit ChatGPT oder einem API-Schlüssel anmelden.</string>
   <string name="chat_waiting_for_input">Codex wartet auf deine Freigabe oder Eingabe.</string>
   <string name="chat_streaming_response">Codex arbeitet und streamt die Antwort…</string>
+  <string name="chat_compatibility_mode_active">Kompatibilitätsmodus aktiv: keine wirksame Dateisystem-Isolation.</string>
   <string name="chat_update_failed">Die Chat-Oberfläche konnte nicht aktualisiert werden: %1$s</string>
   <string name="chat_initialization_failed">AGENTCODI konnte die Chat-Oberfläche nicht initialisieren.</string>
 
@@ -168,6 +169,22 @@
   <string name="settings_runtime_failure_caught">Einstellungs- oder Runtime-Fehler wurde abgefangen.</string>
   <string name="settings_report_saved">Bericht wurde lokal gespeichert.</string>
   <string name="settings_initialization_failed">AGENTCODI konnte die Einstellungen nicht initialisieren.</string>
+
+  <string name="execution_mode_section">AUSFÜHRUNGSMODUS</string>
+  <string name="execution_mode_description">Die Auswahl wird ausschließlich als natives Berechtigungsprofil an Thread, Turn und Terminal übergeben. AGENTCODI fügt dafür keine System- oder Entwickler-Prompts ein. Ein System-Neustart des Dienstes ohne neu bestätigte Auswahl verwendet den geschützten Standard.</string>
+  <string name="execution_mode_protected_name">Geschützt – Standard</string>
+  <string name="execution_mode_compatibility_name">Kompatibilität – experimentell</string>
+  <string name="execution_mode_protected_option">Geschützt – Standard\nagentcodi-workspace\nNur Workspace; Änderungen nach Möglichkeit als ein zusammengefasster Patch mit Vorschau</string>
+  <string name="execution_mode_protected_selected">✓ Geschützt – Standard\nagentcodi-workspace\nNur Workspace; Änderungen nach Möglichkeit als ein zusammengefasster Patch mit Vorschau</string>
+  <string name="execution_mode_compatibility_option">Kompatibilität – experimentell\n:danger-full-access\nDirekte Dateibearbeitung möglich, aber keine wirksame Dateisystem-Isolation</string>
+  <string name="execution_mode_compatibility_selected">✓ Kompatibilität – experimentell\n:danger-full-access\nDirekte Dateibearbeitung möglich, aber keine wirksame Dateisystem-Isolation</string>
+  <string name="execution_mode_active">Aktiv: %1$s · %2$s</string>
+  <string name="execution_mode_next_start">Für den nächsten Start gewählt: %1$s · %2$s</string>
+  <string name="execution_mode_change_rejected">Der Modus konnte nicht gewechselt werden. Beende zuerst den laufenden Turn, eine offene Rückfrage oder das Terminal.</string>
+  <string name="execution_mode_warning_title">Warnung: kein Dateisystem-Schutz</string>
+  <string name="execution_mode_warning_message">Der experimentelle Kompatibilitätsmodus aktiviert :danger-full-access. Auf Android stellt der gepinnte App-Server dafür keine wirksame Dateisystem-Isolation bereit. Codex und gestartete Befehle können alle für den App-Prozess erreichbaren Dateien direkt lesen, verändern oder löschen – auch außerhalb des Workspace und in privaten Geschwisterverzeichnissen. Dadurch steigen die Risiken von Datenverlust, Preisgabe von Zugangsdaten und unerwarteten Änderungen erheblich.\n\nAktiviere diesen Modus nur, wenn der geschützte Modus den benötigten Datenzugriff nicht zuverlässig bereitstellt.</string>
+  <string name="execution_mode_warning_cancel">Geschützt bleiben</string>
+  <string name="execution_mode_warning_confirm">Risiko verstanden – aktivieren</string>
 
   <string name="runtime_phase_idle">LEERLAUF</string>
   <string name="runtime_phase_starting">STARTET</string>

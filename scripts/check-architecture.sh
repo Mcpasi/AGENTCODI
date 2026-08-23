@@ -4,7 +4,7 @@ set -Eeuo pipefail
 SCRIPT_DIR="$(cd -- "$(dirname -- "$0")" && pwd -P)"
 PROJECT_ROOT="$(cd -- "$SCRIPT_DIR/.." && pwd -P)"
 
-unexpected_source="$(find "$PROJECT_ROOT/app/src/main/java" "$PROJECT_ROOT/modules/core/src/main/java" "$PROJECT_ROOT/modules/storage/src/main/java" "$PROJECT_ROOT/modules/import-contracts/src/main/java" "$PROJECT_ROOT/modules/import-client/src/main/java" "$PROJECT_ROOT/modules/mcp-contracts/src/main/java" "$PROJECT_ROOT/modules/mcp-client/src/main/java" "$PROJECT_ROOT/modules/runtime/src/main/java" "$PROJECT_ROOT/modules/native-engine/src/main/cpp" "$PROJECT_ROOT/tests/java" "$PROJECT_ROOT/tests/cpp" -type f ! -name '*.java' ! -name '*.cpp' ! -name '*.h' -print)"
+unexpected_source="$(find "$PROJECT_ROOT/app/src/main/java" "$PROJECT_ROOT/modules/core/src/main/java" "$PROJECT_ROOT/modules/protected-mode/src/main/java" "$PROJECT_ROOT/modules/compatibility-mode/src/main/java" "$PROJECT_ROOT/modules/storage/src/main/java" "$PROJECT_ROOT/modules/import-contracts/src/main/java" "$PROJECT_ROOT/modules/import-client/src/main/java" "$PROJECT_ROOT/modules/mcp-contracts/src/main/java" "$PROJECT_ROOT/modules/mcp-client/src/main/java" "$PROJECT_ROOT/modules/runtime/src/main/java" "$PROJECT_ROOT/modules/native-engine/src/main/cpp" "$PROJECT_ROOT/tests/java" "$PROJECT_ROOT/tests/cpp" -type f ! -name '*.java' ! -name '*.cpp' ! -name '*.h' -print)"
 if [ -n "$unexpected_source" ]; then
   echo "Only Java and C++ source files are accepted in source roots." >&2
   printf '%s\n' "$unexpected_source" >&2
@@ -16,8 +16,37 @@ if find "$PROJECT_ROOT/app" "$PROJECT_ROOT/modules" "$PROJECT_ROOT/tests" -type 
   exit 1
 fi
 
-if rg -n '^import android\.' "$PROJECT_ROOT/modules/core/src/main/java" "$PROJECT_ROOT/modules/storage/src/main/java" "$PROJECT_ROOT/modules/import-contracts/src/main/java" "$PROJECT_ROOT/modules/import-client/src/main/java" "$PROJECT_ROOT/modules/mcp-contracts/src/main/java" "$PROJECT_ROOT/modules/mcp-client/src/main/java"; then
+if rg -n '^import android\.' "$PROJECT_ROOT/modules/core/src/main/java" "$PROJECT_ROOT/modules/protected-mode/src/main/java" "$PROJECT_ROOT/modules/compatibility-mode/src/main/java" "$PROJECT_ROOT/modules/storage/src/main/java" "$PROJECT_ROOT/modules/import-contracts/src/main/java" "$PROJECT_ROOT/modules/import-client/src/main/java" "$PROJECT_ROOT/modules/mcp-contracts/src/main/java" "$PROJECT_ROOT/modules/mcp-client/src/main/java"; then
   echo "Pure Java modules must not import Android APIs." >&2
+  exit 1
+fi
+
+protected_mode="$PROJECT_ROOT/modules/protected-mode/src/main/java"
+compatibility_mode="$PROJECT_ROOT/modules/compatibility-mode/src/main/java"
+execution_mode_contract="$PROJECT_ROOT/modules/core/src/main/java/de/agentcodi/core/CodexExecutionMode.java"
+execution_mode_card="$PROJECT_ROOT/app/src/main/java/de/agentcodi/app/ExecutionModeSettingsCard.java"
+if rg -n '^import de\.agentcodi\.(app|runtime|storage|imports|mcp|mode)\.' \
+      "$protected_mode" "$compatibility_mode" \
+    || rg -n '^import de\.agentcodi\.mode\.' "$PROJECT_ROOT/modules/core/src/main/java" \
+    || ! rg -q 'PROTECTED_PERMISSION_PROFILE_ID = "agentcodi-workspace"' \
+      "$execution_mode_contract" \
+    || ! rg -q 'COMPATIBILITY_PERMISSION_PROFILE_ID = ":danger-full-access"' \
+      "$execution_mode_contract" \
+    || ! rg -q 'afterWarningAcknowledged' "$compatibility_mode" \
+    || ! rg -q 'throw new SecurityException' "$compatibility_mode" \
+    || ! rg -q 'showDangerWarning' "$execution_mode_card" \
+    || ! rg -q 'execution_mode_warning_message' "$execution_mode_card" \
+    || ! rg -q 'createLaunchIntent' "$PROJECT_ROOT/modules/runtime/src/main/java/de/agentcodi/runtime/AgentRuntimeService.java" \
+    || ! rg -q 'intent == null' "$PROJECT_ROOT/modules/runtime/src/main/java/de/agentcodi/runtime/AgentRuntimeService.java" \
+    || ! rg -q 'ProtectedExecutionMode\.get' "$PROJECT_ROOT/modules/runtime/src/main/java/de/agentcodi/runtime/AgentRuntimeService.java" \
+    || ! rg -q 'controller\.selectExecutionMode' "$PROJECT_ROOT/modules/runtime/src/main/java/de/agentcodi/runtime/AgentRuntimeService.java" \
+    || ! rg -q 'switchesToCompatibilityProfileWithoutPromptOverrides' "$PROJECT_ROOT/tests/java/de/agentcodi/tests/CodexSessionControllerTest.java" \
+    || ! rg -q -- '--execution-mode-roundtrip' "$PROJECT_ROOT/tests/cpp/agentcodi_engine_test.cpp" \
+    || rg -n 'SharedPreferences|getSharedPreferences' "$execution_mode_card" \
+      "$protected_mode" "$compatibility_mode" \
+    || rg -n '"(baseInstructions|developerInstructions|systemPrompt|system_prompt|instructions)"' \
+      "$PROJECT_ROOT/modules/core/src/main/java/de/agentcodi/core/CodexSessionController.java"; then
+  echo "The modular execution-mode, mandatory warning, safe restart, or no-prompt boundary is incomplete." >&2
   exit 1
 fi
 
@@ -555,8 +584,8 @@ if ! rg -Uq 'android:name="\.TerminalActivity"[[:space:][:print:]]{0,220}android
     || ! rg -q '"command/exec/resize"' "$terminal_session" \
     || ! rg -q '"command/exec/terminate"' "$terminal_session" \
     || ! rg -q 'command/exec/outputDelta' "$terminal_session" \
-    || ! rg -q 'PERMISSION_PROFILE = "agentcodi-workspace"' "$terminal_session" \
-    || ! rg -q '"permissionProfile", PERMISSION_PROFILE' "$terminal_session" \
+    || ! rg -q 'setPermissionProfile' "$terminal_session" \
+    || ! rg -q '"permissionProfile", requestedPermissionProfile' "$terminal_session" \
     || ! rg -q '"tty", Boolean\.TRUE' "$terminal_session" \
     || ! rg -q 'OUTPUT_BYTES_CAP = 8L \* 1024L \* 1024L' "$terminal_session" \
     || ! rg -q 'SERVER_TIMEOUT_MS = 30L \* 60L \* 1000L' "$terminal_session"; then
@@ -732,13 +761,13 @@ if ! rg -q 'PYTHON_SOURCE_EXTENSION_COUNT="75"' "$apk_builder" \
   exit 1
 fi
 
-if ! rg -q 'VERSION_NAME = "0\.5\.19"' "$core_root/BuildIdentity.java" \
-    || ! rg -q 'VERSION_CODE = 56' "$core_root/BuildIdentity.java" \
+if ! rg -q 'VERSION_NAME = "0\.5\.20"' "$core_root/BuildIdentity.java" \
+    || ! rg -q 'VERSION_CODE = 57' "$core_root/BuildIdentity.java" \
     || ! rg -q 'CODEX_RUNTIME_VERSION = "0\.148\.1"' "$core_root/BuildIdentity.java" \
-    || ! rg -q 'android:versionName="0\.5\.19"' "$manifest" \
-    || ! rg -q 'android:versionCode="56"' "$manifest" \
-    || ! rg -q 'APP_VERSION="0\.5\.19"' "$apk_builder" \
-    || ! rg -q 'VERSION_CODE="56"' "$apk_builder" \
+    || ! rg -q 'android:versionName="0\.5\.20"' "$manifest" \
+    || ! rg -q 'android:versionCode="57"' "$manifest" \
+    || ! rg -q 'APP_VERSION="0\.5\.20"' "$apk_builder" \
+    || ! rg -q 'VERSION_CODE="57"' "$apk_builder" \
     || ! rg -q 'CODEX_ANDROID_VERSION="0\.148\.1"' "$apk_builder" \
     || ! rg -q 'CODEX_TERMUX_SOURCE_TAG="v0\.148\.1"' "$apk_builder" \
     || ! rg -q 'CODEX_TERMUX_SOURCE_COMMIT="9d48c76abec320ae3724164d0177299b1acd31ca"' "$apk_builder" \
@@ -759,7 +788,7 @@ if ! rg -q 'VERSION_NAME = "0\.5\.19"' "$core_root/BuildIdentity.java" \
     || ! rg -q '9d48c76abec320ae3724164d0177299b1acd31ca' "$PROJECT_ROOT/app/src/main/res/raw/third_party_notices.txt" \
     || ! rg -q '3ba0f711642a888aec92a611a3f3b2211157ff89' "$PROJECT_ROOT/NOTICE.md" \
     || ! rg -q '3ba0f711642a888aec92a611a3f3b2211157ff89' "$PROJECT_ROOT/app/src/main/res/raw/third_party_notices.txt"; then
-  echo "The 0.5.19 / Codex 0.148.1 identity is inconsistent." >&2
+  echo "The 0.5.20 / Codex 0.148.1 identity is inconsistent." >&2
   exit 1
 fi
 

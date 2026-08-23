@@ -14,6 +14,8 @@ import de.agentcodi.core.CodexSessionSnapshot;
 import de.agentcodi.core.CodexTranscriptItem;
 import de.agentcodi.core.JsonCodec;
 import de.agentcodi.core.TerminalSessionSnapshot;
+import de.agentcodi.mode.compatibility.CompatibilityExecutionMode;
+import de.agentcodi.mode.protectedmode.ProtectedExecutionMode;
 
 import java.io.IOException;
 import java.nio.charset.StandardCharsets;
@@ -54,6 +56,8 @@ public final class CodexSessionControllerTest {
         blocksCredentialsInChatMessages();
         acceptsOnlyTrustedBrowserLoginUrl();
         usesAdvertisedModelEffortAndPermissionProfile();
+        switchesToCompatibilityProfileWithoutPromptOverrides();
+        carriesCompatibilityProfileIntoTerminal();
         handlesCommandAndFileApprovals();
         acceptsFileCreationApproval();
         enrichesFileApprovalAfterReorderedPatchUpdate();
@@ -65,7 +69,7 @@ public final class CodexSessionControllerTest {
         terminatesTerminalWhenOutputCapIsReached();
         rejectsTerminalCredentialsAndMalformedOutput();
         usesVettedMcpConfigurationRpcs();
-        return 31;
+        return 33;
     }
 
     private static void sendsImportedFilesWithModelReadableContext() throws Exception {
@@ -2147,6 +2151,148 @@ public final class CodexSessionControllerTest {
         controller.close();
     }
 
+    private static void switchesToCompatibilityProfileWithoutPromptOverrides()
+        throws Exception {
+        final FixtureServer server = new FixtureServer(true);
+        final CodexSessionController controller = new CodexSessionController(
+            server,
+            "/private/workspace"
+        );
+        controller.start();
+        TestSupport.assertEquals(
+            "protected",
+            controller.snapshot().getExecutionModeId(),
+            "protected mode is the controller default"
+        );
+        TestSupport.assertTrue(
+            controller.selectExecutionMode(
+                CompatibilityExecutionMode.afterWarningAcknowledged(true)
+            ),
+            "compatibility mode change queued"
+        );
+        waitFor(new Condition() {
+            @Override
+            public boolean isTrue() {
+                return "compatibility".equals(
+                        controller.snapshot().getExecutionModeId()
+                    )
+                    && !controller.snapshot().isOperationActive();
+            }
+        }, "compatibility mode activated");
+        TestSupport.assertEquals(
+            ":danger-full-access",
+            controller.snapshot().getPermissionProfileId(),
+            "compatibility snapshot profile"
+        );
+        TestSupport.assertTrue(
+            controller.snapshot().isDangerousExecutionMode(),
+            "compatibility snapshot remains visibly dangerous"
+        );
+
+        controller.startNewThread();
+        waitFor(new Condition() {
+            @Override
+            public boolean isTrue() {
+                return server.lastThreadStartParams != null
+                    && !controller.snapshot().isOperationActive();
+            }
+        }, "compatibility thread/start captured");
+        assertExecutionPermissionRequest(
+            server.lastThreadStartParams,
+            ":danger-full-access",
+            "compatibility thread/start"
+        );
+        assertNoPromptOverrides(
+            server.lastThreadStartParams,
+            "compatibility thread/start"
+        );
+
+        controller.openThread("thr_existing");
+        waitFor(new Condition() {
+            @Override
+            public boolean isTrue() {
+                return "thr_existing".equals(controller.snapshot().getActiveThreadId())
+                    && !controller.snapshot().isOperationActive();
+            }
+        }, "compatibility thread/resume captured");
+        assertExecutionPermissionRequest(
+            server.lastThreadResumeParams,
+            ":danger-full-access",
+            "compatibility thread/resume"
+        );
+        assertNoPromptOverrides(
+            server.lastThreadResumeParams,
+            "compatibility thread/resume"
+        );
+
+        controller.sendMessage("Kompatibilitätsprofil ohne System-Prompt");
+        waitFor(new Condition() {
+            @Override
+            public boolean isTrue() {
+                return server.lastTurnStartParams != null
+                    && !controller.snapshot().isOperationActive()
+                    && !controller.snapshot().isTurnActive();
+            }
+        }, "compatibility turn/start captured");
+        assertExecutionPermissionRequest(
+            server.lastTurnStartParams,
+            ":danger-full-access",
+            "compatibility turn/start"
+        );
+        assertNoPromptOverrides(
+            server.lastTurnStartParams,
+            "compatibility turn/start"
+        );
+
+        TestSupport.assertTrue(
+            controller.selectExecutionMode(ProtectedExecutionMode.get()),
+            "protected mode restoration queued"
+        );
+        waitFor(new Condition() {
+            @Override
+            public boolean isTrue() {
+                return "protected".equals(controller.snapshot().getExecutionModeId())
+                    && !controller.snapshot().isOperationActive();
+            }
+        }, "protected mode restored");
+        TestSupport.assertFalse(
+            controller.snapshot().isDangerousExecutionMode(),
+            "protected restoration clears danger marker"
+        );
+        controller.close();
+    }
+
+    private static void carriesCompatibilityProfileIntoTerminal() throws Exception {
+        final FixtureServer server = new FixtureServer(true);
+        final CodexSessionController controller = new CodexSessionController(
+            server,
+            "/private/workspace",
+            null,
+            "/private/lib/libagentcodi-shell.so",
+            CompatibilityExecutionMode.afterWarningAcknowledged(true)
+        );
+        controller.start();
+        controller.startTerminal(24, 80);
+        waitFor(new Condition() {
+            @Override
+            public boolean isTrue() {
+                return controller.terminalSnapshot().isRunning();
+            }
+        }, "compatibility terminal running");
+        TestSupport.assertEquals(
+            ":danger-full-access",
+            server.lastCommandExecParams.get("permissionProfile"),
+            "terminal receives compatibility permission profile"
+        );
+        TestSupport.assertFalse(
+            server.lastCommandExecParams.containsKey("sandboxPolicy"),
+            "compatibility terminal does not synthesize a sandbox policy"
+        );
+        controller.stopTerminal();
+        waitForTerminalExit(controller);
+        controller.close();
+    }
+
     private static void handlesCommandAndFileApprovals() throws Exception {
         final FixtureServer server = new FixtureServer(true);
         server.holdTurnOpen = true;
@@ -2951,9 +3097,17 @@ public final class CodexSessionControllerTest {
         Map<String, Object> params,
         String method
     ) {
+        assertExecutionPermissionRequest(params, "agentcodi-workspace", method);
+    }
+
+    private static void assertExecutionPermissionRequest(
+        Map<String, Object> params,
+        String expectedPermissionProfile,
+        String method
+    ) {
         TestSupport.assertTrue(params != null, method + " params captured");
         TestSupport.assertEquals(
-            "agentcodi-workspace",
+            expectedPermissionProfile,
             params.get("permissions"),
             method + " permission profile"
         );
@@ -2971,6 +3125,26 @@ public final class CodexSessionControllerTest {
         TestSupport.assertFalse(
             params.containsKey("sandboxPolicy"),
             method + " legacy sandbox policy omitted"
+        );
+    }
+
+    private static void assertNoPromptOverrides(
+        Map<String, Object> params,
+        String method
+    ) {
+        TestSupport.assertFalse(
+            params.containsKey("baseInstructions"),
+            method + " base instructions omitted"
+        );
+        TestSupport.assertFalse(
+            params.containsKey("developerInstructions"),
+            method + " developer instructions omitted"
+        );
+        TestSupport.assertFalse(
+            params.containsKey("systemPrompt")
+                || params.containsKey("system_prompt")
+                || params.containsKey("instructions"),
+            method + " system prompt fields omitted"
         );
     }
 
@@ -3229,11 +3403,18 @@ public final class CodexSessionControllerTest {
                 respond(request, JsonCodec.object("userAgent", "fixture/1"));
             } else if ("permissionProfile/list".equals(method)) {
                 respond(request, JsonCodec.object(
-                    "data", JsonCodec.array(JsonCodec.object(
-                        "id", "agentcodi-workspace",
-                        "description", "Private workspace",
-                        "allowed", Boolean.valueOf(permissionAllowed)
-                    )),
+                    "data", JsonCodec.array(
+                        JsonCodec.object(
+                            "id", "agentcodi-workspace",
+                            "description", "Private workspace",
+                            "allowed", Boolean.valueOf(permissionAllowed)
+                        ),
+                        JsonCodec.object(
+                            "id", ":danger-full-access",
+                            "description", "Full access",
+                            "allowed", Boolean.valueOf(permissionAllowed)
+                        )
+                    ),
                     "nextCursor", null
                 ));
             } else if ("model/list".equals(method)) {
@@ -3314,12 +3495,21 @@ public final class CodexSessionControllerTest {
             } else if ("thread/resume".equals(method)) {
                 lastThreadResumeParams = JsonCodec.requireObject(request.get("params"), "params");
                 assertHttpModelProvider(lastThreadResumeParams, "fixture thread/resume");
+                String requestedPermissionProfile = JsonCodec.requireString(
+                    lastThreadResumeParams.get("permissions"),
+                    "thread/resume permissions"
+                );
+                assertExecutionPermissionRequest(
+                    lastThreadResumeParams,
+                    requestedPermissionProfile,
+                    "fixture thread/resume"
+                );
                 respond(request, JsonCodec.object(
                     "thread", thread("thr_existing", true),
                     "model", "gpt-5.6-sol",
                     "reasoningEffort", "low",
                     "activePermissionProfile", JsonCodec.object(
-                        "id", "agentcodi-workspace",
+                        "id", requestedPermissionProfile,
                         "extends", null
                     )
                 ));
@@ -3380,19 +3570,36 @@ public final class CodexSessionControllerTest {
             } else if ("thread/start".equals(method)) {
                 Map<String, Object> params = JsonCodec.requireObject(request.get("params"), "params");
                 lastThreadStartParams = params;
-                assertWorkspacePermissionRequest(params, "fixture thread/start");
+                String requestedPermissionProfile = JsonCodec.requireString(
+                    params.get("permissions"),
+                    "thread/start permissions"
+                );
+                assertExecutionPermissionRequest(
+                    params,
+                    requestedPermissionProfile,
+                    "fixture thread/start"
+                );
                 assertHttpModelProvider(params, "fixture thread/start");
                 respond(request, JsonCodec.object(
                     "thread", thread("thr_new", false),
                     "model", params.get("model"),
                     "reasoningEffort", null,
                     "activePermissionProfile", JsonCodec.object(
-                        "id", "agentcodi-workspace",
+                        "id", requestedPermissionProfile,
                         "extends", null
                     )
                 ));
             } else if ("turn/start".equals(method)) {
                 lastTurnStartParams = JsonCodec.requireObject(request.get("params"), "params");
+                String requestedPermissionProfile = JsonCodec.requireString(
+                    lastTurnStartParams.get("permissions"),
+                    "turn/start permissions"
+                );
+                assertExecutionPermissionRequest(
+                    lastTurnStartParams,
+                    requestedPermissionProfile,
+                    "fixture turn/start"
+                );
                 TestFileTransaction expectedTransaction =
                     expectedTurnStartFileTransaction;
                 expectedTurnStartFileTransaction = null;

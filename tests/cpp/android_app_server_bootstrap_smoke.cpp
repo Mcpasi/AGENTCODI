@@ -70,6 +70,35 @@ bool read_response(
   return read_response(process, id_marker, required_marker, "", error);
 }
 
+bool read_response_with_two_markers(
+    const std::shared_ptr<agentcodi::AppServerProcess>& process,
+    const std::string& id_marker,
+    const std::string& first_required_marker,
+    const std::string& second_required_marker,
+    std::string* error) {
+  for (int attempt = 0; attempt < 16; ++attempt) {
+    std::string line;
+    const agentcodi::LineReadStatus status = process->ReadLine(
+        kMaximumLineBytes,
+        &line,
+        error);
+    if (status != agentcodi::LineReadStatus::kLine) {
+      std::cerr << "Bootstrap response failed: " << *error << '\n';
+      return false;
+    }
+    if (line.find(id_marker) != std::string::npos) {
+      if (line.find(first_required_marker) == std::string::npos
+          || line.find(second_required_marker) == std::string::npos) {
+        std::cerr << "Bootstrap response omitted an execution-mode profile\n";
+        return false;
+      }
+      return true;
+    }
+  }
+  std::cerr << "Bootstrap response was displaced by too many notifications\n";
+  return false;
+}
+
 bool safe_json_path(const std::string& value) {
   return value.find('"') == std::string::npos
       && value.find('\\') == std::string::npos
@@ -518,7 +547,7 @@ int main(int argc, char* argv[]) {
   const std::string initialize =
       "{\"method\":\"initialize\",\"id\":1,\"params\":{"
       "\"clientInfo\":{\"name\":\"agentcodi_android\","
-      "\"title\":\"AGENTCODI\",\"version\":\"0.5.19\"},"
+      "\"title\":\"AGENTCODI\",\"version\":\"0.5.20\"},"
       "\"capabilities\":{\"experimentalApi\":true,"
       "\"optOutNotificationMethods\":[\"rawResponseItem/completed\","
       "\"rawResponse/completed\"]}}}";
@@ -533,7 +562,12 @@ int main(int argc, char* argv[]) {
       "{\"method\":\"permissionProfile/list\",\"id\":2,\"params\":{"
       "\"cwd\":\"" + workspace + "\",\"limit\":50}}";
   if (!write_request(process, permission_request, &error)
-      || !read_response(process, "\"id\":2", "\"id\":\"agentcodi-workspace\"", &error)
+      || !read_response_with_two_markers(
+          process,
+          "\"id\":2",
+          "\"id\":\"agentcodi-workspace\"",
+          "\"id\":\":danger-full-access\"",
+          &error)
       || !write_request(
           process,
           "{\"method\":\"model/list\",\"id\":3,\"params\":{"
@@ -606,6 +640,20 @@ int main(int argc, char* argv[]) {
           config.tool_binary_directory + "/node",
           config.tool_binary_directory + "/rg",
           &error)) {
+    process->Stop(2'000);
+    return 1;
+  }
+
+  const std::string compatibility_request =
+      "{\"method\":\"command/exec\",\"id\":24,\"params\":{"
+      "\"command\":[\"/system/bin/sh\",\"-c\","
+      "\": > .agentcodi-compatibility-smoke && "
+      "rm .agentcodi-compatibility-smoke\"],"
+      "\"cwd\":\"" + workspace + "\","
+      "\"permissionProfile\":\":danger-full-access\","
+      "\"tty\":false,\"outputBytesCap\":65536,\"timeoutMs\":10000}}";
+  if (!write_request(process, compatibility_request, &error)
+      || !read_response(process, "\"id\":24", "\"exitCode\":0", &error)) {
     process->Stop(2'000);
     return 1;
   }
@@ -803,7 +851,7 @@ int main(int argc, char* argv[]) {
   const std::string probe_initialize =
       "{\"method\":\"initialize\",\"id\":30,\"params\":{"
       "\"clientInfo\":{\"name\":\"agentcodi_import_probe\","
-      "\"title\":\"AGENTCODI import probe\",\"version\":\"0.5.19\"},"
+      "\"title\":\"AGENTCODI import probe\",\"version\":\"0.5.20\"},"
       "\"capabilities\":{\"experimentalApi\":true}}}";
   if (!write_request(probe, probe_initialize, &error)
       || !read_response(probe, "\"id\":30", "\"codexHome\":", &error)

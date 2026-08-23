@@ -53,7 +53,8 @@ public final class CodexSessionController
     private static final int MAX_FILE_CHANGE_TOTAL_CHARACTERS = 48 * 1024;
     private static final int MAX_POLICY_AMENDMENT_PARTS = 32;
     private static final long MAX_INTERACTIVE_WAIT_MS = 10L * 60L * 1000L;
-    private static final String WORKSPACE_PERMISSION_PROFILE = "agentcodi-workspace";
+    private static final String WORKSPACE_PERMISSION_PROFILE =
+        CodexExecutionMode.PROTECTED_PERMISSION_PROFILE_ID;
     private static final String OPENAI_HTTP_MODEL_PROVIDER = "agentcodi-openai-http";
     private static final String COMMAND_APPROVAL_METHOD =
         "item/commandExecution/requestApproval";
@@ -124,6 +125,9 @@ public final class CodexSessionController
     private String activeTurnId = "";
     private String lastCompletedTurnId = "";
     private String errorMessage = "";
+    private String executionModeId;
+    private String permissionProfileId;
+    private boolean dangerousExecutionMode;
     private CodexSessionSnapshot snapshot;
 
     public CodexSessionController(CodexRpcTransport transport, String workspacePath) {
@@ -144,16 +148,41 @@ public final class CodexSessionController
         ConnectionFailureListener connectionFailureListener,
         String terminalShellPath
     ) {
+        this(
+            transport,
+            workspacePath,
+            connectionFailureListener,
+            terminalShellPath,
+            null
+        );
+    }
+
+    public CodexSessionController(
+        CodexRpcTransport transport,
+        String workspacePath,
+        ConnectionFailureListener connectionFailureListener,
+        String terminalShellPath,
+        CodexExecutionMode executionMode
+    ) {
         if (workspacePath == null || workspacePath.trim().isEmpty()
             || !workspacePath.startsWith("/")) {
             throw new IllegalArgumentException("Workspace path must be absolute");
         }
+        ExecutionModeValues mode = validatedExecutionMode(executionMode);
         this.workspacePath = workspacePath;
         this.connectionFailureListener = connectionFailureListener;
+        executionModeId = mode.id;
+        permissionProfileId = mode.permissionProfileId;
+        dangerousExecutionMode = mode.dangerous;
         client = new CodexAppServerClient(transport, this);
         terminal = terminalShellPath == null
             ? null
-            : new CodexTerminalSession(client, workspacePath, terminalShellPath);
+            : new CodexTerminalSession(
+                client,
+                workspacePath,
+                terminalShellPath,
+                permissionProfileId
+            );
         synchronized (this) {
             publishLocked();
         }
@@ -192,7 +221,7 @@ public final class CodexSessionController
                 connectionMessage = "Codex App-Server ist bereit.";
                 publishLocked();
             }
-            verifyWorkspacePermissionProfileInternal();
+            verifyPermissionProfileInternal(currentPermissionProfile());
             refreshModelsInternal();
             readAccountInternal();
             refreshThreadsInternal();
@@ -402,6 +431,61 @@ public final class CodexSessionController
         publishLocked();
     }
 
+    public boolean selectExecutionMode(CodexExecutionMode requestedMode) {
+        final ExecutionModeValues candidate = validatedExecutionMode(requestedMode);
+        synchronized (this) {
+            if (closed || !ready) {
+                setUserError("Codex App-Server ist nicht bereit.");
+                return false;
+            }
+            if (candidate.id.equals(executionModeId)
+                && candidate.permissionProfileId.equals(permissionProfileId)) {
+                return true;
+            }
+            if (turnActive || !interactiveRequests.isEmpty()) {
+                setUserError(
+                    "Der Ausführungsmodus kann erst nach dem laufenden Turn gewechselt werden."
+                );
+                return false;
+            }
+            TerminalSessionSnapshot terminalState = terminalSnapshot();
+            if (terminalState.isRunning() || terminalState.isStarting()) {
+                setUserError(
+                    "Das Terminal muss vor einem Wechsel des Ausführungsmodus gestoppt werden."
+                );
+                return false;
+            }
+        }
+        return submit("Ausführungsmodus wird gewechselt.", new Operation() {
+            @Override
+            public void run() throws Exception {
+                synchronized (CodexSessionController.this) {
+                    requireNoActiveTurnOrRequestLocked();
+                }
+                TerminalSessionSnapshot terminalState = terminalSnapshot();
+                if (terminalState.isRunning() || terminalState.isStarting()) {
+                    throw new IllegalStateException(
+                        "Das Terminal muss vor einem Wechsel des Ausführungsmodus gestoppt werden."
+                    );
+                }
+                verifyPermissionProfileInternal(candidate.permissionProfileId);
+                if (terminal != null) {
+                    terminal.setPermissionProfile(candidate.permissionProfileId);
+                }
+                synchronized (CodexSessionController.this) {
+                    executionModeId = candidate.id;
+                    permissionProfileId = candidate.permissionProfileId;
+                    dangerousExecutionMode = candidate.dangerous;
+                    operationMessage = candidate.dangerous
+                        ? "Kompatibilitätsmodus ist aktiv."
+                        : "Geschützter Modus ist aktiv.";
+                    errorMessage = "";
+                    publishLocked();
+                }
+            }
+        });
+    }
+
     public void startChatGptLogin() {
         submit("ChatGPT-Anmeldung wird vorbereitet.", new Operation() {
             @Override
@@ -538,8 +622,10 @@ public final class CodexSessionController
         submit("Chat wird geöffnet.", new Operation() {
             @Override
             public void run() throws Exception {
+                final String requestedPermissionProfile;
                 synchronized (CodexSessionController.this) {
                     requireNoActiveTurnOrRequestLocked();
+                    requestedPermissionProfile = permissionProfileId;
                 }
                 Map<String, Object> result = client.request(
                     "thread/resume",
@@ -549,11 +635,15 @@ public final class CodexSessionController
                         "cwd", workspacePath,
                         "runtimeWorkspaceRoots", JsonCodec.array(workspacePath),
                         "approvalPolicy", "on-request",
-                        "permissions", WORKSPACE_PERMISSION_PROFILE
+                        "permissions", requestedPermissionProfile
                     ),
                     NORMAL_TIMEOUT_MS
                 );
-                requireWorkspacePermissionProfile(result, "thread/resume");
+                requirePermissionProfile(
+                    result,
+                    "thread/resume",
+                    requestedPermissionProfile
+                );
                 Map<String, Object> thread = JsonCodec.requireObject(
                     result.get("thread"),
                     "thread/resume thread"
@@ -878,7 +968,7 @@ public final class CodexSessionController
             "cwd", workspacePath,
             "runtimeWorkspaceRoots", JsonCodec.array(workspacePath),
             "approvalPolicy", "on-request",
-            "permissions", WORKSPACE_PERMISSION_PROFILE,
+            "permissions", currentPermissionProfile(),
             "model", requestModel,
             "effort", requestEffort,
             "summary", "auto"
@@ -1271,7 +1361,7 @@ public final class CodexSessionController
         client.close();
     }
 
-    private void verifyWorkspacePermissionProfileInternal() throws Exception {
+    private void verifyPermissionProfileInternal(String expectedProfileId) throws Exception {
         Set<String> cursors = new HashSet<String>();
         String cursor = "";
         for (int page = 0; page < 4; page++) {
@@ -1295,7 +1385,7 @@ public final class CodexSessionController
                     value,
                     "permission profile"
                 );
-                if (WORKSPACE_PERMISSION_PROFILE.equals(
+                if (expectedProfileId.equals(
                         JsonCodec.optionalString(profile.get("id")))
                     && JsonCodec.booleanValue(profile.get("allowed"), false)) {
                     return;
@@ -1307,7 +1397,7 @@ public final class CodexSessionController
             }
         }
         throw new IllegalStateException(
-            "Das private AGENTCODI-Workspace-Berechtigungsprofil ist nicht verfügbar."
+            "Das gewählte AGENTCODI-Berechtigungsprofil ist nicht verfügbar."
         );
     }
 
@@ -1604,6 +1694,7 @@ public final class CodexSessionController
 
     private String startNewThreadInternal() throws Exception {
         String requestModel;
+        String requestedPermissionProfile;
         synchronized (this) {
             requireNoActiveTurnOrRequestLocked();
             if (requiresOpenaiAuth && authMode.isEmpty()) {
@@ -1614,12 +1705,13 @@ public final class CodexSessionController
                 throw new IllegalStateException("Bitte zuerst ein angebotenes Modell wählen.");
             }
             requestModel = model.getModel();
+            requestedPermissionProfile = permissionProfileId;
         }
         Map<String, Object> params = JsonCodec.object(
             "cwd", workspacePath,
             "runtimeWorkspaceRoots", JsonCodec.array(workspacePath),
             "approvalPolicy", "on-request",
-            "permissions", WORKSPACE_PERMISSION_PROFILE,
+            "permissions", requestedPermissionProfile,
             "modelProvider", OPENAI_HTTP_MODEL_PROVIDER,
             "model", requestModel,
             "persistExtendedHistory", Boolean.TRUE
@@ -1629,7 +1721,7 @@ public final class CodexSessionController
             params,
             NORMAL_TIMEOUT_MS
         );
-        requireWorkspacePermissionProfile(result, "thread/start");
+        requirePermissionProfile(result, "thread/start", requestedPermissionProfile);
         Map<String, Object> thread = JsonCodec.requireObject(
             result.get("thread"),
             "thread/start thread"
@@ -3642,6 +3734,9 @@ public final class CodexSessionController
             revision,
             ready,
             connectionMessage,
+            executionModeId,
+            permissionProfileId,
+            dangerousExecutionMode,
             requiresOpenaiAuth,
             authMode,
             accountEmail,
@@ -3720,20 +3815,52 @@ public final class CodexSessionController
         boundTranscriptLocked();
     }
 
-    private static void requireWorkspacePermissionProfile(
+    private static void requirePermissionProfile(
         Map<String, Object> response,
-        String method
+        String method,
+        String expectedProfileId
     ) {
         Map<String, Object> active = JsonCodec.optionalObject(
             response.get("activePermissionProfile")
         );
-        if (active == null || !WORKSPACE_PERMISSION_PROFILE.equals(
+        if (active == null || !expectedProfileId.equals(
             JsonCodec.optionalString(active.get("id"))
         )) {
             throw new IllegalStateException(
-                method + " hat das private Workspace-Berechtigungsprofil nicht aktiviert."
+                method + " hat das gewählte Berechtigungsprofil nicht aktiviert."
             );
         }
+    }
+
+    private synchronized String currentPermissionProfile() {
+        return permissionProfileId;
+    }
+
+    private static ExecutionModeValues validatedExecutionMode(
+        CodexExecutionMode executionMode
+    ) {
+        if (executionMode == null) {
+            return new ExecutionModeValues(
+                CodexExecutionMode.PROTECTED_ID,
+                WORKSPACE_PERMISSION_PROFILE,
+                false
+            );
+        }
+        String id = executionMode.getId();
+        String permissionProfile = executionMode.getPermissionProfileId();
+        boolean dangerous = executionMode.isDangerous();
+        boolean protectedMode = CodexExecutionMode.PROTECTED_ID.equals(id)
+            && WORKSPACE_PERMISSION_PROFILE.equals(permissionProfile)
+            && !dangerous;
+        boolean compatibilityMode = CodexExecutionMode.COMPATIBILITY_ID.equals(id)
+            && CodexExecutionMode.COMPATIBILITY_PERMISSION_PROFILE_ID.equals(
+                permissionProfile
+            )
+            && dangerous;
+        if (!protectedMode && !compatibilityMode) {
+            throw new IllegalArgumentException("Unsupported Codex execution mode");
+        }
+        return new ExecutionModeValues(id, permissionProfile, dangerous);
     }
 
     private static void requireHttpModelProvider(Map<String, Object> thread, String method) {
@@ -4391,6 +4518,22 @@ public final class CodexSessionController
     private static void wipe(char[] value) {
         if (value != null) {
             Arrays.fill(value, '\0');
+        }
+    }
+
+    private static final class ExecutionModeValues {
+        private final String id;
+        private final String permissionProfileId;
+        private final boolean dangerous;
+
+        private ExecutionModeValues(
+            String id,
+            String permissionProfileId,
+            boolean dangerous
+        ) {
+            this.id = id;
+            this.permissionProfileId = permissionProfileId;
+            this.dangerous = dangerous;
         }
     }
 

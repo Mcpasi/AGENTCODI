@@ -51,6 +51,7 @@
   <string name="chat_sign_in_required">Sign in with ChatGPT or an API key in Settings.</string>
   <string name="chat_waiting_for_input">Codex is waiting for your approval or input.</string>
   <string name="chat_streaming_response">Codex is working and streaming the response…</string>
+  <string name="chat_compatibility_mode_active">Compatibility mode is active: there is no effective filesystem isolation.</string>
   <string name="chat_update_failed">The chat interface could not be updated: %1$s</string>
   <string name="chat_initialization_failed">AGENTCODI could not initialize the chat interface.</string>
 
@@ -168,6 +169,22 @@
   <string name="settings_runtime_failure_caught">A Settings or runtime error was caught.</string>
   <string name="settings_report_saved">Report saved locally.</string>
   <string name="settings_initialization_failed">AGENTCODI could not initialize Settings.</string>
+
+  <string name="execution_mode_section">EXECUTION MODE</string>
+  <string name="execution_mode_description">The selection is sent only as a native permission profile for threads, turns, and the terminal. AGENTCODI does not inject system or developer prompts for it. A system service restart without a newly confirmed selection uses the protected default.</string>
+  <string name="execution_mode_protected_name">Protected – default</string>
+  <string name="execution_mode_compatibility_name">Compatibility – experimental</string>
+  <string name="execution_mode_protected_option">Protected – default\nagentcodi-workspace\nWorkspace only; changes are grouped into one patch with a preview where possible</string>
+  <string name="execution_mode_protected_selected">✓ Protected – default\nagentcodi-workspace\nWorkspace only; changes are grouped into one patch with a preview where possible</string>
+  <string name="execution_mode_compatibility_option">Compatibility – experimental\n:danger-full-access\nDirect file editing is possible, but there is no effective filesystem isolation</string>
+  <string name="execution_mode_compatibility_selected">✓ Compatibility – experimental\n:danger-full-access\nDirect file editing is possible, but there is no effective filesystem isolation</string>
+  <string name="execution_mode_active">Active: %1$s · %2$s</string>
+  <string name="execution_mode_next_start">Selected for the next start: %1$s · %2$s</string>
+  <string name="execution_mode_change_rejected">The mode could not be changed. Finish the active turn, open request, or terminal first.</string>
+  <string name="execution_mode_warning_title">Warning: no filesystem protection</string>
+  <string name="execution_mode_warning_message">Experimental compatibility mode activates :danger-full-access. On Android, the pinned app-server provides no effective filesystem isolation for this mode. Codex and commands it starts can directly read, change, or delete every file reachable by the app process—including files outside the workspace and in private sibling directories. This substantially increases the risk of data loss, credential disclosure, and unexpected changes.\n\nEnable this mode only when protected mode cannot provide the required data access reliably.</string>
+  <string name="execution_mode_warning_cancel">Stay protected</string>
+  <string name="execution_mode_warning_confirm">I understand the risk – enable</string>
 
   <string name="runtime_phase_idle">IDLE</string>
   <string name="runtime_phase_starting">STARTING</string>

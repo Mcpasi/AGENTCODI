@@ -27,6 +27,7 @@ import android.widget.TextView;
 import android.widget.Toast;
 
 import de.agentcodi.core.BuildIdentity;
+import de.agentcodi.core.CodexExecutionMode;
 import de.agentcodi.core.CodexRateLimitWindow;
 import de.agentcodi.core.CodexRateLimitsSnapshot;
 import de.agentcodi.core.CodexSessionSnapshot;
@@ -105,6 +106,8 @@ public final class SettingsActivity extends Activity {
     private RuntimePhase lastRuntimePhase;
     private long lastSessionRevision = Long.MIN_VALUE;
     private boolean launchAfterNotificationPermission;
+    private String pendingLaunchExecutionModeId = CodexExecutionMode.PROTECTED_ID;
+    private boolean pendingLaunchDangerWarningAcknowledged;
     private CrashDiagnostics crashDiagnostics;
     private InteractiveRequestDialog interactiveRequestDialog;
     private TextView workspaceExportStatusView;
@@ -116,6 +119,7 @@ public final class SettingsActivity extends Activity {
     private boolean workspaceOperationActive;
     private boolean destroyed;
     private TextView languageStatusView;
+    private ExecutionModeSettingsCard executionModeSettingsCard;
 
     @Override
     protected void attachBaseContext(Context base) {
@@ -172,6 +176,9 @@ public final class SettingsActivity extends Activity {
         if (workspaceFileDialog != null) {
             workspaceFileDialog.dismiss();
             workspaceFileDialog = null;
+        }
+        if (executionModeSettingsCard != null) {
+            executionModeSettingsCard.dismiss();
         }
         super.onStop();
     }
@@ -275,6 +282,37 @@ public final class SettingsActivity extends Activity {
         }
 
         addLanguageCard(page);
+
+        theme.addWithTopMargin(
+            page,
+            theme.sectionLabel(getString(R.string.execution_mode_section)),
+            28
+        );
+        executionModeSettingsCard = new ExecutionModeSettingsCard(
+            this,
+            theme,
+            new ExecutionModeSettingsCard.ActiveModeListener() {
+                @Override
+                public boolean onActiveModeRequested(
+                    String executionModeId,
+                    boolean dangerWarningAcknowledged
+                ) {
+                    boolean accepted = AgentRuntimeService.selectExecutionMode(
+                        executionModeId,
+                        dangerWarningAcknowledged
+                    );
+                    if (!accepted) {
+                        Toast.makeText(
+                            SettingsActivity.this,
+                            R.string.execution_mode_change_rejected,
+                            Toast.LENGTH_LONG
+                        ).show();
+                    }
+                    return accepted;
+                }
+            }
+        );
+        theme.addWithTopMargin(page, executionModeSettingsCard.getView(), 10);
 
         theme.addWithTopMargin(
             page,
@@ -706,6 +744,9 @@ public final class SettingsActivity extends Activity {
         if (interactiveRequestDialog != null) {
             interactiveRequestDialog.render(session);
         }
+        if (executionModeSettingsCard != null) {
+            executionModeSettingsCard.render(runtime, session);
+        }
     }
 
     private String formatRateLimits(CodexRateLimitsSnapshot rateLimits) {
@@ -745,6 +786,29 @@ public final class SettingsActivity extends Activity {
     }
 
     private void requestPermissionAndLaunchRuntime() {
+        if (executionModeSettingsCard == null) {
+            pendingLaunchExecutionModeId = CodexExecutionMode.PROTECTED_ID;
+            pendingLaunchDangerWarningAcknowledged = false;
+            requestNotificationPermissionAndLaunchRuntime();
+            return;
+        }
+        executionModeSettingsCard.confirmSelectedModeForLaunch(
+            new ExecutionModeSettingsCard.ConfirmedLaunchListener() {
+                @Override
+                public void onLaunchConfirmed(
+                    String executionModeId,
+                    boolean dangerWarningAcknowledged
+                ) {
+                    pendingLaunchExecutionModeId = executionModeId;
+                    pendingLaunchDangerWarningAcknowledged =
+                        dangerWarningAcknowledged;
+                    requestNotificationPermissionAndLaunchRuntime();
+                }
+            }
+        );
+    }
+
+    private void requestNotificationPermissionAndLaunchRuntime() {
         if (Build.VERSION.SDK_INT >= 33
             && checkSelfPermission(Manifest.permission.POST_NOTIFICATIONS)
                 != PackageManager.PERMISSION_GRANTED) {
@@ -773,8 +837,14 @@ public final class SettingsActivity extends Activity {
     }
 
     private void launchRuntime() {
-        Intent runtimeIntent = new Intent(this, AgentRuntimeService.class);
+        Intent runtimeIntent;
         try {
+            runtimeIntent = AgentRuntimeService.createLaunchIntent(
+                this,
+                pendingLaunchExecutionModeId,
+                pendingLaunchDangerWarningAcknowledged
+            );
+            pendingLaunchDangerWarningAcknowledged = false;
             clearCrashReport();
             if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.O) {
                 startForegroundService(runtimeIntent);
@@ -784,6 +854,7 @@ public final class SettingsActivity extends Activity {
             lastRuntimeGeneration = Long.MIN_VALUE;
             lastSessionRevision = Long.MIN_VALUE;
         } catch (Throwable error) {
+            pendingLaunchDangerWarningAcknowledged = false;
             persistCrash("settings-start-service", error);
             showInlineFailure(error);
             Toast.makeText(

@@ -7,6 +7,7 @@ public final class TestMain {
     public static void main(String[] arguments) throws Exception {
         int passed = 0;
         passed += BuildIdentityTest.run();
+        passed += ExecutionModeTest.run();
         passed += JsonCodecTest.run();
         passed += CodexAppServerClientTest.run();
         passed += CodexWorkspaceAttachmentContextTest.run();

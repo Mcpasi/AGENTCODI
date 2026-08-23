@@ -550,6 +550,14 @@ if ! rg -q 'CODEX_CODE_MODE_HOST_PATH' "$PROJECT_ROOT/modules/native-engine/src/
   exit 1
 fi
 
+if ! rg -q 'mark_inherited_descriptors_close_on_exec' "$PROJECT_ROOT/modules/native-engine/src/main/cpp/app_server_process.cpp" \
+    || ! rg -q 'SYS_getdents64' "$PROJECT_ROOT/modules/native-engine/src/main/cpp/app_server_process.cpp" \
+    || ! rg -q -- '--inherited-fd-probe' "$PROJECT_ROOT/tests/cpp/agentcodi_engine_test.cpp" \
+    || ! rg -q 'descriptor_probe == "EBADF"' "$PROJECT_ROOT/tests/cpp/agentcodi_engine_test.cpp"; then
+  echo "The app-server exec boundary must reject unrelated inherited descriptors." >&2
+  exit 1
+fi
+
 core_root="$PROJECT_ROOT/modules/core/src/main/java/de/agentcodi/core"
 native_process="$PROJECT_ROOT/modules/native-engine/src/main/cpp/app_server_process.cpp"
 storage_layout="$PROJECT_ROOT/modules/storage/src/main/java/de/agentcodi/storage/WorkspaceLayout.java"
@@ -761,13 +769,13 @@ if ! rg -q 'PYTHON_SOURCE_EXTENSION_COUNT="75"' "$apk_builder" \
   exit 1
 fi
 
-if ! rg -q 'VERSION_NAME = "0\.5\.20"' "$core_root/BuildIdentity.java" \
-    || ! rg -q 'VERSION_CODE = 57' "$core_root/BuildIdentity.java" \
+if ! rg -q 'VERSION_NAME = "0\.5\.21"' "$core_root/BuildIdentity.java" \
+    || ! rg -q 'VERSION_CODE = 58' "$core_root/BuildIdentity.java" \
     || ! rg -q 'CODEX_RUNTIME_VERSION = "0\.148\.1"' "$core_root/BuildIdentity.java" \
-    || ! rg -q 'android:versionName="0\.5\.20"' "$manifest" \
-    || ! rg -q 'android:versionCode="57"' "$manifest" \
-    || ! rg -q 'APP_VERSION="0\.5\.20"' "$apk_builder" \
-    || ! rg -q 'VERSION_CODE="57"' "$apk_builder" \
+    || ! rg -q 'android:versionName="0\.5\.21"' "$manifest" \
+    || ! rg -q 'android:versionCode="58"' "$manifest" \
+    || ! rg -q 'APP_VERSION="0\.5\.21"' "$apk_builder" \
+    || ! rg -q 'VERSION_CODE="58"' "$apk_builder" \
     || ! rg -q 'CODEX_ANDROID_VERSION="0\.148\.1"' "$apk_builder" \
     || ! rg -q 'CODEX_TERMUX_SOURCE_TAG="v0\.148\.1"' "$apk_builder" \
     || ! rg -q 'CODEX_TERMUX_SOURCE_COMMIT="9d48c76abec320ae3724164d0177299b1acd31ca"' "$apk_builder" \
@@ -788,7 +796,7 @@ if ! rg -q 'VERSION_NAME = "0\.5\.20"' "$core_root/BuildIdentity.java" \
     || ! rg -q '9d48c76abec320ae3724164d0177299b1acd31ca' "$PROJECT_ROOT/app/src/main/res/raw/third_party_notices.txt" \
     || ! rg -q '3ba0f711642a888aec92a611a3f3b2211157ff89' "$PROJECT_ROOT/NOTICE.md" \
     || ! rg -q '3ba0f711642a888aec92a611a3f3b2211157ff89' "$PROJECT_ROOT/app/src/main/res/raw/third_party_notices.txt"; then
-  echo "The 0.5.20 / Codex 0.148.1 identity is inconsistent." >&2
+  echo "The 0.5.21 / Codex 0.148.1 identity is inconsistent." >&2
   exit 1
 fi
 

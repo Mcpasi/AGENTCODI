@@ -6,6 +6,7 @@
 #include <cerrno>
 #include <chrono>
 #include <climits>
+#include <cstddef>
 #include <cstdint>
 #include <cstdlib>
 #include <cstring>
@@ -1515,6 +1516,123 @@ void close_if_open(int descriptor) {
   }
 }
 
+struct ChildDescriptorEntry {
+  std::uint64_t inode;
+  std::int64_t offset;
+  unsigned short record_length;
+  unsigned char type;
+  char name[1];
+};
+
+bool parse_child_descriptor(
+    const char* name,
+    std::size_t length,
+    int* descriptor) {
+  if (name == nullptr || descriptor == nullptr || length == 0U) {
+    return false;
+  }
+  unsigned int value = 0U;
+  for (std::size_t index = 0U; index < length; ++index) {
+    const unsigned char character = static_cast<unsigned char>(name[index]);
+    if (character < '0' || character > '9') {
+      return false;
+    }
+    const unsigned int digit = character - '0';
+    if (value > (static_cast<unsigned int>(INT_MAX) - digit) / 10U) {
+      errno = EOVERFLOW;
+      return false;
+    }
+    value = value * 10U + digit;
+  }
+  *descriptor = static_cast<int>(value);
+  return true;
+}
+
+bool mark_inherited_descriptors_close_on_exec() {
+  // This runs after fork in a multithreaded Android process. Avoid opendir,
+  // readdir, allocation, and API-level-dependent close_range wrappers. The
+  // child has a stable descriptor table, so a raw getdents64 scan can mark
+  // every inherited descriptor without touching the parent's table. Keeping
+  // the exec-status pipe open until execve preserves bounded startup errors.
+  const int directory = open(
+      "/proc/self/fd",
+      O_RDONLY | O_DIRECTORY | O_CLOEXEC);
+  if (directory == -1) {
+    return false;
+  }
+
+  alignas(std::uint64_t) char entries[4096];
+  while (true) {
+    const long count = syscall(
+        SYS_getdents64,
+        directory,
+        entries,
+        sizeof(entries));
+    if (count == -1 && errno == EINTR) {
+      continue;
+    }
+    if (count == -1) {
+      const int saved_errno = errno;
+      close_if_open(directory);
+      errno = saved_errno;
+      return false;
+    }
+    if (count == 0) {
+      close_if_open(directory);
+      return true;
+    }
+
+    std::size_t position = 0U;
+    const std::size_t received = static_cast<std::size_t>(count);
+    while (position < received) {
+      const ChildDescriptorEntry* entry =
+          reinterpret_cast<const ChildDescriptorEntry*>(entries + position);
+      constexpr std::size_t kNameOffset =
+          offsetof(ChildDescriptorEntry, name);
+      if (entry->record_length < kNameOffset + 1U
+          || entry->record_length > received - position) {
+        close_if_open(directory);
+        errno = EIO;
+        return false;
+      }
+
+      const std::size_t name_capacity = entry->record_length - kNameOffset;
+      std::size_t name_length = 0U;
+      while (name_length < name_capacity
+          && entry->name[name_length] != '\0') {
+        ++name_length;
+      }
+      if (name_length == name_capacity) {
+        close_if_open(directory);
+        errno = EIO;
+        return false;
+      }
+
+      int descriptor = -1;
+      if (parse_child_descriptor(entry->name, name_length, &descriptor)
+          && descriptor >= 3 && descriptor != directory) {
+        const int flags = fcntl(descriptor, F_GETFD);
+        if (flags == -1
+            || ((flags & FD_CLOEXEC) == 0
+                && fcntl(descriptor, F_SETFD, flags | FD_CLOEXEC) == -1)) {
+          const int saved_errno = errno;
+          close_if_open(directory);
+          errno = saved_errno;
+          return false;
+        }
+      } else if (name_length > 0U
+          && entry->name[0] >= '0' && entry->name[0] <= '9'
+          && descriptor == -1) {
+        const int saved_errno = errno == 0 ? EIO : errno;
+        close_if_open(directory);
+        errno = saved_errno;
+        return false;
+      }
+      position += entry->record_length;
+    }
+  }
+}
+
 std::string errno_message(const char* operation, int error_number) {
   std::ostringstream message;
   message << operation << " failed with errno " << error_number;
@@ -2262,6 +2380,9 @@ std::shared_ptr<AppServerProcess> AppServerProcess::Start(
     }
     close_if_open(null_output);
     close_if_open(communication[1]);
+    if (!mark_inherited_descriptors_close_on_exec()) {
+      report_child_error_and_exit(exec_status[1], errno);
+    }
     umask(0077);
     if (chdir(config.working_directory.c_str()) != 0) {
       report_child_error_and_exit(exec_status[1], errno);

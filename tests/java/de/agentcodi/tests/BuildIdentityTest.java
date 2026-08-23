@@ -12,8 +12,8 @@ public final class BuildIdentityTest {
     }
 
     private static void pinsCompleteCodeModeRuntime() {
-        TestSupport.assertEquals("0.5.20", BuildIdentity.VERSION_NAME, "app version");
-        TestSupport.assertEquals(57, BuildIdentity.VERSION_CODE, "app version code");
+        TestSupport.assertEquals("0.5.21", BuildIdentity.VERSION_NAME, "app version");
+        TestSupport.assertEquals(58, BuildIdentity.VERSION_CODE, "app version code");
         TestSupport.assertEquals(
             "0.148.1",
             BuildIdentity.CODEX_RUNTIME_VERSION,

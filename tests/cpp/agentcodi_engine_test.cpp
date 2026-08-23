@@ -326,6 +326,31 @@ std::vector<unsigned char> png_with_private_chunk(
 }  // namespace
 
 int main(int argc, char* argv[]) {
+  if (argc == 3 && std::string(argv[1]) == "--inherited-fd-probe") {
+    char* end = nullptr;
+    errno = 0;
+    const long parsed = std::strtol(argv[2], &end, 10);
+    if (errno != 0 || end == argv[2] || *end != '\0'
+        || parsed < 0 || parsed > INT_MAX) {
+      return 70;
+    }
+    char contents[64];
+    ssize_t count = -1;
+    do {
+      count = read(static_cast<int>(parsed), contents, sizeof(contents));
+    } while (count == -1 && errno == EINTR);
+    if (count == -1 && errno == EBADF) {
+      std::cout << "EBADF" << std::endl;
+      return 0;
+    }
+    if (count >= 0) {
+      std::cout.write(contents, count);
+      std::cout << std::endl;
+      return 71;
+    }
+    std::cout << "errno=" << errno << std::endl;
+    return 72;
+  }
   if (argc == 2 && std::string(argv[1]) == "--emit-oversized-image") {
     const std::vector<unsigned char> oversized_png = png_with_ancillary_chunk(
         make_valid_fixture_png(),
@@ -605,7 +630,7 @@ int main(int argc, char* argv[]) {
   }
 
   const std::string version = agentcodi::engine_version();
-  expect(version == "agentcodi-native/0.5.20", "engine version");
+  expect(version == "agentcodi-native/0.5.21", "engine version");
   expect(agentcodi::run_self_test() == 0, "native self-test");
   const std::string abc = "abc";
   expect(
@@ -1668,6 +1693,53 @@ int main(int argc, char* argv[]) {
     if (self_resolved && !test_library_directory.empty()) {
       config.executable = self_executable;
       config.library_directory = test_library_directory;
+      const std::string descriptor_canary_path =
+          workspace + "/parent-fd-canary.txt";
+      const bool descriptor_canary_created = write_fixture_file(
+          descriptor_canary_path,
+          "synthetic-parent-fd-canary");
+      expect(descriptor_canary_created, "create inherited descriptor canary");
+      const int inherited_descriptor = descriptor_canary_created
+          ? open(descriptor_canary_path.c_str(), O_RDONLY | O_NOFOLLOW)
+          : -1;
+      const int inherited_descriptor_flags = inherited_descriptor >= 0
+          ? fcntl(inherited_descriptor, F_GETFD)
+          : -1;
+      const bool inherited_descriptor_ready = inherited_descriptor_flags >= 0
+          && fcntl(
+              inherited_descriptor,
+              F_SETFD,
+              inherited_descriptor_flags & ~FD_CLOEXEC) == 0;
+      expect(
+          inherited_descriptor_ready,
+          "open parent descriptor canary without close-on-exec");
+      if (inherited_descriptor_ready) {
+        config.arguments = {
+            "--inherited-fd-probe",
+            std::to_string(inherited_descriptor),
+        };
+        error.clear();
+        process = agentcodi::AppServerProcess::Start(config, &error);
+        expect(process != nullptr, "spawn inherited descriptor probe");
+        if (process != nullptr) {
+          std::string descriptor_probe;
+          expect(
+              process->ReadLine(1024U, &descriptor_probe, &error)
+                      == agentcodi::LineReadStatus::kLine
+                  && descriptor_probe == "EBADF",
+              "close unrelated parent descriptors across app-server exec");
+          expect(process->Stop(500) == 0,
+                 "stop inherited descriptor probe");
+        }
+      }
+      if (inherited_descriptor >= 0) {
+        close(inherited_descriptor);
+      }
+      if (descriptor_canary_created) {
+        expect(unlink(descriptor_canary_path.c_str()) == 0,
+               "remove inherited descriptor canary");
+      }
+
       config.arguments = {"--emit-oversized-image"};
       error.clear();
       process = agentcodi::AppServerProcess::Start(config, &error);

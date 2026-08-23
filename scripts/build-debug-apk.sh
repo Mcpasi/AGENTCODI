@@ -6,8 +6,8 @@ PROJECT_ROOT="$(cd -- "$SCRIPT_DIR/.." && pwd -P)"
 
 APP_NAME="AGENTCODI"
 APP_ID="de.agentcodi.app"
-APP_VERSION="0.5.16"
-VERSION_CODE="53"
+APP_VERSION="0.5.18"
+VERSION_CODE="55"
 MIN_SDK="29"
 TARGET_SDK="35"
 ABI="arm64-v8a"
@@ -62,7 +62,9 @@ OPENSSL_LICENSE_URL="https://raw.githubusercontent.com/openssl/openssl/openssl-$
 OPENSSL_LICENSE_SHA256="7d5450cb2d142651b8afa315b5f238efc805dad827d91ba367d8516bc9d49e7a"
 TERMINAL_SHELL_NAME="libagentcodi-shell.so"
 NODE_LIBRARY_NAME="libnode.so"
-NODE_RUNTIME_SHA256="e31cd5c7f5db279d638c3ad773e04f12842077f0559f4da4f369440a6f4195c3"
+NODE_UNGUARDED_RUNTIME_SHA256="e31cd5c7f5db279d638c3ad773e04f12842077f0559f4da4f369440a6f4195c3"
+NODE_PREATTESTED_RUNTIME_SHA256="cbf6b5c9aade3efd2127cb610db4a9ab8d54860c26d2c1273f8e3fae0bd6719f"
+NODE_RUNTIME_SHA256="6d1e83f6dd9586adaee78d17f6bac23870af6a21ccad58779bac270cc318614c"
 CARES_RUNTIME_SHA256="68733ce8d4bb1bdc87d8ec550c58c70f3dcdb0f8c48d86b83235f536cb736e83"
 CRYPTO_RUNTIME_SHA256="c20e21eb916f6f913aef6291af7312dd2b2c46aa60000db9c24de55c8492a0a4"
 ICUDATA_RUNTIME_SHA256="3d0d02951e9bdbb32fc36e2761fbcd0d144c7ad1fca78e5b1c4c117066e892a6"
@@ -105,7 +107,7 @@ TERMUX_LICENSES_SHA256="a3265cd1cf7d04754f2fb683eaf5b21918263792fd714457127900c1
 PYTHON_LIBRARY_NAME="libpython-bin.so"
 TOOL_RUNTIME_NAME="python-${PYTHON_VERSION}-npm-${NPM_VERSION}"
 TOOL_RUNTIME_MANIFEST_SHA256="e7fa5752f739c96cde42b20b38ae57d7249eb535b1524b5fc5a7be73d1008e7a"
-PYTHON_NATIVE_SET_SHA256="415a1309d17f45bdb6ba1cf061f24d75e8b591430eda883e7e4e3f313a291b9a"
+PYTHON_NATIVE_SET_SHA256="cc9e6ea0d0ad967979d8b2763fd32a9a328d589c20401e64035e573877cb2581"
 PYTHON_LICENSES_SHA256="b25c84cf10f0797356b67dd6b27d5a2cdff1c2a2bc098b2ee678c60146392892"
 PYTHON_SOURCE_EXTENSION_COUNT="75"
 PYTHON_PACKAGED_EXTENSION_COUNT="72"
@@ -113,13 +115,27 @@ PYTHON_PACKAGED_EXTENSION_COUNT="72"
 RIPGREP_VERSION="15.2.0"
 RIPGREP_LIBRARY_NAME="libripgrep.so"
 RIPGREP_SOURCE_BINARY="$PROJECT_ROOT/third_party/ripgrep/ripgrep-15.2.0-android-arm64.elf"
-RIPGREP_RUNTIME_SHA256="4eb0d0c70d2e3c760cab4f478c7eb715082ae1d8b5f4a23bb14515154348b04d"
+RIPGREP_SOURCE_SHA256="4eb0d0c70d2e3c760cab4f478c7eb715082ae1d8b5f4a23bb14515154348b04d"
+RIPGREP_PREATTESTED_RUNTIME_SHA256="a93343b21a76f7ff00dc05c6eddc6317d36f143093e3f7cde795720adede00aa"
+RIPGREP_RUNTIME_SHA256="4cfd048c4bac29ac0d494887b519752984f66a449ed4b22bd95cca6fcf540d50"
 RIPGREP_DEPENDENCIES_SOURCE="$PROJECT_ROOT/third_party/ripgrep/DEPENDENCIES"
-RIPGREP_DEPENDENCIES_SHA256="373bca4f92736c1d185462b7d5722d9a98097ba4c696c4f62752d0ecd91ebcf6"
+RIPGREP_DEPENDENCIES_SHA256="78cc70f642f1bf1d4c0ecc42a835fbf2c9e3658378f4d9e536ab6dee80a12281"
 RIPGREP_LICENSES_SOURCE="$PROJECT_ROOT/third_party/ripgrep/LICENSES"
 RIPGREP_LICENSES_SHA256="43ba0c48735498436470bc5ceddbd1286b694b17235f6f571b14dc3bfc43d678"
 RIPGREP_PROVENANCE_SOURCE="$PROJECT_ROOT/third_party/ripgrep/PROVENANCE"
-RIPGREP_PROVENANCE_SHA256="dda94ec73d14990f746373f3100d718a6dcb608c994c89a3c4081fb1535d80b0"
+RIPGREP_PROVENANCE_SHA256="96c1ff96d2ecab8a17f0186771aeeefa2c9c5567ee7ce00bd3c6cb4ef74f3848"
+NODE_GUARD_LIBRARY_NAME="libagentcodi-node-guard.so"
+PYTHON_GUARD_LIBRARY_NAME="libagentcodi-python-guard.so"
+RIPGREP_GUARD_LIBRARY_NAME="libagentcodi-ripgrep-guard.so"
+NODE_GUARD_SHA256="92d7e6740a494c687383c83c1109f133b04ac67d0ac6a0714c6c7e26a5c3e1a7"
+PYTHON_GUARD_SHA256="ab8ab4014503943c14842e79507cb5975b270f4fb97cec3c3fe423ad1fe71814"
+RIPGREP_GUARD_SHA256="6f38c49ad156e456248330bfddec2dc3f934f94884cd64d1fd751c08fee40a20"
+NODE_ATTESTOR_SHA256="241c3c157251f94d682da6bad6082079786198d241f63be76a456c8c64f16dfa"
+PYTHON_ATTESTOR_SHA256="7e275cc1b169871b100a15f82af1395f384b507234549241ad14c98a94cb762c"
+RIPGREP_ATTESTOR_SHA256="206e3f43a6dd1cfa1b81cc901e86be00d19c1584866f864da9ff94e6defcba99"
+PATCHELF_VERSION="0.19.1"
+PATCHELF_URL="https://packages.termux.dev/apt/termux-main/pool/main/p/patchelf/patchelf_${PATCHELF_VERSION}_aarch64.deb"
+PATCHELF_SHA256="a08bea49b3c9c3bf449ee0c7b7ee9c97a9f3ab84ae06ace08a564d0903a23c3f"
 
 PLATFORM_URL="https://dl.google.com/android/repository/platform-35_r02.zip"
 PLATFORM_SHA256="0988cacad01b38a18a47bac14a0695f246bc76c1b06c0eeb8eb0dc825ab0c8e0"
@@ -154,6 +170,8 @@ KEYTOOL="$JAVA_HOME_17/bin/keytool"
 TERMUX_PREFIX="${AGENTCODI_TERMUX_PREFIX:-/data/data/com.termux/files/usr}"
 CLANGXX="${AGENTCODI_CLANGXX:-$TERMUX_PREFIX/bin/clang++}"
 LLVM_STRIP="${AGENTCODI_LLVM_STRIP:-$TERMUX_PREFIX/bin/llvm-strip}"
+LD_LLD="${AGENTCODI_LD_LLD:-$TERMUX_PREFIX/bin/ld.lld}"
+LLVM_OBJCOPY="${AGENTCODI_LLVM_OBJCOPY:-$TERMUX_PREFIX/bin/llvm-objcopy}"
 CACHE_DIR="${AGENTCODI_CACHE_DIR:-$PROJECT_ROOT/.cache/android}"
 OUTPUT_DIR="${AGENTCODI_OUTPUT_DIR:-$PROJECT_ROOT/output/apk}"
 BUILD_ROOT="$PROJECT_ROOT/.build"
@@ -168,7 +186,9 @@ require_command() {
 for command_name in apksigner awk cmp curl dd dpkg-deb file grep readelf realpath rg script sed sha256sum stat strings tar timeout tr unzip wc xargs zip zipalign zipinfo; do
   require_command "$command_name"
 done
-for executable in "$JAVA" "$JAVAC" "$JAR" "$KEYTOOL" "$CLANGXX" "$LLVM_STRIP"; do
+for executable in \
+    "$JAVA" "$JAVAC" "$JAR" "$KEYTOOL" "$CLANGXX" "$LLVM_STRIP" \
+    "$LD_LLD" "$LLVM_OBJCOPY"; do
   if [ ! -x "$executable" ]; then
     echo "Missing required executable: $executable" >&2
     exit 1
@@ -363,6 +383,7 @@ NCURSES_ARCHIVE="$CACHE_DIR/ncurses-$NCURSES_VERSION-aarch64.deb"
 NCURSES_UI_ARCHIVE="$CACHE_DIR/ncurses-ui-libs-$NCURSES_VERSION-aarch64.deb"
 ZSTD_ARCHIVE="$CACHE_DIR/zstd-$ZSTD_VERSION-1-aarch64.deb"
 TERMUX_LICENSES_ARCHIVE="$CACHE_DIR/termux-licenses-2.2-all.deb"
+PATCHELF_ARCHIVE="$CACHE_DIR/patchelf-$PATCHELF_VERSION-aarch64.deb"
 NODE_LICENSE_FILE="$CACHE_DIR/node-$NODE_VERSION-LICENSE"
 ICU_LICENSE_FILE="$CACHE_DIR/icu-$ICU_VERSION-LICENSE"
 OPENSSL_LICENSE_FILE="$CACHE_DIR/openssl-$OPENSSL_VERSION-LICENSE"
@@ -397,6 +418,7 @@ download_verified "$NCURSES_URL" "$NCURSES_SHA256" "$NCURSES_ARCHIVE"
 download_verified "$NCURSES_UI_URL" "$NCURSES_UI_SHA256" "$NCURSES_UI_ARCHIVE"
 download_verified "$ZSTD_URL" "$ZSTD_SHA256" "$ZSTD_ARCHIVE"
 download_verified "$TERMUX_LICENSES_URL" "$TERMUX_LICENSES_SHA256" "$TERMUX_LICENSES_ARCHIVE"
+download_verified "$PATCHELF_URL" "$PATCHELF_SHA256" "$PATCHELF_ARCHIVE"
 download_verified "$NODE_LICENSE_URL" "$NODE_LICENSE_SHA256" "$NODE_LICENSE_FILE"
 download_verified "$ICU_LICENSE_URL" "$ICU_LICENSE_SHA256" "$ICU_LICENSE_FILE"
 download_verified "$OPENSSL_LICENSE_URL" "$OPENSSL_LICENSE_SHA256" "$OPENSSL_LICENSE_FILE"
@@ -413,7 +435,7 @@ for ripgrep_input in \
     exit 1
   fi
 done
-verify_file_sha256 "$RIPGREP_SOURCE_BINARY" "$RIPGREP_RUNTIME_SHA256"
+verify_file_sha256 "$RIPGREP_SOURCE_BINARY" "$RIPGREP_SOURCE_SHA256"
 verify_file_sha256 "$RIPGREP_DEPENDENCIES_SOURCE" "$RIPGREP_DEPENDENCIES_SHA256"
 verify_file_sha256 "$RIPGREP_LICENSES_SOURCE" "$RIPGREP_LICENSES_SHA256"
 verify_file_sha256 "$RIPGREP_PROVENANCE_SOURCE" "$RIPGREP_PROVENANCE_SHA256"
@@ -466,14 +488,21 @@ if [ ! -f "$ANDROID_JAR" ]; then
   exit 1
 fi
 
-for archive in "$AAPT2_ARCHIVE" "$ABSEIL_ARCHIVE" "$PROTOBUF_ARCHIVE" "$FMT_ARCHIVE" "$LIBCXX_ARCHIVE" "$EXPAT_ARCHIVE" "$PNG_ARCHIVE" "$ZOPFLI_ARCHIVE" "$ZLIB_ARCHIVE" "$NODE_ARCHIVE" "$CARES_ARCHIVE" "$ICU_ARCHIVE" "$SQLITE_ARCHIVE" "$OPENSSL_ARCHIVE" "$NPM_ARCHIVE" "$PYTHON_ARCHIVE" "$ANDROID_POSIX_SEMAPHORE_ARCHIVE" "$ANDROID_SUPPORT_ARCHIVE" "$BZIP2_ARCHIVE" "$LIBFFI_ARCHIVE" "$LIBLZMA_ARCHIVE" "$NCURSES_ARCHIVE" "$NCURSES_UI_ARCHIVE" "$ZSTD_ARCHIVE" "$TERMUX_LICENSES_ARCHIVE"; do
+for archive in "$AAPT2_ARCHIVE" "$ABSEIL_ARCHIVE" "$PROTOBUF_ARCHIVE" "$FMT_ARCHIVE" "$LIBCXX_ARCHIVE" "$EXPAT_ARCHIVE" "$PNG_ARCHIVE" "$ZOPFLI_ARCHIVE" "$ZLIB_ARCHIVE" "$NODE_ARCHIVE" "$CARES_ARCHIVE" "$ICU_ARCHIVE" "$SQLITE_ARCHIVE" "$OPENSSL_ARCHIVE" "$NPM_ARCHIVE" "$PYTHON_ARCHIVE" "$ANDROID_POSIX_SEMAPHORE_ARCHIVE" "$ANDROID_SUPPORT_ARCHIVE" "$BZIP2_ARCHIVE" "$LIBFFI_ARCHIVE" "$LIBLZMA_ARCHIVE" "$NCURSES_ARCHIVE" "$NCURSES_UI_ARCHIVE" "$ZSTD_ARCHIVE" "$TERMUX_LICENSES_ARCHIVE" "$PATCHELF_ARCHIVE"; do
   dpkg-deb -x "$archive" "$AAPT2_EXTRACT"
 done
 tar -xzf "$CODEX_ANDROID_ARCHIVE" -C "$CODEX_EXTRACT"
 AAPT2_BIN="$AAPT2_EXTRACT/data/data/com.termux/files/usr/bin/aapt2"
 AAPT2_LIBRARY_PATH="$AAPT2_EXTRACT/data/data/com.termux/files/usr/lib"
+PATCHELF_BIN="$AAPT2_EXTRACT/data/data/com.termux/files/usr/bin/patchelf"
 if [ ! -x "$AAPT2_BIN" ]; then
   echo "Pinned aapt2 package did not contain an executable." >&2
+  exit 1
+fi
+if [ ! -x "$PATCHELF_BIN" ] \
+    || ! env LD_LIBRARY_PATH="$AAPT2_LIBRARY_PATH" "$PATCHELF_BIN" --version \
+      | grep -Fq "patchelf $PATCHELF_VERSION"; then
+  echo "Pinned build-only patchelf package is missing or invalid." >&2
   exit 1
 fi
 LIBCXX_SHARED="$AAPT2_LIBRARY_PATH/libc++_shared.so"
@@ -723,8 +752,77 @@ echo "Compiling ARM64 JNI engine..."
 "$LLVM_STRIP" --strip-unneeded "$NATIVE_DIR/libagentcodi.so"
 
 echo "Compiling packaged terminal shell bridge..."
-"$CLANGXX" --target=aarch64-linux-android"$MIN_SDK" -fPIE -pie -std=c++17 -O2 -Wall -Wextra -Werror -pthread -I"$PROJECT_ROOT/modules/native-engine/src/main/cpp" "$PROJECT_ROOT/modules/native-engine/src/main/cpp/toolchain_shell_main.cpp" "$PROJECT_ROOT/modules/native-engine/src/main/cpp/ripgrep_bridge_policy.cpp" -o "$NATIVE_DIR/$TERMINAL_SHELL_NAME"
+"$CLANGXX" --target=aarch64-linux-android"$MIN_SDK" -fPIE -pie -std=c++17 -O2 -Wall -Wextra -Werror -pthread -I"$PROJECT_ROOT/modules/native-engine/src/main/cpp" "$PROJECT_ROOT/modules/native-engine/src/main/cpp/toolchain_shell_main.cpp" "$PROJECT_ROOT/modules/native-engine/src/main/cpp/toolchain_policy.cpp" "$PROJECT_ROOT/modules/native-engine/src/main/cpp/ripgrep_bridge_policy.cpp" -o "$NATIVE_DIR/$TERMINAL_SHELL_NAME"
 "$LLVM_STRIP" --strip-unneeded "$NATIVE_DIR/$TERMINAL_SHELL_NAME"
+
+echo "Compiling packaged direct-ELF policy guards..."
+for guard_spec in \
+    "1:$NODE_GUARD_LIBRARY_NAME" \
+    "2:$PYTHON_GUARD_LIBRARY_NAME" \
+    "3:$RIPGREP_GUARD_LIBRARY_NAME"; do
+  guard_kind="${guard_spec%%:*}"
+  guard_library="${guard_spec#*:}"
+  "$CLANGXX" --target=aarch64-linux-android"$MIN_SDK" \
+    -shared -fPIC -std=c++17 -O2 -Wall -Wextra -Werror \
+    -fvisibility=hidden -DAGENTCODI_GUARDED_TOOL="$guard_kind" \
+    -I"$PROJECT_ROOT/modules/native-engine/src/main/cpp" \
+    "$PROJECT_ROOT/modules/native-engine/src/main/cpp/toolchain_elf_guard.cpp" \
+    "$PROJECT_ROOT/modules/native-engine/src/main/cpp/toolchain_policy.cpp" \
+    "$PROJECT_ROOT/modules/native-engine/src/main/cpp/ripgrep_bridge_policy.cpp" \
+    -Wl,-soname,"$guard_library" \
+    -o "$NATIVE_DIR/$guard_library"
+  "$LLVM_STRIP" --strip-unneeded "$NATIVE_DIR/$guard_library"
+done
+
+verify_file_sha256 "$NATIVE_DIR/$NODE_GUARD_LIBRARY_NAME" "$NODE_GUARD_SHA256"
+verify_file_sha256 "$NATIVE_DIR/$PYTHON_GUARD_LIBRARY_NAME" "$PYTHON_GUARD_SHA256"
+verify_file_sha256 "$NATIVE_DIR/$RIPGREP_GUARD_LIBRARY_NAME" "$RIPGREP_GUARD_SHA256"
+
+echo "Compiling direct-ELF guard attestors and injector..."
+TOOLCHAIN_ATTESTOR_DIR="$WORK_DIR/toolchain-elf-attestors"
+TOOLCHAIN_ATTESTOR_INJECTOR="$WORK_DIR/toolchain-elf-attestor-injector"
+mkdir -p "$TOOLCHAIN_ATTESTOR_DIR"
+"$CLANGXX" -std=c++17 -O2 -Wall -Wextra -Werror \
+  -I"$PROJECT_ROOT/modules/native-engine/src/main/cpp" \
+  "$PROJECT_ROOT/modules/native-engine/src/main/cpp/toolchain_elf_attestor_injector.cpp" \
+  "$PROJECT_ROOT/modules/native-engine/src/main/cpp/toolchain_elf_attestor_injector_main.cpp" \
+  -o "$TOOLCHAIN_ATTESTOR_INJECTOR"
+for attestor_spec in \
+    "node:$NODE_LIBRARY_NAME:$NODE_GUARD_LIBRARY_NAME:$NODE_ATTESTOR_SHA256" \
+    "python:$PYTHON_LIBRARY_NAME:$PYTHON_GUARD_LIBRARY_NAME:$PYTHON_ATTESTOR_SHA256" \
+    "ripgrep:$RIPGREP_LIBRARY_NAME:$RIPGREP_GUARD_LIBRARY_NAME:$RIPGREP_ATTESTOR_SHA256"; do
+  attestor_label="${attestor_spec%%:*}"
+  attestor_remainder="${attestor_spec#*:}"
+  attestor_executable="${attestor_remainder%%:*}"
+  attestor_remainder="${attestor_remainder#*:}"
+  attestor_guard="${attestor_remainder%%:*}"
+  attestor_sha256="${attestor_remainder#*:}"
+  "$CLANGXX" --target=aarch64-linux-android"$MIN_SDK" -std=c++17 -Os \
+    -Wall -Wextra -Werror -ffreestanding -fno-builtin -fno-exceptions \
+    -fno-rtti -fno-unwind-tables -fno-asynchronous-unwind-tables \
+    -fno-stack-protector -fvisibility=hidden -fPIE \
+    "-DAGENTCODI_EXPECTED_EXECUTABLE=\"$attestor_executable\"" \
+    "-DAGENTCODI_EXPECTED_GUARD=\"$attestor_guard\"" \
+    -c "$PROJECT_ROOT/modules/native-engine/src/main/cpp/toolchain_elf_attestor_payload.cpp" \
+    -o "$TOOLCHAIN_ATTESTOR_DIR/$attestor_label.o"
+  "$LD_LLD" -m aarch64elf -nostdlib -static \
+    -T "$PROJECT_ROOT/scripts/toolchain_elf_attestor_payload.ld" \
+    -o "$TOOLCHAIN_ATTESTOR_DIR/$attestor_label.elf" \
+    "$TOOLCHAIN_ATTESTOR_DIR/$attestor_label.o"
+  if [ "$(readelf -h "$TOOLCHAIN_ATTESTOR_DIR/$attestor_label.elf" \
+      | awk '/Entry point address:/ {print $4}')" != "0x0" ] \
+      || ! readelf -rW "$TOOLCHAIN_ATTESTOR_DIR/$attestor_label.elf" \
+        | grep -Fq 'There are no relocations in this file.'; then
+    echo "The $attestor_label ELF attestor is not a relocation-free entry payload." >&2
+    exit 1
+  fi
+  "$LLVM_OBJCOPY" -O binary \
+    "$TOOLCHAIN_ATTESTOR_DIR/$attestor_label.elf" \
+    "$TOOLCHAIN_ATTESTOR_DIR/$attestor_label.bin"
+  verify_file_sha256 \
+    "$TOOLCHAIN_ATTESTOR_DIR/$attestor_label.bin" \
+    "$attestor_sha256"
+done
 
 cp "$LIBCXX_SHARED" "$NATIVE_DIR/libc++_shared.so"
 cp "$CODEX_BINARY" "$NATIVE_DIR/libcodex.so"
@@ -854,6 +952,42 @@ for python_native in \
     patch_elf_name_all "$python_native" "${relocation%%:*}" "${relocation#*:}"
   done
   chmod 755 "$python_native"
+done
+
+verify_file_sha256 \
+  "$NATIVE_DIR/$NODE_LIBRARY_NAME" \
+  "$NODE_UNGUARDED_RUNTIME_SHA256"
+verify_file_sha256 "$NATIVE_DIR/$RIPGREP_LIBRARY_NAME" "$RIPGREP_SOURCE_SHA256"
+env LD_LIBRARY_PATH="$AAPT2_LIBRARY_PATH" "$PATCHELF_BIN" \
+  --page-size 16384 --add-needed "$NODE_GUARD_LIBRARY_NAME" \
+  "$NATIVE_DIR/$NODE_LIBRARY_NAME"
+env LD_LIBRARY_PATH="$AAPT2_LIBRARY_PATH" "$PATCHELF_BIN" \
+  --page-size 16384 --add-needed "$PYTHON_GUARD_LIBRARY_NAME" \
+  "$NATIVE_DIR/$PYTHON_LIBRARY_NAME"
+env LD_LIBRARY_PATH="$AAPT2_LIBRARY_PATH" "$PATCHELF_BIN" \
+  --page-size 16384 --add-needed "$RIPGREP_GUARD_LIBRARY_NAME" \
+  "$NATIVE_DIR/$RIPGREP_LIBRARY_NAME"
+
+verify_file_sha256 \
+  "$NATIVE_DIR/$NODE_LIBRARY_NAME" \
+  "$NODE_PREATTESTED_RUNTIME_SHA256"
+verify_file_sha256 \
+  "$NATIVE_DIR/$RIPGREP_LIBRARY_NAME" \
+  "$RIPGREP_PREATTESTED_RUNTIME_SHA256"
+for attested_spec in \
+    "node:$NODE_LIBRARY_NAME" \
+    "python:$PYTHON_LIBRARY_NAME" \
+    "ripgrep:$RIPGREP_LIBRARY_NAME"; do
+  attested_label="${attested_spec%%:*}"
+  attested_executable="${attested_spec#*:}"
+  "$TOOLCHAIN_ATTESTOR_INJECTOR" \
+    "$NATIVE_DIR/$attested_executable" \
+    "$TOOLCHAIN_ATTESTOR_DIR/$attested_label.bin" \
+    "$WORK_DIR/$attested_executable.attested"
+  mv -f \
+    "$WORK_DIR/$attested_executable.attested" \
+    "$NATIVE_DIR/$attested_executable"
+  chmod 755 "$NATIVE_DIR/$attested_executable"
 done
 
 verify_file_sha256 "$NATIVE_DIR/$NODE_LIBRARY_NAME" "$NODE_RUNTIME_SHA256"
@@ -1111,20 +1245,60 @@ for packaged_executable in \
     exit 1
   fi
 done
+for guard_library in \
+    "$NODE_GUARD_LIBRARY_NAME" \
+    "$PYTHON_GUARD_LIBRARY_NAME" \
+    "$RIPGREP_GUARD_LIBRARY_NAME"; do
+  if ! file "$NATIVE_DIR/$guard_library" | grep -q 'ARM aarch64' \
+      || ! readelf -dW "$NATIVE_DIR/$guard_library" \
+        | grep -Fq 'Shared library: [libc++_shared.so]' \
+      || ! strings "$NATIVE_DIR/$guard_library" \
+        | grep -Fq 'Guarded tool rejected a non-canonical executable entry point'; then
+    echo "Packaged direct-ELF guard is incomplete: $guard_library" >&2
+    exit 1
+  fi
+done
+for attested_executable in \
+    "$NODE_LIBRARY_NAME" \
+    "$PYTHON_LIBRARY_NAME" \
+    "$RIPGREP_LIBRARY_NAME"; do
+  attested_entry="$(readelf -h "$NATIVE_DIR/$attested_executable" \
+      | awk '/Entry point address:/ {print $4}')"
+  if ! grep -aFq \
+        'Guarded tool rejected an untrusted policy library' \
+        "$NATIVE_DIR/$attested_executable" \
+      || ! grep -aFq \
+        'AGENTCODI-ATTEST' \
+        "$NATIVE_DIR/$attested_executable" \
+      || ! readelf -lW "$NATIVE_DIR/$attested_executable" \
+        | awk -v entry="$attested_entry" \
+          'function canonical_hex(value) { \
+             sub(/^0x0+/, "0x", value); \
+             return value == "0x" ? "0x0" : tolower(value); \
+           } \
+           $1 == "LOAD" \
+              && canonical_hex($3) == canonical_hex(entry) \
+              && $(NF - 2) == "R" \
+              && $(NF - 1) == "E" && $NF == "0x4000" { found = 1 } \
+           END { exit !found }'; then
+    echo "Packaged tool ELF lacks its in-binary guard attestor: $attested_executable" >&2
+    exit 1
+  fi
+done
 if readelf -dW "$NATIVE_DIR/$RIPGREP_LIBRARY_NAME" | grep -Eq '(RPATH|RUNPATH)' \
-    || [ "$(readelf -dW "$NATIVE_DIR/$RIPGREP_LIBRARY_NAME" | awk '/NEEDED/ {gsub(/[][]/, "", $NF); print $NF}' | sort | tr '\n' ' ')" != "libc.so libdl.so " ] \
+    || [ "$(readelf -dW "$NATIVE_DIR/$RIPGREP_LIBRARY_NAME" | awk '/NEEDED/ {gsub(/[][]/, "", $NF); print $NF}' | sort | tr '\n' ' ')" != "$RIPGREP_GUARD_LIBRARY_NAME libc.so libdl.so " ] \
     || strings "$NATIVE_DIR/$RIPGREP_LIBRARY_NAME" | grep -Fq '/data/data/com.termux' \
     || strings "$NATIVE_DIR/$RIPGREP_LIBRARY_NAME" | grep -Fq "$PROJECT_ROOT"; then
   echo "Packaged ripgrep has an unsafe host path or unexpected ELF dependency." >&2
   exit 1
 fi
-ripgrep_version_output="$("$NATIVE_DIR/$RIPGREP_LIBRARY_NAME" --version)"
+ripgrep_version_output="$("$RIPGREP_SOURCE_BINARY" --version)"
 if [ "$(printf '%s\n' "$ripgrep_version_output" | sed -n '1p')" != "ripgrep $RIPGREP_VERSION" ] \
     || ! printf '%s\n' "$ripgrep_version_output" | grep -Fq 'features:-pcre2'; then
   echo "Packaged ripgrep version or no-PCRE2 feature marker is invalid." >&2
   exit 1
 fi
-if ripgrep_pcre2_output="$("$NATIVE_DIR/$RIPGREP_LIBRARY_NAME" --pcre2-version 2>&1)"; then
+if ripgrep_pcre2_output="$("$RIPGREP_SOURCE_BINARY" --pcre2-version 2>&1)"; then
   echo "Packaged ripgrep unexpectedly provides PCRE2." >&2
   exit 1
 fi
@@ -1196,7 +1370,11 @@ if readelf -d "$NATIVE_DIR/$NODE_LIBRARY_NAME" \
     || ! readelf -d "$NATIVE_DIR/$NODE_LIBRARY_NAME" | grep -Fq 'Shared library: [libcrypto_3.so]' \
     || ! readelf -d "$NATIVE_DIR/$NODE_LIBRARY_NAME" | grep -Fq 'Shared library: [libssl_3.so]' \
     || ! readelf -d "$NATIVE_DIR/$NODE_LIBRARY_NAME" | grep -Fq 'Shared library: [libicui18n_78.so]' \
-    || ! readelf -d "$NATIVE_DIR/$NODE_LIBRARY_NAME" | grep -Fq 'Shared library: [libicuuc_78.so]'; then
+    || ! readelf -d "$NATIVE_DIR/$NODE_LIBRARY_NAME" | grep -Fq 'Shared library: [libicuuc_78.so]' \
+    || ! readelf -d "$NATIVE_DIR/$NODE_LIBRARY_NAME" \
+      | grep -Fq "Shared library: [$NODE_GUARD_LIBRARY_NAME]" \
+    || ! readelf -d "$NATIVE_DIR/$PYTHON_LIBRARY_NAME" \
+      | grep -Fq "Shared library: [$PYTHON_GUARD_LIBRARY_NAME]"; then
   echo "Packaged Node.js dependency relocation is incomplete." >&2
   exit 1
 fi
@@ -1227,7 +1405,7 @@ toolchain_smoke() {
     TMPDIR="$TOOLCHAIN_SMOKE_TEMP" \
     TMP="$TOOLCHAIN_SMOKE_TEMP" \
     TEMP="$TOOLCHAIN_SMOKE_TEMP" \
-    PATH="$TOOLCHAIN_SMOKE_TOOL_BIN:$NATIVE_DIR:/system/bin:/system/xbin" \
+    PATH="$TOOLCHAIN_SMOKE_TOOL_BIN:/system/bin:/system/xbin" \
     SHELL="/system/bin/sh" \
     LD_LIBRARY_PATH="$NATIVE_DIR" \
     HISTFILE="/dev/null" \
@@ -1252,7 +1430,7 @@ toolchain_model_smoke() {
     TMPDIR="$TOOLCHAIN_SMOKE_TEMP" \
     TMP="$TOOLCHAIN_SMOKE_TEMP" \
     TEMP="$TOOLCHAIN_SMOKE_TEMP" \
-    PATH="$TOOLCHAIN_SMOKE_TOOL_BIN:$NATIVE_DIR:/system/bin:/system/xbin" \
+    PATH="$TOOLCHAIN_SMOKE_TOOL_BIN:/system/bin:/system/xbin" \
     SHELL="/system/bin/sh" \
     LD_LIBRARY_PATH="$NATIVE_DIR" \
     HISTFILE="/dev/null" \
@@ -1270,6 +1448,90 @@ toolchain_model_smoke() {
     AGENTCODI_TOOLCHAIN_PACKAGES="node,npm,python,ripgrep" \
     /system/bin/sh -c "$1"
 }
+guarded_tool_raw_smoke() {
+  env -i \
+    HOME="$TOOLCHAIN_SMOKE_HOME" \
+    TMPDIR="$TOOLCHAIN_SMOKE_TEMP" \
+    TMP="$TOOLCHAIN_SMOKE_TEMP" \
+    TEMP="$TOOLCHAIN_SMOKE_TEMP" \
+    PATH="$TOOLCHAIN_SMOKE_TOOL_BIN:/system/bin:/system/xbin" \
+    SHELL="/system/bin/sh" \
+    LD_LIBRARY_PATH="$NATIVE_DIR" \
+    HISTFILE="/dev/null" \
+    NODE_REPL_HISTORY="/dev/null" \
+    SSL_CERT_DIR="/system/etc/security/cacerts" \
+    AGENTCODI_WORKSPACE="$TOOLCHAIN_SMOKE_WORKSPACE" \
+    AGENTCODI_TOOLCHAIN="$TOOLCHAIN_SMOKE_DIRECTORY" \
+    AGENTCODI_TOOL_BIN="$TOOLCHAIN_SMOKE_TOOL_BIN" \
+    AGENTCODI_TOOL_RUNTIME="$TOOLCHAIN_SMOKE_RUNTIME" \
+    AGENTCODI_NODE_VERSION="$NODE_VERSION" \
+    AGENTCODI_NPM_VERSION="$NPM_VERSION" \
+    AGENTCODI_PYTHON_VERSION="$PYTHON_VERSION" \
+    AGENTCODI_RIPGREP_VERSION="$RIPGREP_VERSION" \
+    AGENTCODI_TOOLCHAIN_COMMAND="agentcodi-toolchain" \
+    AGENTCODI_TOOLCHAIN_PACKAGES="node,npm,python,ripgrep" \
+    RIPGREP_CONFIG_PATH="${RIPGREP_CONFIG_PATH-}" \
+    "$@"
+}
+TOOLCHAIN_FAKE_GUARD_DIR="$TOOLCHAIN_SMOKE_ROOT/fake-guards"
+mkdir -p "$TOOLCHAIN_FAKE_GUARD_DIR"
+chmod 700 "$TOOLCHAIN_FAKE_GUARD_DIR"
+for fake_guard_library in \
+    "$NODE_GUARD_LIBRARY_NAME" \
+    "$PYTHON_GUARD_LIBRARY_NAME" \
+    "$RIPGREP_GUARD_LIBRARY_NAME"; do
+  "$CLANGXX" --target=aarch64-linux-android"$MIN_SDK" \
+    -shared -fPIC -std=c++17 -O2 -Wall -Wextra -Werror \
+    "$PROJECT_ROOT/tests/cpp/toolchain_fake_guard.cpp" \
+    -Wl,-soname,"$fake_guard_library" \
+    -o "$TOOLCHAIN_FAKE_GUARD_DIR/$fake_guard_library"
+done
+guarded_tool_substituted_smoke() {
+  env -i \
+    HOME="$TOOLCHAIN_SMOKE_HOME" \
+    TMPDIR="$TOOLCHAIN_SMOKE_TEMP" \
+    TMP="$TOOLCHAIN_SMOKE_TEMP" \
+    TEMP="$TOOLCHAIN_SMOKE_TEMP" \
+    PATH="$TOOLCHAIN_SMOKE_TOOL_BIN:/system/bin:/system/xbin" \
+    SHELL="/system/bin/sh" \
+    LD_LIBRARY_PATH="$TOOLCHAIN_FAKE_GUARD_DIR:$NATIVE_DIR" \
+    HISTFILE="/dev/null" \
+    NODE_REPL_HISTORY="/dev/null" \
+    SSL_CERT_DIR="/system/etc/security/cacerts" \
+    AGENTCODI_WORKSPACE="$TOOLCHAIN_SMOKE_WORKSPACE" \
+    AGENTCODI_TOOLCHAIN="$TOOLCHAIN_SMOKE_DIRECTORY" \
+    AGENTCODI_TOOL_BIN="$TOOLCHAIN_SMOKE_TOOL_BIN" \
+    AGENTCODI_TOOL_RUNTIME="$TOOLCHAIN_SMOKE_RUNTIME" \
+    AGENTCODI_NODE_VERSION="$NODE_VERSION" \
+    AGENTCODI_NPM_VERSION="$NPM_VERSION" \
+    AGENTCODI_PYTHON_VERSION="$PYTHON_VERSION" \
+    AGENTCODI_RIPGREP_VERSION="$RIPGREP_VERSION" \
+    AGENTCODI_TOOLCHAIN_COMMAND="agentcodi-toolchain" \
+    AGENTCODI_TOOLCHAIN_PACKAGES="node,npm,python,ripgrep" \
+    "$@"
+}
+for guarded_raw_spec in \
+    "$NATIVE_DIR/$NODE_LIBRARY_NAME:Node.js" \
+    "$NATIVE_DIR/$PYTHON_LIBRARY_NAME:Python" \
+    "$NATIVE_DIR/$RIPGREP_LIBRARY_NAME:ripgrep"; do
+  guarded_raw_path="${guarded_raw_spec%%:*}"
+  guarded_raw_label="${guarded_raw_spec#*:}"
+  if guarded_tool_raw_smoke "$guarded_raw_path" --version \
+      >"$WORK_DIR/direct-elf-disabled.out" 2>&1 \
+      || ! grep -Fq 'available but not enabled' \
+        "$WORK_DIR/direct-elf-disabled.out"; then
+    echo "Direct $guarded_raw_label ELF bypassed activation." >&2
+    exit 1
+  fi
+done
+for hidden_runtime_name in \
+    "$NODE_LIBRARY_NAME" "$PYTHON_LIBRARY_NAME" "$RIPGREP_LIBRARY_NAME"; do
+  if toolchain_model_smoke "command -v $hidden_runtime_name" \
+      >"$WORK_DIR/direct-elf-path.out" 2>&1; then
+    echo "A real packaged tool ELF remains directly searchable in PATH: $hidden_runtime_name" >&2
+    exit 1
+  fi
+done
 if ! toolchain_smoke --toolchain list | grep -Fq "python $PYTHON_VERSION — available, not enabled" \
     || ! toolchain_smoke --toolchain list | grep -Fq "ripgrep $RIPGREP_VERSION — available, not enabled" \
     || ! toolchain_smoke --toolchain install npm | grep -Fq "Enabled packaged npm $NPM_VERSION." \
@@ -1287,6 +1549,26 @@ if ! toolchain_smoke --toolchain list | grep -Fq "python $PYTHON_VERSION — ava
   echo "Packaged terminal shell and npm/Python/ripgrep activation smoke test failed." >&2
   exit 1
 fi
+if [ "$(guarded_tool_raw_smoke "$NATIVE_DIR/$NODE_LIBRARY_NAME" --version | tr -d '\r')" != "v$NODE_VERSION" ] \
+    || [ "$(guarded_tool_raw_smoke "$NATIVE_DIR/$PYTHON_LIBRARY_NAME" --version 2>&1 | tr -d '\r')" != "Python $PYTHON_VERSION" ] \
+    || [ "$(guarded_tool_raw_smoke "$NATIVE_DIR/$RIPGREP_LIBRARY_NAME" --version | sed -n '1p')" != "ripgrep $RIPGREP_VERSION" ]; then
+  echo "An activated direct ELF lost guarded runtime functionality." >&2
+  exit 1
+fi
+for substituted_raw_spec in \
+    "$NATIVE_DIR/$NODE_LIBRARY_NAME:Node.js" \
+    "$NATIVE_DIR/$PYTHON_LIBRARY_NAME:Python" \
+    "$NATIVE_DIR/$RIPGREP_LIBRARY_NAME:ripgrep"; do
+  substituted_raw_path="${substituted_raw_spec%%:*}"
+  substituted_raw_label="${substituted_raw_spec#*:}"
+  if guarded_tool_substituted_smoke "$substituted_raw_path" --version \
+      >"$WORK_DIR/direct-elf-substituted.out" 2>&1 \
+      || ! grep -Fq 'untrusted policy library' \
+        "$WORK_DIR/direct-elf-substituted.out"; then
+    echo "Direct $substituted_raw_label ELF accepted a substituted policy library." >&2
+    exit 1
+  fi
+done
 for blocked_ripgrep_option in --pre=/system/bin/sh --search-zip --follow -z -L; do
   if toolchain_smoke --ripgrep "$blocked_ripgrep_option" needle . \
       >"$WORK_DIR/ripgrep-blocked.out" 2>&1 \
@@ -1295,7 +1577,24 @@ for blocked_ripgrep_option in --pre=/system/bin/sh --search-zip --follow -z -L; 
     echo "Packaged ripgrep bridge accepted a blocked option: $blocked_ripgrep_option" >&2
     exit 1
   fi
+  if guarded_tool_raw_smoke \
+      "$NATIVE_DIR/$RIPGREP_LIBRARY_NAME" \
+      "$blocked_ripgrep_option" needle . \
+      >"$WORK_DIR/ripgrep-direct-blocked.out" 2>&1 \
+      || ! grep -Fq 'options --pre, --search-zip and --follow are disabled' \
+        "$WORK_DIR/ripgrep-direct-blocked.out"; then
+    echo "Direct ripgrep ELF accepted a blocked option: $blocked_ripgrep_option" >&2
+    exit 1
+  fi
 done
+if guarded_tool_raw_smoke \
+    /system/bin/linker64 "$NATIVE_DIR/$RIPGREP_LIBRARY_NAME" --version \
+    >"$WORK_DIR/ripgrep-linker-bypass.out" 2>&1 \
+    || ! grep -Fq 'non-canonical executable entry point' \
+      "$WORK_DIR/ripgrep-linker-bypass.out"; then
+  echo "The Android dynamic linker bypassed the ripgrep ELF guard." >&2
+  exit 1
+fi
 printf '%s\n' '--max-count=0' > "$TOOLCHAIN_SMOKE_ROOT/ripgrep-config"
 printf '%s\n' 'agentcodi-ripgrep-config-scrub-proof' \
   > "$TOOLCHAIN_SMOKE_WORKSPACE/ripgrep-config-proof.txt"
@@ -1310,6 +1609,17 @@ if [ "$ripgrep_config_output" != 'agentcodi-ripgrep-config-scrub-proof' ]; then
   echo "Packaged ripgrep bridge did not clear RIPGREP_CONFIG_PATH." >&2
   exit 1
 fi
+direct_ripgrep_config_output="$(
+  RIPGREP_CONFIG_PATH="$TOOLCHAIN_SMOKE_ROOT/ripgrep-config" \
+    guarded_tool_raw_smoke "$NATIVE_DIR/$RIPGREP_LIBRARY_NAME" \
+      --no-filename --no-line-number \
+      agentcodi-ripgrep-config-scrub-proof \
+      "$TOOLCHAIN_SMOKE_WORKSPACE/ripgrep-config-proof.txt"
+)"
+if [ "$direct_ripgrep_config_output" != 'agentcodi-ripgrep-config-scrub-proof' ]; then
+  echo "Direct ripgrep ELF did not apply shared configuration cleanup." >&2
+  exit 1
+fi
 python_dbm_output="$(toolchain_smoke --python -c \
   'import dbm, importlib.util, os, shelve; assert importlib.util.find_spec("_dbm") is None; assert importlib.util.find_spec("_gdbm") is None; assert importlib.util.find_spec("readline") is None; db_path = os.path.join(os.environ["TMPDIR"], "dbm-smoke"); database = dbm.open(db_path, "n"); assert database.__class__.__module__ == "dbm.sqlite3"; database[b"key"] = b"value"; database.close(); database = dbm.open(db_path, "r"); assert database[b"key"] == b"value"; database.close(); shelf = shelve.open(os.path.join(os.environ["TMPDIR"], "shelve-smoke")); shelf["answer"] = 42; shelf.close(); shelf = shelve.open(os.path.join(os.environ["TMPDIR"], "shelve-smoke")); assert shelf["answer"] == 42; shelf.close(); print("python-sqlite-dbm-shelve-ok")' \
   | tr -d '\r')"
@@ -1320,7 +1630,7 @@ fi
 printf -v python_repl_command \
   'env -i HOME=%q TMPDIR=%q TMP=%q TEMP=%q PATH=%q SHELL=%q LD_LIBRARY_PATH=%q HISTFILE=%q NODE_REPL_HISTORY=%q SSL_CERT_DIR=%q AGENTCODI_WORKSPACE=%q AGENTCODI_TOOLCHAIN=%q AGENTCODI_TOOL_BIN=%q AGENTCODI_TOOL_RUNTIME=%q AGENTCODI_NODE_VERSION=%q AGENTCODI_NPM_VERSION=%q AGENTCODI_PYTHON_VERSION=%q AGENTCODI_RIPGREP_VERSION=%q AGENTCODI_TOOLCHAIN_COMMAND=%q AGENTCODI_TOOLCHAIN_PACKAGES=%q %q --python' \
   "$TOOLCHAIN_SMOKE_HOME" "$TOOLCHAIN_SMOKE_TEMP" "$TOOLCHAIN_SMOKE_TEMP" \
-  "$TOOLCHAIN_SMOKE_TEMP" "$TOOLCHAIN_SMOKE_TOOL_BIN:$NATIVE_DIR:/system/bin:/system/xbin" \
+  "$TOOLCHAIN_SMOKE_TEMP" "$TOOLCHAIN_SMOKE_TOOL_BIN:/system/bin:/system/xbin" \
   '/system/bin/sh' "$NATIVE_DIR" '/dev/null' '/dev/null' \
   '/system/etc/security/cacerts' "$TOOLCHAIN_SMOKE_WORKSPACE" \
   "$TOOLCHAIN_SMOKE_DIRECTORY" "$TOOLCHAIN_SMOKE_TOOL_BIN" \
@@ -1361,6 +1671,12 @@ if ! toolchain_smoke --toolchain remove node | grep -Fq "Disabled Node.js $NODE_
     || ! toolchain_smoke --toolchain remove python | grep -Fq "Disabled Python $PYTHON_VERSION." \
     || ! toolchain_smoke --toolchain remove ripgrep | grep -Fq "Disabled ripgrep $RIPGREP_VERSION."; then
   echo "Packaged toolchain dependency removal smoke test failed." >&2
+  exit 1
+fi
+if guarded_tool_raw_smoke "$NATIVE_DIR/$RIPGREP_LIBRARY_NAME" --version \
+    >"$WORK_DIR/direct-elf-removed.out" 2>&1 \
+    || ! grep -Fq 'available but not enabled' "$WORK_DIR/direct-elf-removed.out"; then
+  echo "Direct ripgrep ELF ignored deactivation." >&2
   exit 1
 fi
 if find "$TOOLCHAIN_SMOKE_ROOT" -type f \( -name '*history*' -o -name '.ash_history' -o -name '.sh_history' \) -print -quit | grep -q .; then
@@ -1405,7 +1721,7 @@ config_smoke_status=0
     TMP="$CONFIG_SMOKE_TEMP" \
     TEMP="$CONFIG_SMOKE_TEMP" \
     LD_LIBRARY_PATH="$NATIVE_DIR" \
-    PATH="$CONFIG_SMOKE_TOOL_BIN:$NATIVE_DIR:/system/bin:/system/xbin" \
+    PATH="$CONFIG_SMOKE_TOOL_BIN:/system/bin:/system/xbin" \
     SHELL="/system/bin/sh" \
     HISTFILE="/dev/null" \
     NODE_REPL_HISTORY="/dev/null" \
@@ -1425,7 +1741,7 @@ config_smoke_status=0
     "$NATIVE_DIR/libcodex.so" app-server --stdio --strict-config \
     -c 'cli_auth_credentials_store="file"' \
     -c 'approval_policy="on-request"' \
-    -c "shell_environment_policy={inherit=\"none\",ignore_default_excludes=false,set={PATH=\"$CONFIG_SMOKE_TOOL_BIN:$NATIVE_DIR:/system/bin:/system/xbin\",SHELL=\"/system/bin/sh\",HOME=\"$CONFIG_SMOKE_HOME\",TMPDIR=\"$CONFIG_SMOKE_TEMP\",TMP=\"$CONFIG_SMOKE_TEMP\",TEMP=\"$CONFIG_SMOKE_TEMP\",LD_LIBRARY_PATH=\"$NATIVE_DIR\",HISTFILE=\"/dev/null\",NODE_REPL_HISTORY=\"/dev/null\",SSL_CERT_DIR=\"/system/etc/security/cacerts\",AGENTCODI_WORKSPACE=\"$CONFIG_SMOKE_WORKSPACE\",AGENTCODI_TOOLCHAIN=\"$CONFIG_SMOKE_TOOLCHAIN\",AGENTCODI_TOOL_BIN=\"$CONFIG_SMOKE_TOOL_BIN\",AGENTCODI_TOOL_RUNTIME=\"$CONFIG_SMOKE_TOOL_RUNTIME\",AGENTCODI_NODE_VERSION=\"$NODE_VERSION\",AGENTCODI_NPM_VERSION=\"$NPM_VERSION\",AGENTCODI_PYTHON_VERSION=\"$PYTHON_VERSION\",AGENTCODI_RIPGREP_VERSION=\"$RIPGREP_VERSION\",AGENTCODI_TOOLCHAIN_COMMAND=\"agentcodi-toolchain\",AGENTCODI_TOOLCHAIN_PACKAGES=\"node,npm,python,ripgrep\"}}" \
+    -c "shell_environment_policy={inherit=\"none\",ignore_default_excludes=false,set={PATH=\"$CONFIG_SMOKE_TOOL_BIN:/system/bin:/system/xbin\",SHELL=\"/system/bin/sh\",HOME=\"$CONFIG_SMOKE_HOME\",TMPDIR=\"$CONFIG_SMOKE_TEMP\",TMP=\"$CONFIG_SMOKE_TEMP\",TEMP=\"$CONFIG_SMOKE_TEMP\",LD_LIBRARY_PATH=\"$NATIVE_DIR\",HISTFILE=\"/dev/null\",NODE_REPL_HISTORY=\"/dev/null\",SSL_CERT_DIR=\"/system/etc/security/cacerts\",AGENTCODI_WORKSPACE=\"$CONFIG_SMOKE_WORKSPACE\",AGENTCODI_TOOLCHAIN=\"$CONFIG_SMOKE_TOOLCHAIN\",AGENTCODI_TOOL_BIN=\"$CONFIG_SMOKE_TOOL_BIN\",AGENTCODI_TOOL_RUNTIME=\"$CONFIG_SMOKE_TOOL_RUNTIME\",AGENTCODI_NODE_VERSION=\"$NODE_VERSION\",AGENTCODI_NPM_VERSION=\"$NPM_VERSION\",AGENTCODI_PYTHON_VERSION=\"$PYTHON_VERSION\",AGENTCODI_RIPGREP_VERSION=\"$RIPGREP_VERSION\",AGENTCODI_TOOLCHAIN_COMMAND=\"agentcodi-toolchain\",AGENTCODI_TOOLCHAIN_PACKAGES=\"node,npm,python,ripgrep\"}}" \
     -c 'analytics.enabled=false' \
     -c 'otel.exporter="none"' \
     -c 'otel.log_user_prompt=false' \
@@ -1609,6 +1925,9 @@ grep -Fx "lib/$ABI/$TERMINAL_SHELL_NAME" "$WORK_DIR/apk-entries.txt"
 grep -Fx "lib/$ABI/$NODE_LIBRARY_NAME" "$WORK_DIR/apk-entries.txt"
 grep -Fx "lib/$ABI/$PYTHON_LIBRARY_NAME" "$WORK_DIR/apk-entries.txt"
 grep -Fx "lib/$ABI/$RIPGREP_LIBRARY_NAME" "$WORK_DIR/apk-entries.txt"
+grep -Fx "lib/$ABI/$NODE_GUARD_LIBRARY_NAME" "$WORK_DIR/apk-entries.txt"
+grep -Fx "lib/$ABI/$PYTHON_GUARD_LIBRARY_NAME" "$WORK_DIR/apk-entries.txt"
+grep -Fx "lib/$ABI/$RIPGREP_GUARD_LIBRARY_NAME" "$WORK_DIR/apk-entries.txt"
 for dependency in libcares.so libcrypto_3.so libicudata_78.so libicui18n_78.so libicuuc_78.so libsqlite3.so libssl_3.so libz_1.so libpython3.14.so libandroid-posix-semaphore.so libandroid-support.so libbz2_1_0.so libexpat_1.so libffi.so liblzma_5.so libncursesw_6.so libpanelw_6.so libzstd_1.so; do
   grep -Fx "lib/$ABI/$dependency" "$WORK_DIR/apk-entries.txt"
 done
@@ -1697,6 +2016,9 @@ if [ "$packaged_app_server_sha" != "$CODEX_APP_SERVER_ANDROID_SHA256" ] \
 fi
 for runtime_spec in \
     "$NODE_LIBRARY_NAME:$NODE_RUNTIME_SHA256" \
+    "$NODE_GUARD_LIBRARY_NAME:$NODE_GUARD_SHA256" \
+    "$PYTHON_GUARD_LIBRARY_NAME:$PYTHON_GUARD_SHA256" \
+    "$RIPGREP_GUARD_LIBRARY_NAME:$RIPGREP_GUARD_SHA256" \
     "libcares.so:$CARES_RUNTIME_SHA256" \
     "libcrypto_3.so:$CRYPTO_RUNTIME_SHA256" \
     "libicudata_78.so:$ICUDATA_RUNTIME_SHA256" \

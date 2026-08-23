@@ -27,6 +27,16 @@ not downloaded at runtime; an explicit user action or a Codex command accepted
 in the native approval dialog creates only a private activation marker below
 workspace/toolchain.
 
+The private native-library directory is not placed in command PATH. The actual
+Node.js, Python, and ripgrep executable ELFs each require a bundled AGENTCODI
+C++ policy guard before their own entry point. Those first-party Apache-2.0
+guards enforce the same activation and environment policy for absolute ELF
+invocations; the ripgrep guard also enforces its restricted arguments. A
+relocation-free first-party entry attestor inside each executable opens the
+genuine sibling guard without following links and verifies its device and inode
+against the executable process mapping. A substituted policy library is
+therefore rejected before the original program entry runs.
+
 Included runtime components and primary license classifications:
 - Node.js 24.18.0: MIT License and the upstream third-party notices collected
   in the Node.js LICENSE file.
@@ -87,13 +97,14 @@ ripgrep 15.2.0 Android ARM64 toolchain
 
 AGENTCODI packages a source-built, SHA-256-pinned ripgrep 15.2.0 ELF with
 PCRE2 disabled. It is linked for Android ARM64, has no RPATH or RUNPATH, and
-depends dynamically only on Android's platform-provided libc.so and libdl.so.
-The ripgrep and normal Cargo dependency code is statically linked. ripgrep and
-the selected license alternatives for those Cargo crates use the MIT License,
-with the required BSD-3-Clause encoding_rs notice. The statically linked Rust
-standard-library material uses its selected MIT terms and Unicode attribution;
-the LLVM compiler-rt link input uses Apache-2.0 with the LLVM exception. These
-are all permissive terms. No PCRE2 library or crate is bundled.
+depends dynamically on the first-party AGENTCODI ripgrep policy guard plus
+Android's platform-provided libc.so and libdl.so. The ripgrep and normal Cargo
+dependency code is statically linked. ripgrep and the selected license
+alternatives for those Cargo crates use the MIT License, with the required
+BSD-3-Clause encoding_rs notice. The statically linked Rust standard-library
+material uses its selected MIT terms and Unicode attribution; the LLVM
+compiler-rt link input uses Apache-2.0 with the LLVM exception. These are all
+permissive terms. No PCRE2 library or crate is bundled.
 
 The exact 34-package normal Cargo dependency closure, all source and license
 hashes, Rust/LLVM link inputs, Android dynamic dependencies, complete selected

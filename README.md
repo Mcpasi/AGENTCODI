@@ -60,7 +60,7 @@ AGENTCODI does more than display a Codex conversation.
 | ripgrep | Packaged no-PCRE2 runtime exposed as `rg` |
 | MCP management | Native Android interface backed by Codex configuration RPCs |
 
-The current AGENTCODI 0.5.16 runtime uses **Codex app-server 0.148.1** together with the matching code-mode host from the same pinned artifact.
+The current AGENTCODI 0.5.18 runtime uses **Codex app-server 0.148.1** together with the matching code-mode host from the same pinned artifact.
 
 ---
 
@@ -177,7 +177,7 @@ Supported workspace exports include:
 
 Export paths and archive contents pass through dedicated validation before leaving the private workspace. Since version 0.5.3, each exported file is read from a descriptor opened component by component relative to the private workspace without following links, then that same descriptor and its workspace name are verified again. A concurrent path, symlink, parent-directory or hard-link exchange therefore fails without redirecting reads outside the workspace. ZIP correlation compares Java and native modification times at their common microsecond precision, while the native descriptor still validates its full nanosecond `mtime`/`ctime` snapshot and the Java catalog remains exactly checked before and after the archive.
 
-Version 0.5.16 keeps the ZIP limit at 2,048 regular files and gives catalog traversal its own finite 65,536-entry limit. Directories and omitted symbolic links therefore cannot consume the regular-file allowance, while symbolic links are still never followed or exported and hard links, special entries, unsafe paths, races, file sizes and total archive size remain fail-closed.
+Version 0.5.18 retains the ZIP limit of 2,048 regular files and gives catalog traversal its own finite 65,536-entry limit. Directories and omitted symbolic links therefore cannot consume the regular-file allowance, while symbolic links are still never followed or exported and hard links, special entries, unsafe paths, races, file sizes and total archive size remain fail-closed.
 
 Version 0.5.4 introduced complete PNG validation before native materialization and again before workspace image export or resumed-history reuse. Validation covers the complete chunk boundaries and ordering, CRCs, `IHDR` dimensions and format fields, palette rules, the bounded zlib stream, the exact interlaced or non-interlaced scanline shape and filter bytes, and a final `IEND` with no trailing data. A PNG signature followed by arbitrary bytes is rejected rather than materialized or offered for export.
 
@@ -224,7 +224,13 @@ Python includes SQLite-backed `dbm` and `shelve` support as well as PyREPL.
 ripgrep is a SHA-256-pinned Android ARM64 ELF bundled in the APK. The private
 `rg` bridge clears external ripgrep configuration and rejects `--pre`,
 `--search-zip`, `--follow` and their short forms before execution; it is never
-downloaded or installed at runtime.
+downloaded or installed at runtime. The native-library directory is excluded
+from command `PATH`. Mandatory C++ guards on the actual Node.js, Python and
+ripgrep ELFs enforce the same activation and environment policy even when an
+absolute ELF path is invoked. A relocation-free in-binary entry attestor also
+binds each process to the genuine no-follow sibling guard by device and inode,
+so an `LD_LIBRARY_PATH` replacement cannot suppress the policy before normal
+activated functionality starts.
 
 ---
 
@@ -349,7 +355,7 @@ Current safeguards include:
 - Private SHA-256 materialization proofs before resumed images regain an export path
 - Bounded protocol messages
 - Bounded terminal input and output
-- A private `rg` bridge that blocks preprocessor, archive-search and symlink-follow modes
+- A private alias-only tool `PATH`, mandatory Node.js/Python/ripgrep ELF guards, and in-binary guard attestation that enforce activation and block ripgrep preprocessor, archive-search and symlink-follow modes even for absolute invocations or substituted policy libraries
 - Credential detection and redaction in sensitive paths
 - Explicit approval handling
 - C++ ownership of child processes
@@ -365,7 +371,7 @@ Several sensitive byte and character buffers are explicitly cleared after use.
 
 Current release line:
 
-### AGENTCODI 0.5.16
+### AGENTCODI 0.5.18
 
 | Requirement | Value |
 |---|---|
@@ -416,13 +422,13 @@ Physical Android hardware is used separately to validate installation, UI behavi
 
 AGENTCODI is under active development.
 
-Version 0.5.16 currently focuses heavily on:
+Version 0.5.18 currently focuses heavily on:
 
 - Native Codex runtime integration
 - Correlated in-flight turn steering without losing the separate stop action
 - Read-only, app-server-owned ChatGPT quota visibility
 - MCP visibility and guarded configuration
-- Packaged development toolchains, including a pinned no-PCRE2 ripgrep bridge
+- Packaged development toolchains with activation-bound and in-binary-attested native ELF guards plus a pinned no-PCRE2 ripgrep bridge
 - Android runtime stability
 - Workspace boundaries
 - Direct, bounded external-document import with a proven transient read grant, crash-recovery cleanup, commit-stable resource closing, atomic no-replace installation, retained verification handles across queue hand-offs, and final batch revalidation coupled to the app-server JSONL write

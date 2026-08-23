@@ -1,7 +1,11 @@
 AGENTCODI RIPGREP RUNTIME DEPENDENCY INVENTORY V1
 
-Artifact: ripgrep 15.2.0 Android ARM64 ELF
-Artifact SHA-256: 4eb0d0c70d2e3c760cab4f478c7eb715082ae1d8b5f4a23bb14515154348b04d
+Repository input artifact: ripgrep 15.2.0 Android ARM64 ELF
+Repository input SHA-256: 4eb0d0c70d2e3c760cab4f478c7eb715082ae1d8b5f4a23bb14515154348b04d
+Guard-bound pre-attestation SHA-256: a93343b21a76f7ff00dc05c6eddc6317d36f143093e3f7cde795720adede00aa
+Final attested APK artifact SHA-256: 4cfd048c4bac29ac0d494887b519752984f66a449ed4b22bd95cca6fcf540d50
+Mandatory AGENTCODI C++ guard: libagentcodi-ripgrep-guard.so
+In-binary AGENTCODI attestor payload SHA-256: 206e3f43a6dd1cfa1b81cc901e86be00d19c1584866f864da9ff94e6defcba99
 Feature set: --no-default-features; features:-pcre2
 Cargo target: aarch64-linux-android
 Cargo profile: release-lto
@@ -56,6 +60,8 @@ Rust standard library 1.97.1 | static | rust-std-aarch64-linux-android Debian ar
 LLVM compiler-rt builtins 21.1.8 | static link input | archive SHA-256 9aeed0613b933c2c79a7c366371b5910681b740b78093d33237fd31c67345cb2 | Apache-2.0 WITH LLVM-exception | 8d85c1057d742e597985c7d4e6320b015a9139385cff4cbae06ffc0ebe89afee
 Android libc.so | dynamic, platform-provided, not bundled | DT_NEEDED | Android platform license, outside APK payload | not bundled
 Android libdl.so | dynamic, platform-provided, not bundled | DT_NEEDED | Android platform license, outside APK payload | not bundled
+AGENTCODI ripgrep guard | dynamic, bundled first-party C++ policy | DT_NEEDED | Apache License 2.0 in AGENTCODI LICENSE | built with application
+AGENTCODI guard attestor | statically injected first-party C++ entry check | dedicated RX PT_LOAD | Apache License 2.0 in AGENTCODI LICENSE | built with application
 
 No PCRE2 library, pcre2 crate, pcre2-sys crate, decompressor, or other shared
 third-party runtime is linked or bundled for ripgrep.

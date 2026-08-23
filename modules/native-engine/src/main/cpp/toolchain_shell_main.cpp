@@ -10,7 +10,7 @@
 #include <sys/stat.h>
 #include <unistd.h>
 
-#include "ripgrep_bridge_policy.h"
+#include "toolchain_policy.h"
 
 namespace {
 
@@ -21,28 +21,16 @@ constexpr const char* kPackagedPythonName = "libpython-bin.so";
 constexpr const char* kPackagedRipgrepName = "libripgrep.so";
 constexpr const char* kNpmCliRelativePath =
     "npm/node_modules/npm/bin/npm-cli.js";
-constexpr const char* kPythonHomeRelativePath = "python";
-constexpr const char* kPythonLandmarkRelativePath =
-    "python/lib/python3.14/encodings/__init__.pyc";
 constexpr std::size_t kMaximumCommandCharacters = 256U * 1024U;
 constexpr off_t kMaximumRuntimeFileBytes = 16 * 1024 * 1024;
 
-struct PackageSpec {
-  const char* name;
-  const char* display_name;
-  const char* version;
-  const char* marker;
-};
+using agentcodi::PackageSpec;
+using agentcodi::kNodePackage;
+using agentcodi::kNpmPackage;
+using agentcodi::kPythonPackage;
+using agentcodi::kRipgrepPackage;
 
-constexpr PackageSpec kNodePackage {
-    "node", "Node.js", "24.18.0", "node-24.18.0"};
-constexpr PackageSpec kNpmPackage {
-    "npm", "npm", "11.19.0", "npm-11.19.0"};
-constexpr PackageSpec kPythonPackage {
-    "python", "Python", "3.14.6", "python-3.14.6"};
-constexpr PackageSpec kRipgrepPackage {
-    "ripgrep", "ripgrep", "15.2.0", "ripgrep-15.2.0"};
-constexpr const PackageSpec* kPackages[] = {
+const PackageSpec* const kPackages[] = {
     &kNodePackage,
     &kNpmPackage,
     &kPythonPackage,
@@ -68,169 +56,29 @@ const char* required_environment(const char* name) {
   return value;
 }
 
-bool contains_path(const std::string& parent, const std::string& child) {
-  return parent == child
-      || (child.size() > parent.size()
-          && child.compare(0U, parent.size(), parent) == 0
-          && child[parent.size()] == '/');
-}
-
-bool canonical_private_directory(
-    const char* supplied,
-    std::string* canonical,
-    std::string* error) {
-  char resolved[PATH_MAX];
-  if (realpath(supplied, resolved) == nullptr) {
-    *error = errno_message("Toolchain directory", errno);
-    return false;
-  }
-  struct stat metadata {};
-  if (lstat(resolved, &metadata) != 0
-      || !S_ISDIR(metadata.st_mode)
-      || metadata.st_uid != geteuid()
-      || (metadata.st_mode & 077) != 0) {
-    *error = "Toolchain directory is not a private canonical directory";
-    return false;
-  }
-  *canonical = resolved;
-  return true;
-}
-
-bool toolchain_directories(
-    std::string* workspace,
-    std::string* toolchain,
-    std::string* error) {
-  const char* supplied_workspace = required_environment("AGENTCODI_WORKSPACE");
-  const char* supplied_toolchain = required_environment("AGENTCODI_TOOLCHAIN");
-  if (supplied_workspace == nullptr || supplied_toolchain == nullptr) {
-    *error = "Toolchain environment is missing";
-    return false;
-  }
-  if (!canonical_private_directory(supplied_workspace, workspace, error)
-      || !canonical_private_directory(supplied_toolchain, toolchain, error)) {
-    return false;
-  }
-  if (*workspace == *toolchain || !contains_path(*workspace, *toolchain)) {
-    *error = "Toolchain directory escaped the canonical workspace";
-    return false;
-  }
-  return true;
-}
-
 bool canonical_tool_runtime(std::string* runtime, std::string* error) {
   const char* supplied_runtime = required_environment("AGENTCODI_TOOL_RUNTIME");
   std::string workspace;
   std::string toolchain;
   if (supplied_runtime == nullptr
-      || !canonical_private_directory(supplied_runtime, runtime, error)
-      || !toolchain_directories(&workspace, &toolchain, error)) {
+      || !agentcodi::CanonicalPrivateToolDirectory(
+          supplied_runtime,
+          runtime,
+          error)
+      || !agentcodi::ResolveToolchainDirectories(
+          &workspace,
+          &toolchain,
+          error)) {
     return false;
   }
-  if (contains_path(workspace, *runtime)
-      || contains_path(*runtime, workspace)
-      || contains_path(toolchain, *runtime)
-      || contains_path(*runtime, toolchain)) {
+  if (agentcodi::ContainsPath(workspace, *runtime)
+      || agentcodi::ContainsPath(*runtime, workspace)
+      || agentcodi::ContainsPath(toolchain, *runtime)
+      || agentcodi::ContainsPath(*runtime, toolchain)) {
     *error = "Packaged tool runtime must remain separate from the workspace";
     return false;
   }
   return true;
-}
-
-int open_installed_directory(bool create, std::string* error) {
-  std::string workspace;
-  std::string toolchain;
-  if (!toolchain_directories(&workspace, &toolchain, error)) {
-    return -1;
-  }
-  const int toolchain_descriptor = open(
-      toolchain.c_str(),
-      O_RDONLY | O_DIRECTORY | O_CLOEXEC | O_NOFOLLOW);
-  if (toolchain_descriptor < 0) {
-    *error = errno_message("Toolchain open", errno);
-    return -1;
-  }
-  if (create && mkdirat(toolchain_descriptor, "installed", 0700) != 0
-      && errno != EEXIST) {
-    const int saved_errno = errno;
-    close(toolchain_descriptor);
-    *error = errno_message("Toolchain activation directory", saved_errno);
-    return -1;
-  }
-  const int installed = openat(
-      toolchain_descriptor,
-      "installed",
-      O_RDONLY | O_DIRECTORY | O_CLOEXEC | O_NOFOLLOW);
-  const int saved_errno = errno;
-  close(toolchain_descriptor);
-  if (installed < 0) {
-    if (!create && saved_errno == ENOENT) {
-      return -1;
-    }
-    *error = errno_message("Toolchain activation directory", saved_errno);
-    return -1;
-  }
-  struct stat metadata {};
-  if (fstat(installed, &metadata) != 0
-      || !S_ISDIR(metadata.st_mode)
-      || metadata.st_uid != geteuid()
-      || (metadata.st_mode & 077) != 0) {
-    close(installed);
-    *error = "Toolchain activation directory has unsafe metadata";
-    return -1;
-  }
-  return installed;
-}
-
-bool valid_marker(
-    int directory,
-    const PackageSpec& package,
-    std::string* error) {
-  const int marker = openat(
-      directory,
-      package.marker,
-      O_RDONLY | O_CLOEXEC | O_NOFOLLOW | O_NONBLOCK);
-  if (marker < 0) {
-    if (errno != ENOENT && error != nullptr) {
-      *error = errno_message(
-          (std::string(package.display_name) + " activation marker").c_str(),
-          errno);
-    }
-    return false;
-  }
-  struct stat metadata {};
-  const std::string expected = std::string("enabled ") + package.version + "\n";
-  std::string contents(expected.size(), '\0');
-  std::size_t read_bytes = 0U;
-  while (read_bytes < contents.size()) {
-    const ssize_t count = read(
-        marker,
-        &contents[read_bytes],
-        contents.size() - read_bytes);
-    if (count > 0) {
-      read_bytes += static_cast<std::size_t>(count);
-    } else if (count == -1 && errno == EINTR) {
-      continue;
-    } else {
-      break;
-    }
-  }
-  char trailing = '\0';
-  const ssize_t trailing_bytes = read(marker, &trailing, 1U);
-  const bool valid = fstat(marker, &metadata) == 0
-      && S_ISREG(metadata.st_mode)
-      && metadata.st_uid == geteuid()
-      && metadata.st_nlink == 1
-      && (metadata.st_mode & 0777) == 0600
-      && metadata.st_size == static_cast<off_t>(expected.size())
-      && read_bytes == expected.size()
-      && trailing_bytes == 0
-      && contents == expected;
-  close(marker);
-  if (!valid && error != nullptr) {
-    *error = std::string(package.display_name)
-        + " activation marker has unsafe metadata";
-  }
-  return valid;
 }
 
 std::string executable_name(const char* value) {
@@ -331,32 +179,11 @@ bool canonical_runtime_file(
       || (metadata.st_mode & 077) != 0
       || metadata.st_size < 1
       || metadata.st_size > kMaximumRuntimeFileBytes
-      || !contains_path(runtime, resolved)) {
+      || !agentcodi::ContainsPath(runtime, resolved)) {
     *error = "Packaged tool runtime file failed canonical validation";
     return false;
   }
   *file = resolved;
-  return true;
-}
-
-bool canonical_python_home(std::string* home, std::string* error) {
-  std::string runtime;
-  if (!canonical_tool_runtime(&runtime, error)) {
-    return false;
-  }
-  const std::string candidate = runtime + "/" + kPythonHomeRelativePath;
-  char resolved[PATH_MAX];
-  if (realpath(candidate.c_str(), resolved) == nullptr
-      || !contains_path(runtime, resolved)
-      || !canonical_private_directory(resolved, home, error)) {
-    *error = "Packaged Python home failed canonical validation";
-    return false;
-  }
-  std::string landmark;
-  if (!canonical_runtime_file(kPythonLandmarkRelativePath, &landmark, error)) {
-    *error = "Packaged Python standard library failed canonical validation";
-    return false;
-  }
   return true;
 }
 
@@ -374,13 +201,7 @@ std::string shell_quote(const std::string& value) {
 }
 
 bool package_enabled(const PackageSpec& package, std::string* error) {
-  const int directory = open_installed_directory(false, error);
-  if (directory < 0) {
-    return false;
-  }
-  const bool enabled = valid_marker(directory, package, error);
-  close(directory);
-  return enabled;
+  return agentcodi::IsToolPackageEnabled(package, error);
 }
 
 bool write_all(int descriptor, const char* data, std::size_t length) {
@@ -433,7 +254,7 @@ bool remove_replaceable_marker(
 
 int install_single_package(const PackageSpec& package) {
   std::string error;
-  const int directory = open_installed_directory(true, &error);
+  const int directory = agentcodi::OpenToolActivationDirectory(true, &error);
   if (directory < 0) {
     std::cerr << error << '\n';
     return 1;
@@ -444,7 +265,7 @@ int install_single_package(const PackageSpec& package) {
       O_WRONLY | O_CREAT | O_EXCL | O_CLOEXEC | O_NOFOLLOW,
       0600);
   if (marker < 0 && errno == EEXIST) {
-    if (valid_marker(directory, package, &error)) {
+    if (agentcodi::ValidateToolActivationMarker(directory, package, &error)) {
       close(directory);
       std::cout << package.display_name << ' ' << package.version
                 << " is already enabled.\n";
@@ -505,7 +326,7 @@ int install_package(const PackageSpec& package) {
 
 int remove_single_package(const PackageSpec& package) {
   std::string error;
-  const int directory = open_installed_directory(false, &error);
+  const int directory = agentcodi::OpenToolActivationDirectory(false, &error);
   if (directory < 0) {
     if (!error.empty()) {
       std::cerr << error << '\n';
@@ -514,7 +335,7 @@ int remove_single_package(const PackageSpec& package) {
     std::cout << package.display_name << " is not enabled.\n";
     return 0;
   }
-  if (!valid_marker(directory, package, &error)) {
+  if (!agentcodi::ValidateToolActivationMarker(directory, package, &error)) {
     close(directory);
     if (!error.empty()) {
       std::cerr << error << '\n';
@@ -702,11 +523,40 @@ bool require_enabled(const PackageSpec& package, std::string* error) {
   return false;
 }
 
-int run_node(int argc, char* argv[]) {
-  std::string error;
-  if (!require_enabled(kNodePackage, &error)) {
-    return error.empty() ? 127 : 126;
+bool prepare_guarded_invocation(
+    agentcodi::GuardedTool tool,
+    int argc,
+    char* argv[],
+    int* exit_code) {
+  std::vector<std::string> supplied_arguments;
+  supplied_arguments.reserve(static_cast<std::size_t>(argc));
+  for (int index = 0; index < argc; ++index) {
+    supplied_arguments.emplace_back(argv[index]);
   }
+  std::string error;
+  if (agentcodi::PrepareGuardedToolInvocation(
+          tool,
+          supplied_arguments,
+          &error,
+          exit_code)) {
+    return true;
+  }
+  if (!error.empty()) {
+    std::cerr << error << '\n';
+  }
+  return false;
+}
+
+int run_node(int argc, char* argv[]) {
+  int exit_code = 126;
+  if (!prepare_guarded_invocation(
+          agentcodi::GuardedTool::kNode,
+          argc,
+          argv,
+          &exit_code)) {
+    return exit_code;
+  }
+  std::string error;
   std::string node_path;
   if (!canonical_packaged_node(&node_path, &error)) {
     std::cerr << error << '\n';
@@ -746,7 +596,10 @@ int run_npm(int argc, char* argv[]) {
   std::string toolchain;
   if (!canonical_packaged_node(&node_path, &error)
       || !canonical_runtime_file(kNpmCliRelativePath, &npm_cli, &error)
-      || !toolchain_directories(&workspace, &toolchain, &error)) {
+      || !agentcodi::ResolveToolchainDirectories(
+          &workspace,
+          &toolchain,
+          &error)) {
     std::cerr << error << '\n';
     return 126;
   }
@@ -774,23 +627,18 @@ int run_npm(int argc, char* argv[]) {
 }
 
 int run_python(int argc, char* argv[]) {
+  int exit_code = 126;
+  if (!prepare_guarded_invocation(
+          agentcodi::GuardedTool::kPython,
+          argc,
+          argv,
+          &exit_code)) {
+    return exit_code;
+  }
   std::string error;
-  if (!require_enabled(kPythonPackage, &error)) {
-    return error.empty() ? 127 : 126;
-  }
   std::string python_path;
-  std::string python_home;
-  if (!canonical_packaged_python(&python_path, &error)
-      || !canonical_python_home(&python_home, &error)) {
+  if (!canonical_packaged_python(&python_path, &error)) {
     std::cerr << error << '\n';
-    return 126;
-  }
-  if (!set_environment("PYTHONHOME", python_home)
-      || !set_environment("PYTHONNOUSERSITE", "1")
-      || !set_environment("PYTHONDONTWRITEBYTECODE", "1")
-      || !set_environment("PYTHONSAFEPATH", "1")
-      || !set_environment("PYTHON_HISTORY", "/dev/null")
-      || !set_environment("PYTHONUTF8", "1")) {
     return 126;
   }
   std::vector<char*> arguments;
@@ -806,20 +654,15 @@ int run_python(int argc, char* argv[]) {
 }
 
 int run_ripgrep(int argc, char* argv[]) {
+  int exit_code = 126;
+  if (!prepare_guarded_invocation(
+          agentcodi::GuardedTool::kRipgrep,
+          argc,
+          argv,
+          &exit_code)) {
+    return exit_code;
+  }
   std::string error;
-  if (!require_enabled(kRipgrepPackage, &error)) {
-    return error.empty() ? 127 : 126;
-  }
-  std::vector<std::string> supplied_arguments;
-  supplied_arguments.reserve(static_cast<std::size_t>(argc));
-  for (int index = 0; index < argc; ++index) {
-    supplied_arguments.emplace_back(argv[index]);
-  }
-  if (!agentcodi::ValidateRipgrepArguments(supplied_arguments, &error)
-      || !agentcodi::PrepareRipgrepEnvironment(&error)) {
-    std::cerr << error << '\n';
-    return 2;
-  }
   std::string ripgrep_path;
   if (!canonical_packaged_ripgrep(&ripgrep_path, &error)) {
     std::cerr << error << '\n';

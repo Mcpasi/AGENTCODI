@@ -497,7 +497,7 @@ int main(int argc, char* argv[]) {
   }
 
   const std::string version = agentcodi::engine_version();
-  expect(version == "agentcodi-native/0.5.16", "engine version");
+  expect(version == "agentcodi-native/0.5.18", "engine version");
   expect(agentcodi::run_self_test() == 0, "native self-test");
   const std::string abc = "abc";
   expect(
@@ -579,9 +579,14 @@ int main(int argc, char* argv[]) {
              != std::string::npos,
          "Codex reports the actual Android system shell");
   expect(joined_arguments.find(
-             "PATH=\"/private/tool-bin:/private/native:/system/bin:/system/xbin\"")
+             "PATH=\"/private/tool-bin:/system/bin:/system/xbin\"")
              != std::string::npos,
          "Codex tools resolve packaged command aliases before system commands");
+  expect(
+      joined_arguments.find(
+          "PATH=\"/private/tool-bin:/private/native:/system/bin:/system/xbin\"")
+          == std::string::npos,
+      "real packaged tool ELF directory excluded from Codex command search");
   expect(joined_arguments.find("AGENTCODI_TOOLCHAIN=\"/private/workspace/toolchain\"")
              != std::string::npos,
          "Codex tools receive the bounded workspace toolchain path");
@@ -1240,6 +1245,7 @@ int main(int argc, char* argv[]) {
         "printf '%s|%s|%s|%s\\n' \"${AGENTCODI_PARENT_SECRET-unset}\" "
         "\"$CODEX_HOME\" \"$HOME\" \"$(umask)\"; "
         "printf '%s\\n' \"$CODEX_CODE_MODE_HOST_PATH\"; "
+        "printf '%s\\n' \"$PATH\"; "
         "IFS= read -r line; printf '%s\\n' \"$line\"",
     };
     expect(setenv("AGENTCODI_PARENT_SECRET", "must-not-leak", 1) == 0,
@@ -1268,6 +1274,15 @@ int main(int argc, char* argv[]) {
               == agentcodi::LineReadStatus::kLine,
           "read code-mode host environment");
       expect(host_path == "/system/bin/sh", "canonical code-mode host environment");
+      std::string child_path;
+      expect(
+          process->ReadLine(1024U, &child_path, &error)
+              == agentcodi::LineReadStatus::kLine,
+          "read closed app-server PATH");
+      expect(
+          child_path == tool_binary + ":/system/bin:/system/xbin"
+              && child_path.find("/system/lib64") == std::string::npos,
+          "app-server PATH exposes aliases but not real tool ELFs");
       const std::string probe = "{\"probe\":\"ok\"}";
       std::vector<unsigned char> mutable_probe(probe.begin(), probe.end());
       expect(

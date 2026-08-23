@@ -518,7 +518,7 @@ int main(int argc, char* argv[]) {
   const std::string initialize =
       "{\"method\":\"initialize\",\"id\":1,\"params\":{"
       "\"clientInfo\":{\"name\":\"agentcodi_android\","
-      "\"title\":\"AGENTCODI\",\"version\":\"0.5.16\"},"
+      "\"title\":\"AGENTCODI\",\"version\":\"0.5.18\"},"
       "\"capabilities\":{\"experimentalApi\":true,"
       "\"optOutNotificationMethods\":[\"rawResponseItem/completed\","
       "\"rawResponse/completed\"]}}}";
@@ -588,7 +588,13 @@ int main(int argc, char* argv[]) {
   const std::string model_shell_request =
       "{\"method\":\"command/exec\",\"id\":9,\"params\":{"
       "\"command\":[\"/system/bin/sh\",\"-c\","
-      "\"command -v node && command -v rg && command -v agentcodi-toolchain && "
+      "\"test -z \\\"$(command -v libnode.so)\\\" && "
+      "test -z \\\"$(command -v libpython-bin.so)\\\" && "
+      "test -z \\\"$(command -v libripgrep.so)\\\" && "
+      "\\\"$LD_LIBRARY_PATH/libripgrep.so\\\" "
+      "--pre=/system/bin/sh needle . >/dev/null 2>&1; "
+      "test $? -eq 2 && command -v node && command -v rg && "
+      "command -v agentcodi-toolchain && "
       "node --version && rg --version && agentcodi-toolchain status\"],"
       "\"cwd\":\"" + workspace + "\","
       "\"processId\":\"agentcodi-build-model-shell\","
@@ -797,7 +803,7 @@ int main(int argc, char* argv[]) {
   const std::string probe_initialize =
       "{\"method\":\"initialize\",\"id\":30,\"params\":{"
       "\"clientInfo\":{\"name\":\"agentcodi_import_probe\","
-      "\"title\":\"AGENTCODI import probe\",\"version\":\"0.5.16\"},"
+      "\"title\":\"AGENTCODI import probe\",\"version\":\"0.5.18\"},"
       "\"capabilities\":{\"experimentalApi\":true}}}";
   if (!write_request(probe, probe_initialize, &error)
       || !read_response(probe, "\"id\":30", "\"codexHome\":", &error)

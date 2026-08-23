@@ -1,10 +1,9 @@
 AGENTCODI packaged ripgrep provenance
 
-Runtime artifact
-----------------
+Repository input artifact
+-------------------------
 Component: ripgrep 15.2.0
 Target: Android ARM64 (aarch64-linux-android)
-APK entry: lib/arm64-v8a/libripgrep.so
 Repository artifact: third_party/ripgrep/ripgrep-15.2.0-android-arm64.elf
 Byte count: 3250552
 SHA-256: 4eb0d0c70d2e3c760cab4f478c7eb715082ae1d8b5f4a23bb14515154348b04d
@@ -16,9 +15,31 @@ ELF Android note: NDK r29 (14206865), API 24 baseline
 Application minimum API: 29
 
 The lower ELF baseline is intentional and compatible with the application's
-higher API 29 minimum. The binary is never downloaded, installed, rebuilt, or
-modified at Android runtime. The APK builder only verifies and copies these
-pinned bytes.
+higher API 29 minimum.
+
+Packaged runtime derivation
+---------------------------
+APK entry: lib/arm64-v8a/libripgrep.so
+Guard-bound pre-attestation SHA-256: a93343b21a76f7ff00dc05c6eddc6317d36f143093e3f7cde795720adede00aa
+Final APK-entry SHA-256: 4cfd048c4bac29ac0d494887b519752984f66a449ed4b22bd95cca6fcf540d50
+ELF DT_NEEDED, exact: libagentcodi-ripgrep-guard.so, libc.so, libdl.so
+ELF RPATH/RUNPATH: none
+Guard APK entry: lib/arm64-v8a/libagentcodi-ripgrep-guard.so
+Guard SHA-256: 6f38c49ad156e456248330bfddec2dc3f934f94884cd64d1fd751c08fee40a20
+In-binary attestor payload SHA-256: 206e3f43a6dd1cfa1b81cc901e86be00d19c1584866f864da9ff94e6defcba99
+
+After accepting the repository input by its hash and ELF contract, the APK
+builder compiles the AGENTCODI C++ policy guard and injects that one guard as a
+DT_NEEDED dependency with pinned build-only patchelf 0.19.1. A relocation-free
+AGENTCODI C++ attestor is then placed in its own 16-KiB-aligned read/execute
+PT_LOAD segment, using a redundant PT_NOTE program-header slot while preserving
+the original Android-note bytes in their existing load. The ELF entry first
+checks that the genuine no-follow sibling guard's device and inode are the ones
+mapped executable; only then does it continue to ripgrep's original entry. This
+prevents LD_LIBRARY_PATH substitution from suppressing the guard constructor.
+The builder accepts only the intermediate, payload, guard, final, and exact
+dependency hashes above. Neither the input nor the packaged runtime is
+downloaded, installed, rebuilt, modified, or repaired at Android runtime.
 
 Upstream source
 ---------------
@@ -44,7 +65,9 @@ clang-21 executable SHA-256: 3599a121ecc11b433d23bc43545bc0441f9a8ffcc587ea18e31
 LLD: 21.1.8
 ld.lld executable SHA-256: 7a0e3dad3eaeaf7ec0e85337ab1047470141e95aae11e4b51eb12c749c1a561a
 compiler-rt builtins archive SHA-256: 9aeed0613b933c2c79a7c366371b5910681b740b78093d33237fd31c67345cb2
-patchelf: Termux patchelf 0.19.1, build-time only and absent from the APK
+patchelf: Termux patchelf 0.19.1, build-time only and absent from the APK;
+          used both by the reproducible source-artifact build and by APK
+          packaging to inject the mandatory AGENTCODI policy guard
 patchelf package URL: https://packages.termux.dev/apt/termux-main/pool/main/p/patchelf/patchelf_0.19.1_aarch64.deb
 patchelf package SHA-256: a08bea49b3c9c3bf449ee0c7b7ee9c97a9f3ab84ae06ace08a564d0903a23c3f
 
@@ -72,11 +95,17 @@ the repository artifact SHA-256 above.
 
 Verification results
 --------------------
-`rg --version` reports ripgrep 15.2.0, `features:-pcre2`, and NEON support.
+Both the repository input and guarded APK runtime report ripgrep 15.2.0,
+`features:-pcre2`, and NEON support through `rg --version`.
 `rg --pcre2-version` reports that PCRE2 is unavailable and exits nonzero.
 The target-specific Cargo normal-dependency closure contains exactly 34
 packages and contains neither pcre2 nor pcre2-sys. The complete closure,
 source checksums, selected license files, Rust standard-library input, LLVM
 link input, and Android dynamic dependencies are recorded in DEPENDENCIES.
-No absolute project or Termux build-host path remains in the ELF. Remapped
-`/usr/src/ripgrep-15.2.0` and `/usr/src/cargo` diagnostic source paths remain.
+No absolute project or Termux build-host path remains in either ripgrep ELF.
+Remapped `/usr/src/ripgrep-15.2.0` and `/usr/src/cargo` diagnostic source paths
+remain. The guard enforces activation, argument filtering, environment cleanup,
+and the canonical executable entry point before ripgrep's own entry point can
+run, including for an absolute invocation of the APK-native ELF. The in-binary
+attestor additionally rejects a substituted guard before ripgrep's original
+entry can run.

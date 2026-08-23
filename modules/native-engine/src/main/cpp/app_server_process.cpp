@@ -1709,8 +1709,11 @@ int decode_wait_status(int status) {
 }
 
 std::vector<std::string> child_environment(const ProcessConfig& config) {
-  const std::string path = config.tool_binary_directory + ":"
-      + config.library_directory + ":/system/bin:/system/xbin";
+  // Only policy-enforcing aliases are command-searchable. The native library
+  // directory remains available to Android's dynamic linker, but none of its
+  // real tool ELFs is exposed as a second command entry point.
+  const std::string path =
+      config.tool_binary_directory + ":/system/bin:/system/xbin";
   return {
       "HOME=" + config.home_directory,
       "CODEX_HOME=" + config.codex_home,
@@ -1906,8 +1909,7 @@ InboundLineCompactionStatus MaterializeAndCompactInboundImagePayloads(
 
 std::vector<std::string> CodexAppServerArguments(const ProcessConfig& config) {
   const std::string child_path =
-      config.tool_binary_directory + ":" + config.library_directory
-      + ":/system/bin:/system/xbin";
+      config.tool_binary_directory + ":/system/bin:/system/xbin";
   const std::string shell_environment =
       "shell_environment_policy={inherit=\"none\","
       "ignore_default_excludes=false,set={PATH=" + toml_string(child_path)

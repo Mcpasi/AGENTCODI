@@ -1,8 +1,10 @@
 package de.agentcodi.app;
 
 import android.app.Activity;
+import android.app.AlertDialog;
 import android.content.ClipData;
 import android.content.Context;
+import android.content.DialogInterface;
 import android.content.Intent;
 import android.graphics.Color;
 import android.graphics.Typeface;
@@ -111,6 +113,9 @@ public final class MainActivity extends Activity {
     private LinearLayout conversationPage;
     private Button newThreadButton;
     private Button refreshThreadsButton;
+    private Button activeThreadsButton;
+    private Button archivedThreadsButton;
+    private TextView threadEmptyView;
     private ListView threadList;
     private ThreadAdapter threadAdapter;
     private Spinner modelSpinner;
@@ -402,6 +407,38 @@ public final class MainActivity extends Activity {
         actions.addView(refreshThreadsButton);
         page.addView(actions);
 
+        LinearLayout threadViews = new LinearLayout(this);
+        threadViews.setOrientation(LinearLayout.HORIZONTAL);
+        activeThreadsButton = theme.compactButton(getString(R.string.chat_active_threads));
+        activeThreadsButton.setOnClickListener(new View.OnClickListener() {
+            @Override
+            public void onClick(View view) {
+                AgentRuntimeService.showActiveThreads();
+            }
+        });
+        threadViews.addView(activeThreadsButton, new LinearLayout.LayoutParams(
+            0,
+            ViewGroup.LayoutParams.WRAP_CONTENT,
+            1.0f
+        ));
+        archivedThreadsButton = theme.compactButton(
+            getString(R.string.chat_archived_threads)
+        );
+        archivedThreadsButton.setOnClickListener(new View.OnClickListener() {
+            @Override
+            public void onClick(View view) {
+                AgentRuntimeService.showArchivedThreads();
+            }
+        });
+        LinearLayout.LayoutParams archivedParams = new LinearLayout.LayoutParams(
+            0,
+            ViewGroup.LayoutParams.WRAP_CONTENT,
+            1.0f
+        );
+        archivedParams.leftMargin = theme.dp(8);
+        threadViews.addView(archivedThreadsButton, archivedParams);
+        theme.addWithTopMargin(page, threadViews, 12);
+
         newThreadButton = theme.primaryButton(getString(R.string.chat_new));
         newThreadButton.setOnClickListener(new View.OnClickListener() {
             @Override
@@ -415,14 +452,19 @@ public final class MainActivity extends Activity {
         });
         theme.addWithTopMargin(page, newThreadButton, 12);
 
-        TextView emptyView = theme.text(
+        threadEmptyView = theme.text(
             getString(R.string.chat_empty),
             15,
             theme.secondary
         );
-        emptyView.setGravity(Gravity.CENTER);
-        emptyView.setPadding(theme.dp(24), theme.dp(48), theme.dp(24), theme.dp(48));
-        page.addView(emptyView, new LinearLayout.LayoutParams(
+        threadEmptyView.setGravity(Gravity.CENTER);
+        threadEmptyView.setPadding(
+            theme.dp(24),
+            theme.dp(48),
+            theme.dp(24),
+            theme.dp(48)
+        );
+        page.addView(threadEmptyView, new LinearLayout.LayoutParams(
             ViewGroup.LayoutParams.MATCH_PARENT,
             0,
             1.0f
@@ -436,11 +478,15 @@ public final class MainActivity extends Activity {
         threadList.setPadding(0, theme.dp(4), 0, theme.dp(4));
         threadAdapter = new ThreadAdapter();
         threadList.setAdapter(threadAdapter);
-        threadList.setEmptyView(emptyView);
+        threadList.setEmptyView(threadEmptyView);
         threadList.setOnItemClickListener(new AdapterView.OnItemClickListener() {
             @Override
             public void onItemClick(AdapterView<?> parent, View view, int position, long id) {
                 CodexThreadSummary thread = threadAdapter.item(position);
+                if (thread.isArchived()) {
+                    showThreadActions(thread);
+                    return;
+                }
                 CodexSessionSnapshot snapshot = AgentRuntimeService.sessionSnapshot();
                 if (thread.getId().equals(snapshot.getActiveThreadId())) {
                     showConversationPage(snapshot);
@@ -1178,9 +1224,28 @@ public final class MainActivity extends Activity {
             && (!session.requiresOpenaiAuth() || session.isSignedIn());
         theme.setEnabled(refreshThreadsButton, canChat);
         boolean interactionOpen = session.hasInteractiveRequest();
+        boolean threadNavigationReady = canChat
+            && !session.isTurnActive()
+            && !interactionOpen;
+        theme.setEnabled(
+            activeThreadsButton,
+            threadNavigationReady && session.isShowingArchivedThreads()
+        );
+        theme.setEnabled(
+            archivedThreadsButton,
+            threadNavigationReady && !session.isShowingArchivedThreads()
+        );
+        newThreadButton.setVisibility(
+            session.isShowingArchivedThreads() ? View.GONE : View.VISIBLE
+        );
         theme.setEnabled(
             newThreadButton,
-            canChat && !session.isTurnActive() && !interactionOpen
+            threadNavigationReady
+        );
+        threadEmptyView.setText(
+            session.isShowingArchivedThreads()
+                ? R.string.chat_archived_empty
+                : R.string.chat_empty
         );
         boolean steering = session.isTurnActive();
         composerInput.setHint(
@@ -1205,7 +1270,7 @@ public final class MainActivity extends Activity {
         threadAdapter.setData(
             session.getThreads(),
             session.getActiveThreadId(),
-            canChat && !session.isOperationActive() && !session.isTurnActive() && !interactionOpen
+            threadNavigationReady
         );
         bindSelectors(session, canChat && !session.isTurnActive() && !interactionOpen);
         renderTranscript(session.getActiveThreadId(), session.getTranscriptItems());
@@ -1711,6 +1776,85 @@ public final class MainActivity extends Activity {
         });
     }
 
+    private void showThreadActions(final CodexThreadSummary thread) {
+        CodexSessionSnapshot snapshot = AgentRuntimeService.sessionSnapshot();
+        if (!canManageThread(snapshot, thread)) {
+            return;
+        }
+        final CharSequence[] actions = thread.isArchived()
+            ? new CharSequence[] {
+                getString(R.string.chat_unarchive),
+                getString(R.string.chat_delete)
+            }
+            : new CharSequence[] {
+                getString(R.string.chat_archive),
+                getString(R.string.chat_delete)
+            };
+        new AlertDialog.Builder(this)
+            .setTitle(UiText.threadTitle(this, thread.getTitle()))
+            .setItems(actions, new DialogInterface.OnClickListener() {
+                @Override
+                public void onClick(DialogInterface dialog, int which) {
+                    CodexSessionSnapshot current = AgentRuntimeService.sessionSnapshot();
+                    if (!canManageThread(current, thread)) {
+                        return;
+                    }
+                    if (which == 0) {
+                        if (thread.isArchived()) {
+                            AgentRuntimeService.unarchiveThread(thread.getId());
+                        } else {
+                            AgentRuntimeService.archiveThread(thread.getId());
+                        }
+                    } else if (which == 1) {
+                        confirmDeleteThread(thread);
+                    }
+                }
+            })
+            .setNegativeButton(R.string.common_cancel, null)
+            .show();
+    }
+
+    private void confirmDeleteThread(final CodexThreadSummary thread) {
+        new AlertDialog.Builder(this)
+            .setTitle(R.string.chat_delete_title)
+            .setMessage(getString(
+                R.string.chat_delete_message,
+                UiText.threadTitle(this, thread.getTitle())
+            ))
+            .setNegativeButton(R.string.common_cancel, null)
+            .setPositiveButton(R.string.chat_delete, new DialogInterface.OnClickListener() {
+                @Override
+                public void onClick(DialogInterface dialog, int which) {
+                    CodexSessionSnapshot current = AgentRuntimeService.sessionSnapshot();
+                    if (canManageThread(current, thread)) {
+                        AgentRuntimeService.deleteThread(thread.getId());
+                    }
+                }
+            })
+            .show();
+    }
+
+    private static boolean canManageThread(
+        CodexSessionSnapshot snapshot,
+        CodexThreadSummary thread
+    ) {
+        if (!snapshot.isReady()
+            || (snapshot.requiresOpenaiAuth() && !snapshot.isSignedIn())
+            || snapshot.isOperationActive()
+            || snapshot.isTurnActive()
+            || snapshot.hasInteractiveRequest()
+            || snapshot.isShowingArchivedThreads() != thread.isArchived()) {
+            return false;
+        }
+        for (CodexThreadSummary current : snapshot.getThreads()) {
+            if (current.getId().equals(thread.getId())
+                && current.isArchived() == thread.isArchived()) {
+                return true;
+            }
+        }
+        return false;
+    }
+
     private void showThreadPage() {
         conversationVisible = false;
         pendingThreadId = "";
@@ -1936,7 +2080,8 @@ public final class MainActivity extends Activity {
                 CodexThreadSummary value = threads.get(index);
                 nextFingerprint.append(value.getId()).append('\0')
                     .append(value.getTitle()).append('\0')
-                    .append(value.getUpdatedAtSeconds()).append('\1');
+                    .append(value.getUpdatedAtSeconds()).append('\0')
+                    .append(value.isArchived()).append('\1');
             }
             nextFingerprint.append('|').append(activeThreadId).append('|').append(rowsEnabled);
             if (nextFingerprint.toString().equals(fingerprint)) {
@@ -1983,36 +2128,67 @@ public final class MainActivity extends Activity {
                 row = (ThreadRow) convertView.getTag();
             } else {
                 LinearLayout container = new LinearLayout(MainActivity.this);
-                container.setOrientation(LinearLayout.VERTICAL);
+                container.setOrientation(LinearLayout.HORIZONTAL);
+                container.setGravity(Gravity.CENTER_VERTICAL);
                 container.setPadding(theme.dp(18), theme.dp(14), theme.dp(18), theme.dp(14));
+                LinearLayout textColumn = new LinearLayout(MainActivity.this);
+                textColumn.setOrientation(LinearLayout.VERTICAL);
                 TextView title = theme.text("", 16, theme.primary);
                 title.setTypeface(Typeface.DEFAULT_BOLD);
                 title.setSingleLine(true);
                 title.setEllipsize(android.text.TextUtils.TruncateAt.END);
-                container.addView(title);
+                textColumn.addView(title);
                 TextView metadata = theme.text("", 12, theme.secondary);
                 metadata.setSingleLine(true);
                 metadata.setEllipsize(android.text.TextUtils.TruncateAt.END);
-                theme.addWithTopMargin(container, metadata, 4);
-                row = new ThreadRow(container, title, metadata);
+                theme.addWithTopMargin(textColumn, metadata, 4);
+                container.addView(textColumn, new LinearLayout.LayoutParams(
+                    0,
+                    ViewGroup.LayoutParams.WRAP_CONTENT,
+                    1.0f
+                ));
+                Button action = theme.compactButton(getString(R.string.chat_actions));
+                action.setFocusable(false);
+                LinearLayout.LayoutParams actionParams = new LinearLayout.LayoutParams(
+                    ViewGroup.LayoutParams.WRAP_CONTENT,
+                    ViewGroup.LayoutParams.WRAP_CONTENT
+                );
+                actionParams.leftMargin = theme.dp(10);
+                container.addView(action, actionParams);
+                row = new ThreadRow(container, title, metadata, action);
                 container.setTag(row);
             }
-            CodexThreadSummary value = item(position);
-            boolean active = value.getId().equals(activeId);
+            final CodexThreadSummary value = item(position);
+            boolean active = !value.isArchived() && value.getId().equals(activeId);
             row.title.setText(UiText.threadTitle(MainActivity.this, value.getTitle()));
             String updated = value.getUpdatedAtSeconds() <= 0
                 ? getString(R.string.chat_not_updated)
                 : DateFormat.getDateTimeInstance(DateFormat.SHORT, DateFormat.SHORT)
                     .format(new Date(value.getUpdatedAtSeconds() * 1000L));
-            row.metadata.setText(
-                active ? getString(R.string.chat_active_metadata, updated) : updated
-            );
+            if (value.isArchived()) {
+                row.metadata.setText(getString(R.string.chat_archived_metadata, updated));
+            } else {
+                row.metadata.setText(
+                    active ? getString(R.string.chat_active_metadata, updated) : updated
+                );
+            }
             row.root.setBackground(theme.background(
                 active ? (theme.dark ? 0xFF123B3A : 0xFFE7FAF6) : theme.surface,
                 Color.TRANSPARENT,
                 0
             ));
             row.root.setAlpha(enabled ? 1.0f : 0.55f);
+            row.action.setEnabled(enabled);
+            row.action.setContentDescription(getString(
+                R.string.chat_actions_for,
+                UiText.threadTitle(MainActivity.this, value.getTitle())
+            ));
+            row.action.setOnClickListener(new View.OnClickListener() {
+                @Override
+                public void onClick(View view) {
+                    showThreadActions(value);
+                }
+            });
             return row.root;
         }
     }
@@ -2052,11 +2228,18 @@ public final class MainActivity extends Activity {
         private final LinearLayout root;
         private final TextView title;
         private final TextView metadata;
+        private final Button action;
 
-        private ThreadRow(LinearLayout root, TextView title, TextView metadata) {
+        private ThreadRow(
+            LinearLayout root,
+            TextView title,
+            TextView metadata,
+            Button action
+        ) {
             this.root = root;
             this.title = title;
             this.metadata = metadata;
+            this.action = action;
         }
     }
 }

@@ -35,6 +35,8 @@ public final class CodexSessionControllerTest {
 
     public static int run() throws Exception {
         loadsAccountThreadsAndHistory();
+        managesThreadArchiveAndDeletion();
+        rejectsThreadMutationDuringActiveTurn();
         loadsAndRefreshesRateLimits();
         mergesStreamingDeltasAndFinalItem();
         keepsCompletedItemAuthoritativeAcrossReordering();
@@ -63,7 +65,7 @@ public final class CodexSessionControllerTest {
         terminatesTerminalWhenOutputCapIsReached();
         rejectsTerminalCredentialsAndMalformedOutput();
         usesVettedMcpConfigurationRpcs();
-        return 29;
+        return 31;
     }
 
     private static void sendsImportedFilesWithModelReadableContext() throws Exception {
@@ -912,6 +914,234 @@ public final class CodexSessionControllerTest {
             }
         }, "new HTTPS-provider thread");
         assertHttpModelProvider(server.lastThreadStartParams, "thread/start");
+        controller.close();
+    }
+
+    private static void managesThreadArchiveAndDeletion() throws Exception {
+        final FixtureServer server = new FixtureServer(true);
+        final CodexSessionController controller = new CodexSessionController(
+            server,
+            "/private/workspace"
+        );
+        controller.start();
+        TestSupport.assertFalse(
+            controller.snapshot().isShowingArchivedThreads(),
+            "startup shows active threads"
+        );
+        TestSupport.assertEquals(
+            Boolean.FALSE,
+            server.lastThreadListParams.get("archived"),
+            "active thread/list filter is explicit"
+        );
+        TestSupport.assertFalse(
+            controller.snapshot().getThreads().get(0).isArchived(),
+            "active summary is marked active"
+        );
+
+        controller.openThread("thr_existing");
+        waitFor(new Condition() {
+            @Override
+            public boolean isTrue() {
+                return "thr_existing".equals(controller.snapshot().getActiveThreadId())
+                    && !controller.snapshot().isOperationActive();
+            }
+        }, "open thread before archive");
+        controller.archiveThread("thr_existing");
+        waitFor(new Condition() {
+            @Override
+            public boolean isTrue() {
+                return server.lastThreadArchiveParams != null
+                    && !controller.snapshot().isOperationActive()
+                    && controller.snapshot().getActiveThreadId().isEmpty()
+                    && !containsThread(controller.snapshot(), "thr_existing");
+            }
+        }, "archive removes active thread projection");
+        assertOnlyThreadId(
+            server.lastThreadArchiveParams,
+            "thr_existing",
+            "thread/archive has only its supported field"
+        );
+        TestSupport.assertEquals(
+            Integer.valueOf(0),
+            Integer.valueOf(controller.snapshot().getTranscriptItems().size()),
+            "archiving active thread clears transient transcript"
+        );
+
+        controller.showArchivedThreads();
+        waitFor(new Condition() {
+            @Override
+            public boolean isTrue() {
+                return controller.snapshot().isShowingArchivedThreads()
+                    && !controller.snapshot().isOperationActive()
+                    && containsThread(controller.snapshot(), "thr_existing")
+                    && containsThread(controller.snapshot(), "thr_archived");
+            }
+        }, "load archived thread view");
+        TestSupport.assertEquals(
+            Boolean.TRUE,
+            server.lastThreadListParams.get("archived"),
+            "archived thread/list filter is explicit"
+        );
+        for (de.agentcodi.core.CodexThreadSummary summary
+            : controller.snapshot().getThreads()) {
+            TestSupport.assertTrue(summary.isArchived(), "archived summaries stay separated");
+        }
+
+        controller.deleteThread("thr_archived");
+        waitFor(new Condition() {
+            @Override
+            public boolean isTrue() {
+                return server.lastThreadDeleteParams != null
+                    && !controller.snapshot().isOperationActive()
+                    && !containsThread(controller.snapshot(), "thr_archived");
+            }
+        }, "delete archived thread permanently");
+        assertOnlyThreadId(
+            server.lastThreadDeleteParams,
+            "thr_archived",
+            "thread/delete has only its supported field"
+        );
+
+        server.unarchiveResponseThreadId = "thr_other";
+        controller.unarchiveThread("thr_existing");
+        waitFor(new Condition() {
+            @Override
+            public boolean isTrue() {
+                return !controller.snapshot().isOperationActive()
+                    && controller.snapshot().getErrorMessage().contains(
+                        "andere wiederhergestellte Chat-ID"
+                    );
+            }
+        }, "reject mismatched restored thread id");
+        TestSupport.assertTrue(
+            containsThread(controller.snapshot(), "thr_existing"),
+            "mismatched restore response leaves archived projection intact"
+        );
+
+        server.unarchiveResponseThreadId = "";
+        controller.unarchiveThread("thr_existing");
+        waitFor(new Condition() {
+            @Override
+            public boolean isTrue() {
+                return server.lastThreadUnarchiveParams != null
+                    && !controller.snapshot().isOperationActive()
+                    && !containsThread(controller.snapshot(), "thr_existing");
+            }
+        }, "restore archived thread");
+        assertOnlyThreadId(
+            server.lastThreadUnarchiveParams,
+            "thr_existing",
+            "thread/unarchive has only its supported field"
+        );
+
+        controller.showActiveThreads();
+        waitFor(new Condition() {
+            @Override
+            public boolean isTrue() {
+                return !controller.snapshot().isShowingArchivedThreads()
+                    && !controller.snapshot().isOperationActive()
+                    && containsThread(controller.snapshot(), "thr_existing");
+            }
+        }, "restored thread returns to active view");
+
+        controller.openThread("thr_existing");
+        waitFor(new Condition() {
+            @Override
+            public boolean isTrue() {
+                return "thr_existing".equals(controller.snapshot().getActiveThreadId())
+                    && !controller.snapshot().isOperationActive()
+                    && !controller.snapshot().getTranscriptItems().isEmpty();
+            }
+        }, "restored thread history remains resumable");
+        server.lastThreadDeleteParams = null;
+        controller.deleteThread("thr_existing");
+        waitFor(new Condition() {
+            @Override
+            public boolean isTrue() {
+                return server.lastThreadDeleteParams != null
+                    && !controller.snapshot().isOperationActive()
+                    && controller.snapshot().getActiveThreadId().isEmpty()
+                    && controller.snapshot().getTranscriptItems().isEmpty();
+            }
+        }, "delete clears only the active transient projection");
+        assertOnlyThreadId(
+            server.lastThreadDeleteParams,
+            "thr_existing",
+            "active thread/delete has only its supported field"
+        );
+        controller.close();
+    }
+
+    private static void rejectsThreadMutationDuringActiveTurn() throws Exception {
+        final FixtureServer server = new FixtureServer(true);
+        server.holdTurnOpen = true;
+        final CodexSessionController controller = new CodexSessionController(
+            server,
+            "/private/workspace"
+        );
+        controller.start();
+        controller.openThread("thr_existing");
+        waitFor(new Condition() {
+            @Override
+            public boolean isTrue() {
+                return "thr_existing".equals(controller.snapshot().getActiveThreadId())
+                    && !controller.snapshot().isOperationActive();
+            }
+        }, "open thread before held turn");
+        TestSupport.assertTrue(controller.sendMessage("Weiterarbeiten"), "start held turn");
+        waitFor(new Condition() {
+            @Override
+            public boolean isTrue() {
+                return controller.snapshot().isTurnActive()
+                    && !controller.snapshot().isOperationActive();
+            }
+        }, "held turn becomes active");
+
+        controller.archiveThread("thr_existing");
+        waitFor(new Condition() {
+            @Override
+            public boolean isTrue() {
+                return !controller.snapshot().isOperationActive();
+            }
+        }, "archive is rejected during active turn");
+        TestSupport.assertEquals(
+            null,
+            server.lastThreadArchiveParams,
+            "active turn cannot reach thread/archive"
+        );
+        TestSupport.assertTrue(
+            controller.snapshot().getErrorMessage().contains("abgeschlossen oder gestoppt"),
+            "active-turn mutation failure is visible"
+        );
+
+        controller.showArchivedThreads();
+        waitFor(new Condition() {
+            @Override
+            public boolean isTrue() {
+                return !controller.snapshot().isOperationActive();
+            }
+        }, "archive view is rejected during active turn");
+        TestSupport.assertFalse(
+            controller.snapshot().isShowingArchivedThreads(),
+            "active turn cannot switch the bounded thread view"
+        );
+        TestSupport.assertEquals(
+            Boolean.FALSE,
+            server.lastThreadListParams.get("archived"),
+            "active turn cannot reach archived thread/list"
+        );
+
+        controller.deleteThread("../thr_existing");
+        TestSupport.assertEquals(
+            "Ungültige Chat-ID.",
+            controller.snapshot().getErrorMessage(),
+            "unsafe thread id fails before scheduling"
+        );
+        TestSupport.assertEquals(
+            null,
+            server.lastThreadDeleteParams,
+            "unsafe thread id cannot reach thread/delete"
+        );
         controller.close();
     }
 
@@ -2785,6 +3015,28 @@ public final class CodexSessionControllerTest {
         return null;
     }
 
+    private static boolean containsThread(CodexSessionSnapshot snapshot, String id) {
+        for (de.agentcodi.core.CodexThreadSummary thread : snapshot.getThreads()) {
+            if (thread.getId().equals(id)) {
+                return true;
+            }
+        }
+        return false;
+    }
+
+    private static void assertOnlyThreadId(
+        Map<String, Object> params,
+        String expectedThreadId,
+        String message
+    ) {
+        TestSupport.assertEquals(
+            Integer.valueOf(1),
+            Integer.valueOf(params.size()),
+            message
+        );
+        TestSupport.assertEquals(expectedThreadId, params.get("threadId"), message);
+    }
+
     private static CodexTranscriptItem cardById(CodexSessionSnapshot snapshot, String id) {
         for (CodexTranscriptItem item : snapshot.getTranscriptItems()) {
             if (!item.isMessage() && item.getId().equals(id)) {
@@ -2889,8 +3141,12 @@ public final class CodexSessionControllerTest {
         private volatile String accountType;
         private volatile boolean closed;
         private volatile Map<String, Object> initializeParams;
+        private volatile Map<String, Object> lastThreadListParams;
         private volatile Map<String, Object> lastThreadResumeParams;
         private volatile Map<String, Object> lastThreadStartParams;
+        private volatile Map<String, Object> lastThreadArchiveParams;
+        private volatile Map<String, Object> lastThreadUnarchiveParams;
+        private volatile Map<String, Object> lastThreadDeleteParams;
         private volatile Map<String, Object> lastTurnStartParams;
         private volatile Map<String, Object> lastTurnSteerParams;
         private volatile TestFileTransaction expectedTurnStartFileTransaction;
@@ -2911,6 +3167,10 @@ public final class CodexSessionControllerTest {
         private volatile boolean emitSteerUserItemBeforeResponse;
         private volatile String steerResponseTurnId = "turn_fixture";
         private volatile boolean richHistory;
+        private volatile boolean existingThreadArchived;
+        private volatile boolean existingThreadDeleted;
+        private volatile boolean archivedFixtureDeleted;
+        private volatile String unarchiveResponseThreadId = "";
         private final AtomicInteger turnStartRequestCount = new AtomicInteger();
         private final AtomicInteger rateLimitsReadCount = new AtomicInteger();
         private volatile boolean lastRateLimitsReadHadParams;
@@ -3032,8 +3292,23 @@ public final class CodexSessionControllerTest {
                     ));
                 }
             } else if ("thread/list".equals(method)) {
+                lastThreadListParams = JsonCodec.requireObject(
+                    request.get("params"),
+                    "thread/list params"
+                );
+                boolean archived = JsonCodec.booleanValue(
+                    lastThreadListParams.get("archived"),
+                    false
+                );
+                List<Object> data = new ArrayList<Object>();
+                if (!existingThreadDeleted && existingThreadArchived == archived) {
+                    data.add(thread("thr_existing", false));
+                }
+                if (archived && !archivedFixtureDeleted) {
+                    data.add(thread("thr_archived", false));
+                }
                 respond(request, JsonCodec.object(
-                    "data", JsonCodec.array(thread("thr_existing", false)),
+                    "data", data,
                     "nextCursor", null
                 ));
             } else if ("thread/resume".equals(method)) {
@@ -3048,6 +3323,60 @@ public final class CodexSessionControllerTest {
                         "extends", null
                     )
                 ));
+            } else if ("thread/archive".equals(method)) {
+                lastThreadArchiveParams = JsonCodec.requireObject(
+                    request.get("params"),
+                    "thread/archive params"
+                );
+                String threadId = JsonCodec.requireString(
+                    lastThreadArchiveParams.get("threadId"),
+                    "thread/archive threadId"
+                );
+                if ("thr_existing".equals(threadId) && !existingThreadDeleted) {
+                    existingThreadArchived = true;
+                }
+                notifyMessage("thread/archived", JsonCodec.object("threadId", threadId));
+                respond(request, JsonCodec.object());
+            } else if ("thread/unarchive".equals(method)) {
+                lastThreadUnarchiveParams = JsonCodec.requireObject(
+                    request.get("params"),
+                    "thread/unarchive params"
+                );
+                String threadId = JsonCodec.requireString(
+                    lastThreadUnarchiveParams.get("threadId"),
+                    "thread/unarchive threadId"
+                );
+                String responseThreadId = unarchiveResponseThreadId.isEmpty()
+                    ? threadId
+                    : unarchiveResponseThreadId;
+                if (responseThreadId.equals(threadId)
+                    && "thr_existing".equals(threadId)
+                    && !existingThreadDeleted) {
+                    existingThreadArchived = false;
+                }
+                respond(request, JsonCodec.object(
+                    "thread",
+                    thread(responseThreadId, false)
+                ));
+                if (responseThreadId.equals(threadId)) {
+                    notifyMessage("thread/unarchived", JsonCodec.object("threadId", threadId));
+                }
+            } else if ("thread/delete".equals(method)) {
+                lastThreadDeleteParams = JsonCodec.requireObject(
+                    request.get("params"),
+                    "thread/delete params"
+                );
+                String threadId = JsonCodec.requireString(
+                    lastThreadDeleteParams.get("threadId"),
+                    "thread/delete threadId"
+                );
+                if ("thr_existing".equals(threadId)) {
+                    existingThreadDeleted = true;
+                } else if ("thr_archived".equals(threadId)) {
+                    archivedFixtureDeleted = true;
+                }
+                respond(request, JsonCodec.object());
+                notifyMessage("thread/deleted", JsonCodec.object("threadId", threadId));
             } else if ("thread/start".equals(method)) {
                 Map<String, Object> params = JsonCodec.requireObject(request.get("params"), "params");
                 lastThreadStartParams = params;

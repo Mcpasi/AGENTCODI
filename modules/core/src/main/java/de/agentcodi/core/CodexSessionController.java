@@ -117,6 +117,7 @@ public final class CodexSessionController
     private String operationMessage = "";
     private String selectedModelId = "";
     private String selectedReasoningEffort = "";
+    private boolean showingArchivedThreads;
     private String activeThreadId = "";
     private String activeThreadTitle = "";
     private boolean turnActive;
@@ -482,12 +483,42 @@ public final class CodexSessionController
     }
 
     public void refreshThreads() {
-        submit("Chats werden geladen.", new Operation() {
-            @Override
-            public void run() throws Exception {
-                refreshThreadsInternal();
+        final boolean archived;
+        synchronized (this) {
+            archived = showingArchivedThreads;
+        }
+        submit(
+            archived ? "Archivierte Chats werden geladen." : "Chats werden geladen.",
+            new Operation() {
+                @Override
+                public void run() throws Exception {
+                    refreshThreadsInternal(archived);
+                }
             }
-        });
+        );
+    }
+
+    public void showActiveThreads() {
+        loadThreadView(false);
+    }
+
+    public void showArchivedThreads() {
+        loadThreadView(true);
+    }
+
+    private void loadThreadView(final boolean archived) {
+        submit(
+            archived ? "Archivierte Chats werden geladen." : "Chats werden geladen.",
+            new Operation() {
+                @Override
+                public void run() throws Exception {
+                    synchronized (CodexSessionController.this) {
+                        requireNoActiveTurnOrRequestLocked();
+                    }
+                    refreshThreadsInternal(archived);
+                }
+            }
+        );
     }
 
     public void startNewThread() {
@@ -546,6 +577,96 @@ public final class CodexSessionController
                     pendingFileChanges.clear();
                     clearCardStreamsLocked();
                     operationMessage = "Chat ist geöffnet.";
+                    publishLocked();
+                }
+            }
+        });
+    }
+
+    public void archiveThread(final String threadId) {
+        if (!isValidIdentifier(threadId)) {
+            setUserError("Ungültige Chat-ID.");
+            return;
+        }
+        submit("Chat wird archiviert.", new Operation() {
+            @Override
+            public void run() throws Exception {
+                synchronized (CodexSessionController.this) {
+                    requireNoActiveTurnOrRequestLocked();
+                    requireListedThreadLocked(threadId, false);
+                }
+                client.request(
+                    "thread/archive",
+                    JsonCodec.object("threadId", threadId),
+                    NORMAL_TIMEOUT_MS
+                );
+                synchronized (CodexSessionController.this) {
+                    removeThreadLocked(threadId);
+                    clearActiveThreadIfMatchesLocked(threadId);
+                    operationMessage = "Chat wurde archiviert.";
+                    publishLocked();
+                }
+            }
+        });
+    }
+
+    public void unarchiveThread(final String threadId) {
+        if (!isValidIdentifier(threadId)) {
+            setUserError("Ungültige Chat-ID.");
+            return;
+        }
+        submit("Chat wird wiederhergestellt.", new Operation() {
+            @Override
+            public void run() throws Exception {
+                synchronized (CodexSessionController.this) {
+                    requireNoActiveTurnOrRequestLocked();
+                    requireListedThreadLocked(threadId, true);
+                }
+                Map<String, Object> result = client.request(
+                    "thread/unarchive",
+                    JsonCodec.object("threadId", threadId),
+                    NORMAL_TIMEOUT_MS
+                );
+                Map<String, Object> thread = JsonCodec.requireObject(
+                    result.get("thread"),
+                    "thread/unarchive thread"
+                );
+                String returnedId = JsonCodec.requireString(thread.get("id"), "thread id");
+                if (!threadId.equals(returnedId)) {
+                    throw new IllegalArgumentException(
+                        "Der App-Server hat eine andere wiederhergestellte Chat-ID bestätigt."
+                    );
+                }
+                synchronized (CodexSessionController.this) {
+                    removeThreadLocked(threadId);
+                    operationMessage = "Chat wurde wiederhergestellt.";
+                    publishLocked();
+                }
+            }
+        });
+    }
+
+    public void deleteThread(final String threadId) {
+        if (!isValidIdentifier(threadId)) {
+            setUserError("Ungültige Chat-ID.");
+            return;
+        }
+        submit("Chat wird endgültig gelöscht.", new Operation() {
+            @Override
+            public void run() throws Exception {
+                synchronized (CodexSessionController.this) {
+                    requireNoActiveTurnOrRequestLocked();
+                    requireListedThreadLocked(threadId, showingArchivedThreads);
+                }
+                client.request(
+                    "thread/delete",
+                    JsonCodec.object("threadId", threadId),
+                    NORMAL_TIMEOUT_MS
+                );
+                synchronized (CodexSessionController.this) {
+                    removeThreadLocked(threadId);
+                    clearActiveThreadIfMatchesLocked(threadId);
+                    operationMessage = "Chat wurde endgültig gelöscht.";
                     publishLocked();
                 }
             }
@@ -1083,6 +1204,10 @@ public final class CodexSessionController
                 "account/rateLimits/updated rateLimits"
             );
             queueRateLimitsRefresh();
+        } else if ("thread/archived".equals(method)
+            || "thread/unarchived".equals(method)
+            || "thread/deleted".equals(method)) {
+            handleThreadCollectionNotification(method, params);
         } else if ("serverRequest/resolved".equals(method)) {
             handleServerRequestResolved(params);
         }
@@ -1414,6 +1539,14 @@ public final class CodexSessionController
     }
 
     private void refreshThreadsInternal() throws Exception {
+        boolean archived;
+        synchronized (this) {
+            archived = showingArchivedThreads;
+        }
+        refreshThreadsInternal(archived);
+    }
+
+    private void refreshThreadsInternal(boolean archived) throws Exception {
         List<CodexThreadSummary> loaded = new ArrayList<CodexThreadSummary>();
         Set<String> cursors = new HashSet<String>();
         String cursor = "";
@@ -1421,7 +1554,8 @@ public final class CodexSessionController
             Map<String, Object> params = JsonCodec.object(
                 "limit", Long.valueOf(50L),
                 "sortKey", "updated_at",
-                "sourceKinds", JsonCodec.array("cli", "vscode", "exec", "appServer")
+                "sourceKinds", JsonCodec.array("cli", "vscode", "exec", "appServer"),
+                "archived", Boolean.valueOf(archived)
             );
             if (!cursor.isEmpty()) {
                 params.put("cursor", cursor);
@@ -1441,7 +1575,8 @@ public final class CodexSessionController
                     loaded.add(new CodexThreadSummary(
                         id,
                         titleForThread(thread),
-                        JsonCodec.longValue(thread.get("updatedAt"), 0L)
+                        JsonCodec.longValue(thread.get("updatedAt"), 0L),
+                        archived
                     ));
                 }
             }
@@ -1453,9 +1588,16 @@ public final class CodexSessionController
         synchronized (this) {
             threads.clear();
             threads.addAll(loaded);
-            operationMessage = loaded.isEmpty()
-                ? "Noch keine Chats vorhanden."
-                : loaded.size() + " Chat(s) geladen.";
+            showingArchivedThreads = archived;
+            if (archived) {
+                operationMessage = loaded.isEmpty()
+                    ? "Keine archivierten Chats vorhanden."
+                    : loaded.size() + " archivierte Chat(s) geladen.";
+            } else {
+                operationMessage = loaded.isEmpty()
+                    ? "Noch keine Chats vorhanden."
+                    : loaded.size() + " Chat(s) geladen.";
+            }
             publishLocked();
         }
     }
@@ -1498,6 +1640,10 @@ public final class CodexSessionController
         }
         requireHttpModelProvider(thread, "thread/start");
         synchronized (this) {
+            if (showingArchivedThreads) {
+                threads.clear();
+            }
+            showingArchivedThreads = false;
             activeThreadId = id;
             activeThreadTitle = titleForThread(thread);
             updateSelectionFromThreadResponseLocked(result);
@@ -1508,7 +1654,7 @@ public final class CodexSessionController
             interactiveRequests.clear();
             pendingFileChanges.clear();
             clearCardStreamsLocked();
-            upsertThreadLocked(new CodexThreadSummary(id, activeThreadTitle, 0L));
+            upsertThreadLocked(new CodexThreadSummary(id, activeThreadTitle, 0L, false));
             operationMessage = "Neuer Chat ist bereit.";
             publishLocked();
         }
@@ -2575,6 +2721,34 @@ public final class CodexSessionController
         }
     }
 
+    private void handleThreadCollectionNotification(
+        String method,
+        Map<String, Object> params
+    ) {
+        String threadId = JsonCodec.optionalString(params.get("threadId"));
+        if (!isValidIdentifier(threadId)) {
+            return;
+        }
+        boolean changed = false;
+        synchronized (this) {
+            boolean leavesVisibleList = "thread/deleted".equals(method)
+                || ("thread/archived".equals(method) && !showingArchivedThreads)
+                || ("thread/unarchived".equals(method) && showingArchivedThreads);
+            if (leavesVisibleList) {
+                changed = removeThreadLocked(threadId);
+            }
+            if (("thread/archived".equals(method) || "thread/deleted".equals(method))
+                && !turnActive
+                && interactiveRequests.isEmpty()) {
+                changed = clearActiveThreadIfMatchesLocked(threadId) || changed;
+            }
+            if (changed) {
+                publishLocked();
+            }
+        }
+        queueThreadRefresh();
+    }
+
     private void queueAccountRefresh() {
         submitSilently(new Operation() {
             @Override
@@ -3481,6 +3655,7 @@ public final class CodexSessionController
             selectedModelId,
             selectedReasoningEffort,
             threads,
+            showingArchivedThreads,
             activeThreadId,
             activeThreadTitle,
             transcriptItems,
@@ -3631,6 +3806,55 @@ public final class CodexSessionController
         while (threads.size() > MAX_THREADS) {
             threads.remove(threads.size() - 1);
         }
+    }
+
+    private CodexThreadSummary requireListedThreadLocked(
+        String threadId,
+        boolean archived
+    ) {
+        if (showingArchivedThreads != archived) {
+            throw new IllegalStateException(
+                archived
+                    ? "Öffne zuerst die archivierten Chats."
+                    : "Öffne zuerst die aktiven Chats."
+            );
+        }
+        for (CodexThreadSummary value : threads) {
+            if (value.getId().equals(threadId) && value.isArchived() == archived) {
+                return value;
+            }
+        }
+        throw new IllegalStateException(
+            archived
+                ? "Der Chat ist nicht mehr im Archiv vorhanden."
+                : "Der Chat ist nicht mehr in der aktiven Liste vorhanden."
+        );
+    }
+
+    private boolean removeThreadLocked(String threadId) {
+        for (int index = 0; index < threads.size(); index++) {
+            if (threads.get(index).getId().equals(threadId)) {
+                threads.remove(index);
+                return true;
+            }
+        }
+        return false;
+    }
+
+    private boolean clearActiveThreadIfMatchesLocked(String threadId) {
+        if (!activeThreadId.equals(threadId)) {
+            return false;
+        }
+        activeThreadId = "";
+        activeThreadTitle = "";
+        transcriptItems.clear();
+        turnActive = false;
+        activeTurnId = "";
+        lastCompletedTurnId = "";
+        interactiveRequests.clear();
+        pendingFileChanges.clear();
+        clearCardStreamsLocked();
+        return true;
     }
 
     private void upsertMessageLocked(ChatMessage value) {

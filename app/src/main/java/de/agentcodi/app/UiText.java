@@ -83,7 +83,18 @@ final class UiText {
         if (raw.startsWith(prefix)) {
             return context.getString(R.string.core_effort_next, raw.substring(prefix.length()));
         }
-        String suffix = " Chat(s) geladen.";
+        String suffix = " archivierte Chat(s) geladen.";
+        if (raw.endsWith(suffix)) {
+            int count = parseNonNegativeInt(raw.substring(0, raw.length() - suffix.length()));
+            if (count >= 0) {
+                return context.getResources().getQuantityString(
+                    R.plurals.core_archived_chats_loaded,
+                    count,
+                    Integer.valueOf(count)
+                );
+            }
+        }
+        suffix = " Chat(s) geladen.";
         if (raw.endsWith(suffix)) {
             int count = parseNonNegativeInt(raw.substring(0, raw.length() - suffix.length()));
             if (count >= 0) {
@@ -405,10 +416,22 @@ final class UiText {
         if ("Abmeldung läuft.".equals(raw)) return R.string.core_sign_out_running;
         if ("Abgemeldet.".equals(raw)) return R.string.core_signed_out;
         if ("Chats werden geladen.".equals(raw)) return R.string.core_chats_loading;
+        if ("Archivierte Chats werden geladen.".equals(raw)) return R.string.core_archived_chats_loading;
         if ("Neuer Chat wird erstellt.".equals(raw)) return R.string.core_new_chat_creating;
         if ("Ungültige Chat-ID.".equals(raw)) return R.string.core_invalid_chat_id;
         if ("Chat wird geöffnet.".equals(raw)) return R.string.core_chat_opening;
         if ("Chat ist geöffnet.".equals(raw)) return R.string.core_chat_open;
+        if ("Chat wird archiviert.".equals(raw)) return R.string.core_chat_archiving;
+        if ("Chat wurde archiviert.".equals(raw)) return R.string.core_chat_archived;
+        if ("Chat wird wiederhergestellt.".equals(raw)) return R.string.core_chat_unarchiving;
+        if ("Chat wurde wiederhergestellt.".equals(raw)) return R.string.core_chat_unarchived;
+        if ("Chat wird endgültig gelöscht.".equals(raw)) return R.string.core_chat_deleting;
+        if ("Chat wurde endgültig gelöscht.".equals(raw)) return R.string.core_chat_deleted;
+        if ("Öffne zuerst die archivierten Chats.".equals(raw)) return R.string.core_open_archived_chats;
+        if ("Öffne zuerst die aktiven Chats.".equals(raw)) return R.string.core_open_active_chats;
+        if ("Der Chat ist nicht mehr im Archiv vorhanden.".equals(raw)) return R.string.core_chat_missing_archive;
+        if ("Der Chat ist nicht mehr in der aktiven Liste vorhanden.".equals(raw)) return R.string.core_chat_missing_active;
+        if ("Der App-Server hat eine andere wiederhergestellte Chat-ID bestätigt.".equals(raw)) return R.string.core_unarchive_id_mismatch;
         if ("Nachrichten müssen 1 bis 32768 Zeichen enthalten.".equals(raw)) return R.string.core_message_length;
         if ("OpenAI-Zugangsdaten dürfen nur im geschützten Kontobereich eingegeben werden.".equals(raw)) return R.string.user_input_credential_warning;
         if ("Nachricht wird gesendet.".equals(raw)) return R.string.core_message_sending;
@@ -437,6 +460,7 @@ final class UiText {
         if ("Das private AGENTCODI-Workspace-Berechtigungsprofil ist nicht verfügbar.".equals(raw)) return R.string.core_permission_profile_missing;
         if ("Der Codex App-Server bietet kein auswählbares Modell an.".equals(raw)) return R.string.core_no_selectable_model;
         if ("Noch keine Chats vorhanden.".equals(raw)) return R.string.core_no_chats;
+        if ("Keine archivierten Chats vorhanden.".equals(raw)) return R.string.core_no_archived_chats;
         if ("Bitte zuerst ein angebotenes Modell wählen.".equals(raw)) return R.string.core_choose_model_first;
         if ("Neuer Chat ist bereit.".equals(raw)) return R.string.core_new_chat_ready;
         if ("Turn wurde gestoppt.".equals(raw)) return R.string.core_turn_stopped;

@@ -256,6 +256,20 @@ public final class AgentRuntimeService extends Service {
         }
     }
 
+    public static void showActiveThreads() {
+        CodexSessionController controller = sessionController;
+        if (controller != null) {
+            controller.showActiveThreads();
+        }
+    }
+
+    public static void showArchivedThreads() {
+        CodexSessionController controller = sessionController;
+        if (controller != null) {
+            controller.showArchivedThreads();
+        }
+    }
+
     public static void selectModel(String modelId) {
         CodexSessionController controller = sessionController;
         if (controller != null) {
@@ -281,6 +295,27 @@ public final class AgentRuntimeService extends Service {
         CodexSessionController controller = sessionController;
         if (controller != null) {
             controller.openThread(threadId);
+        }
+    }
+
+    public static void archiveThread(String threadId) {
+        CodexSessionController controller = sessionController;
+        if (controller != null) {
+            controller.archiveThread(threadId);
+        }
+    }
+
+    public static void unarchiveThread(String threadId) {
+        CodexSessionController controller = sessionController;
+        if (controller != null) {
+            controller.unarchiveThread(threadId);
+        }
+    }
+
+    public static void deleteThread(String threadId) {
+        CodexSessionController controller = sessionController;
+        if (controller != null) {
+            controller.deleteThread(threadId);
         }
     }
 

@@ -460,6 +460,57 @@ int main(int argc, char* argv[]) {
         << "0123456789abcdef-outside-data.csv\"}]}}}" << std::endl;
     return 0;
   }
+  if (argc == 2 && std::string(argv[1]) == "--thread-management-roundtrip") {
+    std::string request;
+    if (!std::getline(std::cin, request)
+        || request.find("\"method\":\"thread/list\"") == std::string::npos
+        || request.find("\"archived\":true") == std::string::npos
+        || request.find("\"limit\":50") == std::string::npos) {
+      return 37;
+    }
+    std::cout
+        << "{\"id\":67,\"result\":{\"data\":[{"
+        << "\"id\":\"thr_archived\",\"preview\":\"Archived fixture\","
+        << "\"updatedAt\":100}],\"nextCursor\":null}}" << std::endl;
+
+    if (!std::getline(std::cin, request)
+        || request.find("\"method\":\"thread/archive\"") == std::string::npos
+        || request.find("\"threadId\":\"thr_active\"") == std::string::npos
+        || request.find("\"cwd\"") != std::string::npos
+        || request.find("\"archived\"") != std::string::npos) {
+      return 38;
+    }
+    std::cout << "{\"id\":68,\"result\":{}}" << std::endl;
+    std::cout
+        << "{\"method\":\"thread/archived\",\"params\":{"
+        << "\"threadId\":\"thr_active\"}}" << std::endl;
+
+    if (!std::getline(std::cin, request)
+        || request.find("\"method\":\"thread/unarchive\"") == std::string::npos
+        || request.find("\"threadId\":\"thr_active\"") == std::string::npos
+        || request.find("\"cwd\"") != std::string::npos) {
+      return 39;
+    }
+    std::cout
+        << "{\"id\":69,\"result\":{\"thread\":{"
+        << "\"id\":\"thr_active\",\"preview\":\"Restored fixture\","
+        << "\"updatedAt\":101}}}" << std::endl;
+    std::cout
+        << "{\"method\":\"thread/unarchived\",\"params\":{"
+        << "\"threadId\":\"thr_active\"}}" << std::endl;
+
+    if (!std::getline(std::cin, request)
+        || request.find("\"method\":\"thread/delete\"") == std::string::npos
+        || request.find("\"threadId\":\"thr_active\"") == std::string::npos
+        || request.find("\"cwd\"") != std::string::npos) {
+      return 40;
+    }
+    std::cout << "{\"id\":70,\"result\":{}}" << std::endl;
+    std::cout
+        << "{\"method\":\"thread/deleted\",\"params\":{"
+        << "\"threadId\":\"thr_active\"}}" << std::endl;
+    return 0;
+  }
   if (argc == 2 && std::string(argv[1]) == "--mcp-config-roundtrip") {
     std::string request;
     if (!std::getline(std::cin, request)
@@ -497,7 +548,7 @@ int main(int argc, char* argv[]) {
   }
 
   const std::string version = agentcodi::engine_version();
-  expect(version == "agentcodi-native/0.5.18", "engine version");
+  expect(version == "agentcodi-native/0.5.19", "engine version");
   expect(agentcodi::run_self_test() == 0, "native self-test");
   const std::string abc = "abc";
   expect(
@@ -1824,6 +1875,86 @@ int main(int argc, char* argv[]) {
             "preserve authoritative native mention without exposing provider URI");
         expect(process->Stop(500) == 0,
                "stop turn-import framing fixture");
+      }
+
+      config.arguments = {"--thread-management-roundtrip"};
+      error.clear();
+      process = agentcodi::AppServerProcess::Start(config, &error);
+      expect(process != nullptr, "spawn thread-management framing fixture");
+      if (process != nullptr) {
+        const std::string archived_list_request =
+            "{\"id\":67,\"method\":\"thread/list\",\"params\":{"
+            "\"limit\":50,\"sortKey\":\"updated_at\","
+            "\"sourceKinds\":[\"cli\",\"vscode\",\"exec\",\"appServer\"],"
+            "\"archived\":true}}";
+        expect(
+            process->WriteLine(archived_list_request, 16U * 1024U, &error),
+            "write bounded archived thread/list request");
+        std::string thread_line;
+        expect(
+            process->ReadLine(16U * 1024U, &thread_line, &error)
+                    == agentcodi::LineReadStatus::kLine
+                && thread_line.find("\"id\":\"thr_archived\"")
+                    != std::string::npos,
+            "preserve bounded archived thread/list response");
+
+        const std::string archive_request =
+            "{\"id\":68,\"method\":\"thread/archive\",\"params\":{"
+            "\"threadId\":\"thr_active\"}}";
+        expect(
+            process->WriteLine(archive_request, 16U * 1024U, &error),
+            "write bounded thread/archive request");
+        expect(
+            process->ReadLine(16U * 1024U, &thread_line, &error)
+                    == agentcodi::LineReadStatus::kLine
+                && thread_line == "{\"id\":68,\"result\":{}}",
+            "preserve thread/archive response");
+        expect(
+            process->ReadLine(16U * 1024U, &thread_line, &error)
+                    == agentcodi::LineReadStatus::kLine
+                && thread_line.find("\"method\":\"thread/archived\"")
+                    != std::string::npos,
+            "preserve thread/archived notification");
+
+        const std::string unarchive_request =
+            "{\"id\":69,\"method\":\"thread/unarchive\",\"params\":{"
+            "\"threadId\":\"thr_active\"}}";
+        expect(
+            process->WriteLine(unarchive_request, 16U * 1024U, &error),
+            "write bounded thread/unarchive request");
+        expect(
+            process->ReadLine(16U * 1024U, &thread_line, &error)
+                    == agentcodi::LineReadStatus::kLine
+                && thread_line.find("\"id\":\"thr_active\"")
+                    != std::string::npos
+                && thread_line.find("Restored fixture") != std::string::npos,
+            "preserve thread/unarchive response");
+        expect(
+            process->ReadLine(16U * 1024U, &thread_line, &error)
+                    == agentcodi::LineReadStatus::kLine
+                && thread_line.find("\"method\":\"thread/unarchived\"")
+                    != std::string::npos,
+            "preserve thread/unarchived notification");
+
+        const std::string delete_request =
+            "{\"id\":70,\"method\":\"thread/delete\",\"params\":{"
+            "\"threadId\":\"thr_active\"}}";
+        expect(
+            process->WriteLine(delete_request, 16U * 1024U, &error),
+            "write bounded thread/delete request");
+        expect(
+            process->ReadLine(16U * 1024U, &thread_line, &error)
+                    == agentcodi::LineReadStatus::kLine
+                && thread_line == "{\"id\":70,\"result\":{}}",
+            "preserve thread/delete response");
+        expect(
+            process->ReadLine(16U * 1024U, &thread_line, &error)
+                    == agentcodi::LineReadStatus::kLine
+                && thread_line.find("\"method\":\"thread/deleted\"")
+                    != std::string::npos,
+            "preserve thread/deleted notification");
+        expect(process->Stop(500) == 0,
+               "stop thread-management framing fixture");
       }
 
       config.arguments = {"--exit-with-code"};

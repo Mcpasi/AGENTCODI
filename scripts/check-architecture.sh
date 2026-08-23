@@ -210,6 +210,29 @@ fi
 main_activity="$PROJECT_ROOT/app/src/main/java/de/agentcodi/app/MainActivity.java"
 workspace_importer="$PROJECT_ROOT/modules/runtime/src/main/java/de/agentcodi/runtime/WorkspaceFileImporter.java"
 runtime_service="$PROJECT_ROOT/modules/runtime/src/main/java/de/agentcodi/runtime/AgentRuntimeService.java"
+session_snapshot="$PROJECT_ROOT/modules/core/src/main/java/de/agentcodi/core/CodexSessionSnapshot.java"
+thread_summary="$PROJECT_ROOT/modules/core/src/main/java/de/agentcodi/core/CodexThreadSummary.java"
+thread_controller_test="$PROJECT_ROOT/tests/java/de/agentcodi/tests/CodexSessionControllerTest.java"
+if ! rg -q '"thread/archive"' "$mcp_session" \
+    || ! rg -q '"thread/unarchive"' "$mcp_session" \
+    || ! rg -q '"thread/delete"' "$mcp_session" \
+    || ! rg -q '"archived", Boolean\.valueOf\(archived\)' "$mcp_session" \
+    || ! rg -q 'isShowingArchivedThreads' "$session_snapshot" "$main_activity" \
+    || ! rg -q 'boolean archived' "$thread_summary" \
+    || ! rg -q 'controller\.archiveThread' "$runtime_service" \
+    || ! rg -q 'controller\.unarchiveThread' "$runtime_service" \
+    || ! rg -q 'controller\.deleteThread' "$runtime_service" \
+    || ! rg -q 'AgentRuntimeService\.archiveThread' "$main_activity" \
+    || ! rg -q 'AgentRuntimeService\.unarchiveThread' "$main_activity" \
+    || ! rg -q 'AgentRuntimeService\.deleteThread' "$main_activity" \
+    || ! rg -q 'chat_delete_message' "$main_activity" \
+    || ! rg -q 'managesThreadArchiveAndDeletion' "$thread_controller_test" \
+    || ! rg -q 'rejectsThreadMutationDuringActiveTurn' "$thread_controller_test" \
+    || ! rg -q -- '--thread-management-roundtrip' \
+        "$PROJECT_ROOT/tests/cpp/agentcodi_engine_test.cpp"; then
+  echo "Thread archive, restore, permanent deletion, or focused coverage is incomplete." >&2
+  exit 1
+fi
 document_importer="$import_client/de/agentcodi/imports/client/WorkspaceDocumentImporter.java"
 document_installer="$import_client/de/agentcodi/imports/client/WorkspaceDocumentInstaller.java"
 import_lifecycle_test="$PROJECT_ROOT/tests/java/de/agentcodi/imports/client/WorkspaceImportLifecycleTest.java"
@@ -709,13 +732,13 @@ if ! rg -q 'PYTHON_SOURCE_EXTENSION_COUNT="75"' "$apk_builder" \
   exit 1
 fi
 
-if ! rg -q 'VERSION_NAME = "0\.5\.18"' "$core_root/BuildIdentity.java" \
-    || ! rg -q 'VERSION_CODE = 55' "$core_root/BuildIdentity.java" \
+if ! rg -q 'VERSION_NAME = "0\.5\.19"' "$core_root/BuildIdentity.java" \
+    || ! rg -q 'VERSION_CODE = 56' "$core_root/BuildIdentity.java" \
     || ! rg -q 'CODEX_RUNTIME_VERSION = "0\.148\.1"' "$core_root/BuildIdentity.java" \
-    || ! rg -q 'android:versionName="0\.5\.18"' "$manifest" \
-    || ! rg -q 'android:versionCode="55"' "$manifest" \
-    || ! rg -q 'APP_VERSION="0\.5\.18"' "$apk_builder" \
-    || ! rg -q 'VERSION_CODE="55"' "$apk_builder" \
+    || ! rg -q 'android:versionName="0\.5\.19"' "$manifest" \
+    || ! rg -q 'android:versionCode="56"' "$manifest" \
+    || ! rg -q 'APP_VERSION="0\.5\.19"' "$apk_builder" \
+    || ! rg -q 'VERSION_CODE="56"' "$apk_builder" \
     || ! rg -q 'CODEX_ANDROID_VERSION="0\.148\.1"' "$apk_builder" \
     || ! rg -q 'CODEX_TERMUX_SOURCE_TAG="v0\.148\.1"' "$apk_builder" \
     || ! rg -q 'CODEX_TERMUX_SOURCE_COMMIT="9d48c76abec320ae3724164d0177299b1acd31ca"' "$apk_builder" \
@@ -736,7 +759,7 @@ if ! rg -q 'VERSION_NAME = "0\.5\.18"' "$core_root/BuildIdentity.java" \
     || ! rg -q '9d48c76abec320ae3724164d0177299b1acd31ca' "$PROJECT_ROOT/app/src/main/res/raw/third_party_notices.txt" \
     || ! rg -q '3ba0f711642a888aec92a611a3f3b2211157ff89' "$PROJECT_ROOT/NOTICE.md" \
     || ! rg -q '3ba0f711642a888aec92a611a3f3b2211157ff89' "$PROJECT_ROOT/app/src/main/res/raw/third_party_notices.txt"; then
-  echo "The 0.5.18 / Codex 0.148.1 identity is inconsistent." >&2
+  echo "The 0.5.19 / Codex 0.148.1 identity is inconsistent." >&2
   exit 1
 fi
 

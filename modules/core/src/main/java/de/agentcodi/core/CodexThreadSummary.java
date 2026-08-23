@@ -4,14 +4,21 @@ public final class CodexThreadSummary {
     private final String id;
     private final String title;
     private final long updatedAtSeconds;
+    private final boolean archived;
 
-    public CodexThreadSummary(String id, String title, long updatedAtSeconds) {
+    public CodexThreadSummary(
+        String id,
+        String title,
+        long updatedAtSeconds,
+        boolean archived
+    ) {
         if (id == null || id.trim().isEmpty()) {
             throw new IllegalArgumentException("Thread id must not be blank");
         }
         this.id = id;
         this.title = title == null || title.trim().isEmpty() ? "Unbenannter Chat" : title;
         this.updatedAtSeconds = updatedAtSeconds;
+        this.archived = archived;
     }
 
     public String getId() {
@@ -24,5 +31,9 @@ public final class CodexThreadSummary {
 
     public long getUpdatedAtSeconds() {
         return updatedAtSeconds;
+    }
+
+    public boolean isArchived() {
+        return archived;
     }
 }

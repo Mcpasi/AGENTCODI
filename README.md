@@ -60,7 +60,7 @@ AGENTCODI does more than display a Codex conversation.
 | ripgrep | Packaged no-PCRE2 runtime exposed as `rg` |
 | MCP management | Native Android interface backed by Codex configuration RPCs |
 
-The current AGENTCODI 0.5.18 runtime uses **Codex app-server 0.148.1** together with the matching code-mode host from the same pinned artifact.
+The current AGENTCODI 0.5.19 runtime uses **Codex app-server 0.148.1** together with the matching code-mode host from the same pinned artifact.
 
 ---
 
@@ -73,6 +73,9 @@ AGENTCODI exposes the parts of the Codex app-server workflow that matter during 
 - Start new Codex threads
 - Resume existing threads
 - Recover thread history
+- Switch between bounded active and archived thread lists
+- Archive and restore threads through the Codex app-server
+- Permanently delete a thread after an explicit confirmation
 - Stream responses live
 - Import external documents directly from the chat composer
 - Correct or add guidance to an active turn without starting a new turn
@@ -81,6 +84,8 @@ AGENTCODI exposes the parts of the Codex app-server workflow that matter during 
 
 While a turn is running, the composer switches to **Add guidance** and sends a correlated
 `turn/steer` request to that same turn. The separate **Stop** action remains available.
+
+Thread actions are disabled while a turn or native approval/input request is active. Archiving is reversible through the archived view; permanent deletion is a distinct Codex RPC and always requires confirmation. If the currently open thread is archived or deleted, AGENTCODI clears only its in-memory conversation projection. Private workspace files, including imported copies, are not deleted as a side effect.
 
 ### Live activity
 
@@ -177,7 +182,7 @@ Supported workspace exports include:
 
 Export paths and archive contents pass through dedicated validation before leaving the private workspace. Since version 0.5.3, each exported file is read from a descriptor opened component by component relative to the private workspace without following links, then that same descriptor and its workspace name are verified again. A concurrent path, symlink, parent-directory or hard-link exchange therefore fails without redirecting reads outside the workspace. ZIP correlation compares Java and native modification times at their common microsecond precision, while the native descriptor still validates its full nanosecond `mtime`/`ctime` snapshot and the Java catalog remains exactly checked before and after the archive.
 
-Version 0.5.18 retains the ZIP limit of 2,048 regular files and gives catalog traversal its own finite 65,536-entry limit. Directories and omitted symbolic links therefore cannot consume the regular-file allowance, while symbolic links are still never followed or exported and hard links, special entries, unsafe paths, races, file sizes and total archive size remain fail-closed.
+Version 0.5.19 retains the ZIP limit of 2,048 regular files and the separate finite 65,536-entry catalog traversal limit introduced in 0.5.18. Directories and omitted symbolic links therefore cannot consume the regular-file allowance, while symbolic links are still never followed or exported and hard links, special entries, unsafe paths, races, file sizes and total archive size remain fail-closed.
 
 Version 0.5.4 introduced complete PNG validation before native materialization and again before workspace image export or resumed-history reuse. Validation covers the complete chunk boundaries and ordering, CRCs, `IHDR` dimensions and format fields, palette rules, the bounded zlib stream, the exact interlaced or non-interlaced scanline shape and filter bytes, and a final `IEND` with no trailing data. A PNG signature followed by arbitrary bytes is rejected rather than materialized or offered for export.
 
@@ -371,7 +376,7 @@ Several sensitive byte and character buffers are explicitly cleared after use.
 
 Current release line:
 
-### AGENTCODI 0.5.18
+### AGENTCODI 0.5.19
 
 | Requirement | Value |
 |---|---|
@@ -422,9 +427,10 @@ Physical Android hardware is used separately to validate installation, UI behavi
 
 AGENTCODI is under active development.
 
-Version 0.5.18 currently focuses heavily on:
+Version 0.5.19 currently focuses heavily on:
 
 - Native Codex runtime integration
+- Bounded active/archive thread views with app-server-backed archive, restore and confirmed permanent deletion
 - Correlated in-flight turn steering without losing the separate stop action
 - Read-only, app-server-owned ChatGPT quota visibility
 - MCP visibility and guarded configuration

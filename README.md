@@ -50,6 +50,7 @@ AGENTCODI does more than display a Codex conversation.
 | App interface | Native Android Java |
 | Runtime service | Local Android foreground service |
 | Workspace | Private application storage |
+| Review mode | Native custom workspace review on the current Codex thread |
 | File import | Android document picker into a bounded private workspace copy |
 | Codex home | Private and separated from the workspace |
 | Account quotas | Read-only primary and secondary ChatGPT quota windows from Codex |
@@ -60,7 +61,7 @@ AGENTCODI does more than display a Codex conversation.
 | ripgrep | Packaged no-PCRE2 runtime exposed as `rg` |
 | MCP management | Native Android interface backed by Codex configuration RPCs |
 
-The current AGENTCODI 0.5.22 runtime uses **Codex app-server 0.148.1** together with the matching code-mode host from the same pinned artifact.
+The current AGENTCODI 0.5.25 runtime uses **Codex app-server 0.148.1** together with the matching code-mode host from the same pinned artifact.
 
 ---
 
@@ -79,6 +80,7 @@ AGENTCODI exposes the parts of the Codex app-server workflow that matter during 
 - Stream responses live
 - Import external documents directly from the chat composer
 - Correct or add guidance to an active turn without starting a new turn
+- Start a custom workspace review on the current thread
 - Interrupt active turns
 - Restart the local runtime explicitly
 
@@ -86,6 +88,12 @@ While a turn is running, the composer switches to **Add guidance** and sends a c
 `turn/steer` request to that same turn. The separate **Stop** action remains available.
 
 Thread actions are disabled while a turn or native approval/input request is active. Archiving is reversible through the archived view; permanent deletion is a distinct Codex RPC and always requires confirmation. If the currently open thread is archived or deleted, AGENTCODI clears only its in-memory conversation projection. Private workspace files, including imported copies, are not deleted as a side effect.
+
+### Review mode
+
+The native **Review** action starts the app-server's `review/start` flow on the currently open thread. AGENTCODI exposes only a bounded `custom` target with `inline` delivery: the user enters review instructions, while Git-derived targets such as uncommitted changes, base branches and commits remain unavailable because AGENTCODI does not expose a Git contract.
+
+The request contains only the current thread, the custom instructions and inline delivery. The pinned app-server may report one turn in the `review/start` response and a distinct live turn in `turn/started`; AGENTCODI binds only those two bounded IDs to the exact thread, uses the live ID for Stop, accepts either correlated ID for lifecycle events, rejects a third ID and cannot revive a completed review. Stop uses a dedicated serial control path so it remains available while `review/start` is awaiting its response. The selection and instructions remain transient in memory. Review mode does not add another process, listener, workspace root, permission expansion or prompt-based execution policy.
 
 ### Live activity
 
@@ -100,6 +108,7 @@ AGENTCODI renders dedicated native cards for:
 - File changes
 - Tool activity
 - MCP tool progress
+- Review-mode entry and exit
 
 ### Models and reasoning
 
@@ -114,7 +123,7 @@ Selections are validated against the options reported by the app-server.
 
 ### Execution modes
 
-AGENTCODI 0.5.22 offers two explicitly separated execution modes:
+AGENTCODI 0.5.25 offers two explicitly separated execution modes:
 
 | Mode | App-server profile | Filesystem behavior |
 |---|---|---|
@@ -394,7 +403,7 @@ Several sensitive byte and character buffers are explicitly cleared after use.
 
 Current release line:
 
-### AGENTCODI 0.5.22
+### AGENTCODI 0.5.25
 
 | Requirement | Value |
 |---|---|
@@ -445,7 +454,7 @@ Physical Android hardware is used separately to validate installation, UI behavi
 
 AGENTCODI is under active development.
 
-Version 0.5.22 currently focuses heavily on:
+Version 0.5.25 currently focuses heavily on:
 
 - Native Codex runtime integration
 - A fail-closed app-server `fork()`/`execve()` boundary that prevents unrelated parent file descriptors from entering the Codex child and combines an isolated child process group with parent-side subreaper ownership
@@ -453,6 +462,7 @@ Version 0.5.22 currently focuses heavily on:
 - Separate protected and experimental compatibility-mode modules, mandatory danger warning and native profile propagation without prompt injection
 - Bounded active/archive thread views with app-server-backed archive, restore and confirmed permanent deletion
 - Correlated in-flight turn steering without losing the separate stop action
+- A native custom-only inline review flow with bounded instructions, bounded split-ID correlation, reliable completion and a stop path that remains available during a pending review start
 - Read-only, app-server-owned ChatGPT quota visibility
 - MCP visibility and guarded configuration
 - Packaged development toolchains with activation-bound and in-binary-attested native ELF guards plus a pinned no-PCRE2 ripgrep bridge

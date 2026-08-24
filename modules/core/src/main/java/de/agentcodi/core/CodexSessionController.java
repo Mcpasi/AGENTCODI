@@ -15,6 +15,7 @@ import java.util.Set;
 import java.util.TreeMap;
 import java.util.concurrent.ExecutorService;
 import java.util.concurrent.Executors;
+import java.util.concurrent.Future;
 import java.util.concurrent.RejectedExecutionException;
 import java.util.concurrent.ScheduledExecutorService;
 import java.util.concurrent.TimeUnit;
@@ -29,6 +30,10 @@ public final class CodexSessionController
 
     private static final long NORMAL_TIMEOUT_MS = 30_000L;
     private static final long INITIALIZE_TIMEOUT_MS = 20_000L;
+    // turn/interrupt is acknowledged only after the app-server observes the
+    // terminal turn event. Keep this finite, but do not apply the shorter
+    // administrative-RPC budget to a user-requested cancellation.
+    private static final long TURN_INTERRUPT_TIMEOUT_MS = 120_000L;
     private static final int MAX_THREADS = 200;
     private static final int MAX_THREAD_PAGES = 4;
     private static final int MAX_MODELS = 50;
@@ -77,14 +82,18 @@ public final class CodexSessionController
     private static final String FILE_CHANGE_OUTPUT_DELTA_METHOD =
         "item/fileChange/outputDelta";
     private static final String MCP_PROGRESS_METHOD = "item/mcpToolCall/progress";
+    private static final String REVIEW_RESPONSE_INVALID =
+        "Der App-Server hat den Review nicht korrekt bestätigt.";
     private static final String COMPACTED_IMAGE_RESULT =
         "<generated-image-data-omitted>";
 
     private final CodexAppServerClient client;
     private final CodexTerminalSession terminal;
+    private final CodexReviewMode reviewMode;
     private final String workspacePath;
     private final ConnectionFailureListener connectionFailureListener;
     private final ExecutorService operations = Executors.newSingleThreadExecutor();
+    private final ExecutorService turnControls = Executors.newSingleThreadExecutor();
     private final ScheduledExecutorService interactiveResponses =
         Executors.newSingleThreadScheduledExecutor();
     private final AtomicLong localMessageIds = new AtomicLong(1L);
@@ -124,6 +133,10 @@ public final class CodexSessionController
     private boolean turnActive;
     private String activeTurnId = "";
     private String lastCompletedTurnId = "";
+    private boolean turnInterruptPending;
+    private long turnInterruptGeneration;
+    private Future<?> turnInterruptFuture;
+    private CodexReviewState reviewState = CodexReviewState.idle();
     private String errorMessage = "";
     private String executionModeId;
     private String permissionProfileId;
@@ -164,6 +177,24 @@ public final class CodexSessionController
         String terminalShellPath,
         CodexExecutionMode executionMode
     ) {
+        this(
+            transport,
+            workspacePath,
+            connectionFailureListener,
+            terminalShellPath,
+            executionMode,
+            null
+        );
+    }
+
+    public CodexSessionController(
+        CodexRpcTransport transport,
+        String workspacePath,
+        ConnectionFailureListener connectionFailureListener,
+        String terminalShellPath,
+        CodexExecutionMode executionMode,
+        CodexReviewMode reviewMode
+    ) {
         if (workspacePath == null || workspacePath.trim().isEmpty()
             || !workspacePath.startsWith("/")) {
             throw new IllegalArgumentException("Workspace path must be absolute");
@@ -171,6 +202,7 @@ public final class CodexSessionController
         ExecutionModeValues mode = validatedExecutionMode(executionMode);
         this.workspacePath = workspacePath;
         this.connectionFailureListener = connectionFailureListener;
+        this.reviewMode = reviewMode;
         executionModeId = mode.id;
         permissionProfileId = mode.permissionProfileId;
         dangerousExecutionMode = mode.dangerous;
@@ -663,6 +695,7 @@ public final class CodexSessionController
                     turnActive = false;
                     activeTurnId = "";
                     lastCompletedTurnId = "";
+                    reviewState = CodexReviewState.idle();
                     interactiveRequests.clear();
                     pendingFileChanges.clear();
                     clearCardStreamsLocked();
@@ -959,6 +992,7 @@ public final class CodexSessionController
             ));
             turnActive = true;
             activeTurnId = "";
+            reviewState = CodexReviewState.idle();
             publishLocked();
         }
 
@@ -1088,26 +1122,235 @@ public final class CodexSessionController
         }
     }
 
-    public void interruptTurn() {
-        submit("Turn wird gestoppt.", new Operation() {
+    public boolean startCustomReview(final String input) {
+        if (reviewMode == null) {
+            setUserError("Review-Modus ist in dieser Runtime nicht verfügbar.");
+            return false;
+        }
+        if (CredentialGuard.containsLikelyCredential(input)) {
+            setUserError(
+                "OpenAI-Zugangsdaten dürfen nur im geschützten Kontobereich eingegeben werden."
+            );
+            return false;
+        }
+        final String threadId;
+        synchronized (this) {
+            threadId = activeThreadId;
+        }
+        if (threadId.isEmpty()) {
+            setUserError("Öffne zuerst einen Chat für den Review-Modus.");
+            return false;
+        }
+        final CodexReviewRequest request;
+        try {
+            request = reviewMode.prepare(threadId, input);
+        } catch (IllegalArgumentException error) {
+            setUserError("Review-Anweisungen müssen 1 bis 32768 Zeichen enthalten.");
+            return false;
+        }
+        return submit("Review wird gestartet.", new Operation() {
             @Override
             public void run() throws Exception {
-                String threadId;
-                String turnId;
-                synchronized (CodexSessionController.this) {
-                    threadId = activeThreadId;
-                    turnId = activeTurnId;
-                }
-                if (threadId.isEmpty() || turnId.isEmpty()) {
-                    throw new IllegalStateException("Kein stoppbarer Turn ist aktiv.");
-                }
-                client.request(
-                    "turn/interrupt",
-                    JsonCodec.object("threadId", threadId, "turnId", turnId),
-                    NORMAL_TIMEOUT_MS
-                );
+                startCustomReviewInternal(request);
             }
         });
+    }
+
+    private void startCustomReviewInternal(CodexReviewRequest request) throws Exception {
+        synchronized (this) {
+            if (requiresOpenaiAuth && authMode.isEmpty()) {
+                throw new IllegalStateException("Bitte zuerst anmelden.");
+            }
+            requireNoActiveTurnOrRequestLocked();
+            if (!request.getThreadId().equals(activeThreadId)) {
+                throw new IllegalStateException(
+                    "Der aktive Chat hat sich vor dem Review geändert."
+                );
+            }
+            reviewState = reviewMode.begin(reviewState, request);
+            turnActive = true;
+            activeTurnId = "";
+            publishLocked();
+        }
+
+        Map<String, Object> params = JsonCodec.object(
+            "threadId", request.getThreadId(),
+            "target", JsonCodec.object(
+                "type", request.getTargetType(),
+                "instructions", request.getInstructions()
+            ),
+            "delivery", request.getDelivery()
+        );
+        try {
+            Map<String, Object> result = client.request(
+                "review/start",
+                params,
+                NORMAL_TIMEOUT_MS
+            );
+            String reviewThreadId;
+            String returnedTurnId;
+            String status;
+            try {
+                reviewThreadId = JsonCodec.requireString(
+                    result.get("reviewThreadId"),
+                    "review/start reviewThreadId"
+                );
+                Map<String, Object> turn = JsonCodec.requireObject(
+                    result.get("turn"),
+                    "review/start turn"
+                );
+                returnedTurnId = JsonCodec.requireString(
+                    turn.get("id"),
+                    "review turn id"
+                );
+                status = JsonCodec.requireString(
+                    turn.get("status"),
+                    "review turn status"
+                );
+            } catch (IllegalArgumentException error) {
+                throw new IllegalArgumentException(
+                    REVIEW_RESPONSE_INVALID,
+                    error
+                );
+            }
+            if (!isSafeOpaqueIdentifier(reviewThreadId)
+                || !isSafeOpaqueIdentifier(returnedTurnId)) {
+                throw new IllegalArgumentException(
+                    REVIEW_RESPONSE_INVALID
+                );
+            }
+            if (!isKnownTurnStatus(status)) {
+                throw new IllegalArgumentException(
+                    REVIEW_RESPONSE_INVALID
+                );
+            }
+            synchronized (this) {
+                boolean alreadyCompleted = returnedTurnId.equals(lastCompletedTurnId)
+                    || isTerminalTurnStatus(status);
+                try {
+                    reviewState = reviewMode.correlateStartResponse(
+                        reviewState,
+                        request,
+                        reviewThreadId,
+                        returnedTurnId,
+                        alreadyCompleted
+                    );
+                } catch (IllegalArgumentException error) {
+                    throw new IllegalArgumentException(
+                        REVIEW_RESPONSE_INVALID,
+                        error
+                    );
+                }
+                turnActive = !alreadyCompleted && !reviewState.isCompleted();
+                activeTurnId = turnActive ? reviewState.getControlTurnId() : "";
+                if (alreadyCompleted) {
+                    lastCompletedTurnId = returnedTurnId;
+                }
+                operationMessage = turnActive
+                    ? "Codex prüft den Workspace."
+                    : "Review abgeschlossen.";
+                publishLocked();
+            }
+        } catch (Throwable error) {
+            failReviewStart(error, request.getThreadId());
+            if (error instanceof Exception) {
+                throw (Exception) error;
+            }
+            throw new IllegalStateException("Review start failed", error);
+        }
+    }
+
+    public void interruptTurn() {
+        final String threadId;
+        final String turnId;
+        final long generation;
+        synchronized (this) {
+            if (closed || !ready) {
+                setUserError("Codex App-Server ist nicht bereit.");
+                return;
+            }
+            if (!turnActive || activeThreadId.isEmpty()) {
+                setUserError("Kein stoppbarer Turn ist aktiv.");
+                return;
+            }
+            if (turnInterruptPending) {
+                operationMessage = "Turn wird gestoppt.";
+                publishLocked();
+                return;
+            }
+            threadId = activeThreadId;
+            String reviewControlTurnId = reviewState.isReviewTurnInProgress()
+                ? reviewState.getControlTurnId()
+                : "";
+            turnId = reviewControlTurnId.isEmpty()
+                ? activeTurnId
+                : reviewControlTurnId;
+            if (turnId.isEmpty()) {
+                setUserError("Der aktive Turn wird noch sicher korreliert.");
+                return;
+            }
+            turnInterruptPending = true;
+            generation = ++turnInterruptGeneration;
+            operationMessage = "Turn wird gestoppt.";
+            errorMessage = "";
+            publishLocked();
+        }
+        try {
+            Future<?> future = turnControls.submit(new Runnable() {
+                @Override
+                public void run() {
+                    Throwable failure = null;
+                    try {
+                        client.request(
+                            "turn/interrupt",
+                            JsonCodec.object("threadId", threadId, "turnId", turnId),
+                            TURN_INTERRUPT_TIMEOUT_MS
+                        );
+                    } catch (Throwable error) {
+                        failure = error;
+                    }
+                    synchronized (CodexSessionController.this) {
+                        if (generation != turnInterruptGeneration) {
+                            return;
+                        }
+                        turnInterruptFuture = null;
+                        if (failure != null) {
+                            turnInterruptPending = false;
+                            if (turnActive
+                                && activeThreadId.equals(threadId)
+                                && matchesActiveTurnLocked(turnId)) {
+                                errorMessage = safeError(failure);
+                            }
+                        } else if (turnActive
+                            && activeThreadId.equals(threadId)
+                            && matchesActiveTurnLocked(turnId)) {
+                            // A successful RPC response only acknowledges the stop
+                            // request. Keep duplicate actions blocked until the
+                            // authoritative terminal turn notification arrives.
+                            operationMessage = "Turn-Stopp wurde bestätigt.";
+                        } else {
+                            turnInterruptPending = false;
+                        }
+                        publishLocked();
+                    }
+                }
+            });
+            synchronized (this) {
+                if (generation == turnInterruptGeneration && turnInterruptPending) {
+                    turnInterruptFuture = future;
+                } else {
+                    future.cancel(true);
+                }
+            }
+        } catch (RejectedExecutionException error) {
+            synchronized (this) {
+                if (generation == turnInterruptGeneration) {
+                    turnInterruptPending = false;
+                    errorMessage = "Codex Runtime wird beendet.";
+                    publishLocked();
+                }
+            }
+        }
     }
 
     public void resolveApproval(
@@ -1232,7 +1475,7 @@ public final class CodexSessionController
                 || !turnActive
                 || !matchesActiveThread(request.getThreadId())
                 || (!activeTurnId.isEmpty()
-                    && !activeTurnId.equals(request.getTurnId()));
+                    && !matchesActiveTurnLocked(request.getTurnId()));
             overloaded = !stale
                 && interactiveRequests.size() >= MAX_INTERACTIVE_REQUESTS;
             if (!stale && !overloaded) {
@@ -1316,7 +1559,9 @@ public final class CodexSessionController
             ready = false;
             turnActive = false;
             activeTurnId = "";
+            reviewState = CodexReviewState.idle();
             operationActive = false;
+            clearTurnInterruptLocked();
             rateLimitsRefreshQueued = false;
             interactiveRequests.clear();
             pendingFileChanges.clear();
@@ -1328,6 +1573,7 @@ public final class CodexSessionController
             connectionFailureReported = true;
         }
         shutdownOperationsNow();
+        shutdownTurnControlsNow();
         interactiveResponses.shutdownNow();
         if (notifyFailure) {
             notifyConnectionFailure(error);
@@ -1344,7 +1590,9 @@ public final class CodexSessionController
             ready = false;
             turnActive = false;
             activeTurnId = "";
+            reviewState = CodexReviewState.idle();
             operationActive = false;
+            clearTurnInterruptLocked();
             interactiveRequests.clear();
             pendingFileChanges.clear();
             clearCardStreamsLocked();
@@ -1354,6 +1602,7 @@ public final class CodexSessionController
             publishLocked();
         }
         shutdownOperationsNow();
+        shutdownTurnControlsNow();
         interactiveResponses.shutdownNow();
         if (terminal != null) {
             terminal.close();
@@ -1743,6 +1992,7 @@ public final class CodexSessionController
             turnActive = false;
             activeTurnId = "";
             lastCompletedTurnId = "";
+            reviewState = CodexReviewState.idle();
             interactiveRequests.clear();
             pendingFileChanges.clear();
             clearCardStreamsLocked();
@@ -1990,12 +2240,46 @@ public final class CodexSessionController
         if (!isSafeOpaqueIdentifier(itemId)) {
             return;
         }
+        boolean reviewItem = "enteredReviewMode".equals(type)
+            || "exitedReviewMode".equals(type);
+        if (reviewItem) {
+            Object review = item.get("review");
+            if (!(review instanceof String)
+                || ((String) review).length() > MAX_CARD_SECTION_CHARACTERS
+                || containsForbiddenControl((String) review)) {
+                return;
+            }
+        }
         List<CodexFileChangeSummary> fileChanges = "fileChange".equals(type)
             ? parseFileChangeSummaries(item)
             : Collections.<CodexFileChangeSummary>emptyList();
         synchronized (this) {
             if (!matchesActiveThread(threadId)) {
                 return;
+            }
+            if (reviewState.isFailed()
+                && reviewState.getThreadId().equals(threadId)
+                && !turnId.isEmpty()) {
+                return;
+            }
+            if (reviewItem) {
+                if (reviewMode == null || !reviewMode.acceptsItem(
+                    reviewState,
+                    threadId,
+                    turnId,
+                    type,
+                    !startedEvent
+                )) {
+                    return;
+                }
+                reviewState = reviewMode.correlateItem(
+                    reviewState,
+                    threadId,
+                    turnId,
+                    type,
+                    !startedEvent
+                );
+                syncReviewControlTurnLocked();
             }
             if ("agentMessage".equals(type)) {
                 String text = bounded(JsonCodec.optionalString(item.get("text")), MAX_MESSAGE_CHARACTERS);
@@ -2672,6 +2956,16 @@ public final class CodexSessionController
         return number >= 0L ? number : -1L;
     }
 
+    private static boolean isTerminalTurnStatus(String status) {
+        return "completed".equals(status)
+            || "failed".equals(status)
+            || "interrupted".equals(status);
+    }
+
+    private static boolean isKnownTurnStatus(String status) {
+        return "inProgress".equals(status) || isTerminalTurnStatus(status);
+    }
+
     private void clearCardStreamsLocked() {
         reasoningStreams.clear();
         toolOutputStreams.clear();
@@ -2690,7 +2984,7 @@ public final class CodexSessionController
         synchronized (this) {
             if (!turnActive
                 || !matchesActiveThread(threadId)
-                || (!activeTurnId.isEmpty() && !activeTurnId.equals(turnId))) {
+                || (!activeTurnId.isEmpty() && !matchesActiveTurnLocked(turnId))) {
                 return;
             }
             replaceFileChangesLocked(itemId, changes);
@@ -2722,12 +3016,40 @@ public final class CodexSessionController
                 return;
             }
             String startedTurnId = JsonCodec.optionalString(turn.get("id"));
-            activeTurnId = startedTurnId;
+            if (!isSafeOpaqueIdentifier(startedTurnId)) {
+                return;
+            }
+            if (reviewState.isFailed()
+                && reviewState.getThreadId().equals(threadId)) {
+                return;
+            }
+            // An explicit subsequent turn resets reviewState before its request is
+            // written. Until then every turn/started event is late review traffic
+            // and must not revive a terminal review.
+            if (reviewState.isCompleted()) {
+                return;
+            }
+            if (reviewMode != null && reviewState.isReviewTurnInProgress()) {
+                CodexReviewState correlated = reviewMode.correlateTurnStarted(
+                    reviewState,
+                    threadId,
+                    startedTurnId
+                );
+                if (!correlated.isCorrelatedWith(threadId, startedTurnId)) {
+                    return;
+                }
+                reviewState = correlated;
+                activeTurnId = reviewState.getControlTurnId();
+            } else {
+                activeTurnId = startedTurnId;
+            }
             turnActive = !startedTurnId.isEmpty() && !startedTurnId.equals(lastCompletedTurnId);
             if (!turnActive) {
                 activeTurnId = "";
             }
-            operationMessage = "Codex arbeitet.";
+            operationMessage = reviewState.isReviewTurnInProgress()
+                ? "Codex prüft den Workspace."
+                : "Codex arbeitet.";
             publishLocked();
         }
     }
@@ -2738,27 +3060,61 @@ public final class CodexSessionController
             return;
         }
         String threadId = JsonCodec.optionalString(params.get("threadId"));
+        String status = JsonCodec.optionalString(turn.get("status"));
         synchronized (this) {
-            if (!matchesActiveThread(threadId)) {
+            if (!matchesActiveThread(threadId) || !turnActive) {
                 return;
             }
             String completedTurnId = JsonCodec.optionalString(turn.get("id"));
-            if (completedTurnId.isEmpty()
-                || completedTurnId.equals(lastCompletedTurnId)
-                || (!activeTurnId.isEmpty() && !activeTurnId.equals(completedTurnId))) {
+            if (reviewState.isFailed()
+                && reviewState.getThreadId().equals(threadId)) {
                 return;
+            }
+            if (!isSafeOpaqueIdentifier(completedTurnId)
+                || !isTerminalTurnStatus(status)
+                || completedTurnId.equals(lastCompletedTurnId)) {
+                return;
+            }
+            boolean reviewTurn = reviewMode != null
+                && reviewMode.acceptsTurnCompletion(
+                    reviewState,
+                    threadId,
+                    completedTurnId
+                );
+            if ((reviewState.isReviewTurnInProgress() && !reviewTurn)
+                || (!reviewTurn
+                && !activeTurnId.isEmpty()
+                && !activeTurnId.equals(completedTurnId))) {
+                return;
+            }
+            if (reviewTurn) {
+                reviewState = reviewMode.correlateTurnCompleted(
+                    reviewState,
+                    threadId,
+                    completedTurnId
+                );
             }
             turnActive = false;
             lastCompletedTurnId = completedTurnId;
             activeTurnId = "";
+            clearTurnInterruptLocked();
             clearInteractiveRequestsForTurnLocked(completedTurnId);
+            if (reviewTurn) {
+                clearInteractiveRequestsForTurnLocked(
+                    reviewState.getResponseTurnId()
+                );
+                clearInteractiveRequestsForTurnLocked(
+                    reviewState.getNotificationTurnId()
+                );
+            }
             pendingFileChanges.clear();
-            String status = JsonCodec.optionalString(turn.get("status"));
             finishStreamingTranscriptLocked(status);
             clearCardStreamsLocked();
             operationMessage = "interrupted".equals(status)
                 ? "Turn wurde gestoppt."
-                : "failed".equals(status) ? "Turn ist fehlgeschlagen." : "Antwort abgeschlossen.";
+                : "failed".equals(status)
+                    ? "Turn ist fehlgeschlagen."
+                    : reviewTurn ? "Review abgeschlossen." : "Antwort abgeschlossen.";
             Map<String, Object> error = JsonCodec.optionalObject(turn.get("error"));
             if (error != null) {
                 String message = JsonCodec.optionalString(error.get("message"));
@@ -2892,9 +3248,11 @@ public final class CodexSessionController
                 publishLocked();
                 return false;
             }
-            if (operationActive) {
+            if (operationActive || turnInterruptPending) {
                 operation.cancel();
-                errorMessage = "Eine andere Codex-Aktion läuft bereits.";
+                errorMessage = turnInterruptPending
+                    ? "Der Turn-Stopp wird noch bestätigt."
+                    : "Eine andere Codex-Aktion läuft bereits.";
                 publishLocked();
                 return false;
             }
@@ -3347,7 +3705,9 @@ public final class CodexSessionController
             ready = false;
             turnActive = false;
             activeTurnId = "";
+            reviewState = CodexReviewState.idle();
             operationActive = false;
+            clearTurnInterruptLocked();
             interactiveRequests.clear();
             pendingFileChanges.clear();
             clearCardStreamsLocked();
@@ -3358,11 +3718,48 @@ public final class CodexSessionController
             connectionFailureReported = true;
         }
         shutdownOperationsNow();
+        shutdownTurnControlsNow();
         interactiveResponses.shutdownNow();
         if (terminal != null) {
             terminal.close();
         }
         client.close();
+        if (notifyFailure) {
+            notifyConnectionFailure(error);
+        }
+    }
+
+    private void failReviewStart(Throwable error, String threadId) {
+        boolean notifyFailure;
+        synchronized (this) {
+            if (closed) {
+                return;
+            }
+            ready = false;
+            turnActive = false;
+            activeTurnId = "";
+            reviewState = CodexReviewState.failed(threadId);
+            operationActive = false;
+            clearTurnInterruptLocked();
+            rateLimitsRefreshQueued = false;
+            interactiveRequests.clear();
+            pendingFileChanges.clear();
+            finishStreamingTranscriptLocked("failed");
+            clearCardStreamsLocked();
+            connectionMessage = "Der native Review-Ablauf ist fehlgeschlagen.";
+            errorMessage = safeError(error);
+            addSystemMessageLocked(errorMessage);
+            publishLocked();
+            notifyFailure = !connectionFailureReported;
+            connectionFailureReported = true;
+        }
+        if (terminal != null) {
+            terminal.close();
+        }
+        client.close();
+        shutdownOperationsNow();
+        shutdownTurnControlsNow();
+        interactiveResponses.shutdownNow();
         if (notifyFailure) {
             notifyConnectionFailure(error);
         }
@@ -3723,6 +4120,20 @@ public final class CodexSessionController
         }
     }
 
+    private void shutdownTurnControlsNow() {
+        turnControls.shutdownNow();
+    }
+
+    private void clearTurnInterruptLocked() {
+        Future<?> pending = turnInterruptFuture;
+        turnInterruptFuture = null;
+        turnInterruptPending = false;
+        turnInterruptGeneration++;
+        if (pending != null) {
+            pending.cancel(true);
+        }
+    }
+
     private synchronized void setUserError(String message) {
         errorMessage = message;
         publishLocked();
@@ -3745,6 +4156,7 @@ public final class CodexSessionController
             loginPending,
             loginUrl,
             operationActive,
+            turnInterruptPending,
             operationMessage,
             models,
             selectedModelId,
@@ -3756,6 +4168,7 @@ public final class CodexSessionController
             transcriptItems,
             turnActive,
             activeTurnId,
+            reviewState,
             interactiveRequests,
             errorMessage
         );
@@ -3763,6 +4176,25 @@ public final class CodexSessionController
 
     private synchronized boolean matchesActiveThread(String threadId) {
         return !activeThreadId.isEmpty() && (threadId.isEmpty() || activeThreadId.equals(threadId));
+    }
+
+    private boolean matchesActiveTurnLocked(String turnId) {
+        if (turnId == null || turnId.isEmpty()) {
+            return false;
+        }
+        return turnId.equals(activeTurnId)
+            || (reviewState.isReviewTurnInProgress()
+                && reviewState.isCorrelatedWith(activeThreadId, turnId));
+    }
+
+    private void syncReviewControlTurnLocked() {
+        if (!turnActive || !reviewState.isReviewTurnInProgress()) {
+            return;
+        }
+        String controlTurnId = reviewState.getControlTurnId();
+        if (!controlTurnId.isEmpty()) {
+            activeTurnId = controlTurnId;
+        }
     }
 
     private boolean isStaleStreamingEventLocked(String turnId) {
@@ -3775,7 +4207,7 @@ public final class CodexSessionController
         if (turnId.equals(lastCompletedTurnId)) {
             return true;
         }
-        return !activeTurnId.isEmpty() && !activeTurnId.equals(turnId);
+        return !activeTurnId.isEmpty() && !matchesActiveTurnLocked(turnId);
     }
 
     private boolean isFinalAssistantMessageLocked(String itemId) {
@@ -3978,6 +4410,7 @@ public final class CodexSessionController
         turnActive = false;
         activeTurnId = "";
         lastCompletedTurnId = "";
+        reviewState = CodexReviewState.idle();
         interactiveRequests.clear();
         pendingFileChanges.clear();
         clearCardStreamsLocked();

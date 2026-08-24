@@ -2,8 +2,8 @@
 <manifest
     xmlns:android="http://schemas.android.com/apk/res/android"
     package="de.agentcodi.app"
-    android:versionCode="59"
-    android:versionName="0.5.22">
+    android:versionCode="62"
+    android:versionName="0.5.25">
 
     <uses-sdk android:minSdkVersion="29" android:targetSdkVersion="35" />
 

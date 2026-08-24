@@ -127,6 +127,7 @@ public final class MainActivity extends Activity {
     private TextView importStatus;
     private Button importButton;
     private Button clearImportsButton;
+    private Button reviewButton;
     private Button sendButton;
     private Button stopButton;
     private boolean bindingSelectors;
@@ -664,6 +665,25 @@ public final class MainActivity extends Activity {
         clearImportParams.leftMargin = theme.dp(8);
         importRow.addView(clearImportsButton, clearImportParams);
         theme.addWithTopMargin(composer, importRow, 8);
+
+        reviewButton = theme.secondaryButton(getString(R.string.review_mode_action));
+        reviewButton.setOnClickListener(new View.OnClickListener() {
+            @Override
+            public void onClick(View view) {
+                ReviewModeDialog.show(
+                    MainActivity.this,
+                    theme,
+                    AgentRuntimeService.maximumReviewInstructionsCharacters(),
+                    new ReviewModeDialog.Starter() {
+                        @Override
+                        public boolean start(String instructions) {
+                            return AgentRuntimeService.startCustomReview(instructions);
+                        }
+                    }
+                );
+            }
+        });
+        theme.addWithTopMargin(composer, reviewButton, 8);
 
         LinearLayout sendRow = new LinearLayout(this);
         sendRow.setOrientation(LinearLayout.HORIZONTAL);
@@ -1219,7 +1239,9 @@ public final class MainActivity extends Activity {
         reconcileNavigation(session);
         reconcilePendingImports(session);
         renderStatus(runtime, session);
-        boolean actionReady = session.isReady() && !session.isOperationActive();
+        boolean actionReady = session.isReady()
+            && !session.isOperationActive()
+            && !session.isTurnInterruptPending();
         boolean canChat = actionReady
             && (!session.requiresOpenaiAuth() || session.isSignedIn());
         theme.setEnabled(refreshThreadsButton, canChat);
@@ -1265,8 +1287,21 @@ public final class MainActivity extends Activity {
             pendingImports.isEmpty() ? View.GONE : View.VISIBLE
         );
         theme.setEnabled(clearImportsButton, composerReady && !pendingImports.isEmpty());
+        theme.setEnabled(
+            reviewButton,
+            composerReady
+                && !session.isTurnActive()
+                && !session.getActiveThreadId().isEmpty()
+                && pendingImports.isEmpty()
+        );
         renderImportSelection();
-        theme.setEnabled(stopButton, session.isReady() && session.isTurnActive());
+        theme.setEnabled(
+            stopButton,
+            session.isReady()
+                && session.isTurnActive()
+                && !session.isTurnInterruptPending()
+                && !session.getActiveTurnId().isEmpty()
+        );
         threadAdapter.setData(
             session.getThreads(),
             session.getActiveThreadId(),
@@ -1326,10 +1361,21 @@ public final class MainActivity extends Activity {
             settingsAction = true;
         } else if (session.hasInteractiveRequest()) {
             message = getString(R.string.chat_waiting_for_input);
+        } else if (session.isTurnInterruptPending()) {
+            message = UiText.coreStatus(this, "Turn wird gestoppt.");
         } else if (session.isOperationActive()) {
             message = UiText.coreStatus(this, session.getOperationMessage());
         } else if (session.isTurnActive()) {
-            message = getString(R.string.chat_streaming_response);
+            if (session.getReviewState().isStarting()) {
+                message = getString(R.string.chat_review_starting);
+            } else if (session.getReviewState().isReviewModeActive()) {
+                message = getString(R.string.chat_review_active);
+            } else if (session.getReviewState().getPhase()
+                == de.agentcodi.core.CodexReviewState.Phase.EXITED) {
+                message = getString(R.string.chat_review_finishing);
+            } else {
+                message = getString(R.string.chat_streaming_response);
+            }
         }
         if (session.isReady() && session.isDangerousExecutionMode()) {
             String warning = getString(R.string.chat_compatibility_mode_active);

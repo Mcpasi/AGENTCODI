@@ -503,6 +503,60 @@ int main(int argc, char* argv[]) {
         << std::endl;
     return 0;
   }
+  if (argc == 2 && std::string(argv[1]) == "--review-mode-roundtrip") {
+    std::string request;
+    if (!std::getline(std::cin, request)
+        || request.find("\"method\":\"review/start\"") == std::string::npos
+        || request.find("\"threadId\":\"thr_review\"") == std::string::npos
+        || request.find("\"delivery\":\"inline\"") == std::string::npos
+        || request.find("\"target\":{") == std::string::npos
+        || request.find("\"type\":\"custom\"") == std::string::npos
+        || request.find(
+            "\"instructions\":\"Check concurrency and bounded errors.\"")
+            == std::string::npos
+        || request.find("uncommittedChanges") != std::string::npos
+        || request.find("baseBranch") != std::string::npos
+        || request.find("\"sha\"") != std::string::npos
+        || request.find("\"branch\"") != std::string::npos
+        || request.find("\"cwd\"") != std::string::npos
+        || request.find("runtimeWorkspaceRoots") != std::string::npos
+       || request.find("\"permissions\"") != std::string::npos
+       || request.find("\"model\"") != std::string::npos
+        || request.find("\"baseInstructions\"") != std::string::npos
+        || request.find("\"developerInstructions\"") != std::string::npos
+        || request.find("\"systemPrompt\"") != std::string::npos
+        || request.find("\"system_prompt\"") != std::string::npos) {
+      return 44;
+    }
+    std::cout
+        << "{\"id\":74,\"result\":{\"turn\":{"
+        << "\"id\":\"turn_review_response\",\"status\":\"inProgress\","
+        << "\"items\":[],\"error\":null},"
+        << "\"reviewThreadId\":\"thr_review\"}}" << std::endl;
+    std::cout
+        << "{\"method\":\"turn/started\",\"params\":{"
+        << "\"threadId\":\"thr_review\",\"turn\":{"
+        << "\"id\":\"turn_review_live\",\"status\":\"inProgress\","
+        << "\"items\":[]}}}" << std::endl;
+    std::cout
+        << "{\"method\":\"item/started\",\"params\":{"
+        << "\"threadId\":\"thr_review\",\"turnId\":\"turn_review_live\","
+        << "\"startedAtMs\":1,\"item\":{"
+        << "\"id\":\"review_enter\",\"type\":\"enteredReviewMode\","
+        << "\"review\":\"custom workspace review\"}}}" << std::endl;
+    std::cout
+        << "{\"method\":\"item/completed\",\"params\":{"
+        << "\"threadId\":\"thr_review\",\"turnId\":\"turn_review_response\","
+        << "\"completedAtMs\":2,\"item\":{"
+        << "\"id\":\"review_exit\",\"type\":\"exitedReviewMode\","
+        << "\"review\":\"No critical findings.\"}}}" << std::endl;
+    std::cout
+        << "{\"method\":\"turn/completed\",\"params\":{"
+        << "\"threadId\":\"thr_review\",\"turn\":{"
+        << "\"id\":\"turn_review_response\",\"status\":\"completed\","
+        << "\"items\":[],\"error\":null}}}" << std::endl;
+    return 0;
+  }
   if (argc == 2 && std::string(argv[1]) == "--turn-import-roundtrip") {
     std::string request;
     if (!std::getline(std::cin, request)
@@ -691,7 +745,7 @@ int main(int argc, char* argv[]) {
   }
 
   const std::string version = agentcodi::engine_version();
-  expect(version == "agentcodi-native/0.5.22", "engine version");
+  expect(version == "agentcodi-native/0.5.25", "engine version");
   expect(agentcodi::run_self_test() == 0, "native self-test");
   const std::string abc = "abc";
   expect(
@@ -2089,6 +2143,70 @@ int main(int argc, char* argv[]) {
             "preserve steering user item without inventing a new turn");
         expect(process->Stop(500) == 0,
                "stop turn-steer framing fixture");
+      }
+
+      config.arguments = {"--review-mode-roundtrip"};
+      error.clear();
+      process = agentcodi::AppServerProcess::Start(config, &error);
+      expect(process != nullptr, "spawn review-mode framing fixture");
+      if (process != nullptr) {
+        const std::string review_request =
+            "{\"id\":74,\"method\":\"review/start\",\"params\":{"
+            "\"threadId\":\"thr_review\",\"target\":{"
+            "\"type\":\"custom\",\"instructions\":"
+            "\"Check concurrency and bounded errors.\"},"
+            "\"delivery\":\"inline\"}}";
+        expect(
+            process->WriteLine(review_request, 16U * 1024U, &error),
+            "write bounded custom-only review/start request");
+        std::string review_line;
+        expect(
+            process->ReadLine(16U * 1024U, &review_line, &error)
+                    == agentcodi::LineReadStatus::kLine
+                && review_line.find("\"id\":74") != std::string::npos
+                && review_line.find("\"reviewThreadId\":\"thr_review\"")
+                    != std::string::npos
+                && review_line.find("\"id\":\"turn_review_response\"")
+                    != std::string::npos,
+            "preserve correlated review/start response");
+        expect(
+            process->ReadLine(16U * 1024U, &review_line, &error)
+                    == agentcodi::LineReadStatus::kLine
+                && review_line.find("\"method\":\"turn/started\"")
+                    != std::string::npos
+                && review_line.find("\"id\":\"turn_review_live\"")
+                    != std::string::npos,
+            "preserve review turn start notification");
+        expect(
+            process->ReadLine(16U * 1024U, &review_line, &error)
+                    == agentcodi::LineReadStatus::kLine
+                && review_line.find("\"type\":\"enteredReviewMode\"")
+                    != std::string::npos
+                && review_line.find("\"turnId\":\"turn_review_live\"")
+                    != std::string::npos,
+            "preserve entered review-mode item");
+        expect(
+            process->ReadLine(16U * 1024U, &review_line, &error)
+                    == agentcodi::LineReadStatus::kLine
+                && review_line.find("\"type\":\"exitedReviewMode\"")
+                    != std::string::npos
+                && review_line.find("\"turnId\":\"turn_review_response\"")
+                    != std::string::npos
+                && review_line.find("No critical findings.")
+                    != std::string::npos,
+            "preserve authoritative exited review-mode item");
+        expect(
+            process->ReadLine(16U * 1024U, &review_line, &error)
+                    == agentcodi::LineReadStatus::kLine
+                && review_line.find("\"method\":\"turn/completed\"")
+                    != std::string::npos
+                && review_line.find("\"status\":\"completed\"")
+                    != std::string::npos
+                && review_line.find("\"id\":\"turn_review_response\"")
+                    != std::string::npos,
+            "preserve review turn completion");
+        expect(process->Stop(500) == 0,
+               "stop review-mode framing fixture");
       }
 
       config.arguments = {"--turn-import-roundtrip"};

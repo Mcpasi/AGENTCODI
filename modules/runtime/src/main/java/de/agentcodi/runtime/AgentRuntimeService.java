@@ -29,6 +29,7 @@ import de.agentcodi.mcp.client.McpCatalogController;
 import de.agentcodi.mcp.client.McpConfigurationController;
 import de.agentcodi.mode.compatibility.CompatibilityExecutionMode;
 import de.agentcodi.mode.protectedmode.ProtectedExecutionMode;
+import de.agentcodi.review.CustomReviewMode;
 import de.agentcodi.storage.WorkspaceLayout;
 
 import java.io.File;
@@ -408,6 +409,15 @@ public final class AgentRuntimeService extends Service {
         return false;
     }
 
+    public static boolean startCustomReview(String instructions) {
+        CodexSessionController controller = sessionController;
+        return controller != null && controller.startCustomReview(instructions);
+    }
+
+    public static int maximumReviewInstructionsCharacters() {
+        return de.agentcodi.core.CodexReviewRequest.MAXIMUM_INSTRUCTIONS_CHARACTERS;
+    }
+
     private static void closeFileTransaction(
         CodexFileMentionTransaction fileTransaction
     ) {
@@ -643,7 +653,8 @@ public final class AgentRuntimeService extends Service {
                             }
                         },
                         shellExecutable.getAbsolutePath(),
-                        executionMode
+                        executionMode,
+                        CustomReviewMode.get()
                     );
                     startedController.start();
                     startedCatalogController = new McpCatalogController(

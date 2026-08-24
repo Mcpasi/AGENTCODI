@@ -19,6 +19,7 @@ public final class CodexSessionSnapshot {
     private final boolean loginPending;
     private final String loginUrl;
     private final boolean operationActive;
+    private final boolean turnInterruptPending;
     private final String operationMessage;
     private final List<CodexModelOption> models;
     private final String selectedModelId;
@@ -31,6 +32,7 @@ public final class CodexSessionSnapshot {
     private final List<ChatMessage> messages;
     private final boolean turnActive;
     private final String activeTurnId;
+    private final CodexReviewState reviewState;
     private final List<CodexInteractiveRequest> interactiveRequests;
     private final String errorMessage;
 
@@ -49,6 +51,7 @@ public final class CodexSessionSnapshot {
         boolean loginPending,
         String loginUrl,
         boolean operationActive,
+        boolean turnInterruptPending,
         String operationMessage,
         List<CodexModelOption> models,
         String selectedModelId,
@@ -60,6 +63,7 @@ public final class CodexSessionSnapshot {
         List<CodexTranscriptItem> transcriptItems,
         boolean turnActive,
         String activeTurnId,
+        CodexReviewState reviewState,
         List<CodexInteractiveRequest> interactiveRequests,
         String errorMessage
     ) {
@@ -79,6 +83,7 @@ public final class CodexSessionSnapshot {
         this.loginPending = loginPending;
         this.loginUrl = nonNull(loginUrl);
         this.operationActive = operationActive;
+        this.turnInterruptPending = turnInterruptPending;
         this.operationMessage = nonNull(operationMessage);
         this.models = immutableModelCopy(models);
         this.selectedModelId = nonNull(selectedModelId);
@@ -91,6 +96,9 @@ public final class CodexSessionSnapshot {
         this.messages = messagesFromTranscript(this.transcriptItems);
         this.turnActive = turnActive;
         this.activeTurnId = nonNull(activeTurnId);
+        this.reviewState = reviewState == null
+            ? CodexReviewState.idle()
+            : reviewState;
         this.interactiveRequests = immutableInteractiveRequestCopy(interactiveRequests);
         this.errorMessage = nonNull(errorMessage);
     }
@@ -111,6 +119,7 @@ public final class CodexSessionSnapshot {
             false,
             "",
             false,
+            false,
             "",
             Collections.<CodexModelOption>emptyList(),
             "",
@@ -122,6 +131,7 @@ public final class CodexSessionSnapshot {
             Collections.<CodexTranscriptItem>emptyList(),
             false,
             "",
+            CodexReviewState.idle(),
             Collections.<CodexInteractiveRequest>emptyList(),
             ""
         );
@@ -187,6 +197,10 @@ public final class CodexSessionSnapshot {
         return operationActive;
     }
 
+    public boolean isTurnInterruptPending() {
+        return turnInterruptPending;
+    }
+
     public String getOperationMessage() {
         return operationMessage;
     }
@@ -233,6 +247,10 @@ public final class CodexSessionSnapshot {
 
     public String getActiveTurnId() {
         return activeTurnId;
+    }
+
+    public CodexReviewState getReviewState() {
+        return reviewState;
     }
 
     public List<CodexInteractiveRequest> getInteractiveRequests() {

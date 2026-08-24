@@ -28,6 +28,7 @@ mkdir -p "$TEST_BUILD/java-classes" "$TEST_BUILD/cpp"
 
 find \
   "$PROJECT_ROOT/modules/core/src/main/java" \
+  "$PROJECT_ROOT/modules/review-mode/src/main/java" \
   "$PROJECT_ROOT/modules/protected-mode/src/main/java" \
   "$PROJECT_ROOT/modules/compatibility-mode/src/main/java" \
   "$PROJECT_ROOT/modules/storage/src/main/java" \

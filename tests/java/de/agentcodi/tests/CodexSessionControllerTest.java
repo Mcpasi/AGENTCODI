@@ -8,6 +8,7 @@ import de.agentcodi.core.CodexInteractiveRequest;
 import de.agentcodi.core.CodexModelOption;
 import de.agentcodi.core.CodexRateLimitWindow;
 import de.agentcodi.core.CodexRateLimitsSnapshot;
+import de.agentcodi.core.CodexReviewState;
 import de.agentcodi.core.CodexRpcTransport;
 import de.agentcodi.core.CodexSessionController;
 import de.agentcodi.core.CodexSessionSnapshot;
@@ -16,6 +17,7 @@ import de.agentcodi.core.JsonCodec;
 import de.agentcodi.core.TerminalSessionSnapshot;
 import de.agentcodi.mode.compatibility.CompatibilityExecutionMode;
 import de.agentcodi.mode.protectedmode.ProtectedExecutionMode;
+import de.agentcodi.review.CustomReviewMode;
 
 import java.io.IOException;
 import java.nio.charset.StandardCharsets;
@@ -45,6 +47,9 @@ public final class CodexSessionControllerTest {
         projectsReasoningAndPlanCardsAuthoritatively();
         releasesCardStreamCapacityAfterTurnCompletion();
         projectsCompleteToolCardSet();
+        startsAndCorrelatesCustomReviewMode();
+        stopsSplitIdReviewWhileStartResponseIsPending();
+        rejectsMalformedCustomReviewResponse();
         keepsScrubbedResumeImagePathNonExportable();
         restoresCardsFromThreadHistory();
         reportsTransportFailureOnceAndReleasesTurn();
@@ -69,7 +74,7 @@ public final class CodexSessionControllerTest {
         terminatesTerminalWhenOutputCapIsReached();
         rejectsTerminalCredentialsAndMalformedOutput();
         usesVettedMcpConfigurationRpcs();
-        return 33;
+        return 36;
     }
 
     private static void sendsImportedFilesWithModelReadableContext() throws Exception {
@@ -496,14 +501,39 @@ public final class CodexSessionControllerTest {
             @Override
             public boolean isTrue() {
                 return server.lastTurnInterruptParams != null
-                    && !controller.snapshot().isOperationActive();
+                    && controller.snapshot().isTurnInterruptPending()
+                    && "Turn-Stopp wurde bestätigt.".equals(
+                        controller.snapshot().getOperationMessage()
+                    );
             }
-        }, "interrupt remains available after steering");
+        }, "interrupt response remains pending until terminal completion");
         TestSupport.assertEquals(
             "turn_fixture",
             server.lastTurnInterruptParams.get("turnId"),
             "interrupt targets the steered turn"
         );
+        controller.interruptTurn();
+        TestSupport.assertEquals(
+            Integer.valueOf(1),
+            Integer.valueOf(server.turnInterruptRequestCount.get()),
+            "interrupt response does not permit a duplicate before completion"
+        );
+        server.notifyMessage("turn/completed", JsonCodec.object(
+            "threadId", "thr_existing",
+            "turn", JsonCodec.object(
+                "id", "turn_fixture",
+                "status", "interrupted",
+                "items", JsonCodec.array(),
+                "error", null
+            )
+        ));
+        waitFor(new Condition() {
+            @Override
+            public boolean isTrue() {
+                return !controller.snapshot().isTurnActive()
+                    && !controller.snapshot().isTurnInterruptPending();
+            }
+        }, "terminal completion releases acknowledged interrupt");
         controller.close();
     }
 
@@ -1777,11 +1807,6 @@ public final class CodexSessionControllerTest {
             ))
         ));
         notifyCompletedTool(server, JsonCodec.object(
-            "id", "review_card",
-            "type", "enteredReviewMode",
-            "review", "Änderungen prüfen"
-        ));
-        notifyCompletedTool(server, JsonCodec.object(
             "id", "compaction_card",
             "type", "contextCompaction"
         ));
@@ -1856,7 +1881,7 @@ public final class CodexSessionControllerTest {
             "command_card", "file_card", "mcp_card", "dynamic_card", "collab_card",
             "subagent_card", "web_card", "image_view_card", "sleep_card",
             "image_generation_card", "outside_image_card", "alias_image_card", "hook_card",
-            "review_card", "compaction_card"
+            "compaction_card"
         };
         for (String id : expectedCards) {
             CodexTranscriptItem item = cardById(controller.snapshot(), id);
@@ -1867,6 +1892,484 @@ public final class CodexSessionControllerTest {
                 "tool card kind: " + id
             );
         }
+        controller.close();
+    }
+
+    private static void startsAndCorrelatesCustomReviewMode() throws Exception {
+        final FixtureServer server = new FixtureServer(true);
+        server.holdReviewOpen = true;
+        server.reviewNotificationsBeforeResponse = true;
+        server.reviewStartedTurnId = "turn_review_live_fixture";
+        final CodexSessionController controller = new CodexSessionController(
+            server,
+            "/private/workspace",
+            null,
+            null,
+            ProtectedExecutionMode.get(),
+            CustomReviewMode.get()
+        );
+        controller.start();
+        controller.openThread("thr_existing");
+        waitFor(new Condition() {
+            @Override
+            public boolean isTrue() {
+                return "thr_existing".equals(controller.snapshot().getActiveThreadId())
+                    && !controller.snapshot().isOperationActive();
+            }
+        }, "thread ready for custom review");
+
+        TestSupport.assertFalse(
+            controller.startCustomReview("Use sk-reviewfixture1234567890 for review"),
+            "credential-shaped review instructions are rejected"
+        );
+        TestSupport.assertEquals(
+            Integer.valueOf(0),
+            Integer.valueOf(server.reviewStartRequestCount.get()),
+            "rejected review never reaches transport"
+        );
+        TestSupport.assertTrue(
+            controller.startCustomReview(
+                "  Prüfe Nebenläufigkeit, Fehlerpfade und fehlende Tests.  "
+            ),
+            "custom review is queued"
+        );
+        waitFor(new Condition() {
+            @Override
+            public boolean isTrue() {
+                return server.lastReviewStartParams != null
+                    && controller.snapshot().getReviewState().isReviewModeActive()
+                    && controller.snapshot().isTurnActive()
+                    && !controller.snapshot().isOperationActive();
+            }
+        }, "review events correlate before review/start response");
+
+        Map<String, Object> params = server.lastReviewStartParams;
+        TestSupport.assertEquals(
+            Integer.valueOf(3),
+            Integer.valueOf(params.size()),
+            "review/start has only thread, target and delivery"
+        );
+        TestSupport.assertEquals("thr_existing", params.get("threadId"), "review thread");
+        TestSupport.assertEquals("inline", params.get("delivery"), "inline delivery only");
+        Map<String, Object> target = JsonCodec.requireObject(
+            params.get("target"),
+            "review target"
+        );
+        TestSupport.assertEquals(
+            Integer.valueOf(2),
+            Integer.valueOf(target.size()),
+            "custom target has no Git selector fields"
+        );
+        TestSupport.assertEquals("custom", target.get("type"), "custom review target");
+        TestSupport.assertEquals(
+            "Prüfe Nebenläufigkeit, Fehlerpfade und fehlende Tests.",
+            target.get("instructions"),
+            "review instructions are bounded and trimmed"
+        );
+        String requestJson = JsonCodec.stringify(params);
+        TestSupport.assertFalse(
+            requestJson.contains("uncommittedChanges")
+                || requestJson.contains("baseBranch")
+                || requestJson.contains("\"sha\"")
+                || requestJson.contains("\"branch\"")
+                || requestJson.contains("\"cwd\"")
+                || requestJson.contains("runtimeWorkspaceRoots")
+                || requestJson.contains("permissions")
+                || requestJson.contains("model")
+                || requestJson.contains("baseInstructions")
+                || requestJson.contains("developerInstructions")
+                || requestJson.contains("systemPrompt"),
+            "review request exposes no Git, root, permission or prompt expansion"
+        );
+        TestSupport.assertEquals(
+            "turn_review_live_fixture",
+            controller.snapshot().getActiveTurnId(),
+            "turn/started id controls the live review"
+        );
+        TestSupport.assertEquals(
+            "turn_review_fixture",
+            controller.snapshot().getReviewState().getResponseTurnId(),
+            "review/start response id remains correlated"
+        );
+        TestSupport.assertEquals(
+            "turn_review_live_fixture",
+            controller.snapshot().getReviewState().getNotificationTurnId(),
+            "review notification id remains separately bounded"
+        );
+        CodexTranscriptItem entered = cardById(
+            controller.snapshot(),
+            "review_enter_fixture"
+        );
+        TestSupport.assertTrue(
+            entered != null && entered.isStreaming(),
+            "enteredReviewMode renders as a live card"
+        );
+
+        server.notifyMessage("item/completed", JsonCodec.object(
+            "threadId", "thr_existing",
+            "turnId", "turn_unrelated",
+            "item", JsonCodec.object(
+                "id", "review_uncorrelated",
+                "type", "exitedReviewMode",
+                "review", "Nicht zuordnen"
+            )
+        ));
+        server.emitProcessingMarker("review_wrong_turn_processed", "turn_review_fixture");
+        waitFor(new Condition() {
+            @Override
+            public boolean isTrue() {
+                return cardById(
+                    controller.snapshot(),
+                    "review_wrong_turn_processed"
+                ) != null;
+            }
+        }, "wrong-turn review notification processed");
+        TestSupport.assertEquals(
+            null,
+            cardById(controller.snapshot(), "review_uncorrelated"),
+            "wrong-turn review item is not rendered"
+        );
+        TestSupport.assertTrue(
+            controller.snapshot().getReviewState().isReviewModeActive(),
+            "wrong-turn review item cannot change state"
+        );
+
+        server.notifyMessage("item/started", JsonCodec.object(
+            "threadId", "thr_existing",
+            "turnId", "turn_review_fixture",
+            "item", JsonCodec.object(
+                "id", "review_exit_fixture",
+                "type", "exitedReviewMode",
+                "review", "Abschluss wird vorbereitet"
+            )
+        ));
+        server.emitProcessingMarker("review_early_exit_processed", "turn_review_fixture");
+        waitFor(new Condition() {
+            @Override
+            public boolean isTrue() {
+                return cardById(
+                    controller.snapshot(),
+                    "review_early_exit_processed"
+                ) != null;
+            }
+        }, "started exit notification processed");
+        TestSupport.assertTrue(
+            controller.snapshot().getReviewState().isReviewModeActive(),
+            "started exit cannot end review state"
+        );
+        server.notifyMessage("item/completed", JsonCodec.object(
+            "threadId", "thr_existing",
+            "turnId", "turn_review_fixture",
+            "item", JsonCodec.object(
+                "id", "review_exit_fixture",
+                "type", "exitedReviewMode",
+                "review", "Keine kritischen Befunde."
+            )
+        ));
+        waitFor(new Condition() {
+            @Override
+            public boolean isTrue() {
+                return controller.snapshot().getReviewState().getPhase()
+                    == CodexReviewState.Phase.EXITED;
+            }
+        }, "authoritative exitedReviewMode item");
+        CodexTranscriptItem exited = cardById(
+            controller.snapshot(),
+            "review_exit_fixture"
+        );
+        TestSupport.assertTrue(
+            exited != null
+                && !exited.isStreaming()
+                && exited.getDetail().contains("Keine kritischen Befunde."),
+            "final review text is authoritative"
+        );
+
+        server.notifyMessage("turn/completed", JsonCodec.object(
+            "threadId", "thr_existing",
+            "turn", JsonCodec.object(
+                "id", "turn_review_fixture",
+                "status", "completed",
+                "items", JsonCodec.array(),
+                "error", null
+            )
+        ));
+        waitFor(new Condition() {
+            @Override
+            public boolean isTrue() {
+                return !controller.snapshot().isTurnActive()
+                    && controller.snapshot().getReviewState().getPhase()
+                        == CodexReviewState.Phase.COMPLETED;
+            }
+        }, "review turn completes without reviving state");
+        server.notifyMessage("item/started", JsonCodec.object(
+            "threadId", "thr_existing",
+            "turnId", "turn_review_fixture",
+            "item", JsonCodec.object(
+                "id", "review_late_start",
+                "type", "enteredReviewMode",
+                "review", "Verspätet"
+            )
+        ));
+        server.emitProcessingMarker("review_late_start_processed", "turn_review_fixture");
+        waitFor(new Condition() {
+            @Override
+            public boolean isTrue() {
+                return cardById(
+                    controller.snapshot(),
+                    "review_late_start_processed"
+                ) != null;
+            }
+        }, "late review notification processed");
+        TestSupport.assertEquals(
+            null,
+            cardById(controller.snapshot(), "review_late_start"),
+            "late started item cannot revive a completed review"
+        );
+        TestSupport.assertEquals(
+            CodexReviewState.Phase.COMPLETED,
+            controller.snapshot().getReviewState().getPhase(),
+            "completed review remains completed"
+        );
+
+        server.reviewNotificationsBeforeResponse = false;
+        server.emitReviewLifecycle = false;
+        server.reviewResponseThreadId = "thr_other";
+        server.reviewResponseTurnId = "turn_review_mismatch";
+        TestSupport.assertTrue(
+            controller.startCustomReview("Prüfe die Antwortkorrelation."),
+            "mismatched response review is queued"
+        );
+        waitFor(new Condition() {
+            @Override
+            public boolean isTrue() {
+                return server.reviewStartRequestCount.get() == 2
+                    && !controller.snapshot().isOperationActive()
+                    && controller.snapshot().getReviewState().getPhase()
+                        == CodexReviewState.Phase.FAILED
+                    && server.closed;
+            }
+        }, "mismatched review response fails");
+        TestSupport.assertFalse(
+            controller.snapshot().isTurnActive(),
+            "mismatched review response releases active turn"
+        );
+        TestSupport.assertEquals(
+            CodexReviewState.Phase.FAILED,
+            controller.snapshot().getReviewState().getPhase(),
+            "mismatched review response quarantines late review events"
+        );
+        TestSupport.assertFalse(
+            controller.snapshot().getErrorMessage().isEmpty(),
+            "mismatched review response is visible"
+        );
+        TestSupport.assertFalse(
+            controller.snapshot().isReady(),
+            "mismatched review response leaves READY"
+        );
+        TestSupport.assertTrue(
+            server.closed,
+            "review protocol failure closes transport against late events"
+        );
+        controller.close();
+    }
+
+    private static void stopsSplitIdReviewWhileStartResponseIsPending()
+        throws Exception {
+        final FixtureServer server = new FixtureServer(true);
+        server.holdReviewOpen = true;
+        server.holdReviewStartResponse = true;
+        server.holdTurnInterruptResponse = true;
+        server.emitReviewLifecycle = false;
+        server.reviewResponseTurnId = "turn_review_response_pending";
+        server.reviewStartedTurnId = "turn_review_live_pending";
+        final CodexSessionController controller = new CodexSessionController(
+            server,
+            "/private/workspace",
+            null,
+            null,
+            ProtectedExecutionMode.get(),
+            CustomReviewMode.get()
+        );
+        controller.start();
+        controller.openThread("thr_existing");
+        waitFor(new Condition() {
+            @Override
+            public boolean isTrue() {
+                return "thr_existing".equals(controller.snapshot().getActiveThreadId())
+                    && !controller.snapshot().isOperationActive();
+            }
+        }, "thread ready for pending review stop");
+
+        TestSupport.assertTrue(
+            controller.startCustomReview("Prüfe den abbrechbaren Review-Ablauf."),
+            "pending review starts"
+        );
+        waitFor(new Condition() {
+            @Override
+            public boolean isTrue() {
+                CodexSessionSnapshot snapshot = controller.snapshot();
+                return server.lastReviewStartParams != null
+                    && snapshot.isOperationActive()
+                    && snapshot.isTurnActive()
+                    && snapshot.getActiveTurnId().isEmpty();
+            }
+        }, "review start is pending before turn correlation");
+        server.notifyMessage("turn/completed", JsonCodec.object(
+            "threadId", "",
+            "turn", JsonCodec.object(
+                "id", "turn_malformed_unscoped",
+                "status", "completed",
+                "items", JsonCodec.array(),
+                "error", null
+            )
+        ));
+        server.emitProcessingMarker("review_unscoped_completion_processed", "");
+        waitFor(new Condition() {
+            @Override
+            public boolean isTrue() {
+                return cardById(
+                    controller.snapshot(),
+                    "review_unscoped_completion_processed"
+                ) != null;
+            }
+        }, "malformed unscoped completion was processed");
+        TestSupport.assertTrue(
+            controller.snapshot().isTurnActive()
+                && controller.snapshot().getReviewState().isStarting(),
+            "completion without the exact review thread cannot end startup"
+        );
+
+        server.emitReviewStarted();
+        waitFor(new Condition() {
+            @Override
+            public boolean isTrue() {
+                CodexSessionSnapshot snapshot = controller.snapshot();
+                return server.lastReviewStartParams != null
+                    && snapshot.isOperationActive()
+                    && snapshot.isTurnActive()
+                    && snapshot.getReviewState().isReviewModeActive()
+                    && "turn_review_live_pending".equals(snapshot.getActiveTurnId());
+            }
+        }, "live review id arrives while review/start is pending");
+
+        controller.interruptTurn();
+        waitFor(new Condition() {
+            @Override
+            public boolean isTrue() {
+                return server.lastTurnInterruptParams != null
+                    && controller.snapshot().isTurnInterruptPending();
+            }
+        }, "stop bypasses the occupied review/start operation lane");
+        TestSupport.assertEquals(
+            "thr_existing",
+            server.lastTurnInterruptParams.get("threadId"),
+            "review stop stays on the active thread"
+        );
+        TestSupport.assertEquals(
+            "turn_review_live_pending",
+            server.lastTurnInterruptParams.get("turnId"),
+            "review stop targets the live turn/started id"
+        );
+
+        server.notifyMessage("turn/completed", JsonCodec.object(
+            "threadId", "thr_existing",
+            "turn", JsonCodec.object(
+                "id", "turn_review_response_pending",
+                "status", "interrupted",
+                "items", JsonCodec.array(),
+                "error", null
+            )
+        ));
+        waitFor(new Condition() {
+            @Override
+            public boolean isTrue() {
+                CodexSessionSnapshot snapshot = controller.snapshot();
+                return !snapshot.isTurnActive()
+                    && !snapshot.isTurnInterruptPending()
+                    && snapshot.getReviewState().getPhase()
+                        == CodexReviewState.Phase.COMPLETED;
+            }
+        }, "response-id completion releases review and pending stop");
+
+        server.releaseReviewStartResponse();
+        waitFor(new Condition() {
+            @Override
+            public boolean isTrue() {
+                CodexSessionSnapshot snapshot = controller.snapshot();
+                return !snapshot.isOperationActive()
+                    && snapshot.isReady()
+                    && snapshot.getReviewState().getPhase()
+                        == CodexReviewState.Phase.COMPLETED;
+            }
+        }, "late review/start response cannot revive the stopped review");
+        TestSupport.assertFalse(
+            controller.snapshot().getErrorMessage().contains("Sicherheitszeitlimit"),
+            "successful stop does not surface the generic safety timeout"
+        );
+        controller.close();
+    }
+
+    private static void rejectsMalformedCustomReviewResponse() throws Exception {
+        final FixtureServer server = new FixtureServer(true);
+        server.reviewNotificationsBeforeResponse = true;
+        server.reviewResponseStatus = "queued";
+        final CodexSessionController controller = new CodexSessionController(
+            server,
+            "/private/workspace",
+            null,
+            null,
+            ProtectedExecutionMode.get(),
+            CustomReviewMode.get()
+        );
+        controller.start();
+        controller.openThread("thr_existing");
+        waitFor(new Condition() {
+            @Override
+            public boolean isTrue() {
+                return "thr_existing".equals(controller.snapshot().getActiveThreadId())
+                    && !controller.snapshot().isOperationActive();
+            }
+        }, "thread ready for malformed review response");
+
+        TestSupport.assertTrue(
+            controller.startCustomReview("Prüfe den Statusvertrag."),
+            "review with malformed fixture response is queued"
+        );
+        waitFor(new Condition() {
+            @Override
+            public boolean isTrue() {
+                return server.reviewStartRequestCount.get() == 1
+                    && !controller.snapshot().isOperationActive()
+                    && controller.snapshot().getReviewState().getPhase()
+                        == CodexReviewState.Phase.FAILED
+                    && server.closed;
+            }
+        }, "malformed review response fails closed");
+        TestSupport.assertFalse(
+            controller.snapshot().isReady(),
+            "malformed review status leaves READY"
+        );
+        TestSupport.assertFalse(
+            controller.snapshot().isTurnActive(),
+            "malformed review status releases the turn"
+        );
+        TestSupport.assertEquals(
+            CodexReviewState.Phase.FAILED,
+            controller.snapshot().getReviewState().getPhase(),
+            "malformed review status quarantines the review"
+        );
+        TestSupport.assertTrue(
+            server.closed && !controller.snapshot().getErrorMessage().isEmpty(),
+            "malformed review status closes transport and remains visible"
+        );
+        CodexTranscriptItem failedCard = cardById(
+            controller.snapshot(),
+            "review_enter_fixture"
+        );
+        TestSupport.assertTrue(
+            failedCard != null && !failedCard.isStreaming(),
+            "review protocol failure finalizes an early streaming card"
+        );
         controller.close();
     }
 
@@ -3323,6 +3826,7 @@ public final class CodexSessionControllerTest {
         private volatile Map<String, Object> lastThreadDeleteParams;
         private volatile Map<String, Object> lastTurnStartParams;
         private volatile Map<String, Object> lastTurnSteerParams;
+        private volatile Map<String, Object> lastReviewStartParams;
         private volatile TestFileTransaction expectedTurnStartFileTransaction;
         private volatile TestFileTransaction expectedTurnSteerFileTransaction;
         private volatile Map<String, Object> lastTurnInterruptParams;
@@ -3338,7 +3842,17 @@ public final class CodexSessionControllerTest {
         private volatile boolean terminalInputWireBufferWiped;
         private volatile boolean reorderStreamingEvents;
         private volatile boolean holdTurnOpen;
+        private volatile boolean holdReviewOpen;
+        private volatile boolean holdReviewStartResponse;
+        private volatile boolean holdTurnInterruptResponse;
         private volatile boolean emitSteerUserItemBeforeResponse;
+        private volatile boolean reviewNotificationsBeforeResponse;
+        private volatile boolean emitReviewLifecycle = true;
+        private volatile String reviewResponseThreadId = "thr_existing";
+        private volatile String reviewResponseTurnId = "turn_review_fixture";
+        private volatile String reviewStartedTurnId = "turn_review_fixture";
+        private volatile String reviewResponseStatus = "inProgress";
+        private volatile Map<String, Object> pendingReviewStartRequest;
         private volatile String steerResponseTurnId = "turn_fixture";
         private volatile boolean richHistory;
         private volatile boolean existingThreadArchived;
@@ -3346,6 +3860,8 @@ public final class CodexSessionControllerTest {
         private volatile boolean archivedFixtureDeleted;
         private volatile String unarchiveResponseThreadId = "";
         private final AtomicInteger turnStartRequestCount = new AtomicInteger();
+        private final AtomicInteger reviewStartRequestCount = new AtomicInteger();
+        private final AtomicInteger turnInterruptRequestCount = new AtomicInteger();
         private final AtomicInteger rateLimitsReadCount = new AtomicInteger();
         private volatile boolean lastRateLimitsReadHadParams;
         private volatile long primaryRateLimitUsedPercent = 25L;
@@ -3692,6 +4208,20 @@ public final class CodexSessionControllerTest {
                         "error", null
                     )
                 ));
+            } else if ("review/start".equals(method)) {
+                lastReviewStartParams = JsonCodec.requireObject(
+                    request.get("params"),
+                    "review/start params"
+                );
+                reviewStartRequestCount.incrementAndGet();
+                if (emitReviewLifecycle && reviewNotificationsBeforeResponse) {
+                    emitReviewStarted();
+                }
+                if (holdReviewStartResponse) {
+                    pendingReviewStartRequest = request;
+                } else {
+                    completeReviewStartRequest(request);
+                }
             } else if ("turn/steer".equals(method)) {
                 lastTurnSteerParams = JsonCodec.requireObject(request.get("params"), "params");
                 TestFileTransaction expectedTransaction =
@@ -3791,7 +4321,10 @@ public final class CodexSessionControllerTest {
                     request.get("params"),
                     "turn interrupt params"
                 );
-                respond(request, JsonCodec.object());
+                turnInterruptRequestCount.incrementAndGet();
+                if (!holdTurnInterruptResponse) {
+                    respond(request, JsonCodec.object());
+                }
             }
         }
 
@@ -3830,6 +4363,90 @@ public final class CodexSessionControllerTest {
                 "id", request.get("id"),
                 "result", result
             )));
+        }
+
+        private void emitReviewStarted() {
+            notifyMessage("turn/started", JsonCodec.object(
+                "threadId", "thr_existing",
+                "turn", JsonCodec.object(
+                    "id", reviewStartedTurnId,
+                    "status", "inProgress",
+                    "items", JsonCodec.array()
+                )
+            ));
+            notifyMessage("item/started", JsonCodec.object(
+                "threadId", "thr_existing",
+                "turnId", reviewStartedTurnId,
+                "item", JsonCodec.object(
+                    "id", "review_enter_fixture",
+                    "type", "enteredReviewMode",
+                    "review", "Benutzerdefinierter Workspace-Review"
+                )
+            ));
+        }
+
+        private void releaseReviewStartResponse() {
+            Map<String, Object> request = pendingReviewStartRequest;
+            pendingReviewStartRequest = null;
+            if (request == null) {
+                throw new AssertionError("no pending review/start response");
+            }
+            completeReviewStartRequest(request);
+        }
+
+        private void completeReviewStartRequest(Map<String, Object> request) {
+            respond(request, JsonCodec.object(
+                "turn", JsonCodec.object(
+                    "id", reviewResponseTurnId,
+                    "status", reviewResponseStatus,
+                    "items", JsonCodec.array(),
+                    "error", null
+                ),
+                "reviewThreadId", reviewResponseThreadId
+            ));
+            if (emitReviewLifecycle && !reviewNotificationsBeforeResponse) {
+                emitReviewStarted();
+            }
+            if (emitReviewLifecycle && !holdReviewOpen) {
+                notifyMessage("item/started", JsonCodec.object(
+                    "threadId", "thr_existing",
+                    "turnId", reviewResponseTurnId,
+                    "item", JsonCodec.object(
+                        "id", "review_exit_fixture",
+                        "type", "exitedReviewMode",
+                        "review", "Review wird abgeschlossen"
+                    )
+                ));
+                notifyMessage("item/completed", JsonCodec.object(
+                    "threadId", "thr_existing",
+                    "turnId", reviewResponseTurnId,
+                    "item", JsonCodec.object(
+                        "id", "review_exit_fixture",
+                        "type", "exitedReviewMode",
+                        "review", "Review abgeschlossen"
+                    )
+                ));
+                notifyMessage("turn/completed", JsonCodec.object(
+                    "threadId", "thr_existing",
+                    "turn", JsonCodec.object(
+                        "id", reviewResponseTurnId,
+                        "status", "completed",
+                        "items", JsonCodec.array(),
+                        "error", null
+                    )
+                ));
+            }
+        }
+
+        private void emitProcessingMarker(String itemId, String turnId) {
+            notifyMessage("item/completed", JsonCodec.object(
+                "threadId", "thr_existing",
+                "turnId", turnId,
+                "item", JsonCodec.object(
+                    "id", itemId,
+                    "type", "contextCompaction"
+                )
+            ));
         }
 
         private void notifyMessage(String method, Map<String, Object> params) {

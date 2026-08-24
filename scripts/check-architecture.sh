@@ -4,7 +4,7 @@ set -Eeuo pipefail
 SCRIPT_DIR="$(cd -- "$(dirname -- "$0")" && pwd -P)"
 PROJECT_ROOT="$(cd -- "$SCRIPT_DIR/.." && pwd -P)"
 
-unexpected_source="$(find "$PROJECT_ROOT/app/src/main/java" "$PROJECT_ROOT/modules/core/src/main/java" "$PROJECT_ROOT/modules/protected-mode/src/main/java" "$PROJECT_ROOT/modules/compatibility-mode/src/main/java" "$PROJECT_ROOT/modules/storage/src/main/java" "$PROJECT_ROOT/modules/import-contracts/src/main/java" "$PROJECT_ROOT/modules/import-client/src/main/java" "$PROJECT_ROOT/modules/mcp-contracts/src/main/java" "$PROJECT_ROOT/modules/mcp-client/src/main/java" "$PROJECT_ROOT/modules/runtime/src/main/java" "$PROJECT_ROOT/modules/native-engine/src/main/cpp" "$PROJECT_ROOT/tests/java" "$PROJECT_ROOT/tests/cpp" -type f ! -name '*.java' ! -name '*.cpp' ! -name '*.h' -print)"
+unexpected_source="$(find "$PROJECT_ROOT/app/src/main/java" "$PROJECT_ROOT/modules/core/src/main/java" "$PROJECT_ROOT/modules/review-mode/src/main/java" "$PROJECT_ROOT/modules/protected-mode/src/main/java" "$PROJECT_ROOT/modules/compatibility-mode/src/main/java" "$PROJECT_ROOT/modules/storage/src/main/java" "$PROJECT_ROOT/modules/import-contracts/src/main/java" "$PROJECT_ROOT/modules/import-client/src/main/java" "$PROJECT_ROOT/modules/mcp-contracts/src/main/java" "$PROJECT_ROOT/modules/mcp-client/src/main/java" "$PROJECT_ROOT/modules/runtime/src/main/java" "$PROJECT_ROOT/modules/native-engine/src/main/cpp" "$PROJECT_ROOT/tests/java" "$PROJECT_ROOT/tests/cpp" -type f ! -name '*.java' ! -name '*.cpp' ! -name '*.h' -print)"
 if [ -n "$unexpected_source" ]; then
   echo "Only Java and C++ source files are accepted in source roots." >&2
   printf '%s\n' "$unexpected_source" >&2
@@ -16,7 +16,7 @@ if find "$PROJECT_ROOT/app" "$PROJECT_ROOT/modules" "$PROJECT_ROOT/tests" -type 
   exit 1
 fi
 
-if rg -n '^import android\.' "$PROJECT_ROOT/modules/core/src/main/java" "$PROJECT_ROOT/modules/protected-mode/src/main/java" "$PROJECT_ROOT/modules/compatibility-mode/src/main/java" "$PROJECT_ROOT/modules/storage/src/main/java" "$PROJECT_ROOT/modules/import-contracts/src/main/java" "$PROJECT_ROOT/modules/import-client/src/main/java" "$PROJECT_ROOT/modules/mcp-contracts/src/main/java" "$PROJECT_ROOT/modules/mcp-client/src/main/java"; then
+if rg -n '^import android\.' "$PROJECT_ROOT/modules/core/src/main/java" "$PROJECT_ROOT/modules/review-mode/src/main/java" "$PROJECT_ROOT/modules/protected-mode/src/main/java" "$PROJECT_ROOT/modules/compatibility-mode/src/main/java" "$PROJECT_ROOT/modules/storage/src/main/java" "$PROJECT_ROOT/modules/import-contracts/src/main/java" "$PROJECT_ROOT/modules/import-client/src/main/java" "$PROJECT_ROOT/modules/mcp-contracts/src/main/java" "$PROJECT_ROOT/modules/mcp-client/src/main/java"; then
   echo "Pure Java modules must not import Android APIs." >&2
   exit 1
 fi
@@ -44,9 +44,69 @@ if rg -n '^import de\.agentcodi\.(app|runtime|storage|imports|mcp|mode)\.' \
     || ! rg -q -- '--execution-mode-roundtrip' "$PROJECT_ROOT/tests/cpp/agentcodi_engine_test.cpp" \
     || rg -n 'SharedPreferences|getSharedPreferences' "$execution_mode_card" \
       "$protected_mode" "$compatibility_mode" \
+    || rg -n '"(baseInstructions|developerInstructions|systemPrompt|system_prompt)"' \
+      "$PROJECT_ROOT/modules/core/src/main/java/de/agentcodi/core/CodexSessionController.java" \
     || rg -n '"(baseInstructions|developerInstructions|systemPrompt|system_prompt|instructions)"' \
-      "$PROJECT_ROOT/modules/core/src/main/java/de/agentcodi/core/CodexSessionController.java"; then
+      "$execution_mode_contract" "$protected_mode" "$compatibility_mode"; then
   echo "The modular execution-mode, mandatory warning, safe restart, or no-prompt boundary is incomplete." >&2
+  exit 1
+fi
+
+review_mode="$PROJECT_ROOT/modules/review-mode/src/main/java"
+review_contract="$PROJECT_ROOT/modules/core/src/main/java/de/agentcodi/core/CodexReviewMode.java"
+review_request="$PROJECT_ROOT/modules/core/src/main/java/de/agentcodi/core/CodexReviewRequest.java"
+review_state="$PROJECT_ROOT/modules/core/src/main/java/de/agentcodi/core/CodexReviewState.java"
+review_controller="$PROJECT_ROOT/modules/core/src/main/java/de/agentcodi/core/CodexSessionController.java"
+review_ui="$PROJECT_ROOT/app/src/main/java/de/agentcodi/app/ReviewModeDialog.java"
+if rg -n '^import de\.agentcodi\.(app|runtime|storage|imports|mcp|mode)\.' "$review_mode" \
+    || rg -n '^import de\.agentcodi\.review\.' \
+      "$PROJECT_ROOT/modules/core/src/main/java" "$PROJECT_ROOT/app/src/main/java" \
+    || ! rg -q 'implements CodexReviewMode' "$review_mode" \
+    || ! rg -q 'TARGET_CUSTOM = "custom"' "$review_request" \
+    || ! rg -q 'DELIVERY_INLINE = "inline"' "$review_request" \
+    || ! rg -q 'MAXIMUM_INSTRUCTIONS_CHARACTERS = 32 \* 1024' "$review_request" \
+    || ! rg -q 'correlateStartResponse' "$review_contract" "$review_mode" \
+    || ! rg -q 'authoritativeCompleted' "$review_contract" "$review_mode" \
+    || ! rg -q 'Phase.COMPLETED' "$review_state" "$review_mode" \
+    || ! rg -q 'getResponseTurnId' "$review_state" "$review_mode" "$review_controller" \
+    || ! rg -q 'getNotificationTurnId' "$review_state" "$review_mode" "$review_controller" \
+    || ! rg -q 'getControlTurnId' "$review_state" "$review_controller" \
+    || ! rg -q 'acceptsTurnCompletion' "$review_contract" "$review_mode" "$review_controller" \
+    || ! rg -q '"review/start"' "$review_controller" \
+    || ! rg -q 'reviewThreadId' "$review_controller" \
+    || ! rg -q 'isKnownTurnStatus' "$review_controller" \
+    || ! rg -q 'failReviewStart' "$review_controller" \
+    || ! rg -q 'CustomReviewMode\.get' \
+      "$PROJECT_ROOT/modules/runtime/src/main/java/de/agentcodi/runtime/AgentRuntimeService.java" \
+    || ! rg -q 'ReviewModeDialog\.show' \
+      "$PROJECT_ROOT/app/src/main/java/de/agentcodi/app/MainActivity.java" \
+    || ! rg -q 'setPositiveButton\(R\.string\.review_mode_start, null\)' "$review_ui" \
+    || ! rg -q 'CredentialGuard\.containsLikelyCredential\(editable\)' "$review_ui" \
+    || ! rg -q 'editable\.clear\(\)' "$review_ui" \
+    || ! rg -q 'startsAndCorrelatesCustomReviewMode' \
+      "$PROJECT_ROOT/tests/java/de/agentcodi/tests/CodexSessionControllerTest.java" \
+    || ! rg -q 'rejectsMalformedCustomReviewResponse' \
+      "$PROJECT_ROOT/tests/java/de/agentcodi/tests/CodexSessionControllerTest.java" \
+    || ! rg -q 'correlatesReorderedLifecycleWithoutRevival' \
+      "$PROJECT_ROOT/tests/java/de/agentcodi/tests/CustomReviewModeTest.java" \
+    || ! rg -q 'correlatesBoundedSplitTurnIds' \
+      "$PROJECT_ROOT/tests/java/de/agentcodi/tests/CustomReviewModeTest.java" \
+    || ! rg -q 'stopsSplitIdReviewWhileStartResponseIsPending' \
+      "$PROJECT_ROOT/tests/java/de/agentcodi/tests/CodexSessionControllerTest.java" \
+    || ! rg -q 'TURN_INTERRUPT_TIMEOUT_MS = 120_000L' "$review_controller" \
+    || ! rg -q 'turnControls\.submit' "$review_controller" \
+    || ! rg -q 'successful RPC response only acknowledges the stop' "$review_controller" \
+    || ! rg -q 'interrupt response does not permit a duplicate before completion' \
+      "$PROJECT_ROOT/tests/java/de/agentcodi/tests/CodexSessionControllerTest.java" \
+    || ! rg -q -- '--review-mode-roundtrip' \
+      "$PROJECT_ROOT/tests/cpp/agentcodi_engine_test.cpp" \
+    || ! rg -q 'turn_review_response' \
+      "$PROJECT_ROOT/tests/cpp/agentcodi_engine_test.cpp" \
+    || ! rg -q 'turn_review_live' \
+      "$PROJECT_ROOT/tests/cpp/agentcodi_engine_test.cpp" \
+    || rg -n '"(uncommittedChanges|baseBranch)"|"type"[[:space:]]*,[[:space:]]*"commit"' \
+      "$review_controller" "$review_mode" "$review_request" "$review_ui"; then
+  echo "The modular custom-only review request, correlation, or native UI boundary is incomplete." >&2
   exit 1
 fi
 
@@ -786,13 +846,13 @@ if ! rg -q 'PYTHON_SOURCE_EXTENSION_COUNT="75"' "$apk_builder" \
   exit 1
 fi
 
-if ! rg -q 'VERSION_NAME = "0\.5\.22"' "$core_root/BuildIdentity.java" \
-    || ! rg -q 'VERSION_CODE = 59' "$core_root/BuildIdentity.java" \
+if ! rg -q 'VERSION_NAME = "0\.5\.25"' "$core_root/BuildIdentity.java" \
+    || ! rg -q 'VERSION_CODE = 62' "$core_root/BuildIdentity.java" \
     || ! rg -q 'CODEX_RUNTIME_VERSION = "0\.148\.1"' "$core_root/BuildIdentity.java" \
-    || ! rg -q 'android:versionName="0\.5\.22"' "$manifest" \
-    || ! rg -q 'android:versionCode="59"' "$manifest" \
-    || ! rg -q 'APP_VERSION="0\.5\.22"' "$apk_builder" \
-    || ! rg -q 'VERSION_CODE="59"' "$apk_builder" \
+    || ! rg -q 'android:versionName="0\.5\.25"' "$manifest" \
+    || ! rg -q 'android:versionCode="62"' "$manifest" \
+    || ! rg -q 'APP_VERSION="0\.5\.25"' "$apk_builder" \
+    || ! rg -q 'VERSION_CODE="62"' "$apk_builder" \
     || ! rg -q 'CODEX_ANDROID_VERSION="0\.148\.1"' "$apk_builder" \
     || ! rg -q 'CODEX_TERMUX_SOURCE_TAG="v0\.148\.1"' "$apk_builder" \
     || ! rg -q 'CODEX_TERMUX_SOURCE_COMMIT="9d48c76abec320ae3724164d0177299b1acd31ca"' "$apk_builder" \
@@ -813,7 +873,7 @@ if ! rg -q 'VERSION_NAME = "0\.5\.22"' "$core_root/BuildIdentity.java" \
     || ! rg -q '9d48c76abec320ae3724164d0177299b1acd31ca' "$PROJECT_ROOT/app/src/main/res/raw/third_party_notices.txt" \
     || ! rg -q '3ba0f711642a888aec92a611a3f3b2211157ff89' "$PROJECT_ROOT/NOTICE.md" \
     || ! rg -q '3ba0f711642a888aec92a611a3f3b2211157ff89' "$PROJECT_ROOT/app/src/main/res/raw/third_party_notices.txt"; then
-  echo "The 0.5.22 / Codex 0.148.1 identity is inconsistent." >&2
+  echo "The 0.5.25 / Codex 0.148.1 identity is inconsistent." >&2
   exit 1
 fi
 

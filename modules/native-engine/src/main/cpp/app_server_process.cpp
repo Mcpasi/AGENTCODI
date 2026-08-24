@@ -16,8 +16,10 @@
 #include <utility>
 #include <vector>
 
+#include <dirent.h>
 #include <fcntl.h>
 #include <signal.h>
+#include <sys/prctl.h>
 #include <sys/socket.h>
 #include <sys/stat.h>
 #include <sys/syscall.h>
@@ -42,6 +44,10 @@ constexpr const char* kCompactedImageResult =
 constexpr const char* kGeneratedImagesDirectory = "generated_images";
 constexpr const char* kMaterializationProofDirectory =
     "image-materialization-proofs";
+constexpr std::size_t kMaximumProcProcessEntries = 65536U;
+
+std::mutex process_supervisor_mutex;
+bool process_supervisor_active = false;
 
 bool same_materialized_image_snapshot(
     const struct stat& first,
@@ -1516,6 +1522,22 @@ void close_if_open(int descriptor) {
   }
 }
 
+void signal_process(pid_t pid, int signal_number) {
+  if (pid <= 0) {
+    return;
+  }
+  while (kill(pid, signal_number) == -1 && errno == EINTR) {
+  }
+}
+
+void signal_process_group(pid_t process_group_id, int signal_number) {
+  if (process_group_id <= 0) {
+    return;
+  }
+  while (kill(-process_group_id, signal_number) == -1 && errno == EINTR) {
+  }
+}
+
 struct ChildDescriptorEntry {
   std::uint64_t inode;
   std::int64_t offset;
@@ -1546,6 +1568,193 @@ bool parse_child_descriptor(
   }
   *descriptor = static_cast<int>(value);
   return true;
+}
+
+using ProcessIdentity = std::pair<pid_t, std::uint64_t>;
+
+bool same_process_identity(
+    const ProcessIdentity& first,
+    const ProcessIdentity& second) {
+  return first.first == second.first && first.second == second.second;
+}
+
+bool contains_process_identity(
+    const std::vector<ProcessIdentity>& identities,
+    const ProcessIdentity& candidate) {
+  return std::any_of(
+      identities.begin(),
+      identities.end(),
+      [&candidate](const ProcessIdentity& identity) {
+        return same_process_identity(identity, candidate);
+      });
+}
+
+bool read_process_identity(
+    pid_t pid,
+    ProcessIdentity* identity,
+    pid_t* parent_pid = nullptr) {
+  if (pid <= 0 || identity == nullptr) {
+    errno = EINVAL;
+    return false;
+  }
+  const std::string path =
+      "/proc/" + std::to_string(pid) + "/stat";
+  const int descriptor = open(path.c_str(), O_RDONLY | O_CLOEXEC);
+  if (descriptor == -1) {
+    return false;
+  }
+
+  char buffer[4096];
+  std::size_t received = 0U;
+  while (received < sizeof(buffer) - 1U) {
+    const ssize_t count = read(
+        descriptor,
+        buffer + received,
+        sizeof(buffer) - 1U - received);
+    if (count > 0) {
+      received += static_cast<std::size_t>(count);
+    } else if (count == 0) {
+      break;
+    } else if (errno != EINTR) {
+      const int saved_errno = errno;
+      close_if_open(descriptor);
+      errno = saved_errno;
+      return false;
+    }
+  }
+  if (received == sizeof(buffer) - 1U) {
+    char extra = '\0';
+    ssize_t count = -1;
+    do {
+      count = read(descriptor, &extra, 1U);
+    } while (count == -1 && errno == EINTR);
+    if (count != 0) {
+      const int saved_errno = count == -1 ? errno : EOVERFLOW;
+      close_if_open(descriptor);
+      errno = saved_errno;
+      return false;
+    }
+  }
+  close_if_open(descriptor);
+  buffer[received] = '\0';
+
+  const std::string stat_line(buffer, received);
+  const std::size_t command_end = stat_line.rfind(')');
+  if (command_end == std::string::npos
+      || command_end + 2U >= stat_line.size()) {
+    errno = EIO;
+    return false;
+  }
+  std::istringstream fields(stat_line.substr(command_end + 2U));
+  std::string token;
+  pid_t parsed_parent_pid = -1;
+  std::uint64_t start_time = 0U;
+  for (int field = 3; field <= 22; ++field) {
+    if (!(fields >> token)) {
+      errno = EIO;
+      return false;
+    }
+    if (field == 4) {
+      char* end = nullptr;
+      errno = 0;
+      const long parsed = std::strtol(token.c_str(), &end, 10);
+      if (errno != 0 || end == token.c_str() || *end != '\0'
+          || parsed < 0 || parsed > INT_MAX) {
+        errno = EIO;
+        return false;
+      }
+      parsed_parent_pid = static_cast<pid_t>(parsed);
+    } else if (field == 22) {
+      char* end = nullptr;
+      errno = 0;
+      const unsigned long long parsed = std::strtoull(
+          token.c_str(),
+          &end,
+          10);
+      if (errno != 0 || end == token.c_str() || *end != '\0'
+          || parsed == 0U) {
+        errno = EIO;
+        return false;
+      }
+      start_time = static_cast<std::uint64_t>(parsed);
+    }
+  }
+  *identity = {pid, start_time};
+  if (parent_pid != nullptr) {
+    *parent_pid = parsed_parent_pid;
+  }
+  return true;
+}
+
+bool process_identity_exists(const ProcessIdentity& expected) {
+  ProcessIdentity current {};
+  return read_process_identity(expected.first, &current)
+      && same_process_identity(expected, current);
+}
+
+bool direct_child_identities(std::vector<ProcessIdentity>* children) {
+  if (children == nullptr) {
+    errno = EINVAL;
+    return false;
+  }
+  children->clear();
+  DIR* processes = opendir("/proc");
+  if (processes == nullptr) {
+    return false;
+  }
+
+  bool success = true;
+  std::size_t process_entries = 0U;
+  errno = 0;
+  while (dirent* entry = readdir(processes)) {
+    int process_id = -1;
+    const std::size_t name_length = std::strlen(entry->d_name);
+    if (!parse_child_descriptor(entry->d_name, name_length, &process_id)
+        || process_id <= 0) {
+      continue;
+    }
+    ++process_entries;
+    if (process_entries > kMaximumProcProcessEntries) {
+      errno = EOVERFLOW;
+      success = false;
+      break;
+    }
+    ProcessIdentity identity {};
+    pid_t parent_pid = -1;
+    if (read_process_identity(process_id, &identity, &parent_pid)
+        && parent_pid == getpid()
+        && !contains_process_identity(*children, identity)) {
+      children->push_back(identity);
+    }
+    errno = 0;
+  }
+  const int saved_errno = errno;
+  if (closedir(processes) != 0 && success) {
+    return false;
+  }
+  if (success && saved_errno != 0) {
+    errno = saved_errno;
+    return false;
+  }
+  return success;
+}
+
+std::vector<ProcessIdentity> owned_direct_children(
+    const std::vector<ProcessIdentity>& baseline_children) {
+  std::vector<ProcessIdentity> children;
+  if (!direct_child_identities(&children)) {
+    children.clear();
+    return children;
+  }
+  children.erase(
+      std::remove_if(
+          children.begin(),
+          children.end(),
+          [&baseline_children](const ProcessIdentity& identity) {
+            return contains_process_identity(baseline_children, identity);
+          }),
+      children.end());
+  return children;
 }
 
 bool mark_inherited_descriptors_close_on_exec() {
@@ -1637,6 +1846,47 @@ std::string errno_message(const char* operation, int error_number) {
   std::ostringstream message;
   message << operation << " failed with errno " << error_number;
   return message.str();
+}
+
+bool acquire_process_supervisor(
+    std::vector<ProcessIdentity>* baseline_children,
+    int* previous_subreaper_state,
+    std::string* error) {
+  if (baseline_children == nullptr || previous_subreaper_state == nullptr
+      || error == nullptr) {
+    return false;
+  }
+  std::lock_guard<std::mutex> guard(process_supervisor_mutex);
+  if (process_supervisor_active) {
+    *error = "An app-server process supervisor is already active";
+    return false;
+  }
+
+  int previous = 0;
+  if (prctl(PR_GET_CHILD_SUBREAPER, &previous) != 0) {
+    *error = errno_message("Read child-subreaper state", errno);
+    return false;
+  }
+  if (!direct_child_identities(baseline_children)) {
+    *error = errno_message("Read existing child processes", errno);
+    return false;
+  }
+  if (previous == 0 && prctl(PR_SET_CHILD_SUBREAPER, 1) != 0) {
+    *error = errno_message("Enable child-subreaper containment", errno);
+    baseline_children->clear();
+    return false;
+  }
+  *previous_subreaper_state = previous;
+  process_supervisor_active = true;
+  return true;
+}
+
+void release_process_supervisor(int previous_subreaper_state) {
+  std::lock_guard<std::mutex> guard(process_supervisor_mutex);
+  if (previous_subreaper_state == 0) {
+    prctl(PR_SET_CHILD_SUBREAPER, 0);
+  }
+  process_supervisor_active = false;
 }
 
 bool canonical_regular_executable(
@@ -2356,6 +2606,19 @@ std::shared_ptr<AppServerProcess> AppServerProcess::Start(
   }
   environment.push_back(nullptr);
 
+  std::vector<ProcessIdentity> baseline_children;
+  int previous_subreaper_state = 0;
+  if (!acquire_process_supervisor(
+          &baseline_children,
+          &previous_subreaper_state,
+          error)) {
+    close_if_open(communication[0]);
+    close_if_open(communication[1]);
+    close_if_open(exec_status[0]);
+    close_if_open(exec_status[1]);
+    return nullptr;
+  }
+
   const pid_t pid = fork();
   if (pid == -1) {
     const int saved_errno = errno;
@@ -2363,6 +2626,7 @@ std::shared_ptr<AppServerProcess> AppServerProcess::Start(
     close_if_open(communication[1]);
     close_if_open(exec_status[0]);
     close_if_open(exec_status[1]);
+    release_process_supervisor(previous_subreaper_state);
     *error = errno_message("fork", saved_errno);
     return nullptr;
   }
@@ -2370,6 +2634,13 @@ std::shared_ptr<AppServerProcess> AppServerProcess::Start(
   if (pid == 0) {
     close_if_open(communication[0]);
     close_if_open(exec_status[0]);
+    // The group is the first containment layer for ordinary descendants. The
+    // parent is also a child subreaper, so descendants that intentionally call
+    // setsid() (including Codex PTYs) are adopted, killed, and reaped after the
+    // app-server exits instead of escaping a forced restart.
+    if (setpgid(0, 0) != 0) {
+      report_child_error_and_exit(exec_status[1], errno);
+    }
     if (dup2(communication[1], STDIN_FILENO) == -1
         || dup2(communication[1], STDOUT_FILENO) == -1) {
       report_child_error_and_exit(exec_status[1], errno);
@@ -2418,12 +2689,15 @@ std::shared_ptr<AppServerProcess> AppServerProcess::Start(
     int status = 0;
     while (waitpid(pid, &status, 0) == -1 && errno == EINTR) {
     }
+    release_process_supervisor(previous_subreaper_state);
     *error = errno_message("App-server exec", child_errno);
     return nullptr;
   }
   return std::shared_ptr<AppServerProcess>(new AppServerProcess(
       pid,
       communication[0],
+      std::move(baseline_children),
+      previous_subreaper_state,
       config.working_directory,
       config.temporary_directory,
       config.state_directory));
@@ -2432,12 +2706,18 @@ std::shared_ptr<AppServerProcess> AppServerProcess::Start(
 AppServerProcess::AppServerProcess(
     pid_t pid,
     int socket_fd,
+    std::vector<ProcessIdentity> baseline_children,
+    int previous_subreaper_state,
     std::string workspace_directory,
     std::string temporary_directory,
     std::string state_directory)
     : pid_(pid),
+      process_group_id_(pid),
       socket_fd_(socket_fd),
       exit_code_(kStillRunning),
+      baseline_children_(std::move(baseline_children)),
+      previous_subreaper_state_(previous_subreaper_state),
+      owns_supervisor_(true),
       workspace_directory_(std::move(workspace_directory)),
       temporary_directory_(std::move(temporary_directory)),
       state_directory_(std::move(state_directory)) {}
@@ -2633,27 +2913,148 @@ LineReadStatus AppServerProcess::ReadLine(
   }
 }
 
+void AppServerProcess::SignalOwnedChildren(int signal_number) {
+  std::vector<ProcessIdentity> children =
+      owned_direct_children(baseline_children_);
+  if (pid_ > 0) {
+    ProcessIdentity root {};
+    if (read_process_identity(pid_, &root)
+        && !contains_process_identity(children, root)) {
+      children.push_back(root);
+    }
+  }
+
+  const pid_t supervisor_group = getpgrp();
+  std::vector<pid_t> signaled_groups;
+  bool signaled_root = false;
+  for (const ProcessIdentity& child : children) {
+    if (!process_identity_exists(child)) {
+      continue;
+    }
+    if (signal_number == SIGTERM
+        && contains_process_identity(term_signaled_children_, child)) {
+      if (child.first == pid_) {
+        signaled_root = true;
+      }
+      continue;
+    }
+
+    const pid_t group = getpgid(child.first);
+    if (group > 0 && group != supervisor_group
+        && std::find(signaled_groups.begin(), signaled_groups.end(), group)
+            == signaled_groups.end()) {
+      signal_process_group(group, signal_number);
+      signaled_groups.push_back(group);
+    }
+    signal_process(child.first, signal_number);
+    if (signal_number == SIGTERM
+        && term_signaled_children_.size() < kMaximumProcProcessEntries) {
+      term_signaled_children_.push_back(child);
+    }
+    if (child.first == pid_) {
+      signaled_root = true;
+    }
+  }
+
+  // The direct child remains waitable and its PID cannot be reused until it is
+  // reaped. Preserve a fail-closed fallback if procfs observation races with
+  // child startup or task teardown.
+  if (pid_ > 0 && !signaled_root) {
+    signal_process_group(process_group_id_, signal_number);
+    signal_process(pid_, signal_number);
+  }
+}
+
+void AppServerProcess::ReapOwnedChildren(bool wait_for_exit) {
+  std::vector<ProcessIdentity> children =
+      owned_direct_children(baseline_children_);
+  if (pid_ > 0) {
+    ProcessIdentity root {};
+    if (read_process_identity(pid_, &root)
+        && !contains_process_identity(children, root)) {
+      children.push_back(root);
+    }
+  }
+
+  std::vector<pid_t> signaled_groups;
+  for (const ProcessIdentity& child : children) {
+    if (!process_identity_exists(child)) {
+      continue;
+    }
+    if (wait_for_exit) {
+      const pid_t group = getpgid(child.first);
+      if (group > 0 && group != getpgrp()
+          && std::find(signaled_groups.begin(), signaled_groups.end(), group)
+              == signaled_groups.end()) {
+        signal_process_group(group, SIGKILL);
+        signaled_groups.push_back(group);
+      }
+      signal_process(child.first, SIGKILL);
+    }
+
+    int status = 0;
+    pid_t result = -1;
+    do {
+      result = waitpid(child.first, &status, wait_for_exit ? 0 : WNOHANG);
+    } while (result == -1 && errno == EINTR);
+    if (result == child.first && child.first == pid_) {
+      exit_code_ = decode_wait_status(status);
+      pid_ = -1;
+    } else if (result == -1 && errno == ECHILD && child.first == pid_
+        && !process_identity_exists(child)) {
+      exit_code_ = -1;
+      pid_ = -1;
+    }
+  }
+}
+
+bool AppServerProcess::OwnedChildrenRemain() {
+  if (pid_ > 0) {
+    return true;
+  }
+  const std::vector<ProcessIdentity> children =
+      owned_direct_children(baseline_children_);
+  return std::any_of(
+      children.begin(),
+      children.end(),
+      [](const ProcessIdentity& child) {
+        return process_identity_exists(child);
+      });
+}
+
+void AppServerProcess::ReleaseSupervisor() {
+  if (!owns_supervisor_) {
+    return;
+  }
+  owns_supervisor_ = false;
+  process_group_id_ = -1;
+  term_signaled_children_.clear();
+  baseline_children_.clear();
+  release_process_supervisor(previous_subreaper_state_);
+}
+
 int AppServerProcess::PollExitCode() {
   std::lock_guard<std::mutex> state_guard(state_mutex_);
-  if (exit_code_ != kStillRunning) {
+  if (exit_code_ != kStillRunning && !owns_supervisor_) {
     return exit_code_;
   }
-  if (pid_ <= 0) {
+  if (!owns_supervisor_) {
     return -1;
   }
-  int status = 0;
-  const pid_t result = waitpid(pid_, &status, WNOHANG);
-  if (result == pid_) {
-    exit_code_ = decode_wait_status(status);
-    pid_ = -1;
-    return exit_code_;
+
+  ReapOwnedChildren(false);
+  if (pid_ > 0) {
+    return kStillRunning;
   }
-  if (result == -1 && errno == ECHILD) {
+  if (exit_code_ == kStillRunning) {
     exit_code_ = -1;
-    pid_ = -1;
-    return exit_code_;
   }
-  return kStillRunning;
+  while (OwnedChildrenRemain()) {
+    SignalOwnedChildren(SIGKILL);
+    ReapOwnedChildren(true);
+  }
+  ReleaseSupervisor();
+  return exit_code_;
 }
 
 int AppServerProcess::Stop(int timeout_milliseconds) {
@@ -2666,28 +3067,25 @@ int AppServerProcess::Stop(int timeout_milliseconds) {
     shutdown(descriptor, SHUT_RDWR);
     close_if_open(descriptor);
   }
-  if (exit_code_ != kStillRunning) {
-    return exit_code_;
-  }
-  if (pid_ <= 0) {
-    exit_code_ = -1;
-    return exit_code_;
+  if (!owns_supervisor_) {
+    return exit_code_ == kStillRunning ? -1 : exit_code_;
   }
 
-  kill(pid_, SIGTERM);
+  // Preserve graceful termination for every currently owned group. Once the
+  // app-server or an intermediate child exits, the subreaper adopts any
+  // setsid()/setpgid() escapees and this loop gives each newly visible child
+  // the same one-time SIGTERM opportunity until the caller's deadline.
+  SignalOwnedChildren(SIGTERM);
   const auto deadline = std::chrono::steady_clock::now()
       + std::chrono::milliseconds(timeout_milliseconds);
-  int status = 0;
   while (true) {
-    const pid_t result = waitpid(pid_, &status, WNOHANG);
-    if (result == pid_) {
-      exit_code_ = decode_wait_status(status);
-      pid_ = -1;
-      return exit_code_;
-    }
-    if (result == -1 && errno == ECHILD) {
-      exit_code_ = -1;
-      pid_ = -1;
+    ReapOwnedChildren(false);
+    SignalOwnedChildren(SIGTERM);
+    if (!OwnedChildrenRemain()) {
+      if (exit_code_ == kStillRunning) {
+        exit_code_ = -1;
+      }
+      ReleaseSupervisor();
       return exit_code_;
     }
     if (std::chrono::steady_clock::now() >= deadline) {
@@ -2696,11 +3094,17 @@ int AppServerProcess::Stop(int timeout_milliseconds) {
     std::this_thread::sleep_for(std::chrono::milliseconds(10));
   }
 
-  kill(pid_, SIGKILL);
-  while (waitpid(pid_, &status, 0) == -1 && errno == EINTR) {
+  // SIGKILL cannot be ignored. Reaping one adopted generation exposes the
+  // next, so iterate until no process from the supervised tree remains. This
+  // retains Stop(0)'s synchronous forced-stop contract and prevents zombies.
+  while (OwnedChildrenRemain()) {
+    SignalOwnedChildren(SIGKILL);
+    ReapOwnedChildren(true);
   }
-  exit_code_ = decode_wait_status(status);
-  pid_ = -1;
+  if (exit_code_ == kStillRunning) {
+    exit_code_ = -1;
+  }
+  ReleaseSupervisor();
   return exit_code_;
 }
 

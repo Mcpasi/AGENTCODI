@@ -60,7 +60,7 @@ AGENTCODI does more than display a Codex conversation.
 | ripgrep | Packaged no-PCRE2 runtime exposed as `rg` |
 | MCP management | Native Android interface backed by Codex configuration RPCs |
 
-The current AGENTCODI 0.5.21 runtime uses **Codex app-server 0.148.1** together with the matching code-mode host from the same pinned artifact.
+The current AGENTCODI 0.5.22 runtime uses **Codex app-server 0.148.1** together with the matching code-mode host from the same pinned artifact.
 
 ---
 
@@ -114,7 +114,7 @@ Selections are validated against the options reported by the app-server.
 
 ### Execution modes
 
-AGENTCODI 0.5.21 offers two explicitly separated execution modes:
+AGENTCODI 0.5.22 offers two explicitly separated execution modes:
 
 | Mode | App-server profile | Filesystem behavior |
 |---|---|---|
@@ -394,7 +394,7 @@ Several sensitive byte and character buffers are explicitly cleared after use.
 
 Current release line:
 
-### AGENTCODI 0.5.21
+### AGENTCODI 0.5.22
 
 | Requirement | Value |
 |---|---|
@@ -445,10 +445,11 @@ Physical Android hardware is used separately to validate installation, UI behavi
 
 AGENTCODI is under active development.
 
-Version 0.5.21 currently focuses heavily on:
+Version 0.5.22 currently focuses heavily on:
 
 - Native Codex runtime integration
-- A fail-closed app-server `execve()` boundary that prevents unrelated parent file descriptors from entering the Codex child
+- A fail-closed app-server `fork()`/`execve()` boundary that prevents unrelated parent file descriptors from entering the Codex child and combines an isolated child process group with parent-side subreaper ownership
+- Graceful TERM and synchronous forced KILL/reap cleanup for the complete app-server tree, including terminal or tool descendants that create their own process group or session
 - Separate protected and experimental compatibility-mode modules, mandatory danger warning and native profile propagation without prompt injection
 - Bounded active/archive thread views with app-server-backed archive, restore and confirmed permanent deletion
 - Correlated in-flight turn steering without losing the separate stop action

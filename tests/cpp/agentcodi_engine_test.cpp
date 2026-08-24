@@ -16,6 +16,7 @@
 #include <zlib.h>
 
 #include <fcntl.h>
+#include <sys/prctl.h>
 #include <sys/stat.h>
 #include <sys/wait.h>
 #include <unistd.h>
@@ -326,6 +327,66 @@ std::vector<unsigned char> png_with_private_chunk(
 }  // namespace
 
 int main(int argc, char* argv[]) {
+  if (argc == 2 && std::string(argv[1]) == "--process-tree-probe") {
+    int readiness[2] {-1, -1};
+    if (pipe(readiness) != 0) {
+      return 73;
+    }
+    const pid_t grandchild = fork();
+    if (grandchild < 0) {
+      close(readiness[0]);
+      close(readiness[1]);
+      return 74;
+    }
+    if (grandchild == 0) {
+      close(readiness[0]);
+      if (setsid() == -1) {
+        _exit(75);
+      }
+      struct sigaction ignored {};
+      ignored.sa_handler = SIG_IGN;
+      sigemptyset(&ignored.sa_mask);
+      if (sigaction(SIGTERM, &ignored, nullptr) != 0) {
+        _exit(76);
+      }
+      const char ready = 'R';
+      ssize_t written = -1;
+      do {
+        written = write(readiness[1], &ready, 1U);
+      } while (written == -1 && errno == EINTR);
+      close(readiness[1]);
+      if (written != 1) {
+        _exit(77);
+      }
+      while (true) {
+        pause();
+      }
+    }
+    close(readiness[1]);
+    char ready = '\0';
+    ssize_t received = -1;
+    do {
+      received = read(readiness[0], &ready, 1U);
+    } while (received == -1 && errno == EINTR);
+    close(readiness[0]);
+    if (received != 1 || ready != 'R') {
+      kill(grandchild, SIGKILL);
+      while (waitpid(grandchild, nullptr, 0) == -1 && errno == EINTR) {
+      }
+      return 78;
+    }
+    std::cout << grandchild << std::endl;
+    int status = 0;
+    pid_t result = -1;
+    do {
+      result = waitpid(grandchild, &status, 0);
+    } while (result == -1 && errno == EINTR);
+    if (result != grandchild) {
+      return 79;
+    }
+    return WIFEXITED(status) ? WEXITSTATUS(status)
+        : (WIFSIGNALED(status) ? 128 + WTERMSIG(status) : 80);
+  }
   if (argc == 3 && std::string(argv[1]) == "--inherited-fd-probe") {
     char* end = nullptr;
     errno = 0;
@@ -630,7 +691,7 @@ int main(int argc, char* argv[]) {
   }
 
   const std::string version = agentcodi::engine_version();
-  expect(version == "agentcodi-native/0.5.21", "engine version");
+  expect(version == "agentcodi-native/0.5.22", "engine version");
   expect(agentcodi::run_self_test() == 0, "native self-test");
   const std::string abc = "abc";
   expect(
@@ -1738,6 +1799,81 @@ int main(int argc, char* argv[]) {
       if (descriptor_canary_created) {
         expect(unlink(descriptor_canary_path.c_str()) == 0,
                "remove inherited descriptor canary");
+      }
+
+      int previous_subreaper = 0;
+      const bool queried_subreaper =
+          prctl(PR_GET_CHILD_SUBREAPER, &previous_subreaper) == 0;
+      expect(queried_subreaper, "read process-tree test subreaper state");
+      if (queried_subreaper) {
+        config.arguments = {"--process-tree-probe"};
+        error.clear();
+        process = agentcodi::AppServerProcess::Start(config, &error);
+        expect(process != nullptr, "spawn process-tree stop fixture");
+        pid_t grandchild = -1;
+        if (process != nullptr) {
+          int active_subreaper = 0;
+          expect(
+              prctl(PR_GET_CHILD_SUBREAPER, &active_subreaper) == 0
+                  && active_subreaper == 1,
+              "enable subreaper containment while app-server is active");
+          std::string concurrent_error;
+          const std::shared_ptr<agentcodi::AppServerProcess> concurrent =
+              agentcodi::AppServerProcess::Start(config, &concurrent_error);
+          expect(
+              concurrent == nullptr
+                  && concurrent_error.find("already active")
+                      != std::string::npos,
+              "enforce the single app-server supervisor boundary");
+          std::string grandchild_line;
+          const bool read_grandchild =
+              process->ReadLine(1024U, &grandchild_line, &error)
+                  == agentcodi::LineReadStatus::kLine;
+          expect(read_grandchild, "read process-tree grandchild PID");
+          char* end = nullptr;
+          errno = 0;
+          const long parsed = read_grandchild
+              ? std::strtol(grandchild_line.c_str(), &end, 10)
+              : -1;
+          const bool valid_grandchild = errno == 0
+              && end != grandchild_line.c_str() && *end == '\0'
+              && parsed > 0 && parsed <= INT_MAX;
+          expect(valid_grandchild, "validate process-tree grandchild PID");
+          if (valid_grandchild) {
+            grandchild = static_cast<pid_t>(parsed);
+            const pid_t grandchild_group = getpgid(grandchild);
+            expect(
+                grandchild_group == grandchild
+                    && grandchild_group != getpgrp(),
+                "fixture grandchild escapes into its own session and group");
+          }
+
+          expect(process->Stop(0) != INT_MIN,
+                 "force-stop complete app-server process tree");
+          int restored_subreaper = -1;
+          expect(
+              prctl(PR_GET_CHILD_SUBREAPER, &restored_subreaper) == 0
+                  && restored_subreaper == previous_subreaper,
+              "restore subreaper state after app-server cleanup");
+        }
+
+        if (grandchild > 0) {
+          bool grandchild_gone = false;
+          for (int attempt = 0; attempt < 100; ++attempt) {
+            errno = 0;
+            if (kill(grandchild, 0) == -1 && errno == ESRCH) {
+              grandchild_gone = true;
+              break;
+            }
+            usleep(10000U);
+          }
+          expect(
+              grandchild_gone,
+              "forced Stop kills and reaps a detached SIGTERM-ignoring grandchild");
+          if (!grandchild_gone) {
+            kill(grandchild, SIGKILL);
+          }
+        }
       }
 
       config.arguments = {"--emit-oversized-image"};

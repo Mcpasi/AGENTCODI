@@ -3,9 +3,11 @@
 
 #include <atomic>
 #include <cstddef>
+#include <cstdint>
 #include <memory>
 #include <mutex>
 #include <string>
+#include <utility>
 #include <vector>
 
 #include <sys/types.h>
@@ -90,19 +92,30 @@ class AppServerProcess final {
  private:
   AppServerProcess(
       pid_t pid,
-    int socket_fd,
-    std::string workspace_directory,
-    std::string temporary_directory,
-    std::string state_directory);
+      int socket_fd,
+      std::vector<std::pair<pid_t, std::uint64_t>> baseline_children,
+      int previous_subreaper_state,
+      std::string workspace_directory,
+      std::string temporary_directory,
+      std::string state_directory);
 
   int DuplicateSocket(std::string* error);
+  void ReapOwnedChildren(bool wait_for_exit);
+  void SignalOwnedChildren(int signal_number);
+  bool OwnedChildrenRemain();
+  void ReleaseSupervisor();
 
   std::mutex state_mutex_;
   std::mutex read_mutex_;
   std::mutex write_mutex_;
   pid_t pid_;
+  pid_t process_group_id_;
   std::atomic<int> socket_fd_;
   int exit_code_;
+  std::vector<std::pair<pid_t, std::uint64_t>> baseline_children_;
+  std::vector<std::pair<pid_t, std::uint64_t>> term_signaled_children_;
+  int previous_subreaper_state_;
+  bool owns_supervisor_;
   const std::string workspace_directory_;
   const std::string temporary_directory_;
   const std::string state_directory_;

@@ -558,6 +558,23 @@ if ! rg -q 'mark_inherited_descriptors_close_on_exec' "$PROJECT_ROOT/modules/nat
   exit 1
 fi
 
+if ! rg -q 'setpgid\(0, 0\)' "$PROJECT_ROOT/modules/native-engine/src/main/cpp/app_server_process.cpp" \
+    || ! rg -q 'signal_process_group' "$PROJECT_ROOT/modules/native-engine/src/main/cpp/app_server_process.cpp" \
+    || ! rg -q 'PR_SET_CHILD_SUBREAPER' "$PROJECT_ROOT/modules/native-engine/src/main/cpp/app_server_process.cpp" \
+    || ! rg -q 'PR_GET_CHILD_SUBREAPER' "$PROJECT_ROOT/modules/native-engine/src/main/cpp/app_server_process.cpp" \
+    || ! rg -q 'kMaximumProcProcessEntries' "$PROJECT_ROOT/modules/native-engine/src/main/cpp/app_server_process.cpp" \
+    || ! rg -q 'read_process_identity' "$PROJECT_ROOT/modules/native-engine/src/main/cpp/app_server_process.cpp" \
+    || ! rg -q 'owned_direct_children' "$PROJECT_ROOT/modules/native-engine/src/main/cpp/app_server_process.cpp" \
+    || ! rg -q -- '--process-tree-probe' "$PROJECT_ROOT/tests/cpp/agentcodi_engine_test.cpp" \
+    || ! rg -q 'setsid\(\)' "$PROJECT_ROOT/tests/cpp/agentcodi_engine_test.cpp" \
+    || ! rg -q 'single app-server supervisor boundary' "$PROJECT_ROOT/tests/cpp/agentcodi_engine_test.cpp" \
+    || ! rg -q 'restore subreaper state' "$PROJECT_ROOT/tests/cpp/agentcodi_engine_test.cpp" \
+    || ! rg -q 'kill\(grandchild, 0\)' "$PROJECT_ROOT/tests/cpp/agentcodi_engine_test.cpp" \
+    || ! rg -q 'detached SIGTERM-ignoring grandchild' "$PROJECT_ROOT/tests/cpp/agentcodi_engine_test.cpp"; then
+  echo "The app-server supervisor must terminate and reap its complete process tree, including detached sessions." >&2
+  exit 1
+fi
+
 core_root="$PROJECT_ROOT/modules/core/src/main/java/de/agentcodi/core"
 native_process="$PROJECT_ROOT/modules/native-engine/src/main/cpp/app_server_process.cpp"
 storage_layout="$PROJECT_ROOT/modules/storage/src/main/java/de/agentcodi/storage/WorkspaceLayout.java"
@@ -769,13 +786,13 @@ if ! rg -q 'PYTHON_SOURCE_EXTENSION_COUNT="75"' "$apk_builder" \
   exit 1
 fi
 
-if ! rg -q 'VERSION_NAME = "0\.5\.21"' "$core_root/BuildIdentity.java" \
-    || ! rg -q 'VERSION_CODE = 58' "$core_root/BuildIdentity.java" \
+if ! rg -q 'VERSION_NAME = "0\.5\.22"' "$core_root/BuildIdentity.java" \
+    || ! rg -q 'VERSION_CODE = 59' "$core_root/BuildIdentity.java" \
     || ! rg -q 'CODEX_RUNTIME_VERSION = "0\.148\.1"' "$core_root/BuildIdentity.java" \
-    || ! rg -q 'android:versionName="0\.5\.21"' "$manifest" \
-    || ! rg -q 'android:versionCode="58"' "$manifest" \
-    || ! rg -q 'APP_VERSION="0\.5\.21"' "$apk_builder" \
-    || ! rg -q 'VERSION_CODE="58"' "$apk_builder" \
+    || ! rg -q 'android:versionName="0\.5\.22"' "$manifest" \
+    || ! rg -q 'android:versionCode="59"' "$manifest" \
+    || ! rg -q 'APP_VERSION="0\.5\.22"' "$apk_builder" \
+    || ! rg -q 'VERSION_CODE="59"' "$apk_builder" \
     || ! rg -q 'CODEX_ANDROID_VERSION="0\.148\.1"' "$apk_builder" \
     || ! rg -q 'CODEX_TERMUX_SOURCE_TAG="v0\.148\.1"' "$apk_builder" \
     || ! rg -q 'CODEX_TERMUX_SOURCE_COMMIT="9d48c76abec320ae3724164d0177299b1acd31ca"' "$apk_builder" \
@@ -796,7 +813,7 @@ if ! rg -q 'VERSION_NAME = "0\.5\.21"' "$core_root/BuildIdentity.java" \
     || ! rg -q '9d48c76abec320ae3724164d0177299b1acd31ca' "$PROJECT_ROOT/app/src/main/res/raw/third_party_notices.txt" \
     || ! rg -q '3ba0f711642a888aec92a611a3f3b2211157ff89' "$PROJECT_ROOT/NOTICE.md" \
     || ! rg -q '3ba0f711642a888aec92a611a3f3b2211157ff89' "$PROJECT_ROOT/app/src/main/res/raw/third_party_notices.txt"; then
-  echo "The 0.5.21 / Codex 0.148.1 identity is inconsistent." >&2
+  echo "The 0.5.22 / Codex 0.148.1 identity is inconsistent." >&2
   exit 1
 fi
 

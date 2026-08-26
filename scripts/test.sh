@@ -32,6 +32,8 @@ find \
   "$PROJECT_ROOT/modules/protected-mode/src/main/java" \
   "$PROJECT_ROOT/modules/compatibility-mode/src/main/java" \
   "$PROJECT_ROOT/modules/storage/src/main/java" \
+  "$PROJECT_ROOT/modules/file-browser-contracts/src/main/java" \
+  "$PROJECT_ROOT/modules/file-browser-client/src/main/java" \
   "$PROJECT_ROOT/modules/import-contracts/src/main/java" \
   "$PROJECT_ROOT/modules/import-client/src/main/java" \
   "$PROJECT_ROOT/modules/mcp-contracts/src/main/java" \
@@ -173,6 +175,13 @@ env LD_LIBRARY_PATH="$TERMUX_PREFIX/lib" "$TEST_BUILD/cpp/agentcodi-engine-test"
   "$PROJECT_ROOT/tests/cpp/workspace_file_reader_test.cpp" \
   -o "$TEST_BUILD/cpp/workspace-file-reader-test"
 "$TEST_BUILD/cpp/workspace-file-reader-test"
+
+"$CLANGXX" -std=c++17 -O2 -Wall -Wextra -Werror -pthread \
+  -I"$PROJECT_ROOT/modules/native-engine/src/main/cpp" \
+  "$PROJECT_ROOT/modules/native-engine/src/main/cpp/workspace_directory_reader.cpp" \
+  "$PROJECT_ROOT/tests/cpp/workspace_directory_reader_test.cpp" \
+  -o "$TEST_BUILD/cpp/workspace-directory-reader-test"
+"$TEST_BUILD/cpp/workspace-directory-reader-test"
 
 "$CLANGXX" -std=c++17 -O2 -Wall -Wextra -Werror -pthread \
   -I"$PROJECT_ROOT/modules/native-engine/src/main/cpp" \

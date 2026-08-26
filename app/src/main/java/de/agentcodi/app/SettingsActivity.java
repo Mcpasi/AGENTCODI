@@ -370,6 +370,19 @@ public final class SettingsActivity extends Activity {
         );
         workspaceExportStatusView.setLineSpacing(0.0f, 1.16f);
         theme.addWithTopMargin(workspaceCard, workspaceExportStatusView, 12);
+        Button workspaceBrowserButton = theme.secondaryButton(
+            getString(R.string.workspace_browser_open)
+        );
+        workspaceBrowserButton.setOnClickListener(new View.OnClickListener() {
+            @Override
+            public void onClick(View view) {
+                startActivity(new Intent(
+                    SettingsActivity.this,
+                    WorkspaceBrowserActivity.class
+                ));
+            }
+        });
+        theme.addWithTopMargin(workspaceCard, workspaceBrowserButton, 14);
         workspaceFileButton = theme.secondaryButton(
             getString(R.string.workspace_file_choose)
         );
@@ -379,7 +392,7 @@ public final class SettingsActivity extends Activity {
                 loadWorkspaceFileCatalog();
             }
         });
-        theme.addWithTopMargin(workspaceCard, workspaceFileButton, 14);
+        theme.addWithTopMargin(workspaceCard, workspaceFileButton, 8);
         workspaceArchiveButton = theme.secondaryButton(
             getString(R.string.workspace_archive_export)
         );

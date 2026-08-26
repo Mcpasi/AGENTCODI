@@ -112,6 +112,15 @@ final class NativeWorkspaceFileAccess {
         }
 
         @Override
+        public synchronized void position(long absoluteOffset) throws IOException {
+            requireOpen();
+            if (absoluteOffset < 0L || absoluteOffset > byteCount) {
+                throw new IOException("Workspace file preview position is invalid");
+            }
+            NativeEngine.positionWorkspaceFile(handle, absoluteOffset);
+        }
+
+        @Override
         public synchronized void verifyUnchanged() throws IOException {
             requireOpen();
             NativeEngine.verifyWorkspaceFile(handle);

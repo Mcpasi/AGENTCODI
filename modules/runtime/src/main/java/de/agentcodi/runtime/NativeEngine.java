@@ -93,12 +93,33 @@ public final class NativeEngine {
         return nativeReadWorkspaceFile(handle, destination, offset, length);
     }
 
+    static void positionWorkspaceFile(long handle, long absoluteOffset)
+        throws IOException {
+        nativePositionWorkspaceFile(handle, absoluteOffset);
+    }
+
     static void verifyWorkspaceFile(long handle) throws IOException {
         nativeVerifyWorkspaceFile(handle);
     }
 
     static void closeWorkspaceFile(long handle) {
         nativeCloseWorkspaceFile(handle);
+    }
+
+    static byte[][] listWorkspaceDirectory(
+        String workspace,
+        String relativeDirectory,
+        int maximumEntries,
+        int maximumRelativePathBytes,
+        int maximumDepth
+    ) throws IOException {
+        return nativeListWorkspaceDirectory(
+            workspace,
+            relativeDirectory,
+            maximumEntries,
+            maximumRelativePathBytes,
+            maximumDepth
+        );
     }
 
     static void installWorkspaceImportNoReplace(
@@ -169,10 +190,23 @@ public final class NativeEngine {
         int length
     ) throws IOException;
 
+    private static native void nativePositionWorkspaceFile(
+        long handle,
+        long absoluteOffset
+    ) throws IOException;
+
     private static native void nativeVerifyWorkspaceFile(long handle)
         throws IOException;
 
     private static native void nativeCloseWorkspaceFile(long handle);
+
+    private static native byte[][] nativeListWorkspaceDirectory(
+        String workspace,
+        String relativeDirectory,
+        int maximumEntries,
+        int maximumRelativePathBytes,
+        int maximumDepth
+    ) throws IOException;
 
     private static native void nativeInstallWorkspaceImportNoReplace(
         String workspace,

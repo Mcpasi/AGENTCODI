@@ -113,6 +113,14 @@ void reads_nested_regular_file() {
           &error);
   expect(reader != nullptr, error);
   expect(reader->metadata().size == 15, "reader reported the wrong size");
+  expect(reader->Position(10, &error), error);
+  unsigned char suffix[5];
+  expect(reader->Read(suffix, sizeof(suffix), &error) == 5, error);
+  expect(
+      std::string(reinterpret_cast<const char*>(suffix), sizeof(suffix)) == "bytes",
+      "positioned reader returned the wrong suffix");
+  expect(!reader->Position(16, &error), "reader accepted a position beyond EOF");
+  expect(reader->Position(0, &error), error);
   expect(read_all(reader.get()) == "workspace-bytes", "reader changed file bytes");
   expect(reader->VerifyUnchanged(&error), error);
 }

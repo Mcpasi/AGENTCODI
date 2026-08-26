@@ -310,6 +310,23 @@ public final class MainActivity extends Activity {
         titleParams.rightMargin = theme.dp(10);
         topBar.addView(screenTitle, titleParams);
 
+        root.addView(topBar);
+
+        LinearLayout navigationBar = new LinearLayout(this);
+        navigationBar.setOrientation(LinearLayout.HORIZONTAL);
+        Button filesButton = theme.compactButton(getString(R.string.navigation_files));
+        filesButton.setOnClickListener(new View.OnClickListener() {
+            @Override
+            public void onClick(View view) {
+                openFiles();
+            }
+        });
+        navigationBar.addView(filesButton, new LinearLayout.LayoutParams(
+            0,
+            ViewGroup.LayoutParams.WRAP_CONTENT,
+            1.0f
+        ));
+
         Button terminalButton = theme.compactButton(getString(R.string.navigation_terminal));
         terminalButton.setOnClickListener(new View.OnClickListener() {
             @Override
@@ -318,11 +335,12 @@ public final class MainActivity extends Activity {
             }
         });
         LinearLayout.LayoutParams terminalParams = new LinearLayout.LayoutParams(
+            0,
             ViewGroup.LayoutParams.WRAP_CONTENT,
-            ViewGroup.LayoutParams.WRAP_CONTENT
+            1.0f
         );
-        terminalParams.rightMargin = theme.dp(6);
-        topBar.addView(terminalButton, terminalParams);
+        terminalParams.leftMargin = theme.dp(6);
+        navigationBar.addView(terminalButton, terminalParams);
 
         Button settingsButton = theme.compactButton(getString(R.string.navigation_settings));
         settingsButton.setOnClickListener(new View.OnClickListener() {
@@ -331,11 +349,14 @@ public final class MainActivity extends Activity {
                 openSettings();
             }
         });
-        topBar.addView(settingsButton, new LinearLayout.LayoutParams(
+        LinearLayout.LayoutParams settingsParameters = new LinearLayout.LayoutParams(
+            0,
             ViewGroup.LayoutParams.WRAP_CONTENT,
-            ViewGroup.LayoutParams.WRAP_CONTENT
-        ));
-        root.addView(topBar);
+            1.0f
+        );
+        settingsParameters.leftMargin = theme.dp(6);
+        navigationBar.addView(settingsButton, settingsParameters);
+        theme.addWithTopMargin(root, navigationBar, 8);
 
         statusBanner = new LinearLayout(this);
         statusBanner.setOrientation(LinearLayout.HORIZONTAL);
@@ -1939,6 +1960,10 @@ public final class MainActivity extends Activity {
 
     private void openTerminal() {
         startActivity(new Intent(this, TerminalActivity.class));
+    }
+
+    private void openFiles() {
+        startActivity(new Intent(this, WorkspaceBrowserActivity.class));
     }
 
     private void showEmergencyStatus(Throwable error) {

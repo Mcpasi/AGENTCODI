@@ -51,6 +51,7 @@ AGENTCODI does more than display a Codex conversation.
 | Runtime service | Local Android foreground service |
 | Workspace | Private application storage |
 | Review mode | Native custom workspace review on the current Codex thread |
+| Graphical file browser | Native paged workspace navigation with text, image and binary previews |
 | File import | Android document picker into a bounded private workspace copy |
 | Codex home | Private and separated from the workspace |
 | Account quotas | Read-only primary and secondary ChatGPT quota windows from Codex |
@@ -61,7 +62,7 @@ AGENTCODI does more than display a Codex conversation.
 | ripgrep | Packaged no-PCRE2 runtime exposed as `rg` |
 | MCP management | Native Android interface backed by Codex configuration RPCs |
 
-The current AGENTCODI 0.5.25 runtime uses **Codex app-server 0.148.1** together with the matching code-mode host from the same pinned artifact.
+The current AGENTCODI 0.5.29 runtime uses **Codex app-server 0.148.1** together with the matching code-mode host from the same pinned artifact.
 
 ---
 
@@ -123,7 +124,7 @@ Selections are validated against the options reported by the app-server.
 
 ### Execution modes
 
-AGENTCODI 0.5.25 offers two explicitly separated execution modes:
+AGENTCODI 0.5.29 offers two explicitly separated execution modes:
 
 | Mode | App-server profile | Filesystem behavior |
 |---|---|---|
@@ -183,6 +184,14 @@ The storage layer keeps separate areas for:
 Workspace and Codex home are deliberately separated.
 
 The application also validates canonical paths and rejects unsafe symbolic-link and hard-link boundaries.
+
+### Graphical file browser
+
+The native **Files** surface navigates the private workspace without exposing it through an Android provider. Breadcrumbs move directly through the current path, directory pages keep folders before files, and previous/next controls cover both long directory listings and long file contents. Refresh never changes the selected execution mode or Codex session.
+
+Regular UTF-8 text is shown as selectable, bounded content pages. Other regular files receive a bounded hexadecimal preview, while validated PNG, JPEG, GIF and WebP files receive a native image preview. Preview decoding is sampled and remains off the main thread. A malformed image is rejected as an image instead of being decoded from unchecked bytes.
+
+Directory enumeration and file reading remain descriptor-relative to the canonical workspace and never follow symbolic links. A symbolic link, hard link, special entry or unreadable child is represented as an unavailable row with its reason; it does not abort navigation to safe sibling folders and files. These entry-local safety decisions are independent of the active Codex execution mode. Export stays an explicit per-file action through Android's document picker and reuses the existing authoritative workspace export validation.
 
 ### Import
 
@@ -403,7 +412,7 @@ Several sensitive byte and character buffers are explicitly cleared after use.
 
 Current release line:
 
-### AGENTCODI 0.5.25
+### AGENTCODI 0.5.29
 
 | Requirement | Value |
 |---|---|
@@ -454,7 +463,7 @@ Physical Android hardware is used separately to validate installation, UI behavi
 
 AGENTCODI is under active development.
 
-Version 0.5.25 currently focuses heavily on:
+Version 0.5.29 currently focuses heavily on:
 
 - Native Codex runtime integration
 - A fail-closed app-server `fork()`/`execve()` boundary that prevents unrelated parent file descriptors from entering the Codex child and combines an isolated child process group with parent-side subreaper ownership
@@ -468,6 +477,7 @@ Version 0.5.25 currently focuses heavily on:
 - Packaged development toolchains with activation-bound and in-binary-attested native ELF guards plus a pinned no-PCRE2 ripgrep bridge
 - Android runtime stability
 - Workspace boundaries
+- A native graphical workspace browser with breadcrumbs, directory and content paging, bounded text/image/binary previews, isolated unavailable-entry reporting and explicit revalidated export
 - Direct, bounded external-document import with a proven transient read grant, crash-recovery cleanup, commit-stable resource closing, atomic no-replace installation, retained verification handles across queue hand-offs, and final batch revalidation coupled to the app-server JSONL write
 - Race-free individual-file, image and ZIP source opening
 - Workspace catalogs and ZIP exports with separate finite scan and regular-file limits, omitting symbolic links without following them or blocking regular-file export

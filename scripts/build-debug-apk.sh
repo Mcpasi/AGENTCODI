@@ -6,8 +6,8 @@ PROJECT_ROOT="$(cd -- "$SCRIPT_DIR/.." && pwd -P)"
 
 APP_NAME="AGENTCODI"
 APP_ID="de.agentcodi.app"
-APP_VERSION="0.5.25"
-VERSION_CODE="62"
+APP_VERSION="0.5.29"
+VERSION_CODE="66"
 MIN_SDK="29"
 TARGET_SDK="35"
 ABI="arm64-v8a"
@@ -694,6 +694,8 @@ REVIEW_MODE_CLASSES="$CLASSES_ROOT/review-mode"
 PROTECTED_MODE_CLASSES="$CLASSES_ROOT/protected-mode"
 COMPATIBILITY_MODE_CLASSES="$CLASSES_ROOT/compatibility-mode"
 STORAGE_CLASSES="$CLASSES_ROOT/storage"
+FILE_BROWSER_CONTRACTS_CLASSES="$CLASSES_ROOT/file-browser-contracts"
+FILE_BROWSER_CLIENT_CLASSES="$CLASSES_ROOT/file-browser-client"
 IMPORT_CONTRACTS_CLASSES="$CLASSES_ROOT/import-contracts"
 IMPORT_CLIENT_CLASSES="$CLASSES_ROOT/import-client"
 MCP_CONTRACTS_CLASSES="$CLASSES_ROOT/mcp-contracts"
@@ -706,6 +708,8 @@ mkdir -p \
   "$PROTECTED_MODE_CLASSES" \
   "$COMPATIBILITY_MODE_CLASSES" \
   "$STORAGE_CLASSES" \
+  "$FILE_BROWSER_CONTRACTS_CLASSES" \
+  "$FILE_BROWSER_CLIENT_CLASSES" \
   "$IMPORT_CONTRACTS_CLASSES" \
   "$IMPORT_CLIENT_CLASSES" \
   "$MCP_CONTRACTS_CLASSES" \
@@ -738,6 +742,16 @@ find "$PROJECT_ROOT/modules/storage/src/main/java" -type f -name '*.java' -print
 STORAGE_JAR="$JARS_ROOT/storage.jar"
 "$JAR" cf "$STORAGE_JAR" -C "$STORAGE_CLASSES" .
 
+find "$PROJECT_ROOT/modules/file-browser-contracts/src/main/java" -type f -name '*.java' -print | sort > "$WORK_DIR/file-browser-contracts-sources.txt"
+"$JAVAC" -encoding UTF-8 -source 8 -target 8 -Xlint:-options -bootclasspath "$ANDROID_JAR" -d "$FILE_BROWSER_CONTRACTS_CLASSES" @"$WORK_DIR/file-browser-contracts-sources.txt"
+FILE_BROWSER_CONTRACTS_JAR="$JARS_ROOT/file-browser-contracts.jar"
+"$JAR" cf "$FILE_BROWSER_CONTRACTS_JAR" -C "$FILE_BROWSER_CONTRACTS_CLASSES" .
+
+find "$PROJECT_ROOT/modules/file-browser-client/src/main/java" -type f -name '*.java' -print | sort > "$WORK_DIR/file-browser-client-sources.txt"
+"$JAVAC" -encoding UTF-8 -source 8 -target 8 -Xlint:-options -bootclasspath "$ANDROID_JAR" -classpath "$STORAGE_JAR:$FILE_BROWSER_CONTRACTS_JAR" -d "$FILE_BROWSER_CLIENT_CLASSES" @"$WORK_DIR/file-browser-client-sources.txt"
+FILE_BROWSER_CLIENT_JAR="$JARS_ROOT/file-browser-client.jar"
+"$JAR" cf "$FILE_BROWSER_CLIENT_JAR" -C "$FILE_BROWSER_CLIENT_CLASSES" .
+
 find "$PROJECT_ROOT/modules/import-contracts/src/main/java" -type f -name '*.java' -print | sort > "$WORK_DIR/import-contracts-sources.txt"
 "$JAVAC" -encoding UTF-8 -source 8 -target 8 -Xlint:-options -bootclasspath "$ANDROID_JAR" -d "$IMPORT_CONTRACTS_CLASSES" @"$WORK_DIR/import-contracts-sources.txt"
 IMPORT_CONTRACTS_JAR="$JARS_ROOT/import-contracts.jar"
@@ -759,17 +773,17 @@ MCP_CLIENT_JAR="$JARS_ROOT/mcp-client.jar"
 "$JAR" cf "$MCP_CLIENT_JAR" -C "$MCP_CLIENT_CLASSES" .
 
 find "$PROJECT_ROOT/modules/runtime/src/main/java" -type f -name '*.java' -print | sort > "$WORK_DIR/runtime-sources.txt"
-"$JAVAC" -encoding UTF-8 -source 8 -target 8 -Xlint:-options -bootclasspath "$ANDROID_JAR" -classpath "$CORE_JAR:$REVIEW_MODE_JAR:$PROTECTED_MODE_JAR:$COMPATIBILITY_MODE_JAR:$STORAGE_JAR:$IMPORT_CONTRACTS_JAR:$IMPORT_CLIENT_JAR:$MCP_CONTRACTS_JAR:$MCP_CLIENT_JAR" -d "$RUNTIME_CLASSES" @"$WORK_DIR/runtime-sources.txt"
+"$JAVAC" -encoding UTF-8 -source 8 -target 8 -Xlint:-options -bootclasspath "$ANDROID_JAR" -classpath "$CORE_JAR:$REVIEW_MODE_JAR:$PROTECTED_MODE_JAR:$COMPATIBILITY_MODE_JAR:$STORAGE_JAR:$FILE_BROWSER_CONTRACTS_JAR:$FILE_BROWSER_CLIENT_JAR:$IMPORT_CONTRACTS_JAR:$IMPORT_CLIENT_JAR:$MCP_CONTRACTS_JAR:$MCP_CLIENT_JAR" -d "$RUNTIME_CLASSES" @"$WORK_DIR/runtime-sources.txt"
 RUNTIME_JAR="$JARS_ROOT/runtime.jar"
 "$JAR" cf "$RUNTIME_JAR" -C "$RUNTIME_CLASSES" .
 
 find "$PROJECT_ROOT/app/src/main/java" "$GENERATED_JAVA" -type f -name '*.java' -print | sort > "$WORK_DIR/app-sources.txt"
-"$JAVAC" -encoding UTF-8 -source 8 -target 8 -Xlint:-options -bootclasspath "$ANDROID_JAR" -classpath "$CORE_JAR:$REVIEW_MODE_JAR:$PROTECTED_MODE_JAR:$COMPATIBILITY_MODE_JAR:$STORAGE_JAR:$IMPORT_CONTRACTS_JAR:$MCP_CONTRACTS_JAR:$MCP_CLIENT_JAR:$RUNTIME_JAR" -d "$APP_CLASSES" @"$WORK_DIR/app-sources.txt"
+"$JAVAC" -encoding UTF-8 -source 8 -target 8 -Xlint:-options -bootclasspath "$ANDROID_JAR" -classpath "$CORE_JAR:$REVIEW_MODE_JAR:$PROTECTED_MODE_JAR:$COMPATIBILITY_MODE_JAR:$STORAGE_JAR:$FILE_BROWSER_CONTRACTS_JAR:$IMPORT_CONTRACTS_JAR:$MCP_CONTRACTS_JAR:$MCP_CLIENT_JAR:$RUNTIME_JAR" -d "$APP_CLASSES" @"$WORK_DIR/app-sources.txt"
 APP_JAR="$JARS_ROOT/app.jar"
 "$JAR" cf "$APP_JAR" -C "$APP_CLASSES" .
 
 echo "Compiling ARM64 JNI engine..."
-"$CLANGXX" --target=aarch64-linux-android"$MIN_SDK" -shared -fPIC -std=c++17 -O2 -Wall -Wextra -Werror -pthread -fvisibility=hidden -I"$JAVA_HOME_17/include" -I"$JAVA_HOME_17/include/linux" -I"$PROJECT_ROOT/modules/native-engine/src/main/cpp" "$PROJECT_ROOT/modules/native-engine/src/main/cpp/agentcodi_engine.cpp" "$PROJECT_ROOT/modules/native-engine/src/main/cpp/app_server_process.cpp" "$PROJECT_ROOT/modules/native-engine/src/main/cpp/png_validator.cpp" "$PROJECT_ROOT/modules/native-engine/src/main/cpp/sha256.cpp" "$PROJECT_ROOT/modules/native-engine/src/main/cpp/workspace_file_reader.cpp" "$PROJECT_ROOT/modules/native-engine/src/main/cpp/workspace_import_installer.cpp" "$PROJECT_ROOT/modules/native-engine/src/main/cpp/jni_bridge.cpp" -Wl,-soname,libagentcodi.so -lz -llog -o "$NATIVE_DIR/libagentcodi.so"
+"$CLANGXX" --target=aarch64-linux-android"$MIN_SDK" -shared -fPIC -std=c++17 -O2 -Wall -Wextra -Werror -pthread -fvisibility=hidden -I"$JAVA_HOME_17/include" -I"$JAVA_HOME_17/include/linux" -I"$PROJECT_ROOT/modules/native-engine/src/main/cpp" "$PROJECT_ROOT/modules/native-engine/src/main/cpp/agentcodi_engine.cpp" "$PROJECT_ROOT/modules/native-engine/src/main/cpp/app_server_process.cpp" "$PROJECT_ROOT/modules/native-engine/src/main/cpp/png_validator.cpp" "$PROJECT_ROOT/modules/native-engine/src/main/cpp/sha256.cpp" "$PROJECT_ROOT/modules/native-engine/src/main/cpp/workspace_directory_reader.cpp" "$PROJECT_ROOT/modules/native-engine/src/main/cpp/workspace_file_reader.cpp" "$PROJECT_ROOT/modules/native-engine/src/main/cpp/workspace_import_installer.cpp" "$PROJECT_ROOT/modules/native-engine/src/main/cpp/jni_bridge.cpp" -Wl,-soname,libagentcodi.so -lz -llog -o "$NATIVE_DIR/libagentcodi.so"
 "$LLVM_STRIP" --strip-unneeded "$NATIVE_DIR/libagentcodi.so"
 
 echo "Compiling packaged terminal shell bridge..."
@@ -1185,8 +1199,10 @@ for workspace_symbol in \
   nativeOpenWorkspaceFile \
   nativeWorkspaceFileMetadata \
   nativeReadWorkspaceFile \
+  nativePositionWorkspaceFile \
   nativeVerifyWorkspaceFile \
   nativeCloseWorkspaceFile \
+  nativeListWorkspaceDirectory \
   nativeInstallWorkspaceImportNoReplace; do
   if ! readelf -Ws "$NATIVE_DIR/libagentcodi.so" \
       | grep -q "Java_de_agentcodi_runtime_NativeEngine_${workspace_symbol}"; then
@@ -1865,7 +1881,7 @@ DEX_MODE="--debug"
 if [ "$BUILD_VARIANT" = "release" ]; then
   DEX_MODE="--release"
 fi
-"$JAVA" -cp "$R8_JAR" com.android.tools.r8.D8 "$DEX_MODE" --min-api "$MIN_SDK" --lib "$ANDROID_JAR" --output "$DEX_DIR" "$CORE_JAR" "$REVIEW_MODE_JAR" "$PROTECTED_MODE_JAR" "$COMPATIBILITY_MODE_JAR" "$STORAGE_JAR" "$IMPORT_CONTRACTS_JAR" "$IMPORT_CLIENT_JAR" "$MCP_CONTRACTS_JAR" "$MCP_CLIENT_JAR" "$RUNTIME_JAR" "$APP_JAR"
+"$JAVA" -cp "$R8_JAR" com.android.tools.r8.D8 "$DEX_MODE" --min-api "$MIN_SDK" --lib "$ANDROID_JAR" --output "$DEX_DIR" "$CORE_JAR" "$REVIEW_MODE_JAR" "$PROTECTED_MODE_JAR" "$COMPATIBILITY_MODE_JAR" "$STORAGE_JAR" "$FILE_BROWSER_CONTRACTS_JAR" "$FILE_BROWSER_CLIENT_JAR" "$IMPORT_CONTRACTS_JAR" "$IMPORT_CLIENT_JAR" "$MCP_CONTRACTS_JAR" "$MCP_CLIENT_JAR" "$RUNTIME_JAR" "$APP_JAR"
 cp "$DEX_DIR/classes.dex" "$ADDITIONS/classes.dex"
 
 UNALIGNED_APK="$WORK_DIR/unaligned.apk"
@@ -2090,6 +2106,13 @@ grep -Fq 'Lde/agentcodi/runtime/CrashDiagnostics;' "$WORK_DIR/dex-strings.txt"
 grep -Fq 'Lde/agentcodi/runtime/WorkspaceImageExporter;' "$WORK_DIR/dex-strings.txt"
 grep -Fq 'Lde/agentcodi/runtime/WorkspaceFileExporter;' "$WORK_DIR/dex-strings.txt"
 grep -Fq 'Lde/agentcodi/runtime/WorkspaceFileImporter;' "$WORK_DIR/dex-strings.txt"
+grep -Fq 'Lde/agentcodi/browser/WorkspaceBrowserPage;' "$WORK_DIR/dex-strings.txt"
+grep -Fq 'Lde/agentcodi/browser/WorkspaceFilePreview;' "$WORK_DIR/dex-strings.txt"
+grep -Fq 'Lde/agentcodi/browser/client/WorkspaceFileBrowser;' "$WORK_DIR/dex-strings.txt"
+grep -Fq 'Lde/agentcodi/storage/WorkspaceDirectoryCatalog;' "$WORK_DIR/dex-strings.txt"
+grep -Fq 'Lde/agentcodi/runtime/WorkspaceBrowserRepository;' "$WORK_DIR/dex-strings.txt"
+grep -Fq 'Lde/agentcodi/runtime/NativeWorkspaceDirectoryCatalog;' "$WORK_DIR/dex-strings.txt"
+grep -Fq 'Lde/agentcodi/app/WorkspaceBrowserActivity;' "$WORK_DIR/dex-strings.txt"
 grep -Fq 'Lde/agentcodi/runtime/NativeWorkspaceDocumentInstaller;' "$WORK_DIR/dex-strings.txt"
 grep -Fq 'Lde/agentcodi/runtime/NativeEngine;' "$WORK_DIR/dex-strings.txt"
 grep -Fq 'libcodex.so' "$WORK_DIR/dex-strings.txt"

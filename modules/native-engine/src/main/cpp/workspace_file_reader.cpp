@@ -326,6 +326,31 @@ ssize_t WorkspaceFileReader::Read(
   return count;
 }
 
+bool WorkspaceFileReader::Position(
+    std::int64_t absolute_offset,
+    std::string* error) {
+  if (error != nullptr) {
+    error->clear();
+  }
+  if (absolute_offset < 0 || absolute_offset > metadata_.size
+      || absolute_offset > maximum_bytes_) {
+    return fail("Workspace file preview position is invalid", error);
+  }
+  off_t positioned;
+  do {
+    positioned = lseek(
+        file_descriptor_,
+        static_cast<off_t>(absolute_offset),
+        SEEK_SET);
+  } while (positioned < 0 && errno == EINTR);
+  if (positioned < 0
+      || static_cast<std::int64_t>(positioned) != absolute_offset) {
+    return fail("Workspace file preview position could not be selected", error);
+  }
+  total_read_ = static_cast<std::uint64_t>(absolute_offset);
+  return true;
+}
+
 bool WorkspaceFileReader::VerifyUnchanged(std::string* error) const {
   if (error != nullptr) {
     error->clear();

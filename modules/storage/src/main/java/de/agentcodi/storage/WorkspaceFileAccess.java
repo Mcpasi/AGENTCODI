@@ -55,6 +55,12 @@ public final class WorkspaceFileAccess {
 
         int read(byte[] buffer, int offset, int length) throws IOException;
 
+        default void position(long absoluteOffset) throws IOException {
+            throw new UnsupportedOperationException(
+                "Workspace source does not support direct positioning"
+            );
+        }
+
         void verifyUnchanged() throws IOException;
     }
 
@@ -157,6 +163,17 @@ public final class WorkspaceFileAccess {
                 return 0;
             }
             return channel.read(ByteBuffer.wrap(buffer, offset, length));
+        }
+
+        @Override
+        public void position(long absoluteOffset) throws IOException {
+            if (closed) {
+                throw new IOException("Workspace file source is closed");
+            }
+            if (absoluteOffset < 0L || absoluteOffset > attributes.size()) {
+                throw new IOException("Workspace file preview position is invalid");
+            }
+            channel.position(absoluteOffset);
         }
 
         @Override

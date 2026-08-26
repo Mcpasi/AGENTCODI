@@ -39,6 +39,8 @@ class WorkspaceFileReader final {
   // Returns a positive byte count, zero at EOF, or -1 after setting error.
   ssize_t Read(unsigned char* buffer, std::size_t length, std::string* error);
 
+  bool Position(std::int64_t absolute_offset, std::string* error);
+
   bool VerifyUnchanged(std::string* error) const;
 
  private:

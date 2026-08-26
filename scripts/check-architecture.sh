@@ -4,7 +4,7 @@ set -Eeuo pipefail
 SCRIPT_DIR="$(cd -- "$(dirname -- "$0")" && pwd -P)"
 PROJECT_ROOT="$(cd -- "$SCRIPT_DIR/.." && pwd -P)"
 
-unexpected_source="$(find "$PROJECT_ROOT/app/src/main/java" "$PROJECT_ROOT/modules/core/src/main/java" "$PROJECT_ROOT/modules/review-mode/src/main/java" "$PROJECT_ROOT/modules/protected-mode/src/main/java" "$PROJECT_ROOT/modules/compatibility-mode/src/main/java" "$PROJECT_ROOT/modules/storage/src/main/java" "$PROJECT_ROOT/modules/import-contracts/src/main/java" "$PROJECT_ROOT/modules/import-client/src/main/java" "$PROJECT_ROOT/modules/mcp-contracts/src/main/java" "$PROJECT_ROOT/modules/mcp-client/src/main/java" "$PROJECT_ROOT/modules/runtime/src/main/java" "$PROJECT_ROOT/modules/native-engine/src/main/cpp" "$PROJECT_ROOT/tests/java" "$PROJECT_ROOT/tests/cpp" -type f ! -name '*.java' ! -name '*.cpp' ! -name '*.h' -print)"
+unexpected_source="$(find "$PROJECT_ROOT/app/src/main/java" "$PROJECT_ROOT/modules/core/src/main/java" "$PROJECT_ROOT/modules/review-mode/src/main/java" "$PROJECT_ROOT/modules/protected-mode/src/main/java" "$PROJECT_ROOT/modules/compatibility-mode/src/main/java" "$PROJECT_ROOT/modules/storage/src/main/java" "$PROJECT_ROOT/modules/file-browser-contracts/src/main/java" "$PROJECT_ROOT/modules/file-browser-client/src/main/java" "$PROJECT_ROOT/modules/import-contracts/src/main/java" "$PROJECT_ROOT/modules/import-client/src/main/java" "$PROJECT_ROOT/modules/mcp-contracts/src/main/java" "$PROJECT_ROOT/modules/mcp-client/src/main/java" "$PROJECT_ROOT/modules/runtime/src/main/java" "$PROJECT_ROOT/modules/native-engine/src/main/cpp" "$PROJECT_ROOT/tests/java" "$PROJECT_ROOT/tests/cpp" -type f ! -name '*.java' ! -name '*.cpp' ! -name '*.h' -print)"
 if [ -n "$unexpected_source" ]; then
   echo "Only Java and C++ source files are accepted in source roots." >&2
   printf '%s\n' "$unexpected_source" >&2
@@ -16,7 +16,7 @@ if find "$PROJECT_ROOT/app" "$PROJECT_ROOT/modules" "$PROJECT_ROOT/tests" -type 
   exit 1
 fi
 
-if rg -n '^import android\.' "$PROJECT_ROOT/modules/core/src/main/java" "$PROJECT_ROOT/modules/review-mode/src/main/java" "$PROJECT_ROOT/modules/protected-mode/src/main/java" "$PROJECT_ROOT/modules/compatibility-mode/src/main/java" "$PROJECT_ROOT/modules/storage/src/main/java" "$PROJECT_ROOT/modules/import-contracts/src/main/java" "$PROJECT_ROOT/modules/import-client/src/main/java" "$PROJECT_ROOT/modules/mcp-contracts/src/main/java" "$PROJECT_ROOT/modules/mcp-client/src/main/java"; then
+if rg -n '^import android\.' "$PROJECT_ROOT/modules/core/src/main/java" "$PROJECT_ROOT/modules/review-mode/src/main/java" "$PROJECT_ROOT/modules/protected-mode/src/main/java" "$PROJECT_ROOT/modules/compatibility-mode/src/main/java" "$PROJECT_ROOT/modules/storage/src/main/java" "$PROJECT_ROOT/modules/file-browser-contracts/src/main/java" "$PROJECT_ROOT/modules/file-browser-client/src/main/java" "$PROJECT_ROOT/modules/import-contracts/src/main/java" "$PROJECT_ROOT/modules/import-client/src/main/java" "$PROJECT_ROOT/modules/mcp-contracts/src/main/java" "$PROJECT_ROOT/modules/mcp-client/src/main/java"; then
   echo "Pure Java modules must not import Android APIs." >&2
   exit 1
 fi
@@ -114,7 +114,46 @@ mcp_contracts="$PROJECT_ROOT/modules/mcp-contracts/src/main/java"
 mcp_client="$PROJECT_ROOT/modules/mcp-client/src/main/java"
 import_contracts="$PROJECT_ROOT/modules/import-contracts/src/main/java"
 import_client="$PROJECT_ROOT/modules/import-client/src/main/java"
+file_browser_contracts="$PROJECT_ROOT/modules/file-browser-contracts/src/main/java"
+file_browser_client="$PROJECT_ROOT/modules/file-browser-client/src/main/java"
 manifest="$PROJECT_ROOT/app/src/main/AndroidManifest.xml"
+if rg -n '^import de\.agentcodi\.' "$file_browser_contracts" \
+    || rg -n '^import de\.agentcodi\.(app|core|imports|mcp|runtime)\.' \
+      "$file_browser_client" \
+    || rg -n '^import de\.agentcodi\.browser\.client\.' \
+      "$PROJECT_ROOT/app/src/main/java" \
+    || rg -n '^import de\.agentcodi\.browser\.' \
+      "$PROJECT_ROOT/modules/core/src/main/java" \
+      "$PROJECT_ROOT/modules/storage/src/main/java" \
+    || ! rg -q 'class WorkspaceFileBrowser' "$file_browser_client" \
+    || ! rg -q 'MAXIMUM_SCANNED_DIRECTORY_ENTRIES = 65536' \
+      "$file_browser_contracts/de/agentcodi/browser/WorkspaceBrowserLimits.java" \
+    || ! rg -q 'TEXT_PAGE_BYTES = 32 \* 1024' \
+      "$file_browser_contracts/de/agentcodi/browser/WorkspaceBrowserLimits.java" \
+    || ! rg -q 'BINARY_PAGE_BYTES = 2 \* 1024' \
+      "$file_browser_contracts/de/agentcodi/browser/WorkspaceBrowserLimits.java" \
+    || ! rg -q 'SecureDirectoryStream' \
+      "$PROJECT_ROOT/modules/storage/src/main/java/de/agentcodi/storage/WorkspaceDirectoryCatalog.java" \
+    || ! rg -q 'NativeWorkspaceDirectoryCatalog\.reader' \
+      "$PROJECT_ROOT/modules/runtime/src/main/java/de/agentcodi/runtime/WorkspaceBrowserRepository.java" \
+    || ! rg -q 'O_NOFOLLOW' \
+      "$PROJECT_ROOT/modules/native-engine/src/main/cpp/workspace_directory_reader.cpp" \
+    || ! rg -q 'AT_SYMLINK_NOFOLLOW' \
+      "$PROJECT_ROOT/modules/native-engine/src/main/cpp/workspace_directory_reader.cpp" \
+    || ! rg -q 'WorkspaceBrowserRepository' \
+      "$PROJECT_ROOT/app/src/main/java/de/agentcodi/app/WorkspaceBrowserActivity.java" \
+    || ! rg -q 'BitmapFactory\.Options' \
+      "$PROJECT_ROOT/app/src/main/java/de/agentcodi/app/WorkspaceBrowserActivity.java" \
+    || ! rg -q 'Intent\.ACTION_CREATE_DOCUMENT' \
+      "$PROJECT_ROOT/app/src/main/java/de/agentcodi/app/WorkspaceBrowserActivity.java" \
+    || ! rg -Uq 'android:name="\.WorkspaceBrowserActivity"[[:space:][:print:]]{0,260}android:exported="false"' \
+      "$manifest" \
+    || ! rg -q 'WorkspaceFileBrowserTest\.run' \
+      "$PROJECT_ROOT/tests/java/de/agentcodi/tests/TestMain.java" \
+    || ! rg -q 'workspace_directory_reader_test\.cpp' "$PROJECT_ROOT/scripts/test.sh"; then
+  echo "The modular bounded workspace browser, preview, paging, or native directory boundary is incomplete." >&2
+  exit 1
+fi
 if rg -n '^import de\.agentcodi\.(core|storage|runtime|app|mcp|imports\.client)\.' "$import_contracts" \
     || rg -n '^import de\.agentcodi\.(runtime|app|mcp)\.' "$import_client" \
     || rg -n '^import de\.agentcodi\.imports\.client\.' "$PROJECT_ROOT/app/src/main/java" \
@@ -846,13 +885,13 @@ if ! rg -q 'PYTHON_SOURCE_EXTENSION_COUNT="75"' "$apk_builder" \
   exit 1
 fi
 
-if ! rg -q 'VERSION_NAME = "0\.5\.25"' "$core_root/BuildIdentity.java" \
-    || ! rg -q 'VERSION_CODE = 62' "$core_root/BuildIdentity.java" \
+if ! rg -q 'VERSION_NAME = "0\.5\.29"' "$core_root/BuildIdentity.java" \
+    || ! rg -q 'VERSION_CODE = 66' "$core_root/BuildIdentity.java" \
     || ! rg -q 'CODEX_RUNTIME_VERSION = "0\.148\.1"' "$core_root/BuildIdentity.java" \
-    || ! rg -q 'android:versionName="0\.5\.25"' "$manifest" \
-    || ! rg -q 'android:versionCode="62"' "$manifest" \
-    || ! rg -q 'APP_VERSION="0\.5\.25"' "$apk_builder" \
-    || ! rg -q 'VERSION_CODE="62"' "$apk_builder" \
+    || ! rg -q 'android:versionName="0\.5\.29"' "$manifest" \
+    || ! rg -q 'android:versionCode="66"' "$manifest" \
+    || ! rg -q 'APP_VERSION="0\.5\.29"' "$apk_builder" \
+    || ! rg -q 'VERSION_CODE="66"' "$apk_builder" \
     || ! rg -q 'CODEX_ANDROID_VERSION="0\.148\.1"' "$apk_builder" \
     || ! rg -q 'CODEX_TERMUX_SOURCE_TAG="v0\.148\.1"' "$apk_builder" \
     || ! rg -q 'CODEX_TERMUX_SOURCE_COMMIT="9d48c76abec320ae3724164d0177299b1acd31ca"' "$apk_builder" \
@@ -873,7 +912,7 @@ if ! rg -q 'VERSION_NAME = "0\.5\.25"' "$core_root/BuildIdentity.java" \
     || ! rg -q '9d48c76abec320ae3724164d0177299b1acd31ca' "$PROJECT_ROOT/app/src/main/res/raw/third_party_notices.txt" \
     || ! rg -q '3ba0f711642a888aec92a611a3f3b2211157ff89' "$PROJECT_ROOT/NOTICE.md" \
     || ! rg -q '3ba0f711642a888aec92a611a3f3b2211157ff89' "$PROJECT_ROOT/app/src/main/res/raw/third_party_notices.txt"; then
-  echo "The 0.5.25 / Codex 0.148.1 identity is inconsistent." >&2
+  echo "The 0.5.29 / Codex 0.148.1 identity is inconsistent." >&2
   exit 1
 fi
 

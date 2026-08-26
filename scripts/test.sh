@@ -42,7 +42,8 @@ find \
   -type f -name '*.java' -print | sort > "$TEST_BUILD/java-sources.txt"
 
 "$JAVAC" -encoding UTF-8 -source 8 -target 8 -Xlint:-options -d "$TEST_BUILD/java-classes" @"$TEST_BUILD/java-sources.txt"
-"$JAVA" -cp "$TEST_BUILD/java-classes" de.agentcodi.tests.TestMain
+"$JAVA" -Dagentcodi.projectRoot="$PROJECT_ROOT" \
+  -cp "$TEST_BUILD/java-classes" de.agentcodi.tests.TestMain
 
 "$CLANGXX" -std=c++17 -O2 -Wall -Wextra -Werror -pthread \
   -I"$PROJECT_ROOT/modules/native-engine/src/main/cpp" \

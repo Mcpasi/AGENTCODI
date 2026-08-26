@@ -1,0 +1,13 @@
+Material Design Icons by Google
+
+Source repository:
+https://github.com/google/material-design-icons
+
+Pinned source revision:
+e083cc60a0828fdd3b404cea0cb8a5b900e9c23e
+
+AGENTCODI includes only the 16 documented 24 px Round SVG paths converted to
+local Android VectorDrawable resources. No icon font, code, or network loader
+is bundled. The icons are provided under the Apache License, Version 2.0.
+
+The complete Apache License 2.0 terms follow in the legal-notices view.

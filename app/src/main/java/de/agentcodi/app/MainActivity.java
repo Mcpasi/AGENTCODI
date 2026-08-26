@@ -21,8 +21,8 @@ import android.view.ViewGroup;
 import android.widget.AdapterView;
 import android.widget.ArrayAdapter;
 import android.widget.BaseAdapter;
-import android.widget.Button;
 import android.widget.EditText;
+import android.widget.ImageButton;
 import android.widget.LinearLayout;
 import android.widget.ListView;
 import android.widget.ScrollView;
@@ -106,15 +106,15 @@ public final class MainActivity extends Activity {
     private UiTheme theme;
     private LinearLayout statusBanner;
     private TextView statusText;
-    private Button statusSettingsButton;
-    private Button backToThreadsButton;
+    private ImageButton statusSettingsButton;
+    private ImageButton backToThreadsButton;
     private TextView screenTitle;
     private LinearLayout threadPage;
     private LinearLayout conversationPage;
-    private Button newThreadButton;
-    private Button refreshThreadsButton;
-    private Button activeThreadsButton;
-    private Button archivedThreadsButton;
+    private ImageButton newThreadButton;
+    private ImageButton refreshThreadsButton;
+    private ImageButton activeThreadsButton;
+    private ImageButton archivedThreadsButton;
     private TextView threadEmptyView;
     private ListView threadList;
     private ThreadAdapter threadAdapter;
@@ -124,12 +124,13 @@ public final class MainActivity extends Activity {
     private ScrollView messageScroll;
     private LinearLayout messagesContainer;
     private EditText composerInput;
+    private LinearLayout importStatusRow;
     private TextView importStatus;
-    private Button importButton;
-    private Button clearImportsButton;
-    private Button reviewButton;
-    private Button sendButton;
-    private Button stopButton;
+    private ImageButton importButton;
+    private ImageButton clearImportsButton;
+    private ImageButton reviewButton;
+    private ImageButton sendButton;
+    private ImageButton stopButton;
     private boolean bindingSelectors;
     private boolean conversationVisible;
     private String pendingThreadId = "";
@@ -284,7 +285,10 @@ public final class MainActivity extends Activity {
         topBar.setOrientation(LinearLayout.HORIZONTAL);
         topBar.setGravity(Gravity.CENTER_VERTICAL);
 
-        backToThreadsButton = theme.compactButton(getString(R.string.navigation_chats));
+        backToThreadsButton = theme.iconButton(
+            R.drawable.ic_chat_back,
+            getString(R.string.navigation_chats)
+        );
         backToThreadsButton.setVisibility(View.GONE);
         backToThreadsButton.setOnClickListener(new View.OnClickListener() {
             @Override
@@ -306,57 +310,47 @@ public final class MainActivity extends Activity {
             ViewGroup.LayoutParams.WRAP_CONTENT,
             1.0f
         );
-        titleParams.leftMargin = theme.dp(12);
-        titleParams.rightMargin = theme.dp(10);
+        titleParams.leftMargin = theme.dp(8);
+        titleParams.rightMargin = theme.dp(4);
         topBar.addView(screenTitle, titleParams);
 
-        root.addView(topBar);
-
-        LinearLayout navigationBar = new LinearLayout(this);
-        navigationBar.setOrientation(LinearLayout.HORIZONTAL);
-        Button filesButton = theme.compactButton(getString(R.string.navigation_files));
+        ImageButton filesButton = theme.iconButton(
+            R.drawable.ic_chat_folder,
+            getString(R.string.navigation_files)
+        );
         filesButton.setOnClickListener(new View.OnClickListener() {
             @Override
             public void onClick(View view) {
                 openFiles();
             }
         });
-        navigationBar.addView(filesButton, new LinearLayout.LayoutParams(
-            0,
-            ViewGroup.LayoutParams.WRAP_CONTENT,
-            1.0f
-        ));
+        topBar.addView(filesButton, iconMarginParams(0));
 
-        Button terminalButton = theme.compactButton(getString(R.string.navigation_terminal));
+        ImageButton terminalButton = theme.iconButton(
+            R.drawable.ic_chat_terminal,
+            getString(R.string.navigation_terminal)
+        );
         terminalButton.setOnClickListener(new View.OnClickListener() {
             @Override
             public void onClick(View view) {
                 openTerminal();
             }
         });
-        LinearLayout.LayoutParams terminalParams = new LinearLayout.LayoutParams(
-            0,
-            ViewGroup.LayoutParams.WRAP_CONTENT,
-            1.0f
-        );
-        terminalParams.leftMargin = theme.dp(6);
-        navigationBar.addView(terminalButton, terminalParams);
+        topBar.addView(terminalButton, iconMarginParams(4));
 
-        Button settingsButton = theme.compactButton(getString(R.string.navigation_settings));
+        ImageButton settingsButton = theme.iconButton(
+            R.drawable.ic_chat_settings,
+            getString(R.string.navigation_settings)
+        );
         settingsButton.setOnClickListener(new View.OnClickListener() {
             @Override
             public void onClick(View view) {
                 openSettings();
             }
         });
-        LinearLayout.LayoutParams settingsParameters = new LinearLayout.LayoutParams(
-            0,
-            ViewGroup.LayoutParams.WRAP_CONTENT,
-            1.0f
-        );
-        settingsParameters.leftMargin = theme.dp(6);
-        navigationBar.addView(settingsButton, settingsParameters);
-        theme.addWithTopMargin(root, navigationBar, 8);
+        topBar.addView(settingsButton, iconMarginParams(4));
+
+        root.addView(topBar);
 
         statusBanner = new LinearLayout(this);
         statusBanner.setOrientation(LinearLayout.HORIZONTAL);
@@ -370,7 +364,10 @@ public final class MainActivity extends Activity {
             ViewGroup.LayoutParams.WRAP_CONTENT,
             1.0f
         ));
-        statusSettingsButton = theme.compactButton(getString(R.string.common_open));
+        statusSettingsButton = theme.iconButton(
+            R.drawable.ic_chat_settings,
+            getString(R.string.chat_open_settings)
+        );
         statusSettingsButton.setOnClickListener(new View.OnClickListener() {
             @Override
             public void onClick(View view) {
@@ -419,49 +416,10 @@ public final class MainActivity extends Activity {
             ViewGroup.LayoutParams.WRAP_CONTENT,
             1.0f
         ));
-        refreshThreadsButton = theme.compactButton(getString(R.string.chat_refresh));
-        refreshThreadsButton.setOnClickListener(new View.OnClickListener() {
-            @Override
-            public void onClick(View view) {
-                AgentRuntimeService.refreshThreads();
-            }
-        });
-        actions.addView(refreshThreadsButton);
-        page.addView(actions);
-
-        LinearLayout threadViews = new LinearLayout(this);
-        threadViews.setOrientation(LinearLayout.HORIZONTAL);
-        activeThreadsButton = theme.compactButton(getString(R.string.chat_active_threads));
-        activeThreadsButton.setOnClickListener(new View.OnClickListener() {
-            @Override
-            public void onClick(View view) {
-                AgentRuntimeService.showActiveThreads();
-            }
-        });
-        threadViews.addView(activeThreadsButton, new LinearLayout.LayoutParams(
-            0,
-            ViewGroup.LayoutParams.WRAP_CONTENT,
-            1.0f
-        ));
-        archivedThreadsButton = theme.compactButton(
-            getString(R.string.chat_archived_threads)
+        newThreadButton = theme.primaryIconButton(
+            R.drawable.ic_chat_add_thread,
+            getString(R.string.chat_new)
         );
-        archivedThreadsButton.setOnClickListener(new View.OnClickListener() {
-            @Override
-            public void onClick(View view) {
-                AgentRuntimeService.showArchivedThreads();
-            }
-        });
-        LinearLayout.LayoutParams archivedParams = new LinearLayout.LayoutParams(
-            0,
-            ViewGroup.LayoutParams.WRAP_CONTENT,
-            1.0f
-        );
-        archivedParams.leftMargin = theme.dp(8);
-        threadViews.addView(archivedThreadsButton, archivedParams);
-        theme.addWithTopMargin(page, threadViews, 12);
-
-        newThreadButton = theme.primaryButton(getString(R.string.chat_new));
         newThreadButton.setOnClickListener(new View.OnClickListener() {
             @Override
             public void onClick(View view) {
@@ -472,7 +430,47 @@ public final class MainActivity extends Activity {
                 AgentRuntimeService.startNewThread();
             }
         });
-        theme.addWithTopMargin(page, newThreadButton, 12);
+        actions.addView(newThreadButton, iconMarginParams(8));
+
+        refreshThreadsButton = theme.iconButton(
+            R.drawable.ic_chat_refresh,
+            getString(R.string.chat_refresh)
+        );
+        refreshThreadsButton.setOnClickListener(new View.OnClickListener() {
+            @Override
+            public void onClick(View view) {
+                AgentRuntimeService.refreshThreads();
+            }
+        });
+        actions.addView(refreshThreadsButton, iconMarginParams(4));
+        page.addView(actions);
+
+        LinearLayout threadViews = new LinearLayout(this);
+        threadViews.setOrientation(LinearLayout.HORIZONTAL);
+        threadViews.setGravity(Gravity.END);
+        activeThreadsButton = theme.iconButton(
+            R.drawable.ic_chat_active_threads,
+            getString(R.string.chat_active_threads)
+        );
+        activeThreadsButton.setOnClickListener(new View.OnClickListener() {
+            @Override
+            public void onClick(View view) {
+                AgentRuntimeService.showActiveThreads();
+            }
+        });
+        threadViews.addView(activeThreadsButton);
+        archivedThreadsButton = theme.iconButton(
+            R.drawable.ic_chat_archived_threads,
+            getString(R.string.chat_archived_threads)
+        );
+        archivedThreadsButton.setOnClickListener(new View.OnClickListener() {
+            @Override
+            public void onClick(View view) {
+                AgentRuntimeService.showArchivedThreads();
+            }
+        });
+        threadViews.addView(archivedThreadsButton, iconMarginParams(6));
+        theme.addWithTopMargin(page, threadViews, 8);
 
         threadEmptyView = theme.text(
             getString(R.string.chat_empty),
@@ -635,6 +633,49 @@ public final class MainActivity extends Activity {
         composer.setOrientation(LinearLayout.VERTICAL);
         composer.setPadding(theme.dp(12), theme.dp(10), theme.dp(12), theme.dp(10));
         composer.setBackground(theme.background(theme.surface, theme.border, 16));
+
+        importStatusRow = new LinearLayout(this);
+        importStatusRow.setOrientation(LinearLayout.HORIZONTAL);
+        importStatusRow.setGravity(Gravity.CENTER_VERTICAL);
+        importStatusRow.setVisibility(View.GONE);
+        importStatus = theme.text("", 12, theme.secondary);
+        importStatus.setLineSpacing(0.0f, 1.15f);
+        importStatus.setMaxLines(4);
+        importStatus.setEllipsize(android.text.TextUtils.TruncateAt.END);
+        importStatusRow.addView(importStatus, new LinearLayout.LayoutParams(
+            0,
+            ViewGroup.LayoutParams.WRAP_CONTENT,
+            1.0f
+        ));
+        clearImportsButton = theme.iconButton(
+            R.drawable.ic_chat_detach,
+            getString(R.string.chat_import_detach)
+        );
+        clearImportsButton.setVisibility(View.GONE);
+        clearImportsButton.setOnClickListener(new View.OnClickListener() {
+            @Override
+            public void onClick(View view) {
+                detachPendingImports();
+            }
+        });
+        importStatusRow.addView(clearImportsButton, iconMarginParams(8));
+        composer.addView(importStatusRow);
+
+        LinearLayout composerRow = new LinearLayout(this);
+        composerRow.setOrientation(LinearLayout.HORIZONTAL);
+        composerRow.setGravity(Gravity.CENTER_VERTICAL);
+        importButton = theme.iconButton(
+            R.drawable.ic_chat_add,
+            getString(R.string.chat_import_files)
+        );
+        importButton.setOnClickListener(new View.OnClickListener() {
+            @Override
+            public void onClick(View view) {
+                openDocumentImportPicker();
+            }
+        });
+        composerRow.addView(importButton);
+
         composerInput = new EditText(this);
         composerInput.setHint(R.string.composer_hint);
         composerInput.setHintTextColor(theme.secondary);
@@ -646,48 +687,19 @@ public final class MainActivity extends Activity {
                 | InputType.TYPE_TEXT_FLAG_MULTI_LINE
                 | InputType.TYPE_TEXT_FLAG_CAP_SENTENCES
         );
-        composer.addView(composerInput);
-
-        importStatus = theme.text("", 12, theme.secondary);
-        importStatus.setLineSpacing(0.0f, 1.15f);
-        importStatus.setMaxLines(4);
-        importStatus.setEllipsize(android.text.TextUtils.TruncateAt.END);
-        importStatus.setVisibility(View.GONE);
-        theme.addWithTopMargin(composer, importStatus, 6);
-
-        LinearLayout importRow = new LinearLayout(this);
-        importRow.setOrientation(LinearLayout.HORIZONTAL);
-        importButton = theme.secondaryButton(getString(R.string.chat_import_files));
-        importButton.setOnClickListener(new View.OnClickListener() {
-            @Override
-            public void onClick(View view) {
-                openDocumentImportPicker();
-            }
-        });
-        importRow.addView(importButton, new LinearLayout.LayoutParams(
+        LinearLayout.LayoutParams inputParams = new LinearLayout.LayoutParams(
             0,
             ViewGroup.LayoutParams.WRAP_CONTENT,
             1.0f
-        ));
-        clearImportsButton = theme.compactButton(
-            getString(R.string.chat_import_detach)
         );
-        clearImportsButton.setVisibility(View.GONE);
-        clearImportsButton.setOnClickListener(new View.OnClickListener() {
-            @Override
-            public void onClick(View view) {
-                detachPendingImports();
-            }
-        });
-        LinearLayout.LayoutParams clearImportParams = new LinearLayout.LayoutParams(
-            ViewGroup.LayoutParams.WRAP_CONTENT,
-            ViewGroup.LayoutParams.WRAP_CONTENT
-        );
-        clearImportParams.leftMargin = theme.dp(8);
-        importRow.addView(clearImportsButton, clearImportParams);
-        theme.addWithTopMargin(composer, importRow, 8);
+        inputParams.leftMargin = theme.dp(6);
+        inputParams.rightMargin = theme.dp(6);
+        composerRow.addView(composerInput, inputParams);
 
-        reviewButton = theme.secondaryButton(getString(R.string.review_mode_action));
+        reviewButton = theme.iconButton(
+            R.drawable.ic_chat_review,
+            getString(R.string.review_mode_action)
+        );
         reviewButton.setOnClickListener(new View.OnClickListener() {
             @Override
             public void onClick(View view) {
@@ -704,39 +716,44 @@ public final class MainActivity extends Activity {
                 );
             }
         });
-        theme.addWithTopMargin(composer, reviewButton, 8);
+        composerRow.addView(reviewButton);
 
-        LinearLayout sendRow = new LinearLayout(this);
-        sendRow.setOrientation(LinearLayout.HORIZONTAL);
-        stopButton = theme.secondaryButton(getString(R.string.turn_stop));
+        stopButton = theme.dangerIconButton(
+            R.drawable.ic_chat_stop,
+            getString(R.string.turn_stop)
+        );
+        stopButton.setVisibility(View.GONE);
         stopButton.setOnClickListener(new View.OnClickListener() {
             @Override
             public void onClick(View view) {
                 AgentRuntimeService.interruptTurn();
             }
         });
-        sendRow.addView(stopButton, new LinearLayout.LayoutParams(
-            0,
-            ViewGroup.LayoutParams.WRAP_CONTENT,
-            0.35f
-        ));
-        sendButton = theme.primaryButton(getString(R.string.message_send));
+        composerRow.addView(stopButton);
+
+        sendButton = theme.primaryIconButton(
+            R.drawable.ic_chat_send,
+            getString(R.string.message_send)
+        );
         sendButton.setOnClickListener(new View.OnClickListener() {
             @Override
             public void onClick(View view) {
                 sendComposerInput();
             }
         });
-        LinearLayout.LayoutParams sendParams = new LinearLayout.LayoutParams(
-            0,
-            ViewGroup.LayoutParams.WRAP_CONTENT,
-            0.65f
-        );
-        sendParams.leftMargin = theme.dp(8);
-        sendRow.addView(sendButton, sendParams);
-        theme.addWithTopMargin(composer, sendRow, 8);
+        composerRow.addView(sendButton, iconMarginParams(6));
+        theme.addWithTopMargin(composer, composerRow, 6);
         page.addView(composer);
         return page;
+    }
+
+    private LinearLayout.LayoutParams iconMarginParams(int leftMarginDp) {
+        LinearLayout.LayoutParams params = new LinearLayout.LayoutParams(
+            ViewGroup.LayoutParams.WRAP_CONTENT,
+            ViewGroup.LayoutParams.WRAP_CONTENT
+        );
+        params.leftMargin = theme.dp(leftMarginDp);
+        return params;
     }
 
     private void sendComposerInput() {
@@ -1179,16 +1196,19 @@ public final class MainActivity extends Activity {
 
     private void renderImportSelection() {
         if (importOperationActive) {
+            importStatusRow.setVisibility(View.VISIBLE);
             importStatus.setVisibility(View.VISIBLE);
             importStatus.setText(R.string.chat_import_importing);
             return;
         }
         if (sendPreparationActive) {
+            importStatusRow.setVisibility(View.VISIBLE);
             importStatus.setVisibility(View.VISIBLE);
             importStatus.setText(R.string.chat_import_verifying);
             return;
         }
         if (pendingImports.isEmpty()) {
+            importStatusRow.setVisibility(View.GONE);
             importStatus.setVisibility(View.GONE);
             importStatus.setText("");
             return;
@@ -1212,6 +1232,7 @@ public final class MainActivity extends Activity {
             readableByteCount(totalBytes)
         );
         importStatus.setText(summary + "\n" + names.toString());
+        importStatusRow.setVisibility(View.VISIBLE);
         importStatus.setVisibility(View.VISIBLE);
     }
 
@@ -1294,7 +1315,11 @@ public final class MainActivity extends Activity {
         composerInput.setHint(
             steering ? R.string.composer_steer_hint : R.string.composer_hint
         );
-        sendButton.setText(steering ? R.string.turn_steer : R.string.message_send);
+        theme.setIcon(
+            sendButton,
+            R.drawable.ic_chat_send,
+            getString(steering ? R.string.turn_steer : R.string.message_send)
+        );
         boolean composerReady = canChat && !interactionOpen
             && !importOperationActive && !sendPreparationActive;
         composerInput.setEnabled(composerReady);
@@ -1315,7 +1340,9 @@ public final class MainActivity extends Activity {
                 && !session.getActiveThreadId().isEmpty()
                 && pendingImports.isEmpty()
         );
+        reviewButton.setVisibility(steering ? View.GONE : View.VISIBLE);
         renderImportSelection();
+        stopButton.setVisibility(steering ? View.VISIBLE : View.GONE);
         theme.setEnabled(
             stopButton,
             session.isReady()
@@ -1548,9 +1575,14 @@ public final class MainActivity extends Activity {
         imageStatus.setVisibility(View.GONE);
         theme.addWithTopMargin(root, imageStatus, 6);
 
-        Button imageAction = theme.secondaryButton(getString(R.string.image_export));
+        ImageButton imageAction = theme.iconButton(
+            R.drawable.ic_chat_download,
+            getString(R.string.image_export)
+        );
         imageAction.setVisibility(View.GONE);
-        theme.addWithTopMargin(root, imageAction, 6);
+        LinearLayout.LayoutParams imageActionParams = iconMarginParams(0);
+        imageActionParams.topMargin = theme.dp(6);
+        root.addView(imageAction, imageActionParams);
 
         TranscriptRow row = new TranscriptRow(root, text, imageStatus, imageAction);
         styleTranscriptView(text, item);
@@ -1661,7 +1693,11 @@ public final class MainActivity extends Activity {
         if (row.imageState == ImageValidationState.CHECKING) {
             row.imageStatus.setText(row.checkingMessage);
             row.imageStatus.setTextColor(theme.secondary);
-            row.imageAction.setText(R.string.image_inspection_running);
+            theme.setIcon(
+                row.imageAction,
+                R.drawable.ic_chat_hourglass,
+                getString(R.string.image_inspection_running)
+            );
             row.imageAction.setOnClickListener(null);
             theme.setEnabled(row.imageAction, false);
             return;
@@ -1669,7 +1705,11 @@ public final class MainActivity extends Activity {
         if (row.imageState == ImageValidationState.INVALID) {
             row.imageStatus.setText(row.imageFailure);
             row.imageStatus.setTextColor(theme.danger);
-            row.imageAction.setText(R.string.image_path_recheck);
+            theme.setIcon(
+                row.imageAction,
+                R.drawable.ic_chat_refresh,
+                getString(R.string.image_path_recheck)
+            );
             row.imageAction.setOnClickListener(new View.OnClickListener() {
                 @Override
                 public void onClick(View ignored) {
@@ -1688,7 +1728,11 @@ public final class MainActivity extends Activity {
             )
         );
         row.imageStatus.setTextColor(theme.secondary);
-        row.imageAction.setText(R.string.image_export);
+        theme.setIcon(
+            row.imageAction,
+            R.drawable.ic_chat_download,
+            getString(R.string.image_export)
+        );
         row.imageAction.setOnClickListener(new View.OnClickListener() {
             @Override
             public void onClick(View ignored) {
@@ -2225,7 +2269,10 @@ public final class MainActivity extends Activity {
                     ViewGroup.LayoutParams.WRAP_CONTENT,
                     1.0f
                 ));
-                Button action = theme.compactButton(getString(R.string.chat_actions));
+                ImageButton action = theme.iconButton(
+                    R.drawable.ic_chat_more,
+                    getString(R.string.chat_actions)
+                );
                 action.setFocusable(false);
                 LinearLayout.LayoutParams actionParams = new LinearLayout.LayoutParams(
                     ViewGroup.LayoutParams.WRAP_CONTENT,
@@ -2257,10 +2304,14 @@ public final class MainActivity extends Activity {
             ));
             row.root.setAlpha(enabled ? 1.0f : 0.55f);
             row.action.setEnabled(enabled);
-            row.action.setContentDescription(getString(
-                R.string.chat_actions_for,
-                UiText.threadTitle(MainActivity.this, value.getTitle())
-            ));
+            theme.setIcon(
+                row.action,
+                R.drawable.ic_chat_more,
+                getString(
+                    R.string.chat_actions_for,
+                    UiText.threadTitle(MainActivity.this, value.getTitle())
+                )
+            );
             row.action.setOnClickListener(new View.OnClickListener() {
                 @Override
                 public void onClick(View view) {
@@ -2282,7 +2333,7 @@ public final class MainActivity extends Activity {
         private final LinearLayout root;
         private final TextView text;
         private final TextView imageStatus;
-        private final Button imageAction;
+        private final ImageButton imageAction;
         private String imagePath = "";
         private ImageValidationState imageState = ImageValidationState.NONE;
         private WorkspaceImageExporter.ImageExport imageInfo;
@@ -2293,7 +2344,7 @@ public final class MainActivity extends Activity {
             LinearLayout root,
             TextView text,
             TextView imageStatus,
-            Button imageAction
+            ImageButton imageAction
         ) {
             this.root = root;
             this.text = text;
@@ -2306,13 +2357,13 @@ public final class MainActivity extends Activity {
         private final LinearLayout root;
         private final TextView title;
         private final TextView metadata;
-        private final Button action;
+        private final ImageButton action;
 
         private ThreadRow(
             LinearLayout root,
             TextView title,
             TextView metadata,
-            Button action
+            ImageButton action
         ) {
             this.root = root;
             this.title = title;

@@ -1,13 +1,17 @@
 package de.agentcodi.app;
 
 import android.content.Context;
+import android.content.res.ColorStateList;
 import android.content.res.Configuration;
 import android.graphics.Color;
 import android.graphics.Typeface;
+import android.graphics.drawable.Drawable;
 import android.graphics.drawable.GradientDrawable;
+import android.graphics.drawable.RippleDrawable;
 import android.view.View;
 import android.view.ViewGroup;
 import android.widget.Button;
+import android.widget.ImageButton;
 import android.widget.LinearLayout;
 import android.widget.TextView;
 
@@ -116,9 +120,45 @@ final class UiTheme {
         return button;
     }
 
-    void setEnabled(Button button, boolean enabled) {
-        button.setEnabled(enabled);
-        button.setAlpha(enabled ? 1.0f : 0.45f);
+    ImageButton iconButton(int iconResource, String description) {
+        return baseIconButton(
+            iconResource,
+            description,
+            surfaceRaised,
+            border,
+            dark ? 0xFF99F6E4 : accent
+        );
+    }
+
+    ImageButton primaryIconButton(int iconResource, String description) {
+        return baseIconButton(
+            iconResource,
+            description,
+            accent,
+            Color.TRANSPARENT,
+            Color.WHITE
+        );
+    }
+
+    ImageButton dangerIconButton(int iconResource, String description) {
+        return baseIconButton(
+            iconResource,
+            description,
+            surfaceRaised,
+            border,
+            danger
+        );
+    }
+
+    void setIcon(ImageButton button, int iconResource, String description) {
+        button.setImageResource(iconResource);
+        button.setContentDescription(description);
+        button.setTooltipText(description);
+    }
+
+    void setEnabled(View view, boolean enabled) {
+        view.setEnabled(enabled);
+        view.setAlpha(enabled ? 1.0f : 0.45f);
     }
 
     void addWithTopMargin(LinearLayout parent, View child, int marginDp) {
@@ -139,5 +179,32 @@ final class UiTheme {
         button.setMinHeight(dp(50));
         button.setMinimumHeight(dp(50));
         return button;
+    }
+
+    private ImageButton baseIconButton(
+        int iconResource,
+        String description,
+        int fill,
+        int stroke,
+        int iconColor
+    ) {
+        ImageButton button = new ImageButton(context);
+        button.setImageResource(iconResource);
+        button.setColorFilter(iconColor);
+        button.setScaleType(ImageButton.ScaleType.CENTER_INSIDE);
+        button.setPadding(dp(12), dp(12), dp(12), dp(12));
+        button.setMinimumWidth(dp(48));
+        button.setMinimumHeight(dp(48));
+        button.setBackground(iconBackground(fill, stroke));
+        button.setContentDescription(description);
+        button.setTooltipText(description);
+        return button;
+    }
+
+    private Drawable iconBackground(int fill, int stroke) {
+        GradientDrawable content = background(fill, stroke, 14);
+        GradientDrawable mask = background(Color.WHITE, Color.TRANSPARENT, 14);
+        int ripple = dark ? 0x33FFFFFF : 0x22000000;
+        return new RippleDrawable(ColorStateList.valueOf(ripple), content, mask);
     }
 }

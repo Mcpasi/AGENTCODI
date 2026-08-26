@@ -92,7 +92,7 @@
   <string name="chat_title">Chats</string>
   <string name="chat_intro">Your Codex conversations</string>
   <string name="chat_refresh">Refresh</string>
-  <string name="chat_new">+ New chat</string>
+  <string name="chat_new">New chat</string>
   <string name="chat_active_threads">Active</string>
   <string name="chat_archived_threads">Archived</string>
   <string name="chat_empty">No chats yet. Start a new conversation above.</string>
@@ -111,6 +111,7 @@
   <string name="chat_select">Select a chat.</string>
   <string name="chat_no_messages">No messages yet. Describe your task below.</string>
   <string name="chat_runtime_checking">Checking runtime…</string>
+  <string name="chat_open_settings">Open settings</string>
   <string name="chat_sign_in_required">Sign in with ChatGPT or an API key in Settings.</string>
   <string name="chat_waiting_for_input">Codex is waiting for your approval or input.</string>
   <string name="chat_streaming_response">Codex is working and streaming the response…</string>
@@ -453,6 +454,8 @@
   <string name="licenses_back">‹ Settings</string>
   <string name="license_agentcodi_title">AGENTCODI authorship</string>
   <string name="license_agentcodi_summary">Copyright 2026 Pascal (Mc Pasi) · Apache License 2.0.</string>
+  <string name="license_material_icons_title">Material Icons</string>
+  <string name="license_material_icons_summary">Round interface icons from Google’s Material Design Icons repository · pinned source paths under Apache License 2.0.</string>
   <string name="license_codex_runtime_title">Codex Android community runtime</string>
   <string name="license_codex_runtime_summary">OpenAI Codex 0.148.1 and the Android/Termux community distribution · Apache License 2.0. This is not an official OpenAI Android APK.</string>
   <string name="license_node_runtime_title">Packaged Node.js toolchain</string>

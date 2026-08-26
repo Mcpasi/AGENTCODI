@@ -62,7 +62,7 @@ AGENTCODI does more than display a Codex conversation.
 | ripgrep | Packaged no-PCRE2 runtime exposed as `rg` |
 | MCP management | Native Android interface backed by Codex configuration RPCs |
 
-The current AGENTCODI 0.6.0 runtime uses **Codex app-server 0.148.1** together with the matching code-mode host from the same pinned artifact.
+The current AGENTCODI 0.6.1 runtime uses **Codex app-server 0.148.1** together with the matching code-mode host from the same pinned artifact.
 
 ---
 
@@ -89,6 +89,8 @@ While a turn is running, the composer switches to **Add guidance** and sends a c
 `turn/steer` request to that same turn. The separate **Stop** action remains available.
 
 Thread actions are disabled while a turn or native approval/input request is active. Archiving is reversible through the archived view; permanent deletion is a distinct Codex RPC and always requires confirmation. If the currently open thread is archived or deleted, AGENTCODI clears only its in-memory conversation projection. Private workspace files, including imported copies, are not deleted as a side effect.
+
+The chat surface uses compact, accessible icon actions with 48 dp touch targets, localized screen-reader labels and long-press tooltips. Workspace files, terminal and settings live in the header; file import is the plus action directly to the left of the composer. Review and Stop share a contextual slot so Stop remains available during an active turn without crowding the input. These local vector resources come from the pinned Apache-2.0 Material Icons source documented in `NOTICE.md`.
 
 ### Review mode
 
@@ -124,7 +126,7 @@ Selections are validated against the options reported by the app-server.
 
 ### Execution modes
 
-AGENTCODI 0.6.0 offers two explicitly separated execution modes:
+AGENTCODI 0.6.1 offers two explicitly separated execution modes:
 
 | Mode | App-server profile | Filesystem behavior |
 |---|---|---|
@@ -413,7 +415,7 @@ Several sensitive byte and character buffers are explicitly cleared after use.
 
 Current release line:
 
-### AGENTCODI 0.6.0
+### AGENTCODI 0.6.1
 
 | Requirement | Value |
 |---|---|
@@ -464,13 +466,14 @@ Physical Android hardware is used separately to validate installation, UI behavi
 
 AGENTCODI is under active development.
 
-Version 0.6.0 currently focuses heavily on:
+Version 0.6.1 currently focuses heavily on:
 
 - Native Codex runtime integration
 - A fail-closed app-server `fork()`/`execve()` boundary that prevents unrelated parent file descriptors from entering the Codex child and combines an isolated child process group with parent-side subreaper ownership
 - Graceful TERM and synchronous forced KILL/reap cleanup for the complete app-server tree, including terminal or tool descendants that create their own process group or session
 - Separate protected and experimental compatibility-mode modules, mandatory danger warning and native profile propagation without prompt injection
 - Bounded active/archive thread views with app-server-backed archive, restore and confirmed permanent deletion
+- A compact accessible icon-based chat header, thread list and composer without removing any chat action
 - Correlated in-flight turn steering without losing the separate stop action
 - A native custom-only inline review flow with bounded instructions, bounded split-ID correlation, reliable completion and a stop path that remains available during a pending review start
 - Read-only, app-server-owned ChatGPT quota visibility

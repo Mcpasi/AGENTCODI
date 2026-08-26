@@ -90,6 +90,20 @@ public final class LicensesActivity extends Activity {
         );
         addLicenseCard(
             page,
+            R.string.license_material_icons_title,
+            R.string.license_material_icons_summary,
+            R.string.license_show_text,
+            new LicenseLoader() {
+                @Override
+                public String load() throws IOException {
+                    return readRawResource(R.raw.material_icons_notice)
+                        + "\n\n"
+                        + readRawResource(R.raw.agentcodi_apache_2_0);
+                }
+            }
+        );
+        addLicenseCard(
+            page,
             R.string.license_codex_runtime_title,
             R.string.license_codex_runtime_summary,
             R.string.license_show_notice,

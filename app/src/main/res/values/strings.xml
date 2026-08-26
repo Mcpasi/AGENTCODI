@@ -45,6 +45,23 @@
   <string name="browser_exporting">Copying the selected file to the explicit Android destination…</string>
   <string name="browser_exported">Exported: %1$s</string>
   <string name="browser_export_failed">The selected file could not be revalidated and exported.</string>
+  <string name="browser_directory_export">Export this folder as ZIP…</string>
+  <string name="browser_directory_export_checking">Revalidating this folder and its bounded exportable contents before opening Android’s document picker…</string>
+  <string name="browser_directory_exporting">Creating the selected folder ZIP at the explicit Android destination…</string>
+  <plurals name="browser_directory_export_target">
+    <item quantity="one">Choose a ZIP destination for %1$d regular file · %2$s. %3$s</item>
+    <item quantity="other">Choose a ZIP destination for %1$d regular files · %2$s. %3$s</item>
+  </plurals>
+  <plurals name="browser_directory_exported">
+    <item quantity="one">Folder ZIP exported: %1$d regular file · %2$s. %3$s</item>
+    <item quantity="other">Folder ZIP exported: %1$d regular files · %2$s. %3$s</item>
+  </plurals>
+  <string name="browser_directory_export_failed">This folder could not be revalidated and exported within the ZIP safety limits.</string>
+  <string name="browser_archive_omitted_none">All cataloged entries were exportable.</string>
+  <plurals name="browser_archive_omitted">
+    <item quantity="one">%1$d unavailable entry was safely omitted.</item>
+    <item quantity="other">%1$d unavailable entries were safely omitted.</item>
+  </plurals>
   <string name="browser_unavailable_symlink">This symbolic link is shown but is never followed; other directory entries remain available.</string>
   <string name="browser_unavailable_hardlink">This hard-linked entry is shown but cannot be opened through the private workspace boundary.</string>
   <string name="browser_unavailable_special">This special filesystem entry is shown but has no regular-file preview.</string>
@@ -271,46 +288,9 @@
   <string name="language_english">English</string>
   <string name="language_german">German</string>
 
-  <string name="workspace_export_section">WORKSPACE EXPORT</string>
-  <string name="workspace_export_description">Regular workspace files are copied byte for byte, regardless of type or extension, to a location chosen in Android’s document picker. Alternatively, the ZIP contains all regular files with their relative directory structure. Symbolic links, hard links, outside paths, and the separate CODEX_HOME are never exported.</string>
-  <string name="workspace_export_ready">Ready. Individual files: up to 512 MiB; ZIP: 2,048 regular files and 1 GiB of content; catalog scan: up to 65,536 filesystem entries.</string>
-  <string name="workspace_file_choose">Choose workspace file</string>
-  <string name="workspace_archive_export">Export entire workspace as ZIP</string>
-  <string name="workspace_file_export_cancelled">File export was cancelled.</string>
-  <string name="workspace_file_selection_expired">The selected workspace file is no longer active.</string>
-  <string name="workspace_zip_export_cancelled">ZIP export was cancelled.</string>
-  <string name="workspace_zip_expired">The prepared workspace export is no longer active.</string>
-  <string name="workspace_files_checking">Checking workspace files securely…</string>
-  <string name="workspace_files_check_failed">Workspace files could not be checked: %1$s</string>
-  <string name="workspace_check_start_failed">The workspace check could not be started.</string>
-  <string name="workspace_no_regular_files">The workspace contains no regular files.</string>
-  <string name="workspace_over_export_limit">over export limit</string>
-  <plurals name="workspace_files_checked">
-    <item quantity="one">%1$d regular workspace file checked.</item>
-    <item quantity="other">%1$d regular workspace files checked.</item>
-  </plurals>
-  <string name="workspace_file_export_title">Export workspace file</string>
-  <string name="workspace_file_too_large">This file exceeds the 512 MiB individual-file limit.</string>
-  <string name="workspace_file_selection_cancelled">File selection was cancelled.</string>
-  <string name="workspace_file_target">Choose a destination for “%1$s”…</string>
-  <string name="workspace_file_exporting">Exporting workspace file…</string>
-  <string name="workspace_file_exported">Exported: %1$s · %2$s</string>
-  <string name="workspace_file_export_failed">File export failed: %1$s</string>
-  <string name="workspace_file_export_start_failed">The file export could not be started.</string>
-  <string name="workspace_zip_preparing">Preparing workspace ZIP securely…</string>
-  <string name="workspace_zip_prepare_failed">Workspace ZIP could not be prepared: %1$s</string>
-  <string name="workspace_zip_check_start_failed">The ZIP check could not be started.</string>
-  <plurals name="workspace_zip_target">
-    <item quantity="one">Choose ZIP destination: %1$d file, %2$s.</item>
-    <item quantity="other">Choose ZIP destination: %1$d files, %2$s.</item>
-  </plurals>
-  <string name="workspace_zip_exporting">Creating workspace ZIP…</string>
-  <plurals name="workspace_zip_exported">
-    <item quantity="one">Workspace ZIP exported: %1$d file, %2$s.</item>
-    <item quantity="other">Workspace ZIP exported: %1$d files, %2$s.</item>
-  </plurals>
-  <string name="workspace_zip_export_failed">ZIP export failed: %1$s</string>
-  <string name="workspace_zip_export_start_failed">The ZIP export could not be started.</string>
+  <string name="workspace_export_section">WORKSPACE FILES</string>
+  <string name="workspace_export_description">Use the graphical file browser to inspect the private workspace, export any verified regular file byte for byte, or export the currently open folder—including the workspace root—as a bounded ZIP through Android’s document picker.</string>
+  <string name="workspace_export_ready">Individual files are limited to 512 MiB. Folder ZIPs are limited to 2,048 regular files, 1 GiB of content, 65,536 scanned entries, and 64 directory levels. Unsafe or unavailable children are omitted locally and never make safe siblings unavailable.</string>
 
   <string name="account_section">SIGN-IN</string>
   <string name="account_server_not_started">Codex app-server is not started.</string>

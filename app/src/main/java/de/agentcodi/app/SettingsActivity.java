@@ -38,27 +38,19 @@ import de.agentcodi.core.UiLanguage;
 import de.agentcodi.core.UiStartupState;
 import de.agentcodi.runtime.AgentRuntimeService;
 import de.agentcodi.runtime.CrashDiagnostics;
-import de.agentcodi.runtime.WorkspaceFileExporter;
 
 import java.net.URI;
 import java.text.DateFormat;
 import java.util.Date;
-import java.util.List;
 import java.util.Locale;
-import java.util.concurrent.ExecutorService;
-import java.util.concurrent.Executors;
-import java.util.concurrent.RejectedExecutionException;
 
 public final class SettingsActivity extends Activity {
     private static final int NOTIFICATION_PERMISSION_REQUEST = 42;
-    private static final int WORKSPACE_FILE_EXPORT_REQUEST = 7002;
-    private static final int WORKSPACE_ARCHIVE_EXPORT_REQUEST = 7003;
     private static final long ACTIVE_REFRESH_INTERVAL_MS = 250L;
     private static final long IDLE_REFRESH_INTERVAL_MS = 900L;
 
     private final Handler handler = new Handler(Looper.getMainLooper());
     private final UiStartupState startupState = new UiStartupState();
-    private final ExecutorService workspaceOperations = Executors.newSingleThreadExecutor();
     private final Runnable refreshTask = new Runnable() {
         @Override
         public void run() {
@@ -110,13 +102,6 @@ public final class SettingsActivity extends Activity {
     private boolean pendingLaunchDangerWarningAcknowledged;
     private CrashDiagnostics crashDiagnostics;
     private InteractiveRequestDialog interactiveRequestDialog;
-    private TextView workspaceExportStatusView;
-    private Button workspaceFileButton;
-    private Button workspaceArchiveButton;
-    private AlertDialog workspaceFileDialog;
-    private WorkspaceFileExporter.FileExport pendingWorkspaceFile;
-    private WorkspaceFileExporter.ArchiveExport pendingWorkspaceArchive;
-    private boolean workspaceOperationActive;
     private boolean destroyed;
     private TextView languageStatusView;
     private ExecutionModeSettingsCard executionModeSettingsCard;
@@ -173,10 +158,6 @@ public final class SettingsActivity extends Activity {
         if (interactiveRequestDialog != null) {
             interactiveRequestDialog.dismissForLifecycle();
         }
-        if (workspaceFileDialog != null) {
-            workspaceFileDialog.dismiss();
-            workspaceFileDialog = null;
-        }
         if (executionModeSettingsCard != null) {
             executionModeSettingsCard.dismiss();
         }
@@ -187,51 +168,7 @@ public final class SettingsActivity extends Activity {
     protected void onDestroy() {
         destroyed = true;
         handler.removeCallbacksAndMessages(null);
-        workspaceOperations.shutdownNow();
-        pendingWorkspaceFile = null;
-        pendingWorkspaceArchive = null;
         super.onDestroy();
-    }
-
-    @Override
-    protected void onActivityResult(int requestCode, int resultCode, Intent data) {
-        super.onActivityResult(requestCode, resultCode, data);
-        if (requestCode == WORKSPACE_FILE_EXPORT_REQUEST) {
-            WorkspaceFileExporter.FileExport source = pendingWorkspaceFile;
-            pendingWorkspaceFile = null;
-            if (resultCode != RESULT_OK || data == null || data.getData() == null) {
-                finishWorkspaceOperation(
-                    getString(R.string.workspace_file_export_cancelled),
-                    false
-                );
-                return;
-            }
-            if (source == null) {
-                finishWorkspaceOperation(
-                    getString(R.string.workspace_file_selection_expired),
-                    true
-                );
-                return;
-            }
-            exportWorkspaceFile(source, data.getData());
-            return;
-        }
-        if (requestCode == WORKSPACE_ARCHIVE_EXPORT_REQUEST) {
-            WorkspaceFileExporter.ArchiveExport archive = pendingWorkspaceArchive;
-            pendingWorkspaceArchive = null;
-            if (resultCode != RESULT_OK || data == null || data.getData() == null) {
-                finishWorkspaceOperation(
-                    getString(R.string.workspace_zip_export_cancelled),
-                    false
-                );
-                return;
-            }
-            if (archive == null) {
-                finishWorkspaceOperation(getString(R.string.workspace_zip_expired), true);
-                return;
-            }
-            exportWorkspaceArchive(data.getData());
-        }
     }
 
     private View buildContent(String previousCrash) {
@@ -363,13 +300,13 @@ public final class SettingsActivity extends Activity {
         );
         LinearLayout workspaceCard = theme.card();
         workspaceCard.addView(theme.body(getString(R.string.workspace_export_description)));
-        workspaceExportStatusView = theme.text(
+        TextView workspaceExportLimits = theme.text(
             getString(R.string.workspace_export_ready),
             13,
             theme.secondary
         );
-        workspaceExportStatusView.setLineSpacing(0.0f, 1.16f);
-        theme.addWithTopMargin(workspaceCard, workspaceExportStatusView, 12);
+        workspaceExportLimits.setLineSpacing(0.0f, 1.16f);
+        theme.addWithTopMargin(workspaceCard, workspaceExportLimits, 12);
         Button workspaceBrowserButton = theme.secondaryButton(
             getString(R.string.workspace_browser_open)
         );
@@ -383,26 +320,6 @@ public final class SettingsActivity extends Activity {
             }
         });
         theme.addWithTopMargin(workspaceCard, workspaceBrowserButton, 14);
-        workspaceFileButton = theme.secondaryButton(
-            getString(R.string.workspace_file_choose)
-        );
-        workspaceFileButton.setOnClickListener(new View.OnClickListener() {
-            @Override
-            public void onClick(View view) {
-                loadWorkspaceFileCatalog();
-            }
-        });
-        theme.addWithTopMargin(workspaceCard, workspaceFileButton, 8);
-        workspaceArchiveButton = theme.secondaryButton(
-            getString(R.string.workspace_archive_export)
-        );
-        workspaceArchiveButton.setOnClickListener(new View.OnClickListener() {
-            @Override
-            public void onClick(View view) {
-                prepareWorkspaceArchive();
-            }
-        });
-        theme.addWithTopMargin(workspaceCard, workspaceArchiveButton, 8);
         theme.addWithTopMargin(page, workspaceCard, 10);
 
         theme.addWithTopMargin(
@@ -909,361 +826,6 @@ public final class SettingsActivity extends Activity {
                 Toast.LENGTH_LONG
             ).show();
         }
-    }
-
-    private void loadWorkspaceFileCatalog() {
-        if (!beginWorkspaceOperation(getString(R.string.workspace_files_checking))) {
-            return;
-        }
-        final Context applicationContext = getApplicationContext();
-        if (!submitWorkspaceOperation(new Runnable() {
-            @Override
-            public void run() {
-                try {
-                    final List<WorkspaceFileExporter.FileExport> files =
-                        WorkspaceFileExporter.list(applicationContext);
-                    runOnUiThread(new Runnable() {
-                        @Override
-                        public void run() {
-                            showWorkspaceFileCatalog(files);
-                        }
-                    });
-                } catch (final Throwable error) {
-                    runOnUiThread(new Runnable() {
-                        @Override
-                        public void run() {
-                            finishWorkspaceOperation(
-                                getString(
-                                    R.string.workspace_files_check_failed,
-                                    safeFailureMessage(error)
-                                ),
-                                true
-                            );
-                        }
-                    });
-                }
-            }
-        })) {
-            finishWorkspaceOperation(
-                getString(R.string.workspace_check_start_failed),
-                true
-            );
-        }
-    }
-
-    private void showWorkspaceFileCatalog(
-        final List<WorkspaceFileExporter.FileExport> files
-    ) {
-        if (destroyed || isFinishing()) {
-            return;
-        }
-        if (files == null || files.isEmpty()) {
-            finishWorkspaceOperation(getString(R.string.workspace_no_regular_files), false);
-            return;
-        }
-        final String[] labels = new String[files.size()];
-        for (int index = 0; index < files.size(); index++) {
-            WorkspaceFileExporter.FileExport file = files.get(index);
-            labels[index] = file.getRelativePath()
-                + "  ·  " + readableByteCount(file.getByteCount())
-                + (file.isWithinExportLimit()
-                    ? ""
-                    : "  ·  " + getString(R.string.workspace_over_export_limit));
-        }
-        workspaceExportStatusView.setText(
-            getResources().getQuantityString(
-                R.plurals.workspace_files_checked,
-                files.size(),
-                Integer.valueOf(files.size())
-            )
-        );
-        workspaceExportStatusView.setTextColor(theme.secondary);
-        AlertDialog dialog = new AlertDialog.Builder(this)
-            .setTitle(R.string.workspace_file_export_title)
-            .setItems(labels, new DialogInterface.OnClickListener() {
-                @Override
-                public void onClick(DialogInterface ignored, int which) {
-                    WorkspaceFileExporter.FileExport selected = files.get(which);
-                    if (!selected.isWithinExportLimit()) {
-                        finishWorkspaceOperation(
-                            getString(R.string.workspace_file_too_large),
-                            true
-                        );
-                        return;
-                    }
-                    openWorkspaceFileDocument(selected);
-                }
-            })
-            .setNegativeButton(R.string.common_cancel, null)
-            .create();
-        dialog.setOnDismissListener(new DialogInterface.OnDismissListener() {
-            @Override
-            public void onDismiss(DialogInterface ignored) {
-                workspaceFileDialog = null;
-                if (pendingWorkspaceFile == null && workspaceOperationActive) {
-                    finishWorkspaceOperation(
-                        getString(R.string.workspace_file_selection_cancelled),
-                        false
-                    );
-                }
-            }
-        });
-        workspaceFileDialog = dialog;
-        dialog.show();
-    }
-
-    private void openWorkspaceFileDocument(WorkspaceFileExporter.FileExport source) {
-        pendingWorkspaceFile = source;
-        Intent intent = new Intent(Intent.ACTION_CREATE_DOCUMENT);
-        intent.addCategory(Intent.CATEGORY_OPENABLE);
-        intent.setType(source.getMimeType());
-        intent.putExtra(Intent.EXTRA_TITLE, source.getDisplayName());
-        try {
-            workspaceExportStatusView.setText(
-                getString(R.string.workspace_file_target, source.getRelativePath())
-            );
-            startActivityForResult(intent, WORKSPACE_FILE_EXPORT_REQUEST);
-        } catch (Throwable error) {
-            pendingWorkspaceFile = null;
-            finishWorkspaceOperation(
-                getString(R.string.document_picker_open_failed),
-                true
-            );
-        }
-    }
-
-    private void exportWorkspaceFile(
-        final WorkspaceFileExporter.FileExport source,
-        final Uri destination
-    ) {
-        workspaceExportStatusView.setText(R.string.workspace_file_exporting);
-        final Context applicationContext = getApplicationContext();
-        if (!submitWorkspaceOperation(new Runnable() {
-            @Override
-            public void run() {
-                try {
-                    final WorkspaceFileExporter.FileExport exported =
-                        WorkspaceFileExporter.export(
-                            applicationContext,
-                            source.getSourcePath(),
-                            destination
-                        );
-                    runOnUiThread(new Runnable() {
-                        @Override
-                        public void run() {
-                            finishWorkspaceOperation(
-                                getString(
-                                    R.string.workspace_file_exported,
-                                    exported.getRelativePath(),
-                                    readableByteCount(exported.getByteCount())
-                                ),
-                                false
-                            );
-                        }
-                    });
-                } catch (final Throwable error) {
-                    runOnUiThread(new Runnable() {
-                        @Override
-                        public void run() {
-                            finishWorkspaceOperation(
-                                getString(
-                                    R.string.workspace_file_export_failed,
-                                    safeFailureMessage(error)
-                                ),
-                                true
-                            );
-                        }
-                    });
-                }
-            }
-        })) {
-            finishWorkspaceOperation(
-                getString(R.string.workspace_file_export_start_failed),
-                true
-            );
-        }
-    }
-
-    private void prepareWorkspaceArchive() {
-        if (!beginWorkspaceOperation(getString(R.string.workspace_zip_preparing))) {
-            return;
-        }
-        final Context applicationContext = getApplicationContext();
-        if (!submitWorkspaceOperation(new Runnable() {
-            @Override
-            public void run() {
-                try {
-                    final WorkspaceFileExporter.ArchiveExport archive =
-                        WorkspaceFileExporter.inspectArchive(applicationContext);
-                    runOnUiThread(new Runnable() {
-                        @Override
-                        public void run() {
-                            openWorkspaceArchiveDocument(archive);
-                        }
-                    });
-                } catch (final Throwable error) {
-                    runOnUiThread(new Runnable() {
-                        @Override
-                        public void run() {
-                            finishWorkspaceOperation(
-                                getString(
-                                    R.string.workspace_zip_prepare_failed,
-                                    safeFailureMessage(error)
-                                ),
-                                true
-                            );
-                        }
-                    });
-                }
-            }
-        })) {
-            finishWorkspaceOperation(
-                getString(R.string.workspace_zip_check_start_failed),
-                true
-            );
-        }
-    }
-
-    private void openWorkspaceArchiveDocument(
-        WorkspaceFileExporter.ArchiveExport archive
-    ) {
-        if (destroyed || isFinishing()) {
-            return;
-        }
-        pendingWorkspaceArchive = archive;
-        Intent intent = new Intent(Intent.ACTION_CREATE_DOCUMENT);
-        intent.addCategory(Intent.CATEGORY_OPENABLE);
-        intent.setType("application/zip");
-        intent.putExtra(Intent.EXTRA_TITLE, archive.getDisplayName());
-        try {
-            workspaceExportStatusView.setText(
-                getResources().getQuantityString(
-                    R.plurals.workspace_zip_target,
-                    archive.getFileCount(),
-                    Integer.valueOf(archive.getFileCount()),
-                    readableByteCount(archive.getByteCount())
-                )
-            );
-            startActivityForResult(intent, WORKSPACE_ARCHIVE_EXPORT_REQUEST);
-        } catch (Throwable error) {
-            pendingWorkspaceArchive = null;
-            finishWorkspaceOperation(
-                getString(R.string.document_picker_open_failed),
-                true
-            );
-        }
-    }
-
-    private void exportWorkspaceArchive(final Uri destination) {
-        workspaceExportStatusView.setText(R.string.workspace_zip_exporting);
-        final Context applicationContext = getApplicationContext();
-        if (!submitWorkspaceOperation(new Runnable() {
-            @Override
-            public void run() {
-                try {
-                    final WorkspaceFileExporter.ArchiveExport exported =
-                        WorkspaceFileExporter.exportArchive(
-                            applicationContext,
-                            destination
-                        );
-                    runOnUiThread(new Runnable() {
-                        @Override
-                        public void run() {
-                            finishWorkspaceOperation(
-                                getResources().getQuantityString(
-                                    R.plurals.workspace_zip_exported,
-                                    exported.getFileCount(),
-                                    Integer.valueOf(exported.getFileCount()),
-                                    readableByteCount(exported.getByteCount())
-                                ),
-                                false
-                            );
-                        }
-                    });
-                } catch (final Throwable error) {
-                    runOnUiThread(new Runnable() {
-                        @Override
-                        public void run() {
-                            finishWorkspaceOperation(
-                                getString(
-                                    R.string.workspace_zip_export_failed,
-                                    safeFailureMessage(error)
-                                ),
-                                true
-                            );
-                        }
-                    });
-                }
-            }
-        })) {
-            finishWorkspaceOperation(
-                getString(R.string.workspace_zip_export_start_failed),
-                true
-            );
-        }
-    }
-
-    private boolean beginWorkspaceOperation(String message) {
-        if (workspaceOperationActive || destroyed) {
-            return false;
-        }
-        workspaceOperationActive = true;
-        pendingWorkspaceFile = null;
-        pendingWorkspaceArchive = null;
-        workspaceExportStatusView.setText(message);
-        workspaceExportStatusView.setTextColor(theme.secondary);
-        theme.setEnabled(workspaceFileButton, false);
-        theme.setEnabled(workspaceArchiveButton, false);
-        return true;
-    }
-
-    private void finishWorkspaceOperation(String message, boolean failure) {
-        if (destroyed || workspaceExportStatusView == null) {
-            return;
-        }
-        workspaceOperationActive = false;
-        workspaceExportStatusView.setText(message);
-        workspaceExportStatusView.setTextColor(failure ? theme.danger : theme.secondary);
-        theme.setEnabled(workspaceFileButton, true);
-        theme.setEnabled(workspaceArchiveButton, true);
-    }
-
-    private boolean submitWorkspaceOperation(Runnable operation) {
-        try {
-            workspaceOperations.execute(operation);
-            return true;
-        } catch (RejectedExecutionException error) {
-            return false;
-        }
-    }
-
-    private String safeFailureMessage(Throwable error) {
-        String source = error == null ? "" : error.getMessage();
-        if (source == null || source.trim().isEmpty()) {
-            return error == null
-                ? getString(R.string.common_unknown_error)
-                : error.getClass().getSimpleName();
-        }
-        StringBuilder safe = new StringBuilder();
-        for (int index = 0; index < source.length() && safe.length() < 180; index++) {
-            char character = source.charAt(index);
-            safe.append(character < 0x20 || character == 0x7f ? ' ' : character);
-        }
-        return UiText.errorReason(this, safe.toString().trim());
-    }
-
-    private static String readableByteCount(long bytes) {
-        if (bytes < 1024L) {
-            return bytes + " B";
-        }
-        double value = bytes;
-        String[] units = new String[] {"KiB", "MiB", "GiB", "TiB"};
-        int unit = -1;
-        do {
-            value /= 1024.0d;
-            unit++;
-        } while (value >= 1024.0d && unit < units.length - 1);
-        return String.format(Locale.ROOT, "%.1f %s", value, units[unit]);
     }
 
     private void copyDiagnostics() {

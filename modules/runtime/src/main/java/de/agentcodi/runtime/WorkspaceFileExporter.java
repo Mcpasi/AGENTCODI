@@ -82,40 +82,64 @@ public final class WorkspaceFileExporter {
     }
 
     public static ArchiveExport inspectArchive(Context context) throws IOException {
+        return inspectArchive(context, "");
+    }
+
+    public static ArchiveExport inspectArchive(
+        Context context,
+        String relativeDirectory
+    ) throws IOException {
         WorkspaceArchive.Summary summary = WorkspaceArchive.inspect(
             layout(context).getWorkspace(),
+            relativeDirectory,
             MAXIMUM_FILES,
             MAXIMUM_SCANNED_ENTRIES,
             MAXIMUM_FILE_BYTES,
             MAXIMUM_ARCHIVE_BYTES,
             MAXIMUM_RELATIVE_PATH_CHARACTERS,
-            MAXIMUM_DIRECTORY_DEPTH
+            MAXIMUM_DIRECTORY_DEPTH,
+            NativeWorkspaceDirectoryCatalog.reader(),
+            NativeWorkspaceFileAccess.opener()
         );
         return new ArchiveExport(
-            ARCHIVE_DISPLAY_NAME,
+            archiveDisplayName(summary.getRelativeDirectory()),
+            summary.getRelativeDirectory(),
             summary.getFileCount(),
-            summary.getTotalBytes()
+            summary.getTotalBytes(),
+            summary.getOmittedEntryCount()
         );
     }
 
     public static ArchiveExport exportArchive(Context context, Uri destination)
         throws IOException {
+        return exportArchive(context, "", destination);
+    }
+
+    public static ArchiveExport exportArchive(
+        Context context,
+        String relativeDirectory,
+        Uri destination
+    ) throws IOException {
         requireContentDestination(destination);
         WorkspaceLayout layout = layout(context);
         WorkspaceArchive.inspect(
             layout.getWorkspace(),
+            relativeDirectory,
             MAXIMUM_FILES,
             MAXIMUM_SCANNED_ENTRIES,
             MAXIMUM_FILE_BYTES,
             MAXIMUM_ARCHIVE_BYTES,
             MAXIMUM_RELATIVE_PATH_CHARACTERS,
-            MAXIMUM_DIRECTORY_DEPTH
+            MAXIMUM_DIRECTORY_DEPTH,
+            NativeWorkspaceDirectoryCatalog.reader(),
+            NativeWorkspaceFileAccess.opener()
         );
         OutputStream output = openDestination(context, destination);
         WorkspaceArchive.Summary summary;
         try (OutputStream destinationStream = output) {
             summary = WorkspaceArchive.write(
                 layout.getWorkspace(),
+                relativeDirectory,
                 destinationStream,
                 MAXIMUM_FILES,
                 MAXIMUM_SCANNED_ENTRIES,
@@ -123,13 +147,16 @@ public final class WorkspaceFileExporter {
                 MAXIMUM_ARCHIVE_BYTES,
                 MAXIMUM_RELATIVE_PATH_CHARACTERS,
                 MAXIMUM_DIRECTORY_DEPTH,
+                NativeWorkspaceDirectoryCatalog.reader(),
                 NativeWorkspaceFileAccess.opener()
             );
         }
         return new ArchiveExport(
-            ARCHIVE_DISPLAY_NAME,
+            archiveDisplayName(summary.getRelativeDirectory()),
+            summary.getRelativeDirectory(),
             summary.getFileCount(),
-            summary.getTotalBytes()
+            summary.getTotalBytes(),
+            summary.getOmittedEntryCount()
         );
     }
 
@@ -155,6 +182,48 @@ public final class WorkspaceFileExporter {
         return detected == null || detected.trim().isEmpty()
             ? "application/octet-stream"
             : detected;
+    }
+
+    private static String archiveDisplayName(String relativeDirectory) {
+        if (relativeDirectory == null || relativeDirectory.isEmpty()) {
+            return ARCHIVE_DISPLAY_NAME;
+        }
+        int separator = relativeDirectory.lastIndexOf('/');
+        String source = separator < 0
+            ? relativeDirectory
+            : relativeDirectory.substring(separator + 1);
+        StringBuilder safe = new StringBuilder();
+        for (int index = 0; index < source.length() && safe.length() < 150; index++) {
+            char character = source.charAt(index);
+            if (Character.isHighSurrogate(character)) {
+                if (index + 1 < source.length()
+                    && Character.isLowSurrogate(source.charAt(index + 1))
+                    && safe.length() <= 148) {
+                    safe.append(character).append(source.charAt(++index));
+                } else {
+                    safe.append('_');
+                }
+                continue;
+            }
+            if (character < 0x20 || character == 0x7f
+                || Character.isLowSurrogate(character)
+                || character == '<' || character == '>' || character == ':'
+                || character == '"' || character == '/' || character == '\\'
+                || character == '|' || character == '?' || character == '*') {
+                safe.append('_');
+            } else {
+                safe.append(character);
+            }
+        }
+        while (safe.length() > 0
+            && (safe.charAt(safe.length() - 1) == ' '
+                || safe.charAt(safe.length() - 1) == '.')) {
+            safe.setLength(safe.length() - 1);
+        }
+        if (safe.length() == 0) {
+            safe.append("folder");
+        }
+        return "AGENTCODI-" + safe + ".zip";
     }
 
     private static OutputStream openDestination(Context context, Uri destination)
@@ -231,17 +300,31 @@ public final class WorkspaceFileExporter {
 
     public static final class ArchiveExport {
         private final String displayName;
+        private final String relativeDirectory;
         private final int fileCount;
         private final long byteCount;
+        private final int omittedEntryCount;
 
-        private ArchiveExport(String displayName, int fileCount, long byteCount) {
+        private ArchiveExport(
+            String displayName,
+            String relativeDirectory,
+            int fileCount,
+            long byteCount,
+            int omittedEntryCount
+        ) {
             this.displayName = displayName;
+            this.relativeDirectory = relativeDirectory;
             this.fileCount = fileCount;
             this.byteCount = byteCount;
+            this.omittedEntryCount = omittedEntryCount;
         }
 
         public String getDisplayName() {
             return displayName;
+        }
+
+        public String getRelativeDirectory() {
+            return relativeDirectory;
         }
 
         public int getFileCount() {
@@ -250,6 +333,10 @@ public final class WorkspaceFileExporter {
 
         public long getByteCount() {
             return byteCount;
+        }
+
+        public int getOmittedEntryCount() {
+            return omittedEntryCount;
         }
     }
 }

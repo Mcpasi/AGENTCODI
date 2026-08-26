@@ -77,6 +77,26 @@ public final class WorkspaceBrowserRepository {
         );
     }
 
+    public WorkspaceFileExporter.ArchiveExport inspectArchive(
+        String relativeDirectory
+    ) throws IOException {
+        return WorkspaceFileExporter.inspectArchive(
+            applicationContext,
+            requireBrowserDirectory(relativeDirectory)
+        );
+    }
+
+    public WorkspaceFileExporter.ArchiveExport exportArchive(
+        String relativeDirectory,
+        Uri destination
+    ) throws IOException {
+        return WorkspaceFileExporter.exportArchive(
+            applicationContext,
+            requireBrowserDirectory(relativeDirectory),
+            destination
+        );
+    }
+
     private String absoluteWorkspacePath(String relativePath) throws IOException {
         if (relativePath == null || relativePath.isEmpty()
             || relativePath.length() > 2048 || relativePath.startsWith("/")
@@ -98,5 +118,34 @@ public final class WorkspaceBrowserRepository {
         }
         // The export facade performs the authoritative canonical no-follow check.
         return new File(workspaceDirectory, relativePath).getAbsolutePath();
+    }
+
+    private static String requireBrowserDirectory(String relativeDirectory)
+        throws IOException {
+        if (relativeDirectory == null || relativeDirectory.length() > 2048
+            || relativeDirectory.startsWith("/") || relativeDirectory.endsWith("/")
+            || relativeDirectory.contains("//")) {
+            throw new IOException("Workspace browser directory export path is unsafe");
+        }
+        if (relativeDirectory.isEmpty()) {
+            return "";
+        }
+        String[] components = relativeDirectory.split("/", -1);
+        if (components.length > 64) {
+            throw new IOException("Workspace browser directory export path is unsafe");
+        }
+        for (String component : components) {
+            if (component.isEmpty() || ".".equals(component) || "..".equals(component)
+                || component.indexOf('\\') >= 0 || component.indexOf(':') >= 0) {
+                throw new IOException("Workspace browser directory export path is unsafe");
+            }
+            for (int index = 0; index < component.length(); index++) {
+                char character = component.charAt(index);
+                if (character < 0x20 || character == 0x7f) {
+                    throw new IOException("Workspace browser directory export path is unsafe");
+                }
+            }
+        }
+        return relativeDirectory;
     }
 }

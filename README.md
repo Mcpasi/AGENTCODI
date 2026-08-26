@@ -51,7 +51,7 @@ AGENTCODI does more than display a Codex conversation.
 | Runtime service | Local Android foreground service |
 | Workspace | Private application storage |
 | Review mode | Native custom workspace review on the current Codex thread |
-| Graphical file browser | Native paged workspace navigation with text, image and binary previews |
+| Graphical file browser | Native paged workspace navigation, bounded previews, individual-file export and folder ZIP export |
 | File import | Android document picker into a bounded private workspace copy |
 | Codex home | Private and separated from the workspace |
 | Account quotas | Read-only primary and secondary ChatGPT quota windows from Codex |
@@ -62,7 +62,7 @@ AGENTCODI does more than display a Codex conversation.
 | ripgrep | Packaged no-PCRE2 runtime exposed as `rg` |
 | MCP management | Native Android interface backed by Codex configuration RPCs |
 
-The current AGENTCODI 0.5.29 runtime uses **Codex app-server 0.148.1** together with the matching code-mode host from the same pinned artifact.
+The current AGENTCODI 0.6.0 runtime uses **Codex app-server 0.148.1** together with the matching code-mode host from the same pinned artifact.
 
 ---
 
@@ -124,7 +124,7 @@ Selections are validated against the options reported by the app-server.
 
 ### Execution modes
 
-AGENTCODI 0.5.29 offers two explicitly separated execution modes:
+AGENTCODI 0.6.0 offers two explicitly separated execution modes:
 
 | Mode | App-server profile | Filesystem behavior |
 |---|---|---|
@@ -191,7 +191,7 @@ The native **Files** surface navigates the private workspace without exposing it
 
 Regular UTF-8 text is shown as selectable, bounded content pages. Other regular files receive a bounded hexadecimal preview, while validated PNG, JPEG, GIF and WebP files receive a native image preview. Preview decoding is sampled and remains off the main thread. A malformed image is rejected as an image instead of being decoded from unchecked bytes.
 
-Directory enumeration and file reading remain descriptor-relative to the canonical workspace and never follow symbolic links. A symbolic link, hard link, special entry or unreadable child is represented as an unavailable row with its reason; it does not abort navigation to safe sibling folders and files. These entry-local safety decisions are independent of the active Codex execution mode. Export stays an explicit per-file action through Android's document picker and reuses the existing authoritative workspace export validation.
+Directory enumeration and file reading remain descriptor-relative to the canonical workspace and never follow symbolic links. A symbolic link, hard link, special entry or unreadable child is represented as an unavailable row with its reason; it does not abort navigation to safe sibling folders and files. These entry-local safety decisions are independent of the active Codex execution mode. The same surface exports a selected regular file byte for byte or the currently open folder as a ZIP through Android's document picker. Opening the workspace root and choosing the folder action replaces the former separate whole-workspace ZIP button.
 
 ### Import
 
@@ -205,15 +205,15 @@ Detaching a file removes it only from the pending message. The private copy rema
 
 ### Export
 
-Supported workspace exports include:
+Supported explicit workspace exports include:
 
-- Individual files
-- Images
-- Bounded ZIP archives
+- Individual regular files from the graphical browser, regardless of extension or MIME type
+- Validated generated images from their visible result cards
+- The currently open browser folder as a bounded ZIP, including the workspace root
 
-Export paths and archive contents pass through dedicated validation before leaving the private workspace. Since version 0.5.3, each exported file is read from a descriptor opened component by component relative to the private workspace without following links, then that same descriptor and its workspace name are verified again. A concurrent path, symlink, parent-directory or hard-link exchange therefore fails without redirecting reads outside the workspace. ZIP correlation compares Java and native modification times at their common microsecond precision, while the native descriptor still validates its full nanosecond `mtime`/`ctime` snapshot and the Java catalog remains exactly checked before and after the archive.
+Export paths and archive contents pass through dedicated validation before leaving the private workspace. Since version 0.5.3, each exported file is read from a descriptor opened component by component relative to the private workspace without following links, then that same descriptor and its workspace name are verified again. A concurrent path, symlink, parent-directory or hard-link exchange therefore fails without redirecting reads outside the workspace. In 0.6.0, folder ZIPs use the same native descriptor-relative directory catalog as the browser and the same native stable file opener as individual export. The selected folder is bound into the summary, ZIP paths are relative to it, and complete pre-/post-write catalogs plus opened-file identity, size and timestamps detect mutations.
 
-Version 0.5.19 retains the ZIP limit of 2,048 regular files and the separate finite 65,536-entry catalog traversal limit introduced in 0.5.18. Directories and omitted symbolic links therefore cannot consume the regular-file allowance, while symbolic links are still never followed or exported and hard links, special entries, unsafe paths, races, file sizes and total archive size remain fail-closed.
+Version 0.6.0 retains the ZIP limits of 2,048 regular files, 1 GiB of content, 65,536 scanned entries, 512 MiB per file, 2,048 path characters and 64 directory levels. Symbolic links, hard links, special or unreadable entries, unsafe names and non-portable path collisions are omitted locally and reported in the export summary, so they cannot suppress independent safe siblings. They are never followed or included. Exceeding a quantitative bound, selecting an unsafe folder, or detecting a mutation of an already bound archive member still fails the archive instead of weakening a boundary or claiming an incomplete bounded export.
 
 Version 0.5.4 introduced complete PNG validation before native materialization and again before workspace image export or resumed-history reuse. Validation covers the complete chunk boundaries and ordering, CRCs, `IHDR` dimensions and format fields, palette rules, the bounded zlib stream, the exact interlaced or non-interlaced scanline shape and filter bytes, and a final `IEND` with no trailing data. A PNG signature followed by arbitrary bytes is rejected rather than materialized or offered for export.
 
@@ -389,6 +389,7 @@ Current safeguards include:
 - Canonical path validation
 - Symbolic-link boundary checks
 - Descriptor-relative, no-follow workspace exports with opened-file identity and link-count checks
+- Descriptor-relative selected-folder ZIP catalogs that isolate and report unavailable children while preserving safe siblings
 - Bounded, owner-only in-chat imports whose one-shot Core send scope fully SHA-256 checks a retained stable-handle batch and revalidates it inside the RPC write lock before native history/model context is sent
 - Complete bounded PNG chunk, CRC, zlib and scanline-shape validation
 - Private SHA-256 materialization proofs before resumed images regain an export path
@@ -412,7 +413,7 @@ Several sensitive byte and character buffers are explicitly cleared after use.
 
 Current release line:
 
-### AGENTCODI 0.5.29
+### AGENTCODI 0.6.0
 
 | Requirement | Value |
 |---|---|
@@ -463,7 +464,7 @@ Physical Android hardware is used separately to validate installation, UI behavi
 
 AGENTCODI is under active development.
 
-Version 0.5.29 currently focuses heavily on:
+Version 0.6.0 currently focuses heavily on:
 
 - Native Codex runtime integration
 - A fail-closed app-server `fork()`/`execve()` boundary that prevents unrelated parent file descriptors from entering the Codex child and combines an isolated child process group with parent-side subreaper ownership
@@ -477,10 +478,10 @@ Version 0.5.29 currently focuses heavily on:
 - Packaged development toolchains with activation-bound and in-binary-attested native ELF guards plus a pinned no-PCRE2 ripgrep bridge
 - Android runtime stability
 - Workspace boundaries
-- A native graphical workspace browser with breadcrumbs, directory and content paging, bounded text/image/binary previews, isolated unavailable-entry reporting and explicit revalidated export
+- A native graphical workspace browser with breadcrumbs, directory and content paging, bounded text/image/binary previews, isolated unavailable-entry reporting, byte-exact file export and selected-folder ZIP export
 - Direct, bounded external-document import with a proven transient read grant, crash-recovery cleanup, commit-stable resource closing, atomic no-replace installation, retained verification handles across queue hand-offs, and final batch revalidation coupled to the app-server JSONL write
 - Race-free individual-file, image and ZIP source opening
-- Workspace catalogs and ZIP exports with separate finite scan and regular-file limits, omitting symbolic links without following them or blocking regular-file export
+- Workspace catalogs and ZIP exports with separate finite scan and regular-file limits, omitting unsafe or non-portable entries without following them or blocking independent safe files
 - Complete PNG validation before materialization, recovery and export
 - SHA-256-bound image materialization proofs for resumed history
 - Approval handling

@@ -136,6 +136,8 @@ if rg -n '^import de\.agentcodi\.' "$file_browser_contracts" \
       "$PROJECT_ROOT/modules/storage/src/main/java/de/agentcodi/storage/WorkspaceDirectoryCatalog.java" \
     || ! rg -q 'NativeWorkspaceDirectoryCatalog\.reader' \
       "$PROJECT_ROOT/modules/runtime/src/main/java/de/agentcodi/runtime/WorkspaceBrowserRepository.java" \
+    || ! rg -q 'inspectArchive' \
+      "$PROJECT_ROOT/modules/runtime/src/main/java/de/agentcodi/runtime/WorkspaceBrowserRepository.java" \
     || ! rg -q 'O_NOFOLLOW' \
       "$PROJECT_ROOT/modules/native-engine/src/main/cpp/workspace_directory_reader.cpp" \
     || ! rg -q 'AT_SYMLINK_NOFOLLOW' \
@@ -145,6 +147,8 @@ if rg -n '^import de\.agentcodi\.' "$file_browser_contracts" \
     || ! rg -q 'BitmapFactory\.Options' \
       "$PROJECT_ROOT/app/src/main/java/de/agentcodi/app/WorkspaceBrowserActivity.java" \
     || ! rg -q 'Intent\.ACTION_CREATE_DOCUMENT' \
+      "$PROJECT_ROOT/app/src/main/java/de/agentcodi/app/WorkspaceBrowserActivity.java" \
+    || ! rg -q 'R\.string\.browser_directory_export' \
       "$PROJECT_ROOT/app/src/main/java/de/agentcodi/app/WorkspaceBrowserActivity.java" \
     || ! rg -Uq 'android:name="\.WorkspaceBrowserActivity"[[:space:][:print:]]{0,260}android:exported="false"' \
       "$manifest" \
@@ -554,6 +558,7 @@ fi
 
 workspace_exporter="$PROJECT_ROOT/modules/runtime/src/main/java/de/agentcodi/runtime/WorkspaceFileExporter.java"
 settings_activity="$PROJECT_ROOT/app/src/main/java/de/agentcodi/app/SettingsActivity.java"
+browser_activity="$PROJECT_ROOT/app/src/main/java/de/agentcodi/app/WorkspaceBrowserActivity.java"
 workspace_reader="$PROJECT_ROOT/modules/native-engine/src/main/cpp/workspace_file_reader.cpp"
 workspace_access="$PROJECT_ROOT/modules/storage/src/main/java/de/agentcodi/storage/WorkspaceFileAccess.java"
 workspace_archive="$PROJECT_ROOT/modules/storage/src/main/java/de/agentcodi/storage/WorkspaceArchive.java"
@@ -563,12 +568,15 @@ if ! rg -q 'WorkspaceExportFile\.list' "$workspace_exporter" \
     || ! rg -q 'WorkspaceExportFile\.copyTo' "$workspace_exporter" \
     || ! rg -q 'WorkspaceArchive\.write' "$workspace_exporter" \
     || ! rg -q 'NativeWorkspaceFileAccess\.opener' "$workspace_exporter" \
+    || ! rg -q 'NativeWorkspaceDirectoryCatalog\.reader' "$workspace_exporter" \
     || ! rg -q 'layout\.getWorkspace\(\)' "$workspace_exporter" \
     || ! rg -q '"unix:nlink,fileKey"' "$PROJECT_ROOT/modules/storage/src/main/java/de/agentcodi/storage/WorkspaceFileBoundary.java" \
     || ! rg -q 'expectedFileKey\.equals\(fileKey\)' "$PROJECT_ROOT/modules/storage/src/main/java/de/agentcodi/storage/WorkspaceFileBoundary.java" \
     || ! rg -q 'SecureDirectoryStream' "$workspace_access" \
     || ! rg -q 'hasSameOpenedSnapshot' "$workspace_archive" \
     || ! rg -q 'maximumScannedEntries' "$workspace_archive" \
+    || ! rg -q 'getOmittedEntryCount' "$workspace_archive" "$workspace_exporter" \
+    || ! rg -q 'PortablePathIndex' "$workspace_archive" \
     || ! rg -q 'MAXIMUM_SCANNED_ENTRIES = 65536' "$workspace_exporter" \
     || ! rg -q 'scannedEntryCount' "$workspace_export_file" \
     || ! rg -q 'files\.size\(\) >= maximumFiles' "$workspace_export_file" \
@@ -577,6 +585,9 @@ if ! rg -q 'WorkspaceExportFile\.list' "$workspace_exporter" \
     || ! rg -q 'doesNotChargeSkippedEntriesAgainstRegularFileLimit' "$workspace_export_test" \
     || ! rg -q 'keepsSkippedEntriesBoundedBySeparateScanLimit' "$workspace_export_test" \
     || ! rg -q 'archivesAcrossProviderTimestampPrecision' "$workspace_export_test" \
+    || ! rg -q 'archivesOnlyTheSelectedFolderContents' "$workspace_export_test" \
+    || ! rg -q 'archivesRegularFilesWhileOmittingHardLinks' "$workspace_export_test" \
+    || ! rg -q 'omitsPortableArchiveNameCollisionWithoutBlockingSibling' "$workspace_export_test" \
     || ! rg -q 'openat\(' "$workspace_reader" \
     || ! rg -q 'O_NOFOLLOW' "$workspace_reader" \
     || ! rg -q 'fstat\(' "$workspace_reader" \
@@ -587,10 +598,12 @@ if ! rg -q 'WorkspaceExportFile\.list' "$workspace_exporter" \
       "$PROJECT_ROOT/modules/storage/src/main/java/de/agentcodi/storage/WorkspaceExportFile.java" \
       "$PROJECT_ROOT/modules/storage/src/main/java/de/agentcodi/storage/WorkspaceImageFile.java" \
     || rg -q 'getCodexHome|auth\.json' "$workspace_exporter" \
-    || ! rg -q 'R\.string\.workspace_file_choose' "$settings_activity" \
-    || ! rg -q 'R\.string\.workspace_archive_export' "$settings_activity" \
-    || ! rg -q 'Intent\.ACTION_CREATE_DOCUMENT' "$settings_activity" \
-    || rg -q 'Intent\.ACTION_OPEN_DOCUMENT_TREE' "$settings_activity"; then
+    || rg -q 'workspace_file_choose|workspace_archive_export|WorkspaceFileExporter' \
+      "$settings_activity" \
+    || ! rg -q 'Intent\.ACTION_CREATE_DOCUMENT' "$browser_activity" \
+    || ! rg -q 'R\.string\.browser_export' "$browser_activity" \
+    || ! rg -q 'R\.string\.browser_directory_export' "$browser_activity" \
+    || rg -q 'Intent\.ACTION_OPEN_DOCUMENT_TREE' "$settings_activity" "$browser_activity"; then
   echo "Bounded all-type workspace file and archive export is incomplete." >&2
   exit 1
 fi
@@ -885,13 +898,13 @@ if ! rg -q 'PYTHON_SOURCE_EXTENSION_COUNT="75"' "$apk_builder" \
   exit 1
 fi
 
-if ! rg -q 'VERSION_NAME = "0\.5\.29"' "$core_root/BuildIdentity.java" \
-    || ! rg -q 'VERSION_CODE = 66' "$core_root/BuildIdentity.java" \
+if ! rg -q 'VERSION_NAME = "0\.6\.0"' "$core_root/BuildIdentity.java" \
+    || ! rg -q 'VERSION_CODE = 67' "$core_root/BuildIdentity.java" \
     || ! rg -q 'CODEX_RUNTIME_VERSION = "0\.148\.1"' "$core_root/BuildIdentity.java" \
-    || ! rg -q 'android:versionName="0\.5\.29"' "$manifest" \
-    || ! rg -q 'android:versionCode="66"' "$manifest" \
-    || ! rg -q 'APP_VERSION="0\.5\.29"' "$apk_builder" \
-    || ! rg -q 'VERSION_CODE="66"' "$apk_builder" \
+    || ! rg -q 'android:versionName="0\.6\.0"' "$manifest" \
+    || ! rg -q 'android:versionCode="67"' "$manifest" \
+    || ! rg -q 'APP_VERSION="0\.6\.0"' "$apk_builder" \
+    || ! rg -q 'VERSION_CODE="67"' "$apk_builder" \
     || ! rg -q 'CODEX_ANDROID_VERSION="0\.148\.1"' "$apk_builder" \
     || ! rg -q 'CODEX_TERMUX_SOURCE_TAG="v0\.148\.1"' "$apk_builder" \
     || ! rg -q 'CODEX_TERMUX_SOURCE_COMMIT="9d48c76abec320ae3724164d0177299b1acd31ca"' "$apk_builder" \
@@ -912,7 +925,7 @@ if ! rg -q 'VERSION_NAME = "0\.5\.29"' "$core_root/BuildIdentity.java" \
     || ! rg -q '9d48c76abec320ae3724164d0177299b1acd31ca' "$PROJECT_ROOT/app/src/main/res/raw/third_party_notices.txt" \
     || ! rg -q '3ba0f711642a888aec92a611a3f3b2211157ff89' "$PROJECT_ROOT/NOTICE.md" \
     || ! rg -q '3ba0f711642a888aec92a611a3f3b2211157ff89' "$PROJECT_ROOT/app/src/main/res/raw/third_party_notices.txt"; then
-  echo "The 0.5.29 / Codex 0.148.1 identity is inconsistent." >&2
+  echo "The 0.6.0 / Codex 0.148.1 identity is inconsistent." >&2
   exit 1
 fi
 

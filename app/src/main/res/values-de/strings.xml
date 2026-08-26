@@ -45,6 +45,23 @@
   <string name="browser_exporting">Die gewählte Datei wird zum ausdrücklich gewählten Android-Ziel kopiert…</string>
   <string name="browser_exported">Exportiert: %1$s</string>
   <string name="browser_export_failed">Die gewählte Datei konnte nicht erneut geprüft und exportiert werden.</string>
+  <string name="browser_directory_export">Diesen Ordner als ZIP exportieren…</string>
+  <string name="browser_directory_export_checking">Dieser Ordner und seine begrenzten exportierbaren Inhalte werden vor dem Android-Dokumentdialog erneut geprüft…</string>
+  <string name="browser_directory_exporting">Das ZIP des gewählten Ordners wird am ausdrücklich gewählten Android-Ziel erstellt…</string>
+  <plurals name="browser_directory_export_target">
+    <item quantity="one">ZIP-Ziel für %1$d reguläre Datei auswählen · %2$s. %3$s</item>
+    <item quantity="other">ZIP-Ziel für %1$d reguläre Dateien auswählen · %2$s. %3$s</item>
+  </plurals>
+  <plurals name="browser_directory_exported">
+    <item quantity="one">Ordner-ZIP exportiert: %1$d reguläre Datei · %2$s. %3$s</item>
+    <item quantity="other">Ordner-ZIP exportiert: %1$d reguläre Dateien · %2$s. %3$s</item>
+  </plurals>
+  <string name="browser_directory_export_failed">Dieser Ordner konnte innerhalb der ZIP-Sicherheitsgrenzen nicht erneut geprüft und exportiert werden.</string>
+  <string name="browser_archive_omitted_none">Alle katalogisierten Einträge waren exportierbar.</string>
+  <plurals name="browser_archive_omitted">
+    <item quantity="one">%1$d nicht verfügbarer Eintrag wurde sicher ausgelassen.</item>
+    <item quantity="other">%1$d nicht verfügbare Einträge wurden sicher ausgelassen.</item>
+  </plurals>
   <string name="browser_unavailable_symlink">Dieser symbolische Link wird angezeigt, aber niemals verfolgt; die übrigen Ordnereinträge bleiben verfügbar.</string>
   <string name="browser_unavailable_hardlink">Dieser harte Link wird angezeigt, kann aber nicht über die private Workspace-Grenze geöffnet werden.</string>
   <string name="browser_unavailable_special">Dieser besondere Dateisystemeintrag wird angezeigt, besitzt aber keine reguläre Dateivorschau.</string>
@@ -271,46 +288,9 @@
   <string name="language_english">Englisch</string>
   <string name="language_german">Deutsch</string>
 
-  <string name="workspace_export_section">WORKSPACE-EXPORT</string>
-  <string name="workspace_export_description">Reguläre Workspace-Dateien werden unabhängig von Typ oder Endung bytegenau an einen im Android-Dokumentdialog gewählten Ort kopiert. Alternativ enthält das ZIP alle regulären Dateien mit ihrer relativen Verzeichnisstruktur. Symbolische oder harte Links, fremde Pfade und das getrennte CODEX_HOME werden nie exportiert.</string>
-  <string name="workspace_export_ready">Bereit. Einzeldateien: maximal 512 MiB; ZIP: 2.048 reguläre Dateien und 1 GiB Inhalt; Katalogscan: maximal 65.536 Dateisystemeinträge.</string>
-  <string name="workspace_file_choose">Workspace-Datei auswählen</string>
-  <string name="workspace_archive_export">Gesamten Workspace als ZIP exportieren</string>
-  <string name="workspace_file_export_cancelled">Dateiexport wurde abgebrochen.</string>
-  <string name="workspace_file_selection_expired">Die ausgewählte Workspace-Datei ist nicht mehr aktiv.</string>
-  <string name="workspace_zip_export_cancelled">ZIP-Export wurde abgebrochen.</string>
-  <string name="workspace_zip_expired">Der vorbereitete Workspace-Export ist nicht mehr aktiv.</string>
-  <string name="workspace_files_checking">Workspace-Dateien werden sicher geprüft…</string>
-  <string name="workspace_files_check_failed">Workspace-Dateien konnten nicht geprüft werden: %1$s</string>
-  <string name="workspace_check_start_failed">Workspace-Prüfung konnte nicht gestartet werden.</string>
-  <string name="workspace_no_regular_files">Der Workspace enthält keine regulären Dateien.</string>
-  <string name="workspace_over_export_limit">über Exportlimit</string>
-  <plurals name="workspace_files_checked">
-    <item quantity="one">%1$d reguläre Workspace-Datei geprüft.</item>
-    <item quantity="other">%1$d reguläre Workspace-Dateien geprüft.</item>
-  </plurals>
-  <string name="workspace_file_export_title">Workspace-Datei exportieren</string>
-  <string name="workspace_file_too_large">Diese Datei überschreitet das Einzeldatei-Limit von 512 MiB.</string>
-  <string name="workspace_file_selection_cancelled">Dateiauswahl wurde abgebrochen.</string>
-  <string name="workspace_file_target">Ziel für „%1$s“ auswählen…</string>
-  <string name="workspace_file_exporting">Workspace-Datei wird exportiert…</string>
-  <string name="workspace_file_exported">Exportiert: %1$s · %2$s</string>
-  <string name="workspace_file_export_failed">Dateiexport fehlgeschlagen: %1$s</string>
-  <string name="workspace_file_export_start_failed">Dateiexport konnte nicht gestartet werden.</string>
-  <string name="workspace_zip_preparing">Workspace-ZIP wird sicher vorbereitet…</string>
-  <string name="workspace_zip_prepare_failed">Workspace-ZIP konnte nicht vorbereitet werden: %1$s</string>
-  <string name="workspace_zip_check_start_failed">ZIP-Prüfung konnte nicht gestartet werden.</string>
-  <plurals name="workspace_zip_target">
-    <item quantity="one">ZIP-Ziel auswählen: %1$d Datei, %2$s.</item>
-    <item quantity="other">ZIP-Ziel auswählen: %1$d Dateien, %2$s.</item>
-  </plurals>
-  <string name="workspace_zip_exporting">Workspace-ZIP wird erstellt…</string>
-  <plurals name="workspace_zip_exported">
-    <item quantity="one">Workspace-ZIP exportiert: %1$d Datei, %2$s.</item>
-    <item quantity="other">Workspace-ZIP exportiert: %1$d Dateien, %2$s.</item>
-  </plurals>
-  <string name="workspace_zip_export_failed">ZIP-Export fehlgeschlagen: %1$s</string>
-  <string name="workspace_zip_export_start_failed">ZIP-Export konnte nicht gestartet werden.</string>
+  <string name="workspace_export_section">WORKSPACE-DATEIEN</string>
+  <string name="workspace_export_description">Im grafischen Dateibrowser kannst du den privaten Workspace prüfen, jede verifizierte reguläre Datei bytegenau exportieren oder den aktuell geöffneten Ordner – einschließlich der Workspace-Wurzel – über Androids Dokumentdialog als begrenztes ZIP exportieren.</string>
+  <string name="workspace_export_ready">Einzeldateien sind auf 512 MiB begrenzt. Ordner-ZIPs sind auf 2.048 reguläre Dateien, 1 GiB Inhalt, 65.536 gescannte Einträge und 64 Verzeichnisebenen begrenzt. Unsichere oder nicht verfügbare Kinder werden lokal ausgelassen und machen sichere Geschwister nie unzugänglich.</string>
 
   <string name="account_section">ANMELDUNG</string>
   <string name="account_server_not_started">Codex App-Server ist nicht gestartet.</string>

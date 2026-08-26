@@ -46,7 +46,8 @@ import java.util.concurrent.Executors;
 import java.util.concurrent.RejectedExecutionException;
 
 public final class WorkspaceBrowserActivity extends Activity {
-    private static final int EXPORT_REQUEST_CODE = 7301;
+    private static final int FILE_EXPORT_REQUEST_CODE = 7301;
+    private static final int DIRECTORY_EXPORT_REQUEST_CODE = 7302;
 
     private final Handler handler = new Handler(Looper.getMainLooper());
     private final ExecutorService operations = Executors.newSingleThreadExecutor();
@@ -62,6 +63,7 @@ public final class WorkspaceBrowserActivity extends Activity {
     private Button previousDirectoryPageButton;
     private Button nextDirectoryPageButton;
     private TextView directoryPageView;
+    private Button directoryExportButton;
     private LinearLayout previewPanel;
     private TextView previewTitleView;
     private TextView previewDetailsView;
@@ -79,7 +81,7 @@ public final class WorkspaceBrowserActivity extends Activity {
     private String previewRelativePath = "";
     private int previewPageIndex;
     private int previewPageCount = 1;
-    private String pendingExportRelativePath = "";
+    private PendingExport pendingExport;
     private long operationGeneration;
     private boolean busy;
     private boolean destroyed;
@@ -109,7 +111,7 @@ public final class WorkspaceBrowserActivity extends Activity {
         handler.removeCallbacksAndMessages(null);
         operations.shutdownNow();
         clearPreviewVisuals();
-        pendingExportRelativePath = "";
+        pendingExport = null;
         super.onDestroy();
     }
 
@@ -130,17 +132,24 @@ public final class WorkspaceBrowserActivity extends Activity {
 
     @Override
     protected void onActivityResult(int requestCode, int resultCode, Intent data) {
-        if (requestCode != EXPORT_REQUEST_CODE) {
+        if (requestCode != FILE_EXPORT_REQUEST_CODE
+            && requestCode != DIRECTORY_EXPORT_REQUEST_CODE) {
             super.onActivityResult(requestCode, resultCode, data);
             return;
         }
-        final String relativePath = pendingExportRelativePath;
-        pendingExportRelativePath = "";
+        final PendingExport export = pendingExport;
+        pendingExport = null;
         final Uri destination = data == null ? null : data.getData();
-        if (resultCode != RESULT_OK || destination == null || relativePath.isEmpty()) {
+        if (resultCode != RESULT_OK || destination == null || export == null
+            || !export.matchesRequestCode(requestCode)) {
+            restoreVisibleStatus();
             return;
         }
-        runExport(relativePath, destination);
+        if (export.directory) {
+            runDirectoryExport(export.relativePath, destination);
+        } else {
+            runExport(export.relativePath, destination);
+        }
     }
 
     private View buildContent() {
@@ -271,6 +280,17 @@ public final class WorkspaceBrowserActivity extends Activity {
         });
         paging.addView(nextDirectoryPageButton);
         theme.addWithTopMargin(panel, paging, 8);
+
+        directoryExportButton = theme.primaryButton(
+            getString(R.string.browser_directory_export)
+        );
+        directoryExportButton.setOnClickListener(new View.OnClickListener() {
+            @Override
+            public void onClick(View view) {
+                prepareDirectoryExport();
+            }
+        });
+        theme.addWithTopMargin(panel, directoryExportButton, 8);
         return panel;
     }
 
@@ -611,16 +631,16 @@ public final class WorkspaceBrowserActivity extends Activity {
         String relativePath,
         WorkspaceFileExporter.FileExport source
     ) {
-        pendingExportRelativePath = relativePath;
+        pendingExport = PendingExport.file(relativePath);
         Intent intent = new Intent(Intent.ACTION_CREATE_DOCUMENT);
         intent.addCategory(Intent.CATEGORY_OPENABLE);
         intent.setType(source.getMimeType());
         intent.putExtra(Intent.EXTRA_TITLE, source.getDisplayName());
         try {
-            startActivityForResult(intent, EXPORT_REQUEST_CODE);
+            startActivityForResult(intent, FILE_EXPORT_REQUEST_CODE);
             statusView.setText(R.string.browser_preview_ready);
         } catch (RuntimeException error) {
-            pendingExportRelativePath = "";
+            pendingExport = null;
             Toast.makeText(this, R.string.document_picker_open_failed, Toast.LENGTH_LONG).show();
         } finally {
             setBusy(false, 0);
@@ -660,6 +680,137 @@ public final class WorkspaceBrowserActivity extends Activity {
         }
     }
 
+    private void prepareDirectoryExport() {
+        if (busy || currentDirectoryPage == null || !previewRelativePath.isEmpty()) {
+            return;
+        }
+        final String relativeDirectory = currentDirectory;
+        final long generation = ++operationGeneration;
+        setBusy(true, R.string.browser_directory_export_checking);
+        if (!submit(new Runnable() {
+            @Override
+            public void run() {
+                try {
+                    final WorkspaceFileExporter.ArchiveExport archive =
+                        repository.inspectArchive(relativeDirectory);
+                    postResult(generation, new Runnable() {
+                        @Override
+                        public void run() {
+                            openDirectoryExportDocument(relativeDirectory, archive);
+                        }
+                    });
+                } catch (Throwable error) {
+                    postFailure(generation, R.string.browser_directory_export_failed);
+                }
+            }
+        })) {
+            postFailure(generation, R.string.browser_operation_rejected);
+        }
+    }
+
+    private void openDirectoryExportDocument(
+        String relativeDirectory,
+        WorkspaceFileExporter.ArchiveExport archive
+    ) {
+        pendingExport = PendingExport.directory(relativeDirectory);
+        Intent intent = new Intent(Intent.ACTION_CREATE_DOCUMENT);
+        intent.addCategory(Intent.CATEGORY_OPENABLE);
+        intent.setType("application/zip");
+        intent.putExtra(Intent.EXTRA_TITLE, archive.getDisplayName());
+        try {
+            startActivityForResult(intent, DIRECTORY_EXPORT_REQUEST_CODE);
+            statusView.setText(archiveStatus(
+                R.plurals.browser_directory_export_target,
+                archive
+            ));
+        } catch (RuntimeException error) {
+            pendingExport = null;
+            Toast.makeText(this, R.string.document_picker_open_failed, Toast.LENGTH_LONG).show();
+            restoreVisibleStatus();
+        } finally {
+            setBusy(false, 0);
+        }
+    }
+
+    private void runDirectoryExport(
+        final String relativeDirectory,
+        final Uri destination
+    ) {
+        final long generation = ++operationGeneration;
+        setBusy(true, R.string.browser_directory_exporting);
+        if (!submit(new Runnable() {
+            @Override
+            public void run() {
+                try {
+                    final WorkspaceFileExporter.ArchiveExport exported =
+                        repository.exportArchive(relativeDirectory, destination);
+                    postResult(generation, new Runnable() {
+                        @Override
+                        public void run() {
+                            String message = archiveStatus(
+                                R.plurals.browser_directory_exported,
+                                exported
+                            );
+                            Toast.makeText(
+                                WorkspaceBrowserActivity.this,
+                                message,
+                                Toast.LENGTH_LONG
+                            ).show();
+                            statusView.setText(message);
+                            setBusy(false, 0);
+                        }
+                    });
+                } catch (Throwable error) {
+                    postFailure(generation, R.string.browser_directory_export_failed);
+                }
+            }
+        })) {
+            postFailure(generation, R.string.browser_operation_rejected);
+        }
+    }
+
+    private String archiveStatus(
+        int pluralResource,
+        WorkspaceFileExporter.ArchiveExport archive
+    ) {
+        String omitted = archive.getOmittedEntryCount() == 0
+            ? getString(R.string.browser_archive_omitted_none)
+            : getResources().getQuantityString(
+                R.plurals.browser_archive_omitted,
+                archive.getOmittedEntryCount(),
+                archive.getOmittedEntryCount()
+            );
+        return getResources().getQuantityString(
+            pluralResource,
+            archive.getFileCount(),
+            archive.getFileCount(),
+            formatBytes(archive.getByteCount()),
+            omitted
+        );
+    }
+
+    private void restoreVisibleStatus() {
+        if (statusView == null) {
+            return;
+        }
+        if (!previewRelativePath.isEmpty()) {
+            statusView.setText(R.string.browser_preview_ready);
+            return;
+        }
+        if (currentDirectoryPage != null) {
+            statusView.setText(currentDirectoryPage.isScanTruncated()
+                ? getString(
+                    R.string.browser_directory_truncated,
+                    currentDirectoryPage.getTotalEntryCount()
+                )
+                : getResources().getQuantityString(
+                    R.plurals.browser_directory_entries,
+                    currentDirectoryPage.getTotalEntryCount(),
+                    currentDirectoryPage.getTotalEntryCount()
+                ));
+        }
+    }
+
     private void setBusy(boolean value, int statusResource) {
         busy = value;
         if (statusResource != 0) {
@@ -679,6 +830,10 @@ public final class WorkspaceBrowserActivity extends Activity {
             && currentDirectoryPage.hasNextPage();
         theme.setEnabled(previousDirectoryPageButton, !busy && hasPreviousDirectory);
         theme.setEnabled(nextDirectoryPageButton, !busy && hasNextDirectory);
+        theme.setEnabled(
+            directoryExportButton,
+            !busy && directoryVisible && currentDirectoryPage != null
+        );
         entryList.setEnabled(!busy && directoryVisible);
         theme.setEnabled(
             previousPreviewPageButton,
@@ -966,6 +1121,30 @@ public final class WorkspaceBrowserActivity extends Activity {
             this.container = container;
             this.name = name;
             this.metadata = metadata;
+        }
+    }
+
+    private static final class PendingExport {
+        final boolean directory;
+        final String relativePath;
+
+        private PendingExport(boolean directory, String relativePath) {
+            this.directory = directory;
+            this.relativePath = relativePath;
+        }
+
+        static PendingExport file(String relativePath) {
+            return new PendingExport(false, relativePath);
+        }
+
+        static PendingExport directory(String relativePath) {
+            return new PendingExport(true, relativePath);
+        }
+
+        boolean matchesRequestCode(int requestCode) {
+            return directory
+                ? requestCode == DIRECTORY_EXPORT_REQUEST_CODE
+                : requestCode == FILE_EXPORT_REQUEST_CODE;
         }
     }
 

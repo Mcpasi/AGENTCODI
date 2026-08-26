@@ -37,17 +37,20 @@ public final class WorkspaceExportTest {
         rejectsFileSymlinkSwapBeforeOpenWithoutWritingBytes();
         rejectsFileHardLinkSwapBeforeOpenWithoutWritingBytes();
         archivesCompleteWorkspaceWithoutCodexHome();
+        archivesOnlyTheSelectedFolderContents();
+        rejectsUnsafeSelectedFolderPaths();
         createsValidEmptyWorkspaceArchive();
         rejectsArchiveFileAboveLimit();
         rejectsArchiveTotalAboveLimit();
         rejectsArchiveFileCountAboveLimit();
-        rejectsUnsafePortableArchiveName();
-        rejectsPortableArchiveNameCollision();
+        omitsUnsafePortableArchiveNameWithoutBlockingSibling();
+        omitsPortableArchiveNameCollisionWithoutBlockingSibling();
         archivesAcrossProviderTimestampPrecision();
         rejectsWorkspaceMutationDuringArchive();
         rejectsArchiveSymlinkSwapBeforeOpen();
         archivesRegularFilesWhileOmittingSymbolicEntries();
-        return 22;
+        archivesRegularFilesWhileOmittingHardLinks();
+        return 25;
     }
 
     private static void catalogsAllRegularFileTypes() throws Exception {
@@ -583,6 +586,126 @@ public final class WorkspaceExportTest {
         }
     }
 
+    private static void archivesOnlyTheSelectedFolderContents() throws Exception {
+        Path base = Files.createTempDirectory("agentcodi-export-selected-folder-");
+        try {
+            WorkspaceLayout layout = WorkspaceLayout.create(base.toFile());
+            Path workspace = layout.getWorkspace().toPath();
+            Files.createDirectories(workspace.resolve("projects/demo/nested"));
+            Files.write(
+                workspace.resolve("projects/demo/readme.txt"),
+                "selected".getBytes("UTF-8")
+            );
+            Files.write(
+                workspace.resolve("projects/demo/nested/data.bin"),
+                new byte[] {1, 2, 3}
+            );
+            Files.write(
+                workspace.resolve("projects/sibling.txt"),
+                "sibling".getBytes("UTF-8")
+            );
+            Files.write(workspace.resolve("root.txt"), "root".getBytes("UTF-8"));
+
+            ByteArrayOutputStream destination = new ByteArrayOutputStream();
+            WorkspaceArchive.Summary summary = WorkspaceArchive.write(
+                layout.getWorkspace(),
+                "projects/demo",
+                destination,
+                10,
+                64,
+                1024L,
+                4096L,
+                256,
+                8,
+                de.agentcodi.storage.WorkspaceDirectoryCatalog.secureNioReader(),
+                WorkspaceFileAccess.secureNioOpener()
+            );
+            Map<String, byte[]> entries = unzip(destination.toByteArray());
+            TestSupport.assertEquals(
+                "projects/demo",
+                summary.getRelativeDirectory(),
+                "summary binds the selected folder"
+            );
+            TestSupport.assertEquals(
+                Integer.valueOf(2),
+                Integer.valueOf(summary.getFileCount()),
+                "selected folder file count"
+            );
+            TestSupport.assertTrue(entries.containsKey("readme.txt"), "selected root file");
+            TestSupport.assertTrue(
+                entries.containsKey("nested/data.bin"),
+                "selected nested file"
+            );
+            TestSupport.assertFalse(
+                entries.containsKey("projects/demo/readme.txt")
+                    || entries.containsKey("../sibling.txt")
+                    || entries.containsKey("root.txt"),
+                "folder ZIP contains only paths relative to the selected folder"
+            );
+        } finally {
+            deleteRecursively(base);
+        }
+    }
+
+    private static void rejectsUnsafeSelectedFolderPaths() throws Exception {
+        final Path base = Files.createTempDirectory("agentcodi-export-selected-boundary-");
+        try {
+            final WorkspaceLayout layout = WorkspaceLayout.create(base.toFile());
+            Files.write(
+                layout.getCodexHome().toPath().resolve("auth.json"),
+                "private".getBytes("UTF-8")
+            );
+            Files.createSymbolicLink(
+                layout.getWorkspace().toPath().resolve("linked-home"),
+                layout.getCodexHome().toPath()
+            );
+            TestSupport.expectThrows(
+                IOException.class,
+                new TestSupport.ThrowingRunnable() {
+                    @Override
+                    public void run() throws Exception {
+                        WorkspaceArchive.inspect(
+                            layout.getWorkspace(),
+                            "../codex-home",
+                            10,
+                            64,
+                            1024L,
+                            4096L,
+                            256,
+                            8,
+                            de.agentcodi.storage.WorkspaceDirectoryCatalog.secureNioReader(),
+                            WorkspaceFileAccess.secureNioOpener()
+                        );
+                    }
+                },
+                "selected folder traversal must be rejected"
+            );
+            TestSupport.expectThrows(
+                IOException.class,
+                new TestSupport.ThrowingRunnable() {
+                    @Override
+                    public void run() throws Exception {
+                        WorkspaceArchive.inspect(
+                            layout.getWorkspace(),
+                            "linked-home",
+                            10,
+                            64,
+                            1024L,
+                            4096L,
+                            256,
+                            8,
+                            de.agentcodi.storage.WorkspaceDirectoryCatalog.secureNioReader(),
+                            WorkspaceFileAccess.secureNioOpener()
+                        );
+                    }
+                },
+                "a symbolic folder must never become an archive root"
+            );
+        } finally {
+            deleteRecursively(base);
+        }
+    }
+
     private static void rejectsArchiveFileAboveLimit() throws Exception {
         final Path base = Files.createTempDirectory("agentcodi-export-file-limit-");
         try {
@@ -645,45 +768,77 @@ public final class WorkspaceExportTest {
         }
     }
 
-    private static void rejectsUnsafePortableArchiveName() throws Exception {
-        final Path base = Files.createTempDirectory("agentcodi-export-name-boundary-");
+    private static void omitsUnsafePortableArchiveNameWithoutBlockingSibling()
+        throws Exception {
+        Path base = Files.createTempDirectory("agentcodi-export-name-boundary-");
         try {
-            final WorkspaceLayout layout = WorkspaceLayout.create(base.toFile());
+            WorkspaceLayout layout = WorkspaceLayout.create(base.toFile());
             Files.write(
                 layout.getWorkspace().toPath().resolve("C:\\outside.bin"),
                 new byte[] {1}
             );
-            TestSupport.expectThrows(
-                IOException.class,
-                new TestSupport.ThrowingRunnable() {
-                    @Override
-                    public void run() throws Exception {
-                        WorkspaceArchive.inspect(layout.getWorkspace(), 10, 10L, 10L, 256, 8);
-                    }
-                },
-                "portable archive names reject drive and separator ambiguity"
+            Files.write(
+                layout.getWorkspace().toPath().resolve("safe.bin"),
+                new byte[] {2}
+            );
+            ByteArrayOutputStream destination = new ByteArrayOutputStream();
+            WorkspaceArchive.Summary summary = WorkspaceArchive.write(
+                layout.getWorkspace(),
+                destination,
+                10,
+                10L,
+                10L,
+                256,
+                8
+            );
+            Map<String, byte[]> entries = unzip(destination.toByteArray());
+            TestSupport.assertEquals(
+                Integer.valueOf(1),
+                Integer.valueOf(summary.getOmittedEntryCount()),
+                "unsafe portable name is reported as omitted"
+            );
+            TestSupport.assertTrue(entries.containsKey("safe.bin"), "safe sibling exports");
+            TestSupport.assertFalse(
+                entries.containsKey("C:\\outside.bin"),
+                "drive and separator ambiguity never enters the ZIP"
             );
         } finally {
             deleteRecursively(base);
         }
     }
 
-    private static void rejectsPortableArchiveNameCollision() throws Exception {
-        final Path base = Files.createTempDirectory("agentcodi-export-name-collision-");
+    private static void omitsPortableArchiveNameCollisionWithoutBlockingSibling()
+        throws Exception {
+        Path base = Files.createTempDirectory("agentcodi-export-name-collision-");
         try {
-            final WorkspaceLayout layout = WorkspaceLayout.create(base.toFile());
+            WorkspaceLayout layout = WorkspaceLayout.create(base.toFile());
             Files.write(layout.getWorkspace().toPath().resolve("Report.bin"), new byte[] {1});
             Files.write(layout.getWorkspace().toPath().resolve("report.bin"), new byte[] {2});
-            TestSupport.expectThrows(
-                IOException.class,
-                new TestSupport.ThrowingRunnable() {
-                    @Override
-                    public void run() throws Exception {
-                        WorkspaceArchive.inspect(layout.getWorkspace(), 10, 10L, 10L, 256, 8);
-                    }
-                },
-                "case-insensitive archive collisions are rejected"
+            Files.write(layout.getWorkspace().toPath().resolve("safe.bin"), new byte[] {3});
+            ByteArrayOutputStream destination = new ByteArrayOutputStream();
+            WorkspaceArchive.Summary summary = WorkspaceArchive.write(
+                layout.getWorkspace(),
+                destination,
+                10,
+                10L,
+                10L,
+                256,
+                8
             );
+            Map<String, byte[]> entries = unzip(destination.toByteArray());
+            TestSupport.assertEquals(
+                Integer.valueOf(1),
+                Integer.valueOf(summary.getOmittedEntryCount()),
+                "one case-insensitive collision is omitted"
+            );
+            TestSupport.assertEquals(
+                Integer.valueOf(2),
+                Integer.valueOf(entries.size()),
+                "collision does not block unrelated files"
+            );
+            TestSupport.assertTrue(entries.containsKey("Report.bin"), "first stable name wins");
+            TestSupport.assertFalse(entries.containsKey("report.bin"), "colliding name omitted");
+            TestSupport.assertTrue(entries.containsKey("safe.bin"), "safe sibling remains");
         } finally {
             deleteRecursively(base);
         }
@@ -958,6 +1113,52 @@ public final class WorkspaceExportTest {
             deleteRecursively(base);
             Files.deleteIfExists(outside);
             deleteRecursively(outsideDirectory);
+        }
+    }
+
+    private static void archivesRegularFilesWhileOmittingHardLinks()
+        throws Exception {
+        Path base = Files.createTempDirectory("agentcodi-export-zip-hardlink-");
+        try {
+            WorkspaceLayout layout = WorkspaceLayout.create(base.toFile());
+            Path workspace = layout.getWorkspace().toPath();
+            Path credential = layout.getCodexHome().toPath().resolve("auth.json");
+            byte[] expected = "workspace".getBytes("UTF-8");
+            Files.write(workspace.resolve("regular.bin"), expected);
+            Files.write(credential, "private".getBytes("UTF-8"));
+            Files.createLink(workspace.resolve("ordinary-looking.json"), credential);
+
+            ByteArrayOutputStream destination = new ByteArrayOutputStream();
+            WorkspaceArchive.Summary summary = WorkspaceArchive.write(
+                layout.getWorkspace(),
+                destination,
+                10,
+                1024L,
+                4096L,
+                256,
+                8
+            );
+            Map<String, byte[]> entries = unzip(destination.toByteArray());
+            TestSupport.assertEquals(
+                Integer.valueOf(1),
+                Integer.valueOf(summary.getFileCount()),
+                "hard link does not block the regular-file archive"
+            );
+            TestSupport.assertEquals(
+                Integer.valueOf(1),
+                Integer.valueOf(summary.getOmittedEntryCount()),
+                "hard link is reported as omitted"
+            );
+            TestSupport.assertTrue(
+                java.util.Arrays.equals(expected, entries.get("regular.bin")),
+                "safe sibling bytes remain exportable"
+            );
+            TestSupport.assertFalse(
+                entries.containsKey("ordinary-looking.json"),
+                "hard-linked private bytes never enter the ZIP"
+            );
+        } finally {
+            deleteRecursively(base);
         }
     }
 

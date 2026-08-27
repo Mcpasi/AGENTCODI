@@ -62,7 +62,7 @@ AGENTCODI does more than display a Codex conversation.
 | ripgrep | Packaged no-PCRE2 runtime exposed as `rg` |
 | MCP management | Native Android interface backed by Codex configuration RPCs |
 
-The current AGENTCODI 0.6.1 runtime uses **Codex app-server 0.148.1** together with the matching code-mode host from the same pinned artifact.
+The current AGENTCODI 0.6.2 runtime uses **Codex app-server 0.148.1** together with the matching code-mode host from the same pinned artifact.
 
 ---
 
@@ -126,7 +126,7 @@ Selections are validated against the options reported by the app-server.
 
 ### Execution modes
 
-AGENTCODI 0.6.1 offers two explicitly separated execution modes:
+AGENTCODI 0.6.2 offers two explicitly separated execution modes:
 
 | Mode | App-server profile | Filesystem behavior |
 |---|---|---|
@@ -191,7 +191,7 @@ The application also validates canonical paths and rejects unsafe symbolic-link 
 
 The native **Files** surface navigates the private workspace without exposing it through an Android provider. Breadcrumbs move directly through the current path, directory pages keep folders before files, and previous/next controls cover both long directory listings and long file contents. Refresh never changes the selected execution mode or Codex session.
 
-Regular UTF-8 text is shown as selectable, bounded content pages. Other regular files receive a bounded hexadecimal preview, while validated PNG, JPEG, GIF and WebP files receive a native image preview. Preview decoding is sampled and remains off the main thread. A malformed image is rejected as an image instead of being decoded from unchecked bytes.
+Regular UTF-8 text is shown as selectable, bounded content pages. A text candidate is validated incrementally through the safely opened file before it is projected as text, so a later NUL or malformed UTF-8 sequence classifies the file as binary instead of aborting its preview. Other regular files receive a bounded hexadecimal preview, while validated PNG, JPEG, GIF and WebP files receive a native image preview. Preview decoding remains off the main thread. A malformed image is rejected as an image instead of being decoded from unchecked bytes.
 
 Directory enumeration and file reading remain descriptor-relative to the canonical workspace and never follow symbolic links. A symbolic link, hard link, special entry or unreadable child is represented as an unavailable row with its reason; it does not abort navigation to safe sibling folders and files. These entry-local safety decisions are independent of the active Codex execution mode. The same surface exports a selected regular file byte for byte or the currently open folder as a ZIP through Android's document picker. Opening the workspace root and choosing the folder action replaces the former separate whole-workspace ZIP button.
 
@@ -415,7 +415,7 @@ Several sensitive byte and character buffers are explicitly cleared after use.
 
 Current release line:
 
-### AGENTCODI 0.6.1
+### AGENTCODI 0.6.2
 
 | Requirement | Value |
 |---|---|
@@ -466,7 +466,7 @@ Physical Android hardware is used separately to validate installation, UI behavi
 
 AGENTCODI is under active development.
 
-Version 0.6.1 currently focuses heavily on:
+Version 0.6.2 currently focuses heavily on:
 
 - Native Codex runtime integration
 - A fail-closed app-server `fork()`/`execve()` boundary that prevents unrelated parent file descriptors from entering the Codex child and combines an isolated child process group with parent-side subreaper ownership
@@ -481,7 +481,7 @@ Version 0.6.1 currently focuses heavily on:
 - Packaged development toolchains with activation-bound and in-binary-attested native ELF guards plus a pinned no-PCRE2 ripgrep bridge
 - Android runtime stability
 - Workspace boundaries
-- A native graphical workspace browser with breadcrumbs, directory and content paging, bounded text/image/binary previews, isolated unavailable-entry reporting, byte-exact file export and selected-folder ZIP export
+- A native graphical workspace browser with breadcrumbs, directory and content paging, complete incremental UTF-8 candidate validation, bounded text/image/binary previews, isolated unavailable-entry reporting, byte-exact file export and selected-folder ZIP export
 - Direct, bounded external-document import with a proven transient read grant, crash-recovery cleanup, commit-stable resource closing, atomic no-replace installation, retained verification handles across queue hand-offs, and final batch revalidation coupled to the app-server JSONL write
 - Race-free individual-file, image and ZIP source opening
 - Workspace catalogs and ZIP exports with separate finite scan and regular-file limits, omitting unsafe or non-portable entries without following them or blocking independent safe files

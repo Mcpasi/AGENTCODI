@@ -1,6 +1,7 @@
 package de.agentcodi.tests;
 
 import de.agentcodi.browser.WorkspaceBrowserEntry;
+import de.agentcodi.browser.WorkspaceBrowserLimits;
 import de.agentcodi.browser.WorkspaceBrowserPage;
 import de.agentcodi.browser.WorkspaceFilePreview;
 import de.agentcodi.browser.client.WorkspaceFileBrowser;
@@ -26,6 +27,7 @@ public final class WorkspaceFileBrowserTest {
         buildsNestedBreadcrumbNavigation();
         clampsAStaleDirectoryPageAfterChanges();
         pagesUtf8TextContent();
+        classifiesBinaryBytesBeyondTheInitialTextProbe();
         rendersBinaryContentAsBoundedHex();
         previewsAnEmptyFile();
         validatesAndReturnsImageBytes();
@@ -35,7 +37,7 @@ public final class WorkspaceFileBrowserTest {
         reportsCatalogTruncationWithoutDiscardingEntries();
         rejectsUnsafeNavigationPaths();
         keepsPreviewAndPageContractsImmutable();
-        return 13;
+        return 14;
     }
 
     private static void pagesDirectoriesBeforeFilesDeterministically() throws Exception {
@@ -122,19 +124,74 @@ public final class WorkspaceFileBrowserTest {
             TestSupport.assertTrue(second.getRenderedContent().startsWith("🚀second-content-page"), "UTF-8 boundary is lossless");
             TestSupport.assertTrue(second.hasPreviousPage(), "second content has previous");
 
-            final byte[] invalidTail = new byte[4097];
-            Arrays.fill(invalidTail, 0, 4096, (byte) 'x');
-            invalidTail[4096] = (byte) 0xc2;
-            Files.write(layout.getWorkspace().toPath().resolve("invalid-tail.txt"), invalidTail);
-            TestSupport.expectThrows(
-                IOException.class,
-                new TestSupport.ThrowingRunnable() {
-                    @Override
-                    public void run() throws Exception {
-                        browser(layout).preview("invalid-tail.txt", 0);
-                    }
-                },
-                "text preview rejects an incomplete UTF-8 tail"
+        } finally {
+            deleteRecursively(base);
+        }
+    }
+
+    private static void classifiesBinaryBytesBeyondTheInitialTextProbe()
+        throws Exception {
+        Path base = Files.createTempDirectory("agentcodi-browser-late-binary-");
+        try {
+            WorkspaceLayout layout = WorkspaceLayout.create(base.toFile());
+            byte[] invalidTail = new byte[WorkspaceBrowserLimits.TEXT_PROBE_BYTES + 1];
+            Arrays.fill(
+                invalidTail,
+                0,
+                WorkspaceBrowserLimits.TEXT_PROBE_BYTES,
+                (byte) 'x'
+            );
+            invalidTail[invalidTail.length - 1] = (byte) 0xc2;
+            Files.write(
+                layout.getWorkspace().toPath().resolve("invalid-tail.bin"),
+                invalidTail
+            );
+
+            WorkspaceFilePreview first = browser(layout).preview("invalid-tail.bin", 0);
+            WorkspaceFilePreview tail = browser(layout).preview("invalid-tail.bin", 2);
+            TestSupport.assertEquals(
+                WorkspaceFilePreview.Kind.BINARY,
+                first.getKind(),
+                "invalid UTF-8 beyond the probe is binary"
+            );
+            TestSupport.assertEquals(
+                WorkspaceFilePreview.Kind.BINARY,
+                tail.getKind(),
+                "binary classification is stable across pages"
+            );
+            TestSupport.assertEquals(
+                Long.valueOf(2L * WorkspaceBrowserLimits.BINARY_PAGE_BYTES),
+                Long.valueOf(tail.getByteOffset()),
+                "binary tail page uses binary paging"
+            );
+            TestSupport.assertTrue(
+                tail.getRenderedContent().contains("c2"),
+                "invalid UTF-8 tail remains viewable as hex"
+            );
+
+            byte[] delayedNul = new byte[WorkspaceBrowserLimits.TEXT_PAGE_BYTES + 32];
+            Arrays.fill(delayedNul, (byte) 'a');
+            delayedNul[WorkspaceBrowserLimits.TEXT_PAGE_BYTES + 17] = 0;
+            Files.write(
+                layout.getWorkspace().toPath().resolve("delayed-nul.bin"),
+                delayedNul
+            );
+            WorkspaceFilePreview delayed = browser(layout).preview(
+                "delayed-nul.bin",
+                0
+            );
+            TestSupport.assertEquals(
+                WorkspaceFilePreview.Kind.BINARY,
+                delayed.getKind(),
+                "NUL beyond the first text page is binary"
+            );
+            TestSupport.assertEquals(
+                Integer.valueOf(
+                    1 + (delayedNul.length - 1)
+                        / WorkspaceBrowserLimits.BINARY_PAGE_BYTES
+                ),
+                Integer.valueOf(delayed.getPageCount()),
+                "late binary content keeps binary page count"
             );
         } finally {
             deleteRecursively(base);

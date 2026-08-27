@@ -113,48 +113,13 @@ public final class WorkspaceFileBrowser {
                 && byteCount <= WorkspaceBrowserLimits.MAXIMUM_IMAGE_PREVIEW_BYTES) {
                 source.verifyUnchanged();
             } else {
-                boolean text = isProbablyUtf8Text(probe, byteCount > probe.length);
-                int pageBytes = text
-                    ? WorkspaceBrowserLimits.TEXT_PAGE_BYTES
-                    : WorkspaceBrowserLimits.BINARY_PAGE_BYTES;
-                int pageCount = Math.max(1, divideRoundedUp(byteCount, pageBytes));
-                int pageIndex = Math.min(requestedPage, pageCount - 1);
-                long byteOffset = (long) pageIndex * (long) pageBytes;
-                int wanted = (int) Math.min((long) pageBytes, byteCount - byteOffset);
-                String name = displayName(path);
-                if (text) {
-                    String content = readUtf8Page(
-                        source,
-                        probe,
-                        byteOffset,
-                        wanted,
-                        byteOffset + wanted == byteCount
-                    );
-                    source.verifyUnchanged();
-                    return WorkspaceFilePreview.text(
-                        name,
-                        path,
-                        byteCount,
-                        byteOffset,
-                        pageIndex,
-                        pageCount,
-                        content
-                    );
-                }
-                byte[] page = readRange(source, probe, byteOffset, wanted);
-                source.verifyUnchanged();
-                String mime = imageMime.isEmpty()
-                    ? "application/octet-stream"
-                    : imageMime;
-                return WorkspaceFilePreview.binary(
-                    name,
+                return previewNonImage(
+                    source,
+                    probe,
                     path,
-                    mime,
+                    imageMime,
                     byteCount,
-                    byteOffset,
-                    pageIndex,
-                    pageCount,
-                    renderHex(page, byteOffset)
+                    requestedPage
                 );
             }
         } finally {
@@ -295,6 +260,132 @@ public final class WorkspaceFileBrowser {
         return exact;
     }
 
+    private static WorkspaceFilePreview previewNonImage(
+        WorkspaceFileAccess.Source source,
+        byte[] probe,
+        String path,
+        String detectedMimeType,
+        long byteCount,
+        int requestedPage
+    ) throws IOException {
+        Utf8TextValidator validator = new Utf8TextValidator();
+        validator.accept(probe, 0, probe.length);
+        if (!validator.isCandidate()) {
+            PageWindow binaryPage = PageWindow.forFile(
+                byteCount,
+                requestedPage,
+                WorkspaceBrowserLimits.BINARY_PAGE_BYTES
+            );
+            byte[] bytes = readRange(
+                source,
+                probe,
+                binaryPage.byteOffset,
+                binaryPage.byteCount
+            );
+            source.verifyUnchanged();
+            return binaryPreview(
+                path,
+                detectedMimeType,
+                byteCount,
+                binaryPage,
+                bytes
+            );
+        }
+
+        PageWindow textPage = PageWindow.forFile(
+            byteCount,
+            requestedPage,
+            WorkspaceBrowserLimits.TEXT_PAGE_BYTES
+        );
+        PageWindow binaryPage = PageWindow.forFile(
+            byteCount,
+            requestedPage,
+            WorkspaceBrowserLimits.BINARY_PAGE_BYTES
+        );
+        int textPrefix = (int) Math.min(3L, textPage.byteOffset);
+        PageCapture textBytes = new PageCapture(
+            textPage.byteOffset - textPrefix,
+            textPrefix + textPage.byteCount
+        );
+        PageCapture binaryBytes = new PageCapture(
+            binaryPage.byteOffset,
+            binaryPage.byteCount
+        );
+        textBytes.accept(probe, 0L, probe.length);
+        binaryBytes.accept(probe, 0L, probe.length);
+
+        long scanned = probe.length;
+        byte[] buffer = new byte[8192];
+        while (scanned < byteCount
+            && (validator.isCandidate() || !binaryBytes.isComplete())) {
+            checkInterrupted();
+            int wanted = (int) Math.min((long) buffer.length, byteCount - scanned);
+            int count = source.read(buffer, 0, wanted);
+            if (count < 0) {
+                throw new IOException("Workspace file changed during preview");
+            }
+            if (count == 0) {
+                throw new IOException("Workspace file preview made no progress");
+            }
+            textBytes.accept(buffer, scanned, count);
+            binaryBytes.accept(buffer, scanned, count);
+            if (validator.isCandidate()) {
+                validator.accept(buffer, 0, count);
+            }
+            scanned += count;
+        }
+
+        boolean text = scanned == byteCount && validator.isCompleteText();
+        source.verifyUnchanged();
+        if (!text) {
+            return binaryPreview(
+                path,
+                detectedMimeType,
+                byteCount,
+                binaryPage,
+                binaryBytes.toByteArray()
+            );
+        }
+        String content = decodeUtf8Page(
+            textBytes.toByteArray(),
+            textPrefix,
+            textPage.byteOffset,
+            textPage.byteCount,
+            textPage.byteOffset + textPage.byteCount == byteCount
+        );
+        return WorkspaceFilePreview.text(
+            displayName(path),
+            path,
+            byteCount,
+            textPage.byteOffset,
+            textPage.pageIndex,
+            textPage.pageCount,
+            content
+        );
+    }
+
+    private static WorkspaceFilePreview binaryPreview(
+        String path,
+        String detectedMimeType,
+        long byteCount,
+        PageWindow page,
+        byte[] bytes
+    ) {
+        String mimeType = detectedMimeType.isEmpty()
+            ? "application/octet-stream"
+            : detectedMimeType;
+        return WorkspaceFilePreview.binary(
+            displayName(path),
+            path,
+            mimeType,
+            byteCount,
+            page.byteOffset,
+            page.pageIndex,
+            page.pageCount,
+            renderHex(bytes, page.byteOffset)
+        );
+    }
+
     private static byte[] readRange(
         WorkspaceFileAccess.Source source,
         byte[] probe,
@@ -344,16 +435,14 @@ public final class WorkspaceFileBrowser {
         }
     }
 
-    private static String readUtf8Page(
-        WorkspaceFileAccess.Source source,
-        byte[] probe,
+    private static String decodeUtf8Page(
+        byte[] bytes,
+        int prefix,
         long byteOffset,
         int byteCount,
         boolean finalPage
     ) throws IOException {
-        int prefix = (int) Math.min(3L, byteOffset);
         long readOffset = byteOffset - prefix;
-        byte[] bytes = readRange(source, probe, readOffset, prefix + byteCount);
         int cursor = 0;
         while (prefix > 0 && cursor < bytes.length
             && isUtf8Continuation(bytes[cursor])) {
@@ -436,52 +525,143 @@ public final class WorkspaceFileBrowser {
         return needed + 1;
     }
 
-    private static boolean isProbablyUtf8Text(byte[] bytes, boolean mayEndMidCharacter) {
-        int index = 0;
-        while (index < bytes.length) {
-            int first = bytes[index] & 0xff;
-            if (first < 0x80) {
-                if (first == 0 || first == 0x7f || (first < 0x20
-                    && first != '\t' && first != '\n' && first != '\r'
-                    && first != '\f')) {
-                    return false;
+    private static final class Utf8TextValidator {
+        private boolean candidate = true;
+        private int continuationBytes;
+        private int codePoint;
+        private int minimumCodePoint;
+
+        private void accept(byte[] bytes, int offset, int length) {
+            if (bytes == null || offset < 0 || length < 0
+                || offset > bytes.length - length) {
+                throw new IllegalArgumentException("UTF-8 validation range is invalid");
+            }
+            for (int index = offset; candidate && index < offset + length; index++) {
+                int value = bytes[index] & 0xff;
+                if (continuationBytes > 0) {
+                    if ((value & 0xc0) != 0x80) {
+                        candidate = false;
+                        break;
+                    }
+                    codePoint = (codePoint << 6) | (value & 0x3f);
+                    continuationBytes--;
+                    if (continuationBytes == 0
+                        && (codePoint < minimumCodePoint
+                            || codePoint > 0x10ffff
+                            || (codePoint >= 0xd800 && codePoint <= 0xdfff))) {
+                        candidate = false;
+                    }
+                    continue;
                 }
-                index++;
-                continue;
-            }
-            int needed;
-            int codePoint;
-            if (first >= 0xc2 && first <= 0xdf) {
-                needed = 1;
-                codePoint = first & 0x1f;
-            } else if (first >= 0xe0 && first <= 0xef) {
-                needed = 2;
-                codePoint = first & 0x0f;
-            } else if (first >= 0xf0 && first <= 0xf4) {
-                needed = 3;
-                codePoint = first & 0x07;
-            } else {
-                return false;
-            }
-            if (index + needed >= bytes.length) {
-                return mayEndMidCharacter;
-            }
-            for (int offset = 1; offset <= needed; offset++) {
-                int continuation = bytes[index + offset] & 0xff;
-                if ((continuation & 0xc0) != 0x80) {
-                    return false;
+                if (value < 0x80) {
+                    if (value == 0 || value == 0x7f || (value < 0x20
+                        && value != '\t' && value != '\n' && value != '\r'
+                        && value != '\f')) {
+                        candidate = false;
+                    }
+                } else if (value >= 0xc2 && value <= 0xdf) {
+                    continuationBytes = 1;
+                    codePoint = value & 0x1f;
+                    minimumCodePoint = 0x80;
+                } else if (value >= 0xe0 && value <= 0xef) {
+                    continuationBytes = 2;
+                    codePoint = value & 0x0f;
+                    minimumCodePoint = 0x800;
+                } else if (value >= 0xf0 && value <= 0xf4) {
+                    continuationBytes = 3;
+                    codePoint = value & 0x07;
+                    minimumCodePoint = 0x10000;
+                } else {
+                    candidate = false;
                 }
-                codePoint = (codePoint << 6) | (continuation & 0x3f);
             }
-            if ((needed == 2 && codePoint < 0x800)
-                || (needed == 3 && codePoint < 0x10000)
-                || codePoint > 0x10ffff
-                || (codePoint >= 0xd800 && codePoint <= 0xdfff)) {
-                return false;
-            }
-            index += needed + 1;
         }
-        return true;
+
+        private boolean isCandidate() {
+            return candidate;
+        }
+
+        private boolean isCompleteText() {
+            return candidate && continuationBytes == 0;
+        }
+    }
+
+    private static final class PageWindow {
+        private final long byteOffset;
+        private final int byteCount;
+        private final int pageIndex;
+        private final int pageCount;
+
+        private PageWindow(
+            long byteOffset,
+            int byteCount,
+            int pageIndex,
+            int pageCount
+        ) {
+            this.byteOffset = byteOffset;
+            this.byteCount = byteCount;
+            this.pageIndex = pageIndex;
+            this.pageCount = pageCount;
+        }
+
+        private static PageWindow forFile(
+            long byteCount,
+            int requestedPage,
+            int pageBytes
+        ) {
+            int pageCount = Math.max(1, divideRoundedUp(byteCount, pageBytes));
+            int pageIndex = Math.min(requestedPage, pageCount - 1);
+            long byteOffset = (long) pageIndex * (long) pageBytes;
+            int length = (int) Math.min(
+                (long) pageBytes,
+                byteCount - byteOffset
+            );
+            return new PageWindow(byteOffset, length, pageIndex, pageCount);
+        }
+    }
+
+    private static final class PageCapture {
+        private final long byteOffset;
+        private final byte[] bytes;
+        private int capturedBytes;
+
+        private PageCapture(long byteOffset, int byteCount) {
+            if (byteOffset < 0L || byteCount < 0) {
+                throw new IllegalArgumentException("Preview capture range is invalid");
+            }
+            this.byteOffset = byteOffset;
+            this.bytes = new byte[byteCount];
+        }
+
+        private void accept(byte[] source, long sourceOffset, int byteCount) {
+            long sourceEnd = sourceOffset + byteCount;
+            long captureEnd = byteOffset + bytes.length;
+            long overlapStart = Math.max(sourceOffset, byteOffset);
+            long overlapEnd = Math.min(sourceEnd, captureEnd);
+            if (overlapStart >= overlapEnd) {
+                return;
+            }
+            int length = (int) (overlapEnd - overlapStart);
+            System.arraycopy(
+                source,
+                (int) (overlapStart - sourceOffset),
+                bytes,
+                (int) (overlapStart - byteOffset),
+                length
+            );
+            capturedBytes += length;
+        }
+
+        private boolean isComplete() {
+            return capturedBytes == bytes.length;
+        }
+
+        private byte[] toByteArray() throws IOException {
+            if (!isComplete()) {
+                throw new IOException("Workspace file changed during preview");
+            }
+            return bytes;
+        }
     }
 
     private static String detectImageMimeType(byte[] header) {

@@ -1,11 +1,11 @@
 package de.agentcodi.runtime;
 
-import android.content.ContentResolver;
 import android.content.Context;
 import android.net.Uri;
 
 import de.agentcodi.storage.WorkspaceArchive;
 import de.agentcodi.storage.WorkspaceExportFile;
+import de.agentcodi.storage.WorkspaceExportTransaction;
 import de.agentcodi.storage.WorkspaceLayout;
 
 import java.io.IOException;
@@ -55,29 +55,49 @@ public final class WorkspaceFileExporter {
     }
 
     public static FileExport export(
-        Context context,
-        String sourcePath,
+        final Context context,
+        final String sourcePath,
         Uri destination
     ) throws IOException {
         requireContentDestination(destination);
-        WorkspaceLayout layout = layout(context);
-        WorkspaceExportFile.inspect(
-            layout.getWorkspace(),
-            sourcePath,
-            MAXIMUM_FILE_BYTES,
-            NativeWorkspaceFileAccess.opener()
+        requireContext(context);
+        WorkspaceExportFile exported = WorkspaceExportTransaction.execute(
+            new AndroidDocumentExportDestination(
+                context.getContentResolver(),
+                destination
+            ),
+            new WorkspaceExportTransaction.Preparation<WorkspaceLayout>() {
+                @Override
+                public WorkspaceLayout prepare() throws IOException {
+                    WorkspaceLayout preparedLayout = layout(context);
+                    WorkspaceExportFile.inspect(
+                        preparedLayout.getWorkspace(),
+                        sourcePath,
+                        MAXIMUM_FILE_BYTES,
+                        NativeWorkspaceFileAccess.opener()
+                    );
+                    return preparedLayout;
+                }
+            },
+            new WorkspaceExportTransaction.Writer<
+                WorkspaceLayout,
+                WorkspaceExportFile
+            >() {
+                @Override
+                public WorkspaceExportFile write(
+                    WorkspaceLayout preparedLayout,
+                    OutputStream destinationStream
+                ) throws IOException {
+                    return WorkspaceExportFile.copyTo(
+                        preparedLayout.getWorkspace(),
+                        sourcePath,
+                        MAXIMUM_FILE_BYTES,
+                        destinationStream,
+                        NativeWorkspaceFileAccess.opener()
+                    );
+                }
+            }
         );
-        OutputStream output = openDestination(context, destination);
-        WorkspaceExportFile exported;
-        try (OutputStream destinationStream = output) {
-            exported = WorkspaceExportFile.copyTo(
-                layout.getWorkspace(),
-                sourcePath,
-                MAXIMUM_FILE_BYTES,
-                destinationStream,
-                NativeWorkspaceFileAccess.opener()
-            );
-        }
         return toFileExport(exported);
     }
 
@@ -116,41 +136,61 @@ public final class WorkspaceFileExporter {
     }
 
     public static ArchiveExport exportArchive(
-        Context context,
-        String relativeDirectory,
+        final Context context,
+        final String relativeDirectory,
         Uri destination
     ) throws IOException {
         requireContentDestination(destination);
-        WorkspaceLayout layout = layout(context);
-        WorkspaceArchive.inspect(
-            layout.getWorkspace(),
-            relativeDirectory,
-            MAXIMUM_FILES,
-            MAXIMUM_SCANNED_ENTRIES,
-            MAXIMUM_FILE_BYTES,
-            MAXIMUM_ARCHIVE_BYTES,
-            MAXIMUM_RELATIVE_PATH_CHARACTERS,
-            MAXIMUM_DIRECTORY_DEPTH,
-            NativeWorkspaceDirectoryCatalog.reader(),
-            NativeWorkspaceFileAccess.opener()
+        requireContext(context);
+        WorkspaceArchive.Summary summary = WorkspaceExportTransaction.execute(
+            new AndroidDocumentExportDestination(
+                context.getContentResolver(),
+                destination
+            ),
+            new WorkspaceExportTransaction.Preparation<WorkspaceLayout>() {
+                @Override
+                public WorkspaceLayout prepare() throws IOException {
+                    WorkspaceLayout preparedLayout = layout(context);
+                    WorkspaceArchive.inspect(
+                        preparedLayout.getWorkspace(),
+                        relativeDirectory,
+                        MAXIMUM_FILES,
+                        MAXIMUM_SCANNED_ENTRIES,
+                        MAXIMUM_FILE_BYTES,
+                        MAXIMUM_ARCHIVE_BYTES,
+                        MAXIMUM_RELATIVE_PATH_CHARACTERS,
+                        MAXIMUM_DIRECTORY_DEPTH,
+                        NativeWorkspaceDirectoryCatalog.reader(),
+                        NativeWorkspaceFileAccess.opener()
+                    );
+                    return preparedLayout;
+                }
+            },
+            new WorkspaceExportTransaction.Writer<
+                WorkspaceLayout,
+                WorkspaceArchive.Summary
+            >() {
+                @Override
+                public WorkspaceArchive.Summary write(
+                    WorkspaceLayout preparedLayout,
+                    OutputStream destinationStream
+                ) throws IOException {
+                    return WorkspaceArchive.write(
+                        preparedLayout.getWorkspace(),
+                        relativeDirectory,
+                        destinationStream,
+                        MAXIMUM_FILES,
+                        MAXIMUM_SCANNED_ENTRIES,
+                        MAXIMUM_FILE_BYTES,
+                        MAXIMUM_ARCHIVE_BYTES,
+                        MAXIMUM_RELATIVE_PATH_CHARACTERS,
+                        MAXIMUM_DIRECTORY_DEPTH,
+                        NativeWorkspaceDirectoryCatalog.reader(),
+                        NativeWorkspaceFileAccess.opener()
+                    );
+                }
+            }
         );
-        OutputStream output = openDestination(context, destination);
-        WorkspaceArchive.Summary summary;
-        try (OutputStream destinationStream = output) {
-            summary = WorkspaceArchive.write(
-                layout.getWorkspace(),
-                relativeDirectory,
-                destinationStream,
-                MAXIMUM_FILES,
-                MAXIMUM_SCANNED_ENTRIES,
-                MAXIMUM_FILE_BYTES,
-                MAXIMUM_ARCHIVE_BYTES,
-                MAXIMUM_RELATIVE_PATH_CHARACTERS,
-                MAXIMUM_DIRECTORY_DEPTH,
-                NativeWorkspaceDirectoryCatalog.reader(),
-                NativeWorkspaceFileAccess.opener()
-            );
-        }
         return new ArchiveExport(
             archiveDisplayName(summary.getRelativeDirectory()),
             summary.getRelativeDirectory(),
@@ -226,16 +266,6 @@ public final class WorkspaceFileExporter {
         return "AGENTCODI-" + safe + ".zip";
     }
 
-    private static OutputStream openDestination(Context context, Uri destination)
-        throws IOException {
-        ContentResolver resolver = context.getContentResolver();
-        OutputStream output = resolver.openOutputStream(destination, "w");
-        if (output == null) {
-            throw new IOException("Android did not open the selected export destination");
-        }
-        return output;
-    }
-
     private static void requireContentDestination(Uri destination) {
         if (destination == null || !"content".equalsIgnoreCase(destination.getScheme())) {
             throw new IllegalArgumentException("destination must be an Android content URI");
@@ -243,10 +273,14 @@ public final class WorkspaceFileExporter {
     }
 
     private static WorkspaceLayout layout(Context context) throws IOException {
+        requireContext(context);
+        return WorkspaceLayout.create(context.getFilesDir());
+    }
+
+    private static void requireContext(Context context) {
         if (context == null) {
             throw new IllegalArgumentException("context must not be null");
         }
-        return WorkspaceLayout.create(context.getFilesDir());
     }
 
     public static final class FileExport {

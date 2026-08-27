@@ -62,7 +62,7 @@ AGENTCODI does more than display a Codex conversation.
 | ripgrep | Packaged no-PCRE2 runtime exposed as `rg` |
 | MCP management | Native Android interface backed by Codex configuration RPCs |
 
-The current AGENTCODI 0.6.2 runtime uses **Codex app-server 0.148.1** together with the matching code-mode host from the same pinned artifact.
+The current AGENTCODI 0.6.3 runtime uses **Codex app-server 0.148.1** together with the matching code-mode host from the same pinned artifact.
 
 ---
 
@@ -126,7 +126,7 @@ Selections are validated against the options reported by the app-server.
 
 ### Execution modes
 
-AGENTCODI 0.6.2 offers two explicitly separated execution modes:
+AGENTCODI 0.6.3 offers two explicitly separated execution modes:
 
 | Mode | App-server profile | Filesystem behavior |
 |---|---|---|
@@ -214,6 +214,8 @@ Supported explicit workspace exports include:
 - The currently open browser folder as a bounded ZIP, including the workspace root
 
 Export paths and archive contents pass through dedicated validation before leaving the private workspace. Since version 0.5.3, each exported file is read from a descriptor opened component by component relative to the private workspace without following links, then that same descriptor and its workspace name are verified again. A concurrent path, symlink, parent-directory or hard-link exchange therefore fails without redirecting reads outside the workspace. In 0.6.0, folder ZIPs use the same native descriptor-relative directory catalog as the browser and the same native stable file opener as individual export. The selected folder is bound into the summary, ZIP paths are relative to it, and complete pre-/post-write catalogs plus opened-file identity, size and timestamps detect mutations.
+
+In 0.6.3, individual files, generated images and folder ZIPs share one recoverable document-output transaction. The selected Android document is opened with explicit truncation, and any preparation, source-verification, write, flush or close failure first closes the stream and then deletes the failed document. If a provider cannot delete it, AGENTCODI reopens it with explicit truncation so partial or stale export bytes do not remain. Source races still fail closed; they no longer leave already written destination bytes behind.
 
 Version 0.6.0 retains the ZIP limits of 2,048 regular files, 1 GiB of content, 65,536 scanned entries, 512 MiB per file, 2,048 path characters and 64 directory levels. Symbolic links, hard links, special or unreadable entries, unsafe names and non-portable path collisions are omitted locally and reported in the export summary, so they cannot suppress independent safe siblings. They are never followed or included. Exceeding a quantitative bound, selecting an unsafe folder, or detecting a mutation of an already bound archive member still fails the archive instead of weakening a boundary or claiming an incomplete bounded export.
 
@@ -415,7 +417,7 @@ Several sensitive byte and character buffers are explicitly cleared after use.
 
 Current release line:
 
-### AGENTCODI 0.6.2
+### AGENTCODI 0.6.3
 
 | Requirement | Value |
 |---|---|
@@ -466,7 +468,7 @@ Physical Android hardware is used separately to validate installation, UI behavi
 
 AGENTCODI is under active development.
 
-Version 0.6.2 currently focuses heavily on:
+Version 0.6.3 currently focuses heavily on:
 
 - Native Codex runtime integration
 - A fail-closed app-server `fork()`/`execve()` boundary that prevents unrelated parent file descriptors from entering the Codex child and combines an isolated child process group with parent-side subreaper ownership
@@ -484,6 +486,7 @@ Version 0.6.2 currently focuses heavily on:
 - A native graphical workspace browser with breadcrumbs, directory and content paging, complete incremental UTF-8 candidate validation, bounded text/image/binary previews, isolated unavailable-entry reporting, byte-exact file export and selected-folder ZIP export
 - Direct, bounded external-document import with a proven transient read grant, crash-recovery cleanup, commit-stable resource closing, atomic no-replace installation, retained verification handles across queue hand-offs, and final batch revalidation coupled to the app-server JSONL write
 - Race-free individual-file, image and ZIP source opening
+- Recoverable Android document transactions that delete or explicitly clear failed individual-file, image and ZIP exports
 - Workspace catalogs and ZIP exports with separate finite scan and regular-file limits, omitting unsafe or non-portable entries without following them or blocking independent safe files
 - Complete PNG validation before materialization, recovery and export
 - SHA-256-bound image materialization proofs for resumed history

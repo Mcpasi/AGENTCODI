@@ -2,6 +2,7 @@ package de.agentcodi.tests;
 
 import de.agentcodi.storage.WorkspaceArchive;
 import de.agentcodi.storage.WorkspaceExportFile;
+import de.agentcodi.storage.WorkspaceExportTransaction;
 import de.agentcodi.storage.WorkspaceFileAccess;
 import de.agentcodi.storage.WorkspaceLayout;
 
@@ -27,6 +28,8 @@ public final class WorkspaceExportTest {
     public static int run() throws Exception {
         catalogsAllRegularFileTypes();
         copiesUnknownBinaryTypeExactly();
+        rollsBackDestinationAfterFileMutationDuringExport();
+        rollsBackDestinationAfterCloseFailure();
         acceptsCanonicalWorkspaceAlias();
         rejectsFileOutsideWorkspace();
         skipsSymbolicCatalogEntriesWithoutFollowingTargets();
@@ -50,7 +53,7 @@ public final class WorkspaceExportTest {
         rejectsArchiveSymlinkSwapBeforeOpen();
         archivesRegularFilesWhileOmittingSymbolicEntries();
         archivesRegularFilesWhileOmittingHardLinks();
-        return 25;
+        return 27;
     }
 
     private static void catalogsAllRegularFileTypes() throws Exception {
@@ -113,6 +116,131 @@ public final class WorkspaceExportTest {
         } finally {
             deleteRecursively(base);
         }
+    }
+
+    private static void rollsBackDestinationAfterFileMutationDuringExport()
+        throws Exception {
+        final Path base = Files.createTempDirectory("agentcodi-export-file-rollback-");
+        try {
+            final WorkspaceLayout layout = WorkspaceLayout.create(base.toFile());
+            final Path source = layout.getWorkspace().toPath().resolve("source.bin");
+            Files.write(source, new byte[] {1, 2, 3, 4});
+            final ResettingDestination destination = new ResettingDestination(
+                new FirstWriteAction() {
+                    @Override
+                    public void run() throws IOException {
+                        Files.move(source, source.resolveSibling("source-before-export.bin"));
+                        Files.write(source, new byte[] {9, 8, 7, 6});
+                    }
+                }
+            );
+
+            TestSupport.expectThrows(
+                IOException.class,
+                new TestSupport.ThrowingRunnable() {
+                    @Override
+                    public void run() throws Exception {
+                        WorkspaceExportTransaction.execute(
+                            destination,
+                            new WorkspaceExportTransaction.Preparation<WorkspaceLayout>() {
+                                @Override
+                                public WorkspaceLayout prepare() throws IOException {
+                                    WorkspaceExportFile.inspect(
+                                        layout.getWorkspace(),
+                                        source.toString(),
+                                        1024L
+                                    );
+                                    return layout;
+                                }
+                            },
+                            new WorkspaceExportTransaction.Writer<
+                                WorkspaceLayout,
+                                WorkspaceExportFile
+                            >() {
+                                @Override
+                                public WorkspaceExportFile write(
+                                    WorkspaceLayout preparedLayout,
+                                    OutputStream output
+                                ) throws IOException {
+                                    return WorkspaceExportFile.copyTo(
+                                        preparedLayout.getWorkspace(),
+                                        source.toString(),
+                                        1024L,
+                                        output
+                                    );
+                                }
+                            }
+                        );
+                    }
+                },
+                "workspace mutation during file export must fail"
+            );
+            TestSupport.assertTrue(
+                destination.getMaximumWrittenBytes() > 0,
+                "the provider fixture reproduces bytes written before mutation detection"
+            );
+            TestSupport.assertTrue(
+                destination.wasRolledBack(),
+                "failed file export rolls back its selected document"
+            );
+            TestSupport.assertEquals(
+                Integer.valueOf(0),
+                Integer.valueOf(destination.getByteCount()),
+                "failed file export leaves no target bytes"
+            );
+        } finally {
+            deleteRecursively(base);
+        }
+    }
+
+    private static void rollsBackDestinationAfterCloseFailure() throws Exception {
+        final ResettingDestination destination = new ResettingDestination(
+            new FirstWriteAction() {
+                @Override
+                public void run() {
+                }
+            },
+            true
+        );
+        TestSupport.expectThrows(
+            IOException.class,
+            new TestSupport.ThrowingRunnable() {
+                @Override
+                public void run() throws Exception {
+                    WorkspaceExportTransaction.execute(
+                        destination,
+                        new WorkspaceExportTransaction.Preparation<String>() {
+                            @Override
+                            public String prepare() {
+                                return "prepared";
+                            }
+                        },
+                        new WorkspaceExportTransaction.Writer<String, String>() {
+                            @Override
+                            public String write(String prepared, OutputStream output)
+                                throws IOException {
+                                output.write(new byte[] {1, 2, 3, 4});
+                                return prepared;
+                            }
+                        }
+                    );
+                }
+            },
+            "destination close failure must fail the export"
+        );
+        TestSupport.assertTrue(
+            destination.getMaximumWrittenBytes() > 0,
+            "close-failure fixture writes bytes before failing"
+        );
+        TestSupport.assertTrue(
+            destination.wasRolledBack(),
+            "destination close failure triggers rollback"
+        );
+        TestSupport.assertEquals(
+            Integer.valueOf(0),
+            Integer.valueOf(destination.getByteCount()),
+            "destination close failure leaves no target bytes"
+        );
     }
 
     private static void acceptsCanonicalWorkspaceAlias() throws Exception {
@@ -941,48 +1069,73 @@ public final class WorkspaceExportTest {
             final WorkspaceLayout layout = WorkspaceLayout.create(base.toFile());
             final Path source = layout.getWorkspace().toPath().resolve("source.bin");
             Files.write(source, new byte[] {1, 2, 3, 4});
-            final ByteArrayOutputStream destination = new ByteArrayOutputStream();
-            OutputStream mutatingDestination = new OutputStream() {
-                private boolean mutated;
-
-                @Override
-                public void write(int value) throws IOException {
-                    mutateOnce();
-                    destination.write(value);
-                }
-
-                @Override
-                public void write(byte[] value, int offset, int length) throws IOException {
-                    mutateOnce();
-                    destination.write(value, offset, length);
-                }
-
-                private void mutateOnce() throws IOException {
-                    if (mutated) {
-                        return;
+            final ResettingDestination destination = new ResettingDestination(
+                new FirstWriteAction() {
+                    @Override
+                    public void run() throws IOException {
+                        Files.move(source, source.resolveSibling("source-before-export.bin"));
+                        Files.write(source, new byte[] {9, 8, 7, 6});
                     }
-                    mutated = true;
-                    Files.move(source, source.resolveSibling("source-before-export.bin"));
-                    Files.write(source, new byte[] {9, 8, 7, 6});
                 }
-            };
+            );
             TestSupport.expectThrows(
                 IOException.class,
                 new TestSupport.ThrowingRunnable() {
                     @Override
                     public void run() throws Exception {
-                        WorkspaceArchive.write(
-                            layout.getWorkspace(),
-                            mutatingDestination,
-                            10,
-                            1024L,
-                            4096L,
-                            256,
-                            8
+                        WorkspaceExportTransaction.execute(
+                            destination,
+                            new WorkspaceExportTransaction.Preparation<WorkspaceLayout>() {
+                                @Override
+                                public WorkspaceLayout prepare() throws IOException {
+                                    WorkspaceArchive.inspect(
+                                        layout.getWorkspace(),
+                                        10,
+                                        1024L,
+                                        4096L,
+                                        256,
+                                        8
+                                    );
+                                    return layout;
+                                }
+                            },
+                            new WorkspaceExportTransaction.Writer<
+                                WorkspaceLayout,
+                                WorkspaceArchive.Summary
+                            >() {
+                                @Override
+                                public WorkspaceArchive.Summary write(
+                                    WorkspaceLayout preparedLayout,
+                                    OutputStream output
+                                ) throws IOException {
+                                    return WorkspaceArchive.write(
+                                        preparedLayout.getWorkspace(),
+                                        output,
+                                        10,
+                                        1024L,
+                                        4096L,
+                                        256,
+                                        8
+                                    );
+                                }
+                            }
                         );
                     }
                 },
                 "workspace mutation during archive must be detected"
+            );
+            TestSupport.assertTrue(
+                destination.getMaximumWrittenBytes() > 0,
+                "the provider fixture reproduces ZIP bytes written before mutation detection"
+            );
+            TestSupport.assertTrue(
+                destination.wasRolledBack(),
+                "failed archive export rolls back its selected document"
+            );
+            TestSupport.assertEquals(
+                Integer.valueOf(0),
+                Integer.valueOf(destination.getByteCount()),
+                "failed archive export leaves no target bytes"
             );
         } finally {
             deleteRecursively(base);
@@ -1186,6 +1339,95 @@ public final class WorkspaceExportTest {
             }
         }
         return entries;
+    }
+
+    private interface FirstWriteAction {
+        void run() throws IOException;
+    }
+
+    private static final class ResettingDestination
+        implements WorkspaceExportTransaction.Destination {
+        private final ByteArrayOutputStream bytes = new ByteArrayOutputStream();
+        private final FirstWriteAction firstWriteAction;
+        private final boolean failOnClose;
+        private boolean opened;
+        private boolean firstWrite = true;
+        private boolean rolledBack;
+        private int maximumWrittenBytes;
+
+        private ResettingDestination(FirstWriteAction firstWriteAction) {
+            this(firstWriteAction, false);
+        }
+
+        private ResettingDestination(
+            FirstWriteAction firstWriteAction,
+            boolean failOnClose
+        ) {
+            this.firstWriteAction = firstWriteAction;
+            this.failOnClose = failOnClose;
+        }
+
+        @Override
+        public OutputStream open() throws IOException {
+            if (opened) {
+                throw new IOException("Test destination was opened more than once");
+            }
+            opened = true;
+            bytes.reset();
+            return new OutputStream() {
+                @Override
+                public void write(int value) throws IOException {
+                    beforeWrite();
+                    bytes.write(value);
+                    recordWrittenBytes();
+                }
+
+                @Override
+                public void write(byte[] value, int offset, int length)
+                    throws IOException {
+                    beforeWrite();
+                    bytes.write(value, offset, length);
+                    recordWrittenBytes();
+                }
+
+                @Override
+                public void close() throws IOException {
+                    if (failOnClose) {
+                        throw new IOException("Test destination close failed");
+                    }
+                }
+            };
+        }
+
+        @Override
+        public void rollback() {
+            rolledBack = true;
+            bytes.reset();
+        }
+
+        private void beforeWrite() throws IOException {
+            if (!firstWrite) {
+                return;
+            }
+            firstWrite = false;
+            firstWriteAction.run();
+        }
+
+        private void recordWrittenBytes() {
+            maximumWrittenBytes = Math.max(maximumWrittenBytes, bytes.size());
+        }
+
+        private boolean wasRolledBack() {
+            return rolledBack;
+        }
+
+        private int getByteCount() {
+            return bytes.size();
+        }
+
+        private int getMaximumWrittenBytes() {
+            return maximumWrittenBytes;
+        }
     }
 
     private static void deleteRecursively(Path path) throws IOException {

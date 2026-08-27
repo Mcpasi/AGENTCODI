@@ -566,10 +566,18 @@ workspace_reader="$PROJECT_ROOT/modules/native-engine/src/main/cpp/workspace_fil
 workspace_access="$PROJECT_ROOT/modules/storage/src/main/java/de/agentcodi/storage/WorkspaceFileAccess.java"
 workspace_archive="$PROJECT_ROOT/modules/storage/src/main/java/de/agentcodi/storage/WorkspaceArchive.java"
 workspace_export_file="$PROJECT_ROOT/modules/storage/src/main/java/de/agentcodi/storage/WorkspaceExportFile.java"
+workspace_export_transaction="$PROJECT_ROOT/modules/storage/src/main/java/de/agentcodi/storage/WorkspaceExportTransaction.java"
+android_document_export_destination="$PROJECT_ROOT/modules/runtime/src/main/java/de/agentcodi/runtime/AndroidDocumentExportDestination.java"
 workspace_export_test="$PROJECT_ROOT/tests/java/de/agentcodi/tests/WorkspaceExportTest.java"
 if ! rg -q 'WorkspaceExportFile\.list' "$workspace_exporter" \
     || ! rg -q 'WorkspaceExportFile\.copyTo' "$workspace_exporter" \
     || ! rg -q 'WorkspaceArchive\.write' "$workspace_exporter" \
+    || ! rg -q 'WorkspaceExportTransaction\.execute' "$workspace_exporter" \
+    || ! rg -q 'WorkspaceExportTransaction\.execute' "$image_exporter" \
+    || ! rg -q 'destination\.rollback\(\)' "$workspace_export_transaction" \
+    || ! rg -q 'DocumentsContract\.deleteDocument\(resolver, destination\)' "$android_document_export_destination" \
+    || ! rg -q 'resolver\.delete\(destination, null, null\)' "$android_document_export_destination" \
+    || ! rg -q 'openOutputStream\(destination, "wt"\)' "$android_document_export_destination" \
     || ! rg -q 'NativeWorkspaceFileAccess\.opener' "$workspace_exporter" \
     || ! rg -q 'NativeWorkspaceDirectoryCatalog\.reader' "$workspace_exporter" \
     || ! rg -q 'layout\.getWorkspace\(\)' "$workspace_exporter" \
@@ -591,6 +599,9 @@ if ! rg -q 'WorkspaceExportFile\.list' "$workspace_exporter" \
     || ! rg -q 'archivesOnlyTheSelectedFolderContents' "$workspace_export_test" \
     || ! rg -q 'archivesRegularFilesWhileOmittingHardLinks' "$workspace_export_test" \
     || ! rg -q 'omitsPortableArchiveNameCollisionWithoutBlockingSibling' "$workspace_export_test" \
+    || ! rg -q 'failed file export leaves no target bytes' "$workspace_export_test" \
+    || ! rg -q 'failed archive export leaves no target bytes' "$workspace_export_test" \
+    || ! rg -q 'destination close failure leaves no target bytes' "$workspace_export_test" \
     || ! rg -q 'openat\(' "$workspace_reader" \
     || ! rg -q 'O_NOFOLLOW' "$workspace_reader" \
     || ! rg -q 'fstat\(' "$workspace_reader" \
@@ -927,13 +938,13 @@ if ! rg -q 'PYTHON_SOURCE_EXTENSION_COUNT="75"' "$apk_builder" \
   exit 1
 fi
 
-if ! rg -q 'VERSION_NAME = "0\.6\.2"' "$core_root/BuildIdentity.java" \
-    || ! rg -q 'VERSION_CODE = 69' "$core_root/BuildIdentity.java" \
+if ! rg -q 'VERSION_NAME = "0\.6\.3"' "$core_root/BuildIdentity.java" \
+    || ! rg -q 'VERSION_CODE = 70' "$core_root/BuildIdentity.java" \
     || ! rg -q 'CODEX_RUNTIME_VERSION = "0\.148\.1"' "$core_root/BuildIdentity.java" \
-    || ! rg -q 'android:versionName="0\.6\.2"' "$manifest" \
-    || ! rg -q 'android:versionCode="69"' "$manifest" \
-    || ! rg -q 'APP_VERSION="0\.6\.2"' "$apk_builder" \
-    || ! rg -q 'VERSION_CODE="69"' "$apk_builder" \
+    || ! rg -q 'android:versionName="0\.6\.3"' "$manifest" \
+    || ! rg -q 'android:versionCode="70"' "$manifest" \
+    || ! rg -q 'APP_VERSION="0\.6\.3"' "$apk_builder" \
+    || ! rg -q 'VERSION_CODE="70"' "$apk_builder" \
     || ! rg -q 'CODEX_ANDROID_VERSION="0\.148\.1"' "$apk_builder" \
     || ! rg -q 'CODEX_TERMUX_SOURCE_TAG="v0\.148\.1"' "$apk_builder" \
     || ! rg -q 'CODEX_TERMUX_SOURCE_COMMIT="9d48c76abec320ae3724164d0177299b1acd31ca"' "$apk_builder" \
@@ -954,7 +965,7 @@ if ! rg -q 'VERSION_NAME = "0\.6\.2"' "$core_root/BuildIdentity.java" \
     || ! rg -q '9d48c76abec320ae3724164d0177299b1acd31ca' "$PROJECT_ROOT/app/src/main/res/raw/third_party_notices.txt" \
     || ! rg -q '3ba0f711642a888aec92a611a3f3b2211157ff89' "$PROJECT_ROOT/NOTICE.md" \
     || ! rg -q '3ba0f711642a888aec92a611a3f3b2211157ff89' "$PROJECT_ROOT/app/src/main/res/raw/third_party_notices.txt"; then
-  echo "The 0.6.2 / Codex 0.148.1 identity is inconsistent." >&2
+  echo "The 0.6.3 / Codex 0.148.1 identity is inconsistent." >&2
   exit 1
 fi
 

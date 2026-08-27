@@ -1,9 +1,9 @@
 package de.agentcodi.runtime;
 
-import android.content.ContentResolver;
 import android.content.Context;
 import android.net.Uri;
 
+import de.agentcodi.storage.WorkspaceExportTransaction;
 import de.agentcodi.storage.WorkspaceImageFile;
 import de.agentcodi.storage.WorkspaceLayout;
 
@@ -26,35 +26,51 @@ public final class WorkspaceImageExporter {
     }
 
     public static ImageExport export(
-        Context context,
-        String sourcePath,
+        final Context context,
+        final String sourcePath,
         Uri destination
     ) throws IOException {
         if (destination == null || !"content".equalsIgnoreCase(destination.getScheme())) {
             throw new IllegalArgumentException("destination must be an Android content URI");
         }
-        WorkspaceLayout layout = layout(context);
-        WorkspaceImageFile.inspect(
-            layout.getWorkspace(),
-            sourcePath,
-            MAXIMUM_IMAGE_BYTES,
-            NativeWorkspaceFileAccess.opener()
+        requireContext(context);
+        WorkspaceImageFile image = WorkspaceExportTransaction.execute(
+            new AndroidDocumentExportDestination(
+                context.getContentResolver(),
+                destination
+            ),
+            new WorkspaceExportTransaction.Preparation<WorkspaceLayout>() {
+                @Override
+                public WorkspaceLayout prepare() throws IOException {
+                    WorkspaceLayout preparedLayout = layout(context);
+                    WorkspaceImageFile.inspect(
+                        preparedLayout.getWorkspace(),
+                        sourcePath,
+                        MAXIMUM_IMAGE_BYTES,
+                        NativeWorkspaceFileAccess.opener()
+                    );
+                    return preparedLayout;
+                }
+            },
+            new WorkspaceExportTransaction.Writer<
+                WorkspaceLayout,
+                WorkspaceImageFile
+            >() {
+                @Override
+                public WorkspaceImageFile write(
+                    WorkspaceLayout preparedLayout,
+                    OutputStream destinationStream
+                ) throws IOException {
+                    return WorkspaceImageFile.copyTo(
+                        preparedLayout.getWorkspace(),
+                        sourcePath,
+                        MAXIMUM_IMAGE_BYTES,
+                        destinationStream,
+                        NativeWorkspaceFileAccess.opener()
+                    );
+                }
+            }
         );
-        ContentResolver resolver = context.getContentResolver();
-        OutputStream output = resolver.openOutputStream(destination, "w");
-        if (output == null) {
-            throw new IOException("Android did not open the selected export destination");
-        }
-        WorkspaceImageFile image;
-        try (OutputStream destinationStream = output) {
-            image = WorkspaceImageFile.copyTo(
-                layout.getWorkspace(),
-                sourcePath,
-                MAXIMUM_IMAGE_BYTES,
-                destinationStream,
-                NativeWorkspaceFileAccess.opener()
-            );
-        }
         return new ImageExport(
             image.getDisplayName(),
             image.getMimeType(),
@@ -74,10 +90,14 @@ public final class WorkspaceImageExporter {
     }
 
     private static WorkspaceLayout layout(Context context) throws IOException {
+        requireContext(context);
+        return WorkspaceLayout.create(context.getFilesDir());
+    }
+
+    private static void requireContext(Context context) {
         if (context == null) {
             throw new IllegalArgumentException("context must not be null");
         }
-        return WorkspaceLayout.create(context.getFilesDir());
     }
 
     public static final class ImageExport {

@@ -31,6 +31,7 @@ public final class ChatUiIconResourcesTest {
         expected.put("ic_chat_add_thread.xml", "7a5a0e08cb22633350b2fdf64e4e9d48be8d648352513eeb60ce32a738b8d214");
         expected.put("ic_chat_archived_threads.xml", "2f17b26b07eb4ee255ca55ecd1f39d72440eb5b89a804d0a4a683fda11b6d04d");
         expected.put("ic_chat_back.xml", "df5f492f450d0031e1f357c88246ad55fbae03912be3ed7d3e3dfe385676792d");
+        expected.put("ic_chat_connectors.xml", "838a6a079ca96eecc6197f9ac5ba31285c45ab76e903455f49d3198b07a72c8a");
         expected.put("ic_chat_detach.xml", "ab5f0086666d9f41c2cd979a0ab3639315b1da6137a513f49e21b6df193e790f");
         expected.put("ic_chat_download.xml", "a5f565675e967a13acff7e75fdfc16acd919be89de0e1034b2b8b30839ba4533");
         expected.put("ic_chat_folder.xml", "58ac70a6301128c58cb53e59f9bb80d37e579ef5b5a67b2d2eb9ed9ec998f842");
@@ -65,7 +66,7 @@ public final class ChatUiIconResourcesTest {
             );
         }
         TestSupport.assertEquals(
-            Integer.valueOf(16),
+            Integer.valueOf(17),
             Integer.valueOf(expected.size()),
             "documented chat icon count"
         );
@@ -100,6 +101,7 @@ public final class ChatUiIconResourcesTest {
             "R.drawable.ic_chat_add_thread",
             "R.drawable.ic_chat_more",
             "R.drawable.ic_chat_add",
+            "R.drawable.ic_chat_connectors",
             "R.drawable.ic_chat_detach",
             "R.drawable.ic_chat_review",
             "R.drawable.ic_chat_stop",
@@ -156,6 +158,7 @@ public final class ChatUiIconResourcesTest {
         for (String resource : new String[] {
             "chat_open_settings",
             "chat_import_files",
+            "chat_connectors",
             "review_mode_action",
             "turn_stop",
             "turn_steer",

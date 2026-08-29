@@ -30,7 +30,9 @@ import android.widget.Spinner;
 import android.widget.TextView;
 import android.widget.Toast;
 
+import de.agentcodi.connectors.ConnectorSelection;
 import de.agentcodi.core.ChatMessage;
+import de.agentcodi.core.CodexAppMention;
 import de.agentcodi.core.CodexFileMentionTransaction;
 import de.agentcodi.core.CodexModelOption;
 import de.agentcodi.core.CodexReasoningOption;
@@ -66,6 +68,7 @@ public final class MainActivity extends Activity {
     private static final int MAX_VISIBLE_THREADS = 80;
     private static final int IMAGE_EXPORT_REQUEST_CODE = 7001;
     private static final int FILE_IMPORT_REQUEST_CODE = 7002;
+    private static final int CONNECTOR_REQUEST_CODE = 7003;
 
     private final Handler handler = new Handler(Looper.getMainLooper());
     private final UiStartupState startupState = new UiStartupState();
@@ -77,6 +80,8 @@ public final class MainActivity extends Activity {
     private final Object preparedImportSendLock = new Object();
     private final List<ImportedWorkspaceFile> pendingImports =
         new ArrayList<ImportedWorkspaceFile>();
+    private final List<ConnectorSelection> pendingConnectors =
+        new ArrayList<ConnectorSelection>();
     private final Runnable refreshTask = new Runnable() {
         @Override
         public void run() {
@@ -124,6 +129,10 @@ public final class MainActivity extends Activity {
     private ScrollView messageScroll;
     private LinearLayout messagesContainer;
     private EditText composerInput;
+    private LinearLayout connectorStatusRow;
+    private TextView connectorStatus;
+    private ImageButton connectorButton;
+    private ImageButton clearConnectorsButton;
     private LinearLayout importStatusRow;
     private TextView importStatus;
     private ImageButton importButton;
@@ -139,6 +148,7 @@ public final class MainActivity extends Activity {
     private String renderedThreadId = "";
     private String pendingImageExportPath = "";
     private String pendingImportsThreadId = "";
+    private String pendingConnectorsThreadId = "";
     private boolean importOperationActive;
     private boolean sendPreparationActive;
     private CodexFileMentionTransaction preparedImportSend;
@@ -209,6 +219,12 @@ public final class MainActivity extends Activity {
 
     @Override
     protected void onActivityResult(int requestCode, int resultCode, Intent data) {
+        if (requestCode == CONNECTOR_REQUEST_CODE) {
+            if (resultCode == RESULT_OK && data != null) {
+                acceptConnectorSelection(data);
+            }
+            return;
+        }
         if (requestCode == FILE_IMPORT_REQUEST_CODE) {
             if (resultCode == RESULT_OK && data != null) {
                 WorkspaceImportGrant sourceGrant =
@@ -634,6 +650,32 @@ public final class MainActivity extends Activity {
         composer.setPadding(theme.dp(12), theme.dp(10), theme.dp(12), theme.dp(10));
         composer.setBackground(theme.background(theme.surface, theme.border, 16));
 
+        connectorStatusRow = new LinearLayout(this);
+        connectorStatusRow.setOrientation(LinearLayout.HORIZONTAL);
+        connectorStatusRow.setGravity(Gravity.CENTER_VERTICAL);
+        connectorStatusRow.setVisibility(View.GONE);
+        connectorStatus = theme.text("", 12, theme.secondary);
+        connectorStatus.setLineSpacing(0.0f, 1.15f);
+        connectorStatus.setMaxLines(3);
+        connectorStatus.setEllipsize(android.text.TextUtils.TruncateAt.END);
+        connectorStatusRow.addView(connectorStatus, new LinearLayout.LayoutParams(
+            0,
+            ViewGroup.LayoutParams.WRAP_CONTENT,
+            1.0f
+        ));
+        clearConnectorsButton = theme.iconButton(
+            R.drawable.ic_chat_detach,
+            getString(R.string.chat_connector_detach)
+        );
+        clearConnectorsButton.setOnClickListener(new View.OnClickListener() {
+            @Override
+            public void onClick(View view) {
+                detachPendingConnectors();
+            }
+        });
+        connectorStatusRow.addView(clearConnectorsButton, iconMarginParams(8));
+        composer.addView(connectorStatusRow);
+
         importStatusRow = new LinearLayout(this);
         importStatusRow.setOrientation(LinearLayout.HORIZONTAL);
         importStatusRow.setGravity(Gravity.CENTER_VERTICAL);
@@ -675,6 +717,18 @@ public final class MainActivity extends Activity {
             }
         });
         composerRow.addView(importButton);
+
+        connectorButton = theme.iconButton(
+            R.drawable.ic_chat_connectors,
+            getString(R.string.chat_connectors)
+        );
+        connectorButton.setOnClickListener(new View.OnClickListener() {
+            @Override
+            public void onClick(View view) {
+                openConnectorPicker();
+            }
+        });
+        composerRow.addView(connectorButton, iconMarginParams(4));
 
         composerInput = new EditText(this);
         composerInput.setHint(R.string.composer_hint);
@@ -781,12 +835,40 @@ public final class MainActivity extends Activity {
             detachPendingImports();
             return;
         }
+        if (!pendingConnectors.isEmpty()
+            && !snapshot.getActiveThreadId().equals(pendingConnectorsThreadId)) {
+            Toast.makeText(
+                this,
+                R.string.chat_connector_context_changed,
+                Toast.LENGTH_LONG
+            ).show();
+            pendingConnectors.clear();
+            pendingConnectorsThreadId = "";
+            refreshLocalComposerState();
+            return;
+        }
+        final List<ConnectorSelection> connectorSelections =
+            ConnectorSelection.copyOf(pendingConnectors);
+        if (!connectorSelections.isEmpty()
+            && !AgentRuntimeService.areConnectorsCallable(connectorSelections)) {
+            AgentRuntimeService.refreshConnectorCatalog(true);
+            Toast.makeText(
+                this,
+                R.string.chat_connector_unavailable,
+                Toast.LENGTH_LONG
+            ).show();
+            return;
+        }
+        final List<CodexAppMention> appMentions = appMentions(connectorSelections);
         if (pendingImports.isEmpty()) {
             boolean accepted = snapshot.isTurnActive()
-                ? AgentRuntimeService.steerTurn(prompt)
-                : AgentRuntimeService.sendMessage(prompt);
+                ? AgentRuntimeService.steerTurn(prompt, appMentions)
+                : AgentRuntimeService.sendMessage(prompt, appMentions);
             if (accepted) {
                 editable.clear();
+                pendingConnectors.clear();
+                pendingConnectorsThreadId = "";
+                refreshLocalComposerState();
             }
             return;
         }
@@ -823,7 +905,9 @@ public final class MainActivity extends Activity {
                                     fileTransaction,
                                     steering,
                                     threadId,
-                                    turnId
+                                    turnId,
+                                    connectorSelections,
+                                    appMentions
                                 );
                             }
                         });
@@ -868,7 +952,9 @@ public final class MainActivity extends Activity {
         CodexFileMentionTransaction fileTransaction,
         boolean steering,
         String threadId,
-        String turnId
+        String turnId,
+        List<ConnectorSelection> preparedConnectors,
+        List<CodexAppMention> appMentions
     ) {
         if (!releasePreparedImportSend(fileTransaction)) {
             closeFileTransaction(fileTransaction);
@@ -883,7 +969,10 @@ public final class MainActivity extends Activity {
         boolean sameContext = threadId.equals(current.getActiveThreadId())
             && steering == current.isTurnActive()
             && (!steering || turnId.equals(current.getActiveTurnId()))
-            && preparedFiles.equals(WorkspaceImportSelection.copyOf(pendingImports));
+            && preparedFiles.equals(WorkspaceImportSelection.copyOf(pendingImports))
+            && preparedConnectors.equals(ConnectorSelection.copyOf(pendingConnectors))
+            && (preparedConnectors.isEmpty()
+                || AgentRuntimeService.areConnectorsCallable(preparedConnectors));
         if (!sameContext) {
             closeFileTransaction(fileTransaction);
             refreshLocalComposerState();
@@ -895,12 +984,14 @@ public final class MainActivity extends Activity {
             return;
         }
         boolean accepted = steering
-            ? AgentRuntimeService.steerTurn(prompt, fileTransaction)
-            : AgentRuntimeService.sendMessage(prompt, fileTransaction);
+            ? AgentRuntimeService.steerTurn(prompt, fileTransaction, appMentions)
+            : AgentRuntimeService.sendMessage(prompt, fileTransaction, appMentions);
         if (accepted) {
             composerInput.getText().clear();
             pendingImports.clear();
             pendingImportsThreadId = "";
+            pendingConnectors.clear();
+            pendingConnectorsThreadId = "";
         }
         refreshLocalComposerState();
     }
@@ -1186,6 +1277,133 @@ public final class MainActivity extends Activity {
         }
     }
 
+    private void openConnectorPicker() {
+        if (importOperationActive || sendPreparationActive) {
+            return;
+        }
+        CodexSessionSnapshot snapshot = AgentRuntimeService.sessionSnapshot();
+        String threadId = snapshot.getActiveThreadId();
+        if (!snapshot.isReady() || threadId.isEmpty()) {
+            Toast.makeText(
+                this,
+                R.string.chat_connector_requires_chat,
+                Toast.LENGTH_LONG
+            ).show();
+            return;
+        }
+        try {
+            startActivityForResult(
+                ConnectorActivity.createIntent(this, threadId, pendingConnectors),
+                CONNECTOR_REQUEST_CODE
+            );
+        } catch (Throwable error) {
+            Toast.makeText(
+                this,
+                R.string.chat_connector_picker_failed,
+                Toast.LENGTH_LONG
+            ).show();
+        }
+    }
+
+    private void acceptConnectorSelection(Intent data) {
+        CodexSessionSnapshot snapshot = AgentRuntimeService.sessionSnapshot();
+        String returnedThreadId = ConnectorActivity.resultThreadId(data);
+        final List<ConnectorSelection> selections;
+        try {
+            selections = ConnectorActivity.resultSelections(data);
+        } catch (RuntimeException error) {
+            Toast.makeText(
+                this,
+                R.string.chat_connector_unavailable,
+                Toast.LENGTH_LONG
+            ).show();
+            return;
+        }
+        if (!snapshot.isReady()
+            || returnedThreadId.isEmpty()
+            || !returnedThreadId.equals(snapshot.getActiveThreadId())
+            || (!selections.isEmpty()
+                && !AgentRuntimeService.areConnectorsCallable(selections))) {
+            pendingConnectors.clear();
+            pendingConnectorsThreadId = "";
+            AgentRuntimeService.refreshConnectorCatalog(true);
+            refreshLocalComposerState();
+            Toast.makeText(
+                this,
+                R.string.chat_connector_context_changed,
+                Toast.LENGTH_LONG
+            ).show();
+            return;
+        }
+        pendingConnectors.clear();
+        pendingConnectors.addAll(selections);
+        pendingConnectorsThreadId = selections.isEmpty() ? "" : returnedThreadId;
+        refreshLocalComposerState();
+    }
+
+    private void detachPendingConnectors() {
+        if (importOperationActive || sendPreparationActive) {
+            return;
+        }
+        boolean hadConnectors = !pendingConnectors.isEmpty();
+        pendingConnectors.clear();
+        pendingConnectorsThreadId = "";
+        refreshLocalComposerState();
+        if (hadConnectors) {
+            Toast.makeText(
+                this,
+                R.string.chat_connector_detached_notice,
+                Toast.LENGTH_LONG
+            ).show();
+        }
+    }
+
+    private void reconcilePendingConnectors(CodexSessionSnapshot session) {
+        if (!pendingConnectors.isEmpty()
+            && !session.getActiveThreadId().equals(pendingConnectorsThreadId)) {
+            pendingConnectors.clear();
+            pendingConnectorsThreadId = "";
+        }
+    }
+
+    private void renderConnectorSelection() {
+        if (pendingConnectors.isEmpty()) {
+            connectorStatusRow.setVisibility(View.GONE);
+            connectorStatus.setVisibility(View.GONE);
+            connectorStatus.setText("");
+            return;
+        }
+        StringBuilder names = new StringBuilder();
+        for (ConnectorSelection selection : pendingConnectors) {
+            if (names.length() != 0) {
+                names.append(" · ");
+            }
+            names.append(selection.getProvider().getDisplayName());
+        }
+        connectorStatus.setText(getResources().getQuantityString(
+            R.plurals.chat_connector_selected,
+            pendingConnectors.size(),
+            Integer.valueOf(pendingConnectors.size()),
+            names.toString()
+        ));
+        connectorStatusRow.setVisibility(View.VISIBLE);
+        connectorStatus.setVisibility(View.VISIBLE);
+    }
+
+    private static List<CodexAppMention> appMentions(
+        List<ConnectorSelection> selections
+    ) {
+        List<ConnectorSelection> safe = ConnectorSelection.copyOf(selections);
+        List<CodexAppMention> mentions = new ArrayList<CodexAppMention>(safe.size());
+        for (ConnectorSelection selection : safe) {
+            mentions.add(CodexAppMention.create(
+                selection.getId(),
+                selection.getName()
+            ));
+        }
+        return java.util.Collections.unmodifiableList(mentions);
+    }
+
     private void reconcilePendingImports(CodexSessionSnapshot session) {
         if (!pendingImports.isEmpty()
             && !session.getActiveThreadId().equals(pendingImportsThreadId)) {
@@ -1280,6 +1498,7 @@ public final class MainActivity extends Activity {
 
         reconcileNavigation(session);
         reconcilePendingImports(session);
+        reconcilePendingConnectors(session);
         renderStatus(runtime, session);
         boolean actionReady = session.isReady()
             && !session.isOperationActive()
@@ -1329,6 +1548,17 @@ public final class MainActivity extends Activity {
             composerReady
                 && pendingImports.size() < WorkspaceImportLimits.MAXIMUM_FILES_PER_MESSAGE
         );
+        theme.setEnabled(
+            connectorButton,
+            composerReady && !session.getActiveThreadId().isEmpty()
+        );
+        clearConnectorsButton.setVisibility(
+            pendingConnectors.isEmpty() ? View.GONE : View.VISIBLE
+        );
+        theme.setEnabled(
+            clearConnectorsButton,
+            composerReady && !pendingConnectors.isEmpty()
+        );
         clearImportsButton.setVisibility(
             pendingImports.isEmpty() ? View.GONE : View.VISIBLE
         );
@@ -1341,6 +1571,7 @@ public final class MainActivity extends Activity {
                 && pendingImports.isEmpty()
         );
         reviewButton.setVisibility(steering ? View.GONE : View.VISIBLE);
+        renderConnectorSelection();
         renderImportSelection();
         stopButton.setVisibility(steering ? View.VISIBLE : View.GONE);
         theme.setEnabled(

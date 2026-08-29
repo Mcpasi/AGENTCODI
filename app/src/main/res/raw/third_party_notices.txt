@@ -2,7 +2,7 @@ AGENTCODI THIRD-PARTY NOTICE
 
 Material Design Icons by Google
 
-AGENTCODI includes 16 Round interface icons converted from 24 px SVG paths at
+AGENTCODI includes 17 Round interface icons converted from 24 px SVG paths at
 the pinned google/material-design-icons revision
 e083cc60a0828fdd3b404cea0cb8a5b900e9c23e. They are bundled only as local
 Android VectorDrawable resources and are licensed under Apache License 2.0.

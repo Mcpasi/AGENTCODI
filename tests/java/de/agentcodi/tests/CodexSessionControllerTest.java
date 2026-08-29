@@ -2,6 +2,7 @@ package de.agentcodi.tests;
 
 import de.agentcodi.core.ChatMessage;
 import de.agentcodi.core.CodexApprovalDecision;
+import de.agentcodi.core.CodexAppMention;
 import de.agentcodi.core.CodexFileMention;
 import de.agentcodi.core.CodexFileMentionTransaction;
 import de.agentcodi.core.CodexInteractiveRequest;
@@ -54,12 +55,14 @@ public final class CodexSessionControllerTest {
         restoresCardsFromThreadHistory();
         reportsTransportFailureOnceAndReleasesTurn();
         sendsImportedFilesWithModelReadableContext();
+        sendsCallableConnectorMentionsWithoutPolicyOverrides();
         rejectsUnsafeImportedMentions();
         steersActiveTurnWithoutStartingAnotherTurn();
         rejectsUncorrelatedSteering();
         keepsApiKeyOutOfSnapshotsAndWipesCallerBuffer();
         blocksCredentialsInChatMessages();
         acceptsOnlyTrustedBrowserLoginUrl();
+        suppressesUnboundedConnectorCatalogNotifications();
         usesAdvertisedModelEffortAndPermissionProfile();
         switchesToCompatibilityProfileWithoutPromptOverrides();
         carriesCompatibilityProfileIntoTerminal();
@@ -74,7 +77,149 @@ public final class CodexSessionControllerTest {
         terminatesTerminalWhenOutputCapIsReached();
         rejectsTerminalCredentialsAndMalformedOutput();
         usesVettedMcpConfigurationRpcs();
-        return 36;
+        return 38;
+    }
+
+    private static void suppressesUnboundedConnectorCatalogNotifications()
+        throws Exception {
+        FixtureServer server = new FixtureServer(true);
+        CodexSessionController controller = new CodexSessionController(
+            server,
+            "/private/workspace"
+        );
+        controller.start();
+        Map<String, Object> capabilities = JsonCodec.requireObject(
+            server.initializeParams.get("capabilities"),
+            "initialize capabilities"
+        );
+        TestSupport.assertEquals(
+            Arrays.<Object>asList(
+                "rawResponseItem/completed",
+                "rawResponse/completed",
+                "app/list/updated"
+            ),
+            JsonCodec.requireArray(
+                capabilities.get("optOutNotificationMethods"),
+                "notification opt-out"
+            ),
+            "unpaginated connector catalog updates are suppressed at initialize"
+        );
+        TestSupport.assertTrue(
+            controller.snapshot().isReady(),
+            "notification opt-out preserves the initialized session"
+        );
+        controller.close();
+    }
+
+    private static void sendsCallableConnectorMentionsWithoutPolicyOverrides()
+        throws Exception {
+        FixtureServer server = new FixtureServer(true);
+        server.holdTurnOpen = true;
+        final CodexSessionController controller = new CodexSessionController(
+            server,
+            "/private/workspace"
+        );
+        controller.start();
+        controller.openThread("thr_existing");
+        waitFor(new Condition() {
+            @Override
+            public boolean isTrue() {
+                return "thr_existing".equals(controller.snapshot().getActiveThreadId())
+                    && !controller.snapshot().isOperationActive();
+            }
+        }, "thread ready for connector mentions");
+
+        List<CodexAppMention> connectors = Arrays.asList(
+            CodexAppMention.create("gmail", "Gmail"),
+            CodexAppMention.create("github", "GitHub")
+        );
+        TestSupport.assertTrue(
+            controller.sendMessage("  Suche Mail und Issues.  ", connectors),
+            "bounded callable connector mentions are accepted"
+        );
+        waitFor(new Condition() {
+            @Override
+            public boolean isTrue() {
+                return server.lastTurnStartParams != null
+                    && controller.snapshot().isTurnActive()
+                    && !controller.snapshot().isOperationActive();
+            }
+        }, "turn/start carries connector mentions");
+
+        Map<String, Object> start = server.lastTurnStartParams;
+        TestSupport.assertEquals(
+            Integer.valueOf(9),
+            Integer.valueOf(start.size()),
+            "connector turn keeps the existing supported turn/start fields"
+        );
+        List<Object> input = JsonCodec.requireArray(
+            start.get("input"),
+            "connector turn input"
+        );
+        TestSupport.assertEquals(
+            Integer.valueOf(3),
+            Integer.valueOf(input.size()),
+            "connector turn has directed text and two mentions"
+        );
+        Map<String, Object> text = JsonCodec.requireObject(input.get(0), "connector text");
+        TestSupport.assertEquals(
+            "$gmail $github\nSuche Mail und Issues.",
+            text.get("text"),
+            "app slugs are bound into the model-visible text"
+        );
+        for (int index = 0; index < connectors.size(); index++) {
+            Map<String, Object> mention = JsonCodec.requireObject(
+                input.get(index + 1),
+                "connector mention"
+            );
+            CodexAppMention expected = connectors.get(index);
+            TestSupport.assertEquals("mention", mention.get("type"), "connector input type");
+            TestSupport.assertEquals(expected.getName(), mention.get("name"), "connector name");
+            TestSupport.assertEquals(expected.getPath(), mention.get("path"), "connector path");
+            TestSupport.assertEquals(
+                Integer.valueOf(3),
+                Integer.valueOf(mention.size()),
+                "connector mention uses only the pinned schema fields"
+            );
+        }
+        TestSupport.assertFalse(
+            start.containsKey("additionalContext")
+                || start.containsKey("baseInstructions")
+                || start.containsKey("developerInstructions")
+                || start.containsKey("systemPrompt"),
+            "connectors add neither filesystem context nor prompt policy"
+        );
+
+        server.lastTurnSteerParams = null;
+        TestSupport.assertTrue(
+            controller.steerTurn(
+                "Nur offene Pull Requests.",
+                Collections.singletonList(connectors.get(1))
+            ),
+            "a callable connector can be attached while steering"
+        );
+        waitFor(new Condition() {
+            @Override
+            public boolean isTrue() {
+                return server.lastTurnSteerParams != null
+                    && !controller.snapshot().isOperationActive();
+            }
+        }, "turn/steer carries connector mention");
+        List<Object> steerInput = JsonCodec.requireArray(
+            server.lastTurnSteerParams.get("input"),
+            "connector steer input"
+        );
+        TestSupport.assertEquals(
+            "$github\nNur offene Pull Requests.",
+            JsonCodec.requireObject(steerInput.get(0), "connector steer text").get("text"),
+            "steering carries the selected app slug"
+        );
+        TestSupport.assertEquals(
+            "app://github",
+            JsonCodec.requireObject(steerInput.get(1), "connector steer mention").get("path"),
+            "steering carries the app mention path"
+        );
+        controller.close();
     }
 
     private static void sendsImportedFilesWithModelReadableContext() throws Exception {
@@ -2609,6 +2754,10 @@ public final class CodexSessionControllerTest {
         TestSupport.assertTrue(
             notificationOptOut.contains("rawResponse/completed"),
             "unused raw response summaries disabled"
+        );
+        TestSupport.assertTrue(
+            notificationOptOut.contains("app/list/updated"),
+            "unused unpaginated connector catalog updates disabled"
         );
         assertWorkspacePermissionRequest(server.lastThreadResumeParams, "thread/resume");
         assertWorkspacePermissionRequest(server.lastTurnStartParams, "turn/start");

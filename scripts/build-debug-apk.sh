@@ -6,8 +6,8 @@ PROJECT_ROOT="$(cd -- "$SCRIPT_DIR/.." && pwd -P)"
 
 APP_NAME="AGENTCODI"
 APP_ID="de.agentcodi.app"
-APP_VERSION="0.6.3"
-VERSION_CODE="70"
+APP_VERSION="0.6.4"
+VERSION_CODE="71"
 MIN_SDK="29"
 TARGET_SDK="35"
 ABI="arm64-v8a"
@@ -611,6 +611,10 @@ for required_schema_method in \
     'thread/resume' \
     'turn/start' \
     'turn/steer' \
+    'app/list' \
+    'app/list/updated' \
+    'app/installed' \
+    'app/read' \
     'command/exec'; do
   if ! grep -Fq "$required_schema_method" \
       "$CODEX_SCHEMA_DIR/codex_app_server_protocol.schemas.json"; then
@@ -700,6 +704,8 @@ IMPORT_CONTRACTS_CLASSES="$CLASSES_ROOT/import-contracts"
 IMPORT_CLIENT_CLASSES="$CLASSES_ROOT/import-client"
 MCP_CONTRACTS_CLASSES="$CLASSES_ROOT/mcp-contracts"
 MCP_CLIENT_CLASSES="$CLASSES_ROOT/mcp-client"
+CONNECTOR_CONTRACTS_CLASSES="$CLASSES_ROOT/connector-contracts"
+CONNECTOR_CLIENT_CLASSES="$CLASSES_ROOT/connector-client"
 RUNTIME_CLASSES="$CLASSES_ROOT/runtime"
 APP_CLASSES="$CLASSES_ROOT/app"
 mkdir -p \
@@ -714,6 +720,8 @@ mkdir -p \
   "$IMPORT_CLIENT_CLASSES" \
   "$MCP_CONTRACTS_CLASSES" \
   "$MCP_CLIENT_CLASSES" \
+  "$CONNECTOR_CONTRACTS_CLASSES" \
+  "$CONNECTOR_CLIENT_CLASSES" \
   "$RUNTIME_CLASSES" \
   "$APP_CLASSES"
 
@@ -772,13 +780,23 @@ find "$PROJECT_ROOT/modules/mcp-client/src/main/java" -type f -name '*.java' -pr
 MCP_CLIENT_JAR="$JARS_ROOT/mcp-client.jar"
 "$JAR" cf "$MCP_CLIENT_JAR" -C "$MCP_CLIENT_CLASSES" .
 
+find "$PROJECT_ROOT/modules/connector-contracts/src/main/java" -type f -name '*.java' -print | sort > "$WORK_DIR/connector-contracts-sources.txt"
+"$JAVAC" -encoding UTF-8 -source 8 -target 8 -Xlint:-options -bootclasspath "$ANDROID_JAR" -d "$CONNECTOR_CONTRACTS_CLASSES" @"$WORK_DIR/connector-contracts-sources.txt"
+CONNECTOR_CONTRACTS_JAR="$JARS_ROOT/connector-contracts.jar"
+"$JAR" cf "$CONNECTOR_CONTRACTS_JAR" -C "$CONNECTOR_CONTRACTS_CLASSES" .
+
+find "$PROJECT_ROOT/modules/connector-client/src/main/java" -type f -name '*.java' -print | sort > "$WORK_DIR/connector-client-sources.txt"
+"$JAVAC" -encoding UTF-8 -source 8 -target 8 -Xlint:-options -bootclasspath "$ANDROID_JAR" -classpath "$CORE_JAR:$CONNECTOR_CONTRACTS_JAR" -d "$CONNECTOR_CLIENT_CLASSES" @"$WORK_DIR/connector-client-sources.txt"
+CONNECTOR_CLIENT_JAR="$JARS_ROOT/connector-client.jar"
+"$JAR" cf "$CONNECTOR_CLIENT_JAR" -C "$CONNECTOR_CLIENT_CLASSES" .
+
 find "$PROJECT_ROOT/modules/runtime/src/main/java" -type f -name '*.java' -print | sort > "$WORK_DIR/runtime-sources.txt"
-"$JAVAC" -encoding UTF-8 -source 8 -target 8 -Xlint:-options -bootclasspath "$ANDROID_JAR" -classpath "$CORE_JAR:$REVIEW_MODE_JAR:$PROTECTED_MODE_JAR:$COMPATIBILITY_MODE_JAR:$STORAGE_JAR:$FILE_BROWSER_CONTRACTS_JAR:$FILE_BROWSER_CLIENT_JAR:$IMPORT_CONTRACTS_JAR:$IMPORT_CLIENT_JAR:$MCP_CONTRACTS_JAR:$MCP_CLIENT_JAR" -d "$RUNTIME_CLASSES" @"$WORK_DIR/runtime-sources.txt"
+"$JAVAC" -encoding UTF-8 -source 8 -target 8 -Xlint:-options -bootclasspath "$ANDROID_JAR" -classpath "$CORE_JAR:$REVIEW_MODE_JAR:$PROTECTED_MODE_JAR:$COMPATIBILITY_MODE_JAR:$STORAGE_JAR:$FILE_BROWSER_CONTRACTS_JAR:$FILE_BROWSER_CLIENT_JAR:$IMPORT_CONTRACTS_JAR:$IMPORT_CLIENT_JAR:$MCP_CONTRACTS_JAR:$MCP_CLIENT_JAR:$CONNECTOR_CONTRACTS_JAR:$CONNECTOR_CLIENT_JAR" -d "$RUNTIME_CLASSES" @"$WORK_DIR/runtime-sources.txt"
 RUNTIME_JAR="$JARS_ROOT/runtime.jar"
 "$JAR" cf "$RUNTIME_JAR" -C "$RUNTIME_CLASSES" .
 
 find "$PROJECT_ROOT/app/src/main/java" "$GENERATED_JAVA" -type f -name '*.java' -print | sort > "$WORK_DIR/app-sources.txt"
-"$JAVAC" -encoding UTF-8 -source 8 -target 8 -Xlint:-options -bootclasspath "$ANDROID_JAR" -classpath "$CORE_JAR:$REVIEW_MODE_JAR:$PROTECTED_MODE_JAR:$COMPATIBILITY_MODE_JAR:$STORAGE_JAR:$FILE_BROWSER_CONTRACTS_JAR:$IMPORT_CONTRACTS_JAR:$MCP_CONTRACTS_JAR:$MCP_CLIENT_JAR:$RUNTIME_JAR" -d "$APP_CLASSES" @"$WORK_DIR/app-sources.txt"
+"$JAVAC" -encoding UTF-8 -source 8 -target 8 -Xlint:-options -bootclasspath "$ANDROID_JAR" -classpath "$CORE_JAR:$REVIEW_MODE_JAR:$PROTECTED_MODE_JAR:$COMPATIBILITY_MODE_JAR:$STORAGE_JAR:$FILE_BROWSER_CONTRACTS_JAR:$IMPORT_CONTRACTS_JAR:$MCP_CONTRACTS_JAR:$MCP_CLIENT_JAR:$CONNECTOR_CONTRACTS_JAR:$CONNECTOR_CLIENT_JAR:$RUNTIME_JAR" -d "$APP_CLASSES" @"$WORK_DIR/app-sources.txt"
 APP_JAR="$JARS_ROOT/app.jar"
 "$JAR" cf "$APP_JAR" -C "$APP_CLASSES" .
 
@@ -1749,7 +1767,7 @@ printf '%s\n' \
 chmod 600 "$CONFIG_SMOKE_CODEX_HOME/config.toml"
 config_smoke_status=0
 (
-    printf '%s\n' "{\"method\":\"initialize\",\"id\":1,\"params\":{\"clientInfo\":{\"name\":\"agentcodi_android\",\"title\":\"AGENTCODI\",\"version\":\"$APP_VERSION\"},\"capabilities\":{\"experimentalApi\":true,\"optOutNotificationMethods\":[\"rawResponseItem/completed\",\"rawResponse/completed\"]}}}"
+    printf '%s\n' "{\"method\":\"initialize\",\"id\":1,\"params\":{\"clientInfo\":{\"name\":\"agentcodi_android\",\"title\":\"AGENTCODI\",\"version\":\"$APP_VERSION\"},\"capabilities\":{\"experimentalApi\":true,\"optOutNotificationMethods\":[\"rawResponseItem/completed\",\"rawResponse/completed\",\"app/list/updated\"]}}}"
     sleep 15
   ) | timeout 60s env -i \
     HOME="$CONFIG_SMOKE_HOME" \
@@ -1881,7 +1899,7 @@ DEX_MODE="--debug"
 if [ "$BUILD_VARIANT" = "release" ]; then
   DEX_MODE="--release"
 fi
-"$JAVA" -cp "$R8_JAR" com.android.tools.r8.D8 "$DEX_MODE" --min-api "$MIN_SDK" --lib "$ANDROID_JAR" --output "$DEX_DIR" "$CORE_JAR" "$REVIEW_MODE_JAR" "$PROTECTED_MODE_JAR" "$COMPATIBILITY_MODE_JAR" "$STORAGE_JAR" "$FILE_BROWSER_CONTRACTS_JAR" "$FILE_BROWSER_CLIENT_JAR" "$IMPORT_CONTRACTS_JAR" "$IMPORT_CLIENT_JAR" "$MCP_CONTRACTS_JAR" "$MCP_CLIENT_JAR" "$RUNTIME_JAR" "$APP_JAR"
+"$JAVA" -cp "$R8_JAR" com.android.tools.r8.D8 "$DEX_MODE" --min-api "$MIN_SDK" --lib "$ANDROID_JAR" --output "$DEX_DIR" "$CORE_JAR" "$REVIEW_MODE_JAR" "$PROTECTED_MODE_JAR" "$COMPATIBILITY_MODE_JAR" "$STORAGE_JAR" "$FILE_BROWSER_CONTRACTS_JAR" "$FILE_BROWSER_CLIENT_JAR" "$IMPORT_CONTRACTS_JAR" "$IMPORT_CLIENT_JAR" "$MCP_CONTRACTS_JAR" "$MCP_CLIENT_JAR" "$CONNECTOR_CONTRACTS_JAR" "$CONNECTOR_CLIENT_JAR" "$RUNTIME_JAR" "$APP_JAR"
 cp "$DEX_DIR/classes.dex" "$ADDITIONS/classes.dex"
 
 UNALIGNED_APK="$WORK_DIR/unaligned.apk"
@@ -2079,12 +2097,14 @@ grep -Fq 'Lde/agentcodi/app/SettingsActivity;' "$WORK_DIR/dex-strings.txt"
 grep -Fq 'Lde/agentcodi/app/TerminalActivity;' "$WORK_DIR/dex-strings.txt"
 grep -Fq 'Lde/agentcodi/app/LicensesActivity;' "$WORK_DIR/dex-strings.txt"
 grep -Fq 'Lde/agentcodi/app/McpManagementActivity;' "$WORK_DIR/dex-strings.txt"
+grep -Fq 'Lde/agentcodi/app/ConnectorActivity;' "$WORK_DIR/dex-strings.txt"
 grep -Fq 'Lde/agentcodi/app/AppLanguage;' "$WORK_DIR/dex-strings.txt"
 grep -Fq 'Lde/agentcodi/app/AgentCodiApplication;' "$WORK_DIR/dex-strings.txt"
 grep -Fq 'Lde/agentcodi/core/UiLanguage;' "$WORK_DIR/dex-strings.txt"
 grep -Fq 'Lde/agentcodi/core/CrashReportFormatter;' "$WORK_DIR/dex-strings.txt"
 grep -Fq 'Lde/agentcodi/core/CredentialGuard;' "$WORK_DIR/dex-strings.txt"
 grep -Fq 'Lde/agentcodi/core/CodexFileMention;' "$WORK_DIR/dex-strings.txt"
+grep -Fq 'Lde/agentcodi/core/CodexAppMention;' "$WORK_DIR/dex-strings.txt"
 grep -Fq 'Lde/agentcodi/core/CodexWorkspaceAttachmentContext;' "$WORK_DIR/dex-strings.txt"
 grep -Fq 'Lde/agentcodi/core/TerminalOutputBuffer;' "$WORK_DIR/dex-strings.txt"
 grep -Fq 'Lde/agentcodi/core/TerminalSessionSnapshot;' "$WORK_DIR/dex-strings.txt"
@@ -2098,6 +2118,9 @@ grep -Fq 'Lde/agentcodi/core/CodexApprovalDecision;' "$WORK_DIR/dex-strings.txt"
 grep -Fq 'Lde/agentcodi/mcp/McpCatalogSnapshot;' "$WORK_DIR/dex-strings.txt"
 grep -Fq 'Lde/agentcodi/mcp/client/McpCatalogLoader;' "$WORK_DIR/dex-strings.txt"
 grep -Fq 'Lde/agentcodi/mcp/client/McpCatalogController;' "$WORK_DIR/dex-strings.txt"
+grep -Fq 'Lde/agentcodi/connectors/ConnectorCatalogSnapshot;' "$WORK_DIR/dex-strings.txt"
+grep -Fq 'Lde/agentcodi/connectors/client/ConnectorCatalogLoader;' "$WORK_DIR/dex-strings.txt"
+grep -Fq 'Lde/agentcodi/connectors/client/ConnectorCatalogController;' "$WORK_DIR/dex-strings.txt"
 grep -Fq 'Lde/agentcodi/app/InteractiveRequestDialog;' "$WORK_DIR/dex-strings.txt"
 grep -Fq 'Lde/agentcodi/runtime/AgentRuntimeService;' "$WORK_DIR/dex-strings.txt"
 grep -Fq 'Lde/agentcodi/runtime/RuntimeText;' "$WORK_DIR/dex-strings.txt"

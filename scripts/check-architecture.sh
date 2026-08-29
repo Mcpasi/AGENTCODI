@@ -4,7 +4,7 @@ set -Eeuo pipefail
 SCRIPT_DIR="$(cd -- "$(dirname -- "$0")" && pwd -P)"
 PROJECT_ROOT="$(cd -- "$SCRIPT_DIR/.." && pwd -P)"
 
-unexpected_source="$(find "$PROJECT_ROOT/app/src/main/java" "$PROJECT_ROOT/modules/core/src/main/java" "$PROJECT_ROOT/modules/review-mode/src/main/java" "$PROJECT_ROOT/modules/protected-mode/src/main/java" "$PROJECT_ROOT/modules/compatibility-mode/src/main/java" "$PROJECT_ROOT/modules/storage/src/main/java" "$PROJECT_ROOT/modules/file-browser-contracts/src/main/java" "$PROJECT_ROOT/modules/file-browser-client/src/main/java" "$PROJECT_ROOT/modules/import-contracts/src/main/java" "$PROJECT_ROOT/modules/import-client/src/main/java" "$PROJECT_ROOT/modules/mcp-contracts/src/main/java" "$PROJECT_ROOT/modules/mcp-client/src/main/java" "$PROJECT_ROOT/modules/runtime/src/main/java" "$PROJECT_ROOT/modules/native-engine/src/main/cpp" "$PROJECT_ROOT/tests/java" "$PROJECT_ROOT/tests/cpp" -type f ! -name '*.java' ! -name '*.cpp' ! -name '*.h' -print)"
+unexpected_source="$(find "$PROJECT_ROOT/app/src/main/java" "$PROJECT_ROOT/modules/core/src/main/java" "$PROJECT_ROOT/modules/review-mode/src/main/java" "$PROJECT_ROOT/modules/protected-mode/src/main/java" "$PROJECT_ROOT/modules/compatibility-mode/src/main/java" "$PROJECT_ROOT/modules/storage/src/main/java" "$PROJECT_ROOT/modules/file-browser-contracts/src/main/java" "$PROJECT_ROOT/modules/file-browser-client/src/main/java" "$PROJECT_ROOT/modules/import-contracts/src/main/java" "$PROJECT_ROOT/modules/import-client/src/main/java" "$PROJECT_ROOT/modules/mcp-contracts/src/main/java" "$PROJECT_ROOT/modules/mcp-client/src/main/java" "$PROJECT_ROOT/modules/connector-contracts/src/main/java" "$PROJECT_ROOT/modules/connector-client/src/main/java" "$PROJECT_ROOT/modules/runtime/src/main/java" "$PROJECT_ROOT/modules/native-engine/src/main/cpp" "$PROJECT_ROOT/tests/java" "$PROJECT_ROOT/tests/cpp" -type f ! -name '*.java' ! -name '*.cpp' ! -name '*.h' -print)"
 if [ -n "$unexpected_source" ]; then
   echo "Only Java and C++ source files are accepted in source roots." >&2
   printf '%s\n' "$unexpected_source" >&2
@@ -16,7 +16,7 @@ if find "$PROJECT_ROOT/app" "$PROJECT_ROOT/modules" "$PROJECT_ROOT/tests" -type 
   exit 1
 fi
 
-if rg -n '^import android\.' "$PROJECT_ROOT/modules/core/src/main/java" "$PROJECT_ROOT/modules/review-mode/src/main/java" "$PROJECT_ROOT/modules/protected-mode/src/main/java" "$PROJECT_ROOT/modules/compatibility-mode/src/main/java" "$PROJECT_ROOT/modules/storage/src/main/java" "$PROJECT_ROOT/modules/file-browser-contracts/src/main/java" "$PROJECT_ROOT/modules/file-browser-client/src/main/java" "$PROJECT_ROOT/modules/import-contracts/src/main/java" "$PROJECT_ROOT/modules/import-client/src/main/java" "$PROJECT_ROOT/modules/mcp-contracts/src/main/java" "$PROJECT_ROOT/modules/mcp-client/src/main/java"; then
+if rg -n '^import android\.' "$PROJECT_ROOT/modules/core/src/main/java" "$PROJECT_ROOT/modules/review-mode/src/main/java" "$PROJECT_ROOT/modules/protected-mode/src/main/java" "$PROJECT_ROOT/modules/compatibility-mode/src/main/java" "$PROJECT_ROOT/modules/storage/src/main/java" "$PROJECT_ROOT/modules/file-browser-contracts/src/main/java" "$PROJECT_ROOT/modules/file-browser-client/src/main/java" "$PROJECT_ROOT/modules/import-contracts/src/main/java" "$PROJECT_ROOT/modules/import-client/src/main/java" "$PROJECT_ROOT/modules/mcp-contracts/src/main/java" "$PROJECT_ROOT/modules/mcp-client/src/main/java" "$PROJECT_ROOT/modules/connector-contracts/src/main/java" "$PROJECT_ROOT/modules/connector-client/src/main/java"; then
   echo "Pure Java modules must not import Android APIs." >&2
   exit 1
 fi
@@ -112,6 +112,8 @@ fi
 
 mcp_contracts="$PROJECT_ROOT/modules/mcp-contracts/src/main/java"
 mcp_client="$PROJECT_ROOT/modules/mcp-client/src/main/java"
+connector_contracts="$PROJECT_ROOT/modules/connector-contracts/src/main/java"
+connector_client="$PROJECT_ROOT/modules/connector-client/src/main/java"
 import_contracts="$PROJECT_ROOT/modules/import-contracts/src/main/java"
 import_client="$PROJECT_ROOT/modules/import-client/src/main/java"
 file_browser_contracts="$PROJECT_ROOT/modules/file-browser-contracts/src/main/java"
@@ -186,6 +188,44 @@ if ! rg -q '"experimentalFeature/list"' "$mcp_client" \
     || ! rg -q 'forceRefetch", Boolean\.FALSE' "$mcp_client" \
     || ! rg -q 'marketplaceKinds", JsonCodec\.array\("local"\)' "$mcp_client"; then
   echo "The MCP capability catalog must remain an app-server-owned, read-only projection." >&2
+  exit 1
+fi
+
+connector_activity="$PROJECT_ROOT/app/src/main/java/de/agentcodi/app/ConnectorActivity.java"
+connector_loader="$connector_client/de/agentcodi/connectors/client/ConnectorCatalogLoader.java"
+connector_url="$connector_contracts/de/agentcodi/connectors/ConnectorInstallUrl.java"
+if rg -n '^import de\.agentcodi\.' "$connector_contracts" \
+    || rg -n '^import de\.agentcodi\.(app|runtime|storage|imports|mcp|browser|mode|review)\.' "$connector_client" \
+    || rg -n '^import de\.agentcodi\.connectors\.' "$PROJECT_ROOT/modules/core/src/main/java" \
+    || rg -n 'java\.(io|nio|net)\.' "$connector_client" \
+    || ! rg -q '"app/list/updated"' "$PROJECT_ROOT/modules/core/src/main/java/de/agentcodi/core/CodexSessionController.java" \
+    || ! rg -q '"app/list"' "$connector_loader" \
+    || ! rg -q '"app/installed"' "$connector_loader" \
+    || ! rg -q '"app/read"' "$connector_loader" \
+    || rg -n '"(config/|mcpServer/|plugin/|tool/call|account/)' "$connector_client" \
+    || ! rg -q '"app/list"\.equals\(method\)' "$PROJECT_ROOT/modules/core/src/main/java/de/agentcodi/core/CodexSessionController.java" \
+    || ! rg -q 'MAXIMUM_SCANNED_APPS = 200' "$connector_loader" \
+    || ! rg -q 'MAXIMUM_PROJECTED_CHARACTERS = 64 \* 1024' "$connector_loader" \
+    || ! rg -q 'REQUEST_TIMEOUT_MS = 20_000L' "$connector_loader" \
+    || ! rg -q 'ConnectorInstallUrl\.isTrusted' "$connector_loader" "$connector_activity" \
+    || ! rg -q 'lowerHost\.endsWith\("\.openai\.com"\)' "$connector_url" \
+    || ! rg -q 'lowerHost\.endsWith\("\.chatgpt\.com"\)' "$connector_url" \
+    || ! rg -q 'Intent\.ACTION_VIEW' "$connector_activity" \
+    || ! rg -q 'catalog == lastCatalogSnapshot' "$connector_activity" \
+    || ! rg -q 'AgentRuntimeService\.connectorCatalogSnapshot' "$connector_activity" \
+    || ! rg -q 'AgentRuntimeService\.areConnectorsCallable' "$PROJECT_ROOT/app/src/main/java/de/agentcodi/app/MainActivity.java" \
+    || ! rg -q 'CodexAppMention\.create' "$PROJECT_ROOT/app/src/main/java/de/agentcodi/app/MainActivity.java" \
+    || ! rg -q '"app://" \+ id' "$PROJECT_ROOT/modules/core/src/main/java/de/agentcodi/core/CodexAppMention.java" \
+    || ! rg -q '\$gmail \$github' "$PROJECT_ROOT/tests/java/de/agentcodi/tests/CodexSessionControllerTest.java" \
+    || ! rg -q 'ConnectorCatalogLoaderTest\.run' "$PROJECT_ROOT/tests/java/de/agentcodi/tests/TestMain.java" \
+    || ! rg -q 'suppressesUnboundedConnectorCatalogNotifications' "$PROJECT_ROOT/tests/java/de/agentcodi/tests/CodexSessionControllerTest.java" \
+    || ! rg -q -- '--connector-roundtrip' "$PROJECT_ROOT/tests/cpp/agentcodi_engine_test.cpp" \
+    || ! rg -q -- '--emit-oversized-app-list-update' "$PROJECT_ROOT/tests/cpp/agentcodi_engine_test.cpp" \
+    || ! rg -Uq 'android:name="\.ConnectorActivity"[[:space:][:print:]]{0,220}android:exported="false"' "$manifest" \
+    || rg -n 'SharedPreferences|getSharedPreferences|onSaveInstanceState|WebView' "$connector_activity" \
+    || rg -n 'mcpServer/oauth/login|auth\.json|client_secret|access_token|refresh_token|api[_ -]?key' \
+      "$connector_activity" "$connector_client" "$connector_contracts"; then
+  echo "Hosted Gmail/GitHub connector discovery, transient selection, or authentication boundary is incomplete." >&2
   exit 1
 fi
 
@@ -654,11 +694,12 @@ chat_activity="$PROJECT_ROOT/app/src/main/java/de/agentcodi/app/MainActivity.jav
 ui_theme="$PROJECT_ROOT/app/src/main/java/de/agentcodi/app/UiTheme.java"
 chat_icon_count="$(find "$PROJECT_ROOT/app/src/main/res/drawable" -maxdepth 1 \
   -type f -name 'ic_chat_*.xml' | wc -l | tr -d '[:space:]')"
-if [ "$chat_icon_count" != "16" ] \
+if [ "$chat_icon_count" != "17" ] \
     || rg -q 'import android\.widget\.Button;|theme\.(compactButton|primaryButton|secondaryButton)\(' "$chat_activity" \
     || ! rg -q 'import android\.widget\.ImageButton;' "$chat_activity" \
     || ! rg -q 'R\.drawable\.ic_chat_folder' "$chat_activity" \
     || ! rg -q 'R\.drawable\.ic_chat_add' "$chat_activity" \
+    || ! rg -q 'R\.drawable\.ic_chat_connectors' "$chat_activity" \
     || ! rg -q 'R\.drawable\.ic_chat_send' "$chat_activity" \
     || ! rg -q 'R\.drawable\.ic_chat_stop' "$chat_activity" \
     || ! rg -q 'setMinimumWidth\(dp\(48\)\)' "$ui_theme" \
@@ -938,13 +979,13 @@ if ! rg -q 'PYTHON_SOURCE_EXTENSION_COUNT="75"' "$apk_builder" \
   exit 1
 fi
 
-if ! rg -q 'VERSION_NAME = "0\.6\.3"' "$core_root/BuildIdentity.java" \
-    || ! rg -q 'VERSION_CODE = 70' "$core_root/BuildIdentity.java" \
+if ! rg -q 'VERSION_NAME = "0\.6\.4"' "$core_root/BuildIdentity.java" \
+    || ! rg -q 'VERSION_CODE = 71' "$core_root/BuildIdentity.java" \
     || ! rg -q 'CODEX_RUNTIME_VERSION = "0\.148\.1"' "$core_root/BuildIdentity.java" \
-    || ! rg -q 'android:versionName="0\.6\.3"' "$manifest" \
-    || ! rg -q 'android:versionCode="70"' "$manifest" \
-    || ! rg -q 'APP_VERSION="0\.6\.3"' "$apk_builder" \
-    || ! rg -q 'VERSION_CODE="70"' "$apk_builder" \
+    || ! rg -q 'android:versionName="0\.6\.4"' "$manifest" \
+    || ! rg -q 'android:versionCode="71"' "$manifest" \
+    || ! rg -q 'APP_VERSION="0\.6\.4"' "$apk_builder" \
+    || ! rg -q 'VERSION_CODE="71"' "$apk_builder" \
     || ! rg -q 'CODEX_ANDROID_VERSION="0\.148\.1"' "$apk_builder" \
     || ! rg -q 'CODEX_TERMUX_SOURCE_TAG="v0\.148\.1"' "$apk_builder" \
     || ! rg -q 'CODEX_TERMUX_SOURCE_COMMIT="9d48c76abec320ae3724164d0177299b1acd31ca"' "$apk_builder" \
@@ -965,7 +1006,7 @@ if ! rg -q 'VERSION_NAME = "0\.6\.3"' "$core_root/BuildIdentity.java" \
     || ! rg -q '9d48c76abec320ae3724164d0177299b1acd31ca' "$PROJECT_ROOT/app/src/main/res/raw/third_party_notices.txt" \
     || ! rg -q '3ba0f711642a888aec92a611a3f3b2211157ff89' "$PROJECT_ROOT/NOTICE.md" \
     || ! rg -q '3ba0f711642a888aec92a611a3f3b2211157ff89' "$PROJECT_ROOT/app/src/main/res/raw/third_party_notices.txt"; then
-  echo "The 0.6.3 / Codex 0.148.1 identity is inconsistent." >&2
+  echo "The 0.6.4 / Codex 0.148.1 identity is inconsistent." >&2
   exit 1
 fi
 

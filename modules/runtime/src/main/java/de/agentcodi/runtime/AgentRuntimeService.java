@@ -11,7 +11,11 @@ import android.os.Build;
 import android.os.IBinder;
 import android.util.Log;
 
+import de.agentcodi.connectors.ConnectorCatalogSnapshot;
+import de.agentcodi.connectors.ConnectorSelection;
+import de.agentcodi.connectors.client.ConnectorCatalogController;
 import de.agentcodi.core.BuildIdentity;
+import de.agentcodi.core.CodexAppMention;
 import de.agentcodi.core.CodexApprovalDecision;
 import de.agentcodi.core.CodexExecutionMode;
 import de.agentcodi.core.CodexFileMentionTransaction;
@@ -57,10 +61,13 @@ public final class AgentRuntimeService extends Service {
         McpCatalogSnapshot.stopped();
     private static final McpConfigurationSnapshot STOPPED_MCP_CONFIGURATION =
         McpConfigurationSnapshot.stopped();
+    private static final ConnectorCatalogSnapshot STOPPED_CONNECTOR_CATALOG =
+        ConnectorCatalogSnapshot.stopped();
     private static final Object SESSION_LOCK = new Object();
     private static volatile CodexSessionController sessionController;
     private static volatile McpCatalogController mcpCatalogController;
     private static volatile McpConfigurationController mcpConfigurationController;
+    private static volatile ConnectorCatalogController connectorCatalogController;
     private static volatile WorkspaceLayout activeWorkspaceLayout;
     private static volatile AgentRuntimeService activeService;
     private volatile Thread bootstrapThread;
@@ -136,6 +143,21 @@ public final class AgentRuntimeService extends Service {
     public static boolean refreshMcpCatalog() {
         McpCatalogController controller = mcpCatalogController;
         return controller != null && controller.refresh();
+    }
+
+    public static ConnectorCatalogSnapshot connectorCatalogSnapshot() {
+        ConnectorCatalogController controller = connectorCatalogController;
+        return controller == null ? STOPPED_CONNECTOR_CATALOG : controller.snapshot();
+    }
+
+    public static boolean refreshConnectorCatalog(boolean forceRefetch) {
+        ConnectorCatalogController controller = connectorCatalogController;
+        return controller != null && controller.refresh(forceRefetch);
+    }
+
+    public static boolean areConnectorsCallable(List<ConnectorSelection> selections) {
+        ConnectorCatalogController controller = connectorCatalogController;
+        return controller != null && controller.areCallable(selections);
     }
 
     public static McpConfigurationSnapshot mcpConfigurationSnapshot() {
@@ -382,11 +404,32 @@ public final class AgentRuntimeService extends Service {
 
     public static boolean sendMessage(
         String message,
+        List<CodexAppMention> appMentions
+    ) {
+        CodexSessionController controller = sessionController;
+        return controller != null && controller.sendMessage(message, appMentions);
+    }
+
+    public static boolean sendMessage(
+        String message,
         CodexFileMentionTransaction fileTransaction
     ) {
         CodexSessionController controller = sessionController;
         if (controller != null) {
             return controller.sendMessage(message, fileTransaction);
+        }
+        closeFileTransaction(fileTransaction);
+        return false;
+    }
+
+    public static boolean sendMessage(
+        String message,
+        CodexFileMentionTransaction fileTransaction,
+        List<CodexAppMention> appMentions
+    ) {
+        CodexSessionController controller = sessionController;
+        if (controller != null) {
+            return controller.sendMessage(message, fileTransaction, appMentions);
         }
         closeFileTransaction(fileTransaction);
         return false;
@@ -399,11 +442,32 @@ public final class AgentRuntimeService extends Service {
 
     public static boolean steerTurn(
         String message,
+        List<CodexAppMention> appMentions
+    ) {
+        CodexSessionController controller = sessionController;
+        return controller != null && controller.steerTurn(message, appMentions);
+    }
+
+    public static boolean steerTurn(
+        String message,
         CodexFileMentionTransaction fileTransaction
     ) {
         CodexSessionController controller = sessionController;
         if (controller != null) {
             return controller.steerTurn(message, fileTransaction);
+        }
+        closeFileTransaction(fileTransaction);
+        return false;
+    }
+
+    public static boolean steerTurn(
+        String message,
+        CodexFileMentionTransaction fileTransaction,
+        List<CodexAppMention> appMentions
+    ) {
+        CodexSessionController controller = sessionController;
+        if (controller != null) {
+            return controller.steerTurn(message, fileTransaction, appMentions);
         }
         closeFileTransaction(fileTransaction);
         return false;
@@ -511,6 +575,7 @@ public final class AgentRuntimeService extends Service {
         CodexSessionController controller;
         McpCatalogController catalogController;
         McpConfigurationController configurationController;
+        ConnectorCatalogController connectorsController;
         synchronized (SESSION_LOCK) {
             controller = sessionController;
             sessionController = null;
@@ -518,6 +583,8 @@ public final class AgentRuntimeService extends Service {
             mcpCatalogController = null;
             configurationController = mcpConfigurationController;
             mcpConfigurationController = null;
+            connectorsController = connectorCatalogController;
+            connectorCatalogController = null;
             activeWorkspaceLayout = null;
         }
         if (catalogController != null) {
@@ -525,6 +592,9 @@ public final class AgentRuntimeService extends Service {
         }
         if (configurationController != null) {
             configurationController.close();
+        }
+        if (connectorsController != null) {
+            connectorsController.close();
         }
         if (controller != null) {
             controller.close();
@@ -566,6 +636,7 @@ public final class AgentRuntimeService extends Service {
                 CodexSessionController startedController = null;
                 McpCatalogController startedCatalogController = null;
                 McpConfigurationController startedConfigurationController = null;
+                ConnectorCatalogController startedConnectorController = null;
                 try {
                     WorkspaceLayout layout = WorkspaceLayout.create(getFilesDir());
                     WorkspaceFileImporter.recoverPendingImports(layout);
@@ -664,16 +735,22 @@ public final class AgentRuntimeService extends Service {
                     startedConfigurationController = new McpConfigurationController(
                         startedController
                     );
+                    startedConnectorController = new ConnectorCatalogController(
+                        startedController
+                    );
                     CodexSessionController previousController;
                     McpCatalogController previousCatalogController;
                     McpConfigurationController previousConfigurationController;
+                    ConnectorCatalogController previousConnectorController;
                     synchronized (SESSION_LOCK) {
                         previousController = sessionController;
                         previousCatalogController = mcpCatalogController;
                         previousConfigurationController = mcpConfigurationController;
+                        previousConnectorController = connectorCatalogController;
                         sessionController = startedController;
                         mcpCatalogController = startedCatalogController;
                         mcpConfigurationController = startedConfigurationController;
+                        connectorCatalogController = startedConnectorController;
                         activeWorkspaceLayout = layout;
                     }
                     if (previousCatalogController != null
@@ -683,6 +760,10 @@ public final class AgentRuntimeService extends Service {
                     if (previousConfigurationController != null
                         && previousConfigurationController != startedConfigurationController) {
                         previousConfigurationController.close();
+                    }
+                    if (previousConnectorController != null
+                        && previousConnectorController != startedConnectorController) {
+                        previousConnectorController.close();
                     }
                     if (previousController != null
                         && previousController != startedController) {
@@ -699,8 +780,10 @@ public final class AgentRuntimeService extends Service {
                     if (accepted) {
                         startedCatalogController.refresh();
                         startedConfigurationController.refresh();
+                        startedConnectorController.refresh(false);
                         startedCatalogController = null;
                         startedConfigurationController = null;
+                        startedConnectorController = null;
                         startedController = null;
                         clearStoredCrashReport();
                         updateNotificationSafely(RuntimeText.NOTIFICATION_READY);
@@ -711,6 +794,7 @@ public final class AgentRuntimeService extends Service {
                                 sessionController = null;
                                 mcpCatalogController = null;
                                 mcpConfigurationController = null;
+                                connectorCatalogController = null;
                                 activeWorkspaceLayout = null;
                             }
                         }
@@ -718,6 +802,14 @@ public final class AgentRuntimeService extends Service {
                 } catch (Throwable error) {
                     recordServiceFailure("runtime-bootstrap", generation, error);
                 } finally {
+                    if (startedConnectorController != null) {
+                        synchronized (SESSION_LOCK) {
+                            if (connectorCatalogController == startedConnectorController) {
+                                connectorCatalogController = null;
+                            }
+                        }
+                        startedConnectorController.close();
+                    }
                     if (startedConfigurationController != null) {
                         synchronized (SESSION_LOCK) {
                             if (mcpConfigurationController == startedConfigurationController) {
@@ -768,6 +860,7 @@ public final class AgentRuntimeService extends Service {
         boolean owned;
         McpCatalogController catalogController = null;
         McpConfigurationController configurationController = null;
+        ConnectorCatalogController connectorsController = null;
         synchronized (SESSION_LOCK) {
             owned = sessionController == failedController;
             if (owned) {
@@ -776,6 +869,8 @@ public final class AgentRuntimeService extends Service {
                 mcpCatalogController = null;
                 configurationController = mcpConfigurationController;
                 mcpConfigurationController = null;
+                connectorsController = connectorCatalogController;
+                connectorCatalogController = null;
                 activeWorkspaceLayout = null;
             }
         }
@@ -791,6 +886,9 @@ public final class AgentRuntimeService extends Service {
         }
         if (configurationController != null) {
             configurationController.close();
+        }
+        if (connectorsController != null) {
+            connectorsController.close();
         }
         failedController.close();
         String message = "Codex App-Server-Verbindung fehlgeschlagen: "

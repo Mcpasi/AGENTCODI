@@ -242,7 +242,8 @@ public final class CodexSessionController
                         "experimentalApi", Boolean.TRUE,
                         "optOutNotificationMethods", JsonCodec.array(
                             "rawResponseItem/completed",
-                            "rawResponse/completed"
+                            "rawResponse/completed",
+                            "app/list/updated"
                         )
                     )
                 ),
@@ -305,6 +306,7 @@ public final class CodexSessionController
         return "experimentalFeature/list".equals(method)
             || "skills/list".equals(method)
             || "mcpServerStatus/list".equals(method)
+            || "app/list".equals(method)
             || "app/installed".equals(method)
             || "app/read".equals(method)
             || "plugin/list".equals(method);
@@ -797,7 +799,14 @@ public final class CodexSessionController
     }
 
     public boolean sendMessage(final String input) {
-        return sendMessageInternal(input, null);
+        return sendMessageInternal(input, null, null);
+    }
+
+    public boolean sendMessage(
+        final String input,
+        List<CodexAppMention> appMentions
+    ) {
+        return sendMessageInternal(input, null, appMentions);
     }
 
     public boolean sendMessage(
@@ -808,12 +817,25 @@ public final class CodexSessionController
             setUserError("Die vorbereitete Importprüfung fehlt.");
             return false;
         }
-        return sendMessageInternal(input, fileTransaction);
+        return sendMessageInternal(input, fileTransaction, null);
+    }
+
+    public boolean sendMessage(
+        final String input,
+        CodexFileMentionTransaction fileTransaction,
+        List<CodexAppMention> appMentions
+    ) {
+        if (fileTransaction == null) {
+            setUserError("Die vorbereitete Importprüfung fehlt.");
+            return false;
+        }
+        return sendMessageInternal(input, fileTransaction, appMentions);
     }
 
     private boolean sendMessageInternal(
         final String input,
-        final CodexFileMentionTransaction fileTransaction
+        final CodexFileMentionTransaction fileTransaction,
+        List<CodexAppMention> requestedAppMentions
     ) {
         if (CredentialGuard.containsLikelyCredential(input)) {
             closeFileTransaction(fileTransaction);
@@ -823,6 +845,14 @@ public final class CodexSessionController
             return false;
         }
         final String prompt = input == null ? "" : input.trim();
+        final List<CodexAppMention> appMentions;
+        try {
+            appMentions = validateAppMentions(requestedAppMentions);
+        } catch (RuntimeException error) {
+            closeFileTransaction(fileTransaction);
+            setUserError("Die gewählten Connectoren konnten nicht sicher angehängt werden.");
+            return false;
+        }
         final int fileCount;
         try {
             fileCount = validatedFileTransactionCount(fileTransaction);
@@ -832,7 +862,8 @@ public final class CodexSessionController
             return false;
         }
         if ((prompt.isEmpty() && fileCount == 0)
-            || prompt.length() > MAX_PROMPT_CHARACTERS) {
+            || withAppDirectives(prompt, appMentions).length()
+                > MAX_PROMPT_CHARACTERS) {
             closeFileTransaction(fileTransaction);
             setUserError(
                 "Nachrichten benötigen Text oder importierte Dateien und dürfen höchstens "
@@ -884,6 +915,7 @@ public final class CodexSessionController
                                 threadId,
                                 requestModel,
                                 requestEffort,
+                                appMentions,
                                 sendGuard
                             );
                         }
@@ -899,7 +931,14 @@ public final class CodexSessionController
     }
 
     public boolean steerTurn(final String input) {
-        return steerTurnInternal(input, null);
+        return steerTurnInternal(input, null, null);
+    }
+
+    public boolean steerTurn(
+        final String input,
+        List<CodexAppMention> appMentions
+    ) {
+        return steerTurnInternal(input, null, appMentions);
     }
 
     public boolean steerTurn(
@@ -910,12 +949,25 @@ public final class CodexSessionController
             setUserError("Die vorbereitete Importprüfung fehlt.");
             return false;
         }
-        return steerTurnInternal(input, fileTransaction);
+        return steerTurnInternal(input, fileTransaction, null);
+    }
+
+    public boolean steerTurn(
+        final String input,
+        CodexFileMentionTransaction fileTransaction,
+        List<CodexAppMention> appMentions
+    ) {
+        if (fileTransaction == null) {
+            setUserError("Die vorbereitete Importprüfung fehlt.");
+            return false;
+        }
+        return steerTurnInternal(input, fileTransaction, appMentions);
     }
 
     private boolean steerTurnInternal(
         final String input,
-        final CodexFileMentionTransaction fileTransaction
+        final CodexFileMentionTransaction fileTransaction,
+        List<CodexAppMention> requestedAppMentions
     ) {
         if (CredentialGuard.containsLikelyCredential(input)) {
             closeFileTransaction(fileTransaction);
@@ -925,6 +977,14 @@ public final class CodexSessionController
             return false;
         }
         final String prompt = input == null ? "" : input.trim();
+        final List<CodexAppMention> appMentions;
+        try {
+            appMentions = validateAppMentions(requestedAppMentions);
+        } catch (RuntimeException error) {
+            closeFileTransaction(fileTransaction);
+            setUserError("Die gewählten Connectoren konnten nicht sicher angehängt werden.");
+            return false;
+        }
         final int fileCount;
         try {
             fileCount = validatedFileTransactionCount(fileTransaction);
@@ -934,7 +994,8 @@ public final class CodexSessionController
             return false;
         }
         if ((prompt.isEmpty() && fileCount == 0)
-            || prompt.length() > MAX_PROMPT_CHARACTERS) {
+            || withAppDirectives(prompt, appMentions).length()
+                > MAX_PROMPT_CHARACTERS) {
             closeFileTransaction(fileTransaction);
             setUserError(
                 "Nachrichten benötigen Text oder importierte Dateien und dürfen höchstens "
@@ -955,7 +1016,12 @@ public final class CodexSessionController
                             CodexFileMentionTransaction.SendGuard sendGuard
                         )
                             throws Exception {
-                            steerTurnWithMentions(prompt, mentions, sendGuard);
+                            steerTurnWithMentions(
+                                prompt,
+                                mentions,
+                                appMentions,
+                                sendGuard
+                            );
                         }
                     }
                 );
@@ -974,9 +1040,10 @@ public final class CodexSessionController
         String threadId,
         String requestModel,
         String requestEffort,
+        List<CodexAppMention> appMentions,
         CodexFileMentionTransaction.SendGuard sendGuard
     ) throws Exception {
-        List<Object> userInput = buildUserInput(prompt, mentions);
+        List<Object> userInput = buildUserInput(prompt, mentions, appMentions);
         Map<String, Object> attachmentContext =
             CodexWorkspaceAttachmentContext.create(mentions);
         String projectedUserText = extractUserText(JsonCodec.object(
@@ -1051,9 +1118,10 @@ public final class CodexSessionController
     private void steerTurnWithMentions(
         String prompt,
         List<CodexFileMention> mentions,
+        List<CodexAppMention> appMentions,
         CodexFileMentionTransaction.SendGuard sendGuard
     ) throws Exception {
-        List<Object> userInput = buildUserInput(prompt, mentions);
+        List<Object> userInput = buildUserInput(prompt, mentions, appMentions);
         Map<String, Object> attachmentContext =
             CodexWorkspaceAttachmentContext.create(mentions);
         String projectedUserText = extractUserText(JsonCodec.object(
@@ -4609,6 +4677,34 @@ public final class CodexSessionController
         return count;
     }
 
+    private static List<CodexAppMention> validateAppMentions(
+        List<CodexAppMention> values
+    ) {
+        if (values == null || values.isEmpty()) {
+            return Collections.emptyList();
+        }
+        if (values.size() > CodexAppMention.MAXIMUM_MENTIONS) {
+            throw new IllegalArgumentException("Too many Codex app mentions");
+        }
+        List<CodexAppMention> mentions =
+            new ArrayList<CodexAppMention>(values.size());
+        Set<String> ids = new HashSet<String>();
+        for (CodexAppMention value : values) {
+            if (value == null || !ids.add(value.getId())) {
+                throw new IllegalArgumentException("Codex app mentions must be unique");
+            }
+            CodexAppMention validated = CodexAppMention.create(
+                value.getId(),
+                value.getName()
+            );
+            if (!validated.getPath().equals(value.getPath())) {
+                throw new IllegalArgumentException("Codex app mention path is invalid");
+            }
+            mentions.add(validated);
+        }
+        return Collections.unmodifiableList(mentions);
+    }
+
     private void withVerifiedFileMentions(
         CodexFileMentionTransaction transaction,
         final int expectedCount,
@@ -4748,11 +4844,15 @@ public final class CodexSessionController
 
     private static List<Object> buildUserInput(
         String prompt,
-        List<CodexFileMention> mentions
+        List<CodexFileMention> mentions,
+        List<CodexAppMention> appMentions
     ) {
-        List<Object> input = new ArrayList<Object>(mentions.size() + 1);
-        if (!prompt.isEmpty()) {
-            input.add(JsonCodec.object("type", "text", "text", prompt));
+        List<Object> input = new ArrayList<Object>(
+            mentions.size() + appMentions.size() + 1
+        );
+        String directedPrompt = withAppDirectives(prompt, appMentions);
+        if (!directedPrompt.isEmpty()) {
+            input.add(JsonCodec.object("type", "text", "text", directedPrompt));
         }
         for (CodexFileMention mention : mentions) {
             input.add(JsonCodec.object(
@@ -4761,7 +4861,36 @@ public final class CodexSessionController
                 "path", mention.getPath()
             ));
         }
+        for (CodexAppMention mention : appMentions) {
+            input.add(JsonCodec.object(
+                "type", "mention",
+                "name", mention.getName(),
+                "path", mention.getPath()
+            ));
+        }
         return Collections.unmodifiableList(input);
+    }
+
+    private static String withAppDirectives(
+        String prompt,
+        List<CodexAppMention> appMentions
+    ) {
+        if (appMentions.isEmpty()) {
+            return prompt;
+        }
+        StringBuilder directed = new StringBuilder(
+            prompt.length() + appMentions.size() * 32
+        );
+        for (CodexAppMention mention : appMentions) {
+            if (directed.length() != 0) {
+                directed.append(' ');
+            }
+            directed.append('$').append(mention.getId());
+        }
+        if (!prompt.isEmpty()) {
+            directed.append('\n').append(prompt);
+        }
+        return directed.toString();
     }
 
     private static String extractUserText(Map<String, Object> item) {

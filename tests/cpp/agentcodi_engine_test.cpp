@@ -431,6 +431,16 @@ int main(int argc, char* argv[]) {
         << "\"id\":\"child_turn\",\"status\":\"completed\"}}}\n";
     return 0;
   }
+  if (argc == 2
+      && std::string(argv[1]) == "--emit-oversized-app-list-update") {
+    const std::string oversized_description(1024U * 1024U, 'A');
+    std::cout
+        << "{\"method\":\"app/list/updated\",\"params\":{\"data\":[{"
+        << "\"id\":\"fixture\",\"name\":\"Fixture\",\"description\":\""
+        << oversized_description
+        << "\",\"isAccessible\":false,\"isEnabled\":false}]}}\n";
+    return 0;
+  }
   if (argc == 2 && std::string(argv[1]) == "--emit-resumed-image") {
     std::cout
         << "{\"method\":\"item/completed\",\"params\":{\"item\":{"
@@ -743,9 +753,102 @@ int main(int argc, char* argv[]) {
     std::cout << "{\"id\":63,\"result\":{}}" << std::endl;
     return 0;
   }
+  if (argc == 2 && std::string(argv[1]) == "--connector-roundtrip") {
+    std::string request;
+    if (!std::getline(std::cin, request)
+        || request.find("\"method\":\"app/list\"") == std::string::npos
+        || request.find("\"threadId\":\"thr_connectors\"")
+            == std::string::npos
+        || request.find("\"limit\":50") == std::string::npos
+        || request.find("\"forceRefetch\":true") == std::string::npos
+        || request.find("oauth") != std::string::npos
+        || request.find("credential") != std::string::npos
+        || request.find("token") != std::string::npos) {
+      return 45;
+    }
+    std::cout
+        << "{\"id\":75,\"result\":{\"data\":[{"
+        << "\"id\":\"gmail\",\"name\":\"Gmail\","
+        << "\"description\":\"Hosted mail tools.\","
+        << "\"installUrl\":\"https://chatgpt.com/apps/gmail/gmail\","
+        << "\"isAccessible\":true,\"isEnabled\":true,"
+        << "\"pluginDisplayNames\":[\"Gmail\"],\"labels\":{}},{"
+        << "\"id\":\"github\",\"name\":\"GitHub\","
+        << "\"description\":\"Hosted repository tools.\","
+        << "\"installUrl\":\"https://chatgpt.com/apps/github/github\","
+        << "\"isAccessible\":true,\"isEnabled\":true,"
+        << "\"pluginDisplayNames\":[\"GitHub\"],\"labels\":{}}],"
+        << "\"nextCursor\":null}}" << std::endl;
+
+    if (!std::getline(std::cin, request)
+        || request.find("\"method\":\"app/installed\"")
+            == std::string::npos
+        || request.find("\"threadId\":\"thr_connectors\"")
+            == std::string::npos
+        || request.find("\"forceRefresh\":true") == std::string::npos
+        || request.find("installUrl") != std::string::npos
+        || request.find("oauth") != std::string::npos) {
+      return 46;
+    }
+    std::cout
+        << "{\"id\":76,\"result\":{\"apps\":[{"
+        << "\"id\":\"gmail\",\"runtimeName\":\"Gmail\","
+        << "\"enabled\":true,\"callable\":true},{"
+        << "\"id\":\"github\",\"runtimeName\":\"GitHub\","
+        << "\"enabled\":true,\"callable\":true}]}}" << std::endl;
+
+    if (!std::getline(std::cin, request)
+        || request.find("\"method\":\"app/read\"") == std::string::npos
+        || request.find("\"appIds\":[\"gmail\",\"github\"]")
+            == std::string::npos
+        || request.find("\"includeTools\":true") == std::string::npos
+        || request.find("threadId") != std::string::npos
+        || request.find("inputSchema") != std::string::npos
+        || request.find("oauth") != std::string::npos) {
+      return 47;
+    }
+    std::cout
+        << "{\"id\":77,\"result\":{\"apps\":[{"
+        << "\"id\":\"gmail\",\"name\":\"Gmail\","
+        << "\"description\":\"Hosted mail tools.\","
+        << "\"installUrl\":\"https://chatgpt.com/apps/gmail/gmail\","
+        << "\"toolSummaries\":[{\"name\":\"search_mail\","
+        << "\"description\":\"Search mail.\"}]},{"
+        << "\"id\":\"github\",\"name\":\"GitHub\","
+        << "\"description\":\"Hosted repository tools.\","
+        << "\"installUrl\":\"https://chatgpt.com/apps/github/github\","
+        << "\"toolSummaries\":[{\"name\":\"search_repositories\","
+        << "\"description\":\"Search repositories.\"}]}],"
+        << "\"missingAppIds\":[]}}" << std::endl;
+
+    if (!std::getline(std::cin, request)
+        || request.find("\"method\":\"turn/start\"") == std::string::npos
+        || request.find("\"threadId\":\"thr_connectors\"")
+            == std::string::npos
+        || request.find("\"text\":\"$gmail $github\\nReview mail and issues.\"")
+            == std::string::npos
+        || request.find("\"type\":\"mention\",\"name\":\"Gmail\","
+                        "\"path\":\"app://gmail\"") == std::string::npos
+        || request.find("\"type\":\"mention\",\"name\":\"GitHub\","
+                        "\"path\":\"app://github\"") == std::string::npos
+        || request.find("\"additionalContext\"") != std::string::npos
+        || request.find("installUrl") != std::string::npos
+        || request.find("oauth") != std::string::npos
+        || request.find("credential") != std::string::npos
+        || request.find("\"baseInstructions\"") != std::string::npos
+        || request.find("\"developerInstructions\"") != std::string::npos
+        || request.find("\"systemPrompt\"") != std::string::npos) {
+      return 48;
+    }
+    std::cout
+        << "{\"id\":78,\"result\":{\"turn\":{"
+        << "\"id\":\"turn_connectors\",\"status\":\"inProgress\","
+        << "\"items\":[],\"error\":null}}}" << std::endl;
+    return 0;
+  }
 
   const std::string version = agentcodi::engine_version();
-  expect(version == "agentcodi-native/0.6.3", "engine version");
+  expect(version == "agentcodi-native/0.6.4", "engine version");
   expect(agentcodi::run_self_test() == 0, "native self-test");
   const std::string abc = "abc";
   expect(
@@ -1930,6 +2033,26 @@ int main(int argc, char* argv[]) {
         }
       }
 
+      config.arguments = {"--emit-oversized-app-list-update"};
+      error.clear();
+      process = agentcodi::AppServerProcess::Start(config, &error);
+      expect(process != nullptr,
+             "spawn oversized connector-catalog notification fixture");
+      if (process != nullptr) {
+        std::string rejected_catalog_update;
+        const agentcodi::LineReadStatus catalog_read_status = process->ReadLine(
+            1024U * 1024U,
+            &rejected_catalog_update,
+            &error);
+        expect(
+            catalog_read_status == agentcodi::LineReadStatus::kTooLarge
+                && error == "Incoming app-server line exceeds the framing limit"
+                && rejected_catalog_update.empty(),
+            "retain the Java frame limit for an unfiltered app-list update");
+        expect(process->Stop(500) != INT_MIN,
+               "stop oversized connector-catalog notification fixture");
+      }
+
       config.arguments = {"--emit-oversized-image"};
       error.clear();
       process = agentcodi::AppServerProcess::Start(config, &error);
@@ -2075,6 +2198,85 @@ int main(int argc, char* argv[]) {
             "read MCP reload response");
         expect(process->Stop(500) == 0,
                "stop MCP configuration framing fixture");
+      }
+
+      config.arguments = {"--connector-roundtrip"};
+      error.clear();
+      process = agentcodi::AppServerProcess::Start(config, &error);
+      expect(process != nullptr, "spawn hosted connector framing fixture");
+      if (process != nullptr) {
+        const std::string app_list =
+            "{\"id\":75,\"method\":\"app/list\",\"params\":{"
+            "\"limit\":50,\"forceRefetch\":true,"
+            "\"threadId\":\"thr_connectors\"}}";
+        expect(
+            process->WriteLine(app_list, 16U * 1024U, &error),
+            "write bounded hosted connector directory request");
+        std::string connector_line;
+        expect(
+            process->ReadLine(16U * 1024U, &connector_line, &error)
+                    == agentcodi::LineReadStatus::kLine
+                && connector_line.find("\"id\":\"gmail\"")
+                    != std::string::npos
+                && connector_line.find("\"id\":\"github\"")
+                    != std::string::npos
+                && connector_line.find("https://chatgpt.com/apps/")
+                    != std::string::npos,
+            "preserve bounded public connector metadata");
+
+        const std::string installed =
+            "{\"id\":76,\"method\":\"app/installed\",\"params\":{"
+            "\"forceRefresh\":true,\"threadId\":\"thr_connectors\"}}";
+        expect(
+            process->WriteLine(installed, 16U * 1024U, &error),
+            "write bounded installed connector request");
+        expect(
+            process->ReadLine(16U * 1024U, &connector_line, &error)
+                    == agentcodi::LineReadStatus::kLine
+                && connector_line.find("\"callable\":true")
+                    != std::string::npos,
+            "preserve committed callable connector state");
+
+        const std::string app_read =
+            "{\"id\":77,\"method\":\"app/read\",\"params\":{"
+            "\"appIds\":[\"gmail\",\"github\"],"
+            "\"includeTools\":true}}";
+        expect(
+            process->WriteLine(app_read, 16U * 1024U, &error),
+            "write bounded connector detail request");
+        expect(
+            process->ReadLine(16U * 1024U, &connector_line, &error)
+                    == agentcodi::LineReadStatus::kLine
+                && connector_line.find("\"name\":\"search_mail\"")
+                    != std::string::npos
+                && connector_line.find("inputSchema") == std::string::npos,
+            "preserve public summaries without introducing tool schemas");
+
+        const std::string connector_turn =
+            "{\"id\":78,\"method\":\"turn/start\",\"params\":{"
+            "\"threadId\":\"thr_connectors\",\"input\":[{"
+            "\"type\":\"text\",\"text\":\"$gmail $github\\n"
+            "Review mail and issues.\"},{\"type\":\"mention\","
+            "\"name\":\"Gmail\",\"path\":\"app://gmail\"},{"
+            "\"type\":\"mention\",\"name\":\"GitHub\","
+            "\"path\":\"app://github\"}],"
+            "\"cwd\":\"/private/workspace\","
+            "\"runtimeWorkspaceRoots\":[\"/private/workspace\"],"
+            "\"approvalPolicy\":\"on-request\","
+            "\"permissions\":\"agentcodi-workspace\","
+            "\"model\":\"gpt-5.6-sol\",\"effort\":\"high\","
+            "\"summary\":\"auto\"}}";
+        expect(
+            process->WriteLine(connector_turn, 16U * 1024U, &error),
+            "write app-mentioned connector turn");
+        expect(
+            process->ReadLine(16U * 1024U, &connector_line, &error)
+                    == agentcodi::LineReadStatus::kLine
+                && connector_line.find("\"id\":\"turn_connectors\"")
+                    != std::string::npos,
+            "preserve connector turn correlation");
+        expect(process->Stop(500) == 0,
+               "stop hosted connector framing fixture");
       }
 
       config.arguments = {"--rate-limits-roundtrip"};

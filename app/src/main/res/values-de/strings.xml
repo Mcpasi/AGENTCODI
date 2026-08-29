@@ -173,6 +173,17 @@
   <string name="message_send">Senden</string>
   <string name="chat_import_files">Dateien importieren</string>
   <string name="chat_import_detach">Lösen</string>
+  <string name="chat_connectors">Gmail- und GitHub-Connectoren</string>
+  <string name="chat_connector_detach">Connectoren lösen</string>
+  <string name="chat_connector_requires_chat">Öffne einen Chat, bevor du Connectoren auswählst.</string>
+  <string name="chat_connector_picker_failed">Die Connector-Auswahl konnte nicht geöffnet werden.</string>
+  <string name="chat_connector_context_changed">Der aktive Chat oder Turn hat gewechselt. Die Connector-Auswahl wurde nicht angehängt.</string>
+  <string name="chat_connector_unavailable">Der ausgewählte Connector ist nicht mehr aufrufbar. Aktualisiere und verbinde ihn vor dem Senden erneut.</string>
+  <string name="chat_connector_detached_notice">Die Connectoren wurden von dieser Nachricht gelöst.</string>
+  <plurals name="chat_connector_selected">
+    <item quantity="one">%1$d Connector angehängt · %2$s</item>
+    <item quantity="other">%1$d Connectoren angehängt · %2$s</item>
+  </plurals>
   <string name="review_mode_action">Workspace prüfen</string>
   <string name="review_mode_title">Review-Modus</string>
   <string name="review_mode_description">Startet Codex’ nativen Reviewer inline in diesem Chat. AGENTCODI sendet ausschließlich ein benutzerdefiniertes Anweisungsziel; Git-basierte Ziele für Arbeitsbaum, Branch oder Commit sind absichtlich nicht verfügbar.</string>
@@ -200,6 +211,31 @@
     <item quantity="one">%1$d importierte Datei angehängt · %2$s</item>
     <item quantity="other">%1$d importierte Dateien angehängt · %2$s</item>
   </plurals>
+
+  <string name="connector_title">Connectoren</string>
+  <string name="connector_back">‹ Chat</string>
+  <string name="connector_subtitle">Wähle Gmail oder GitHub für die nächste Nachricht. AGENTCODI erkennt diese gehosteten Apps über den aktiven Codex App-Server und implementiert ihre APIs nicht selbst.</string>
+  <string name="connector_auth_boundary">Verbindung und Provider-Anmeldung öffnen ausschließlich auf einer validierten OpenAI- oder ChatGPT-HTTPS-Seite. Zugangsdaten, OAuth-Codes, Tool-Schemas, Remote-Logos und Connector-Antworten speichert diese Ansicht nicht.</string>
+  <string name="connector_refresh">Aktualisieren</string>
+  <string name="connector_loading">Gehostetes Connector-Verzeichnis wird gelesen…</string>
+  <string name="connector_ready">Connector-Zustand ist aktuell.</string>
+  <string name="connector_partial">Connector-Zustand ist teilweise verfügbar. Aktualisiere ihn, bevor du dich darauf verlässt.</string>
+  <string name="connector_failed">Das gehostete Connector-Verzeichnis konnte nicht geladen werden.</string>
+  <string name="connector_stopped">Starte zuerst die Codex Runtime und melde dich an.</string>
+  <string name="connector_context_changed">Der aktive Chat hat gewechselt. Schließe diese Ansicht und öffne die Connector-Auswahl erneut.</string>
+  <string name="connector_callable">Für diesen Chat bereit · %1$d Tools gemeldet</string>
+  <string name="connector_needs_connection">Nicht verbunden. Fahre in ChatGPT fort, um diesen gehosteten Connector zu installieren und anzumelden.</string>
+  <string name="connector_disabled">Verbunden, aber durch die wirksame Codex-Konfiguration deaktiviert. Verwalte ihn in ChatGPT/Codex.</string>
+  <string name="connector_not_installed">Für das Konto verfügbar, aber nicht im aktuellen Runtime-Snapshot vorhanden.</string>
+  <string name="connector_needs_reauthentication">Die Runtime kann diesen Connector nicht aufrufen. Verbinde oder authentifiziere ihn über ChatGPT erneut.</string>
+  <string name="connector_not_offered">Dieser Connector wird vom aktuellen Codex-Konto beziehungsweise der Runtime nicht angeboten.</string>
+  <string name="connector_add_to_chat">Zur nächsten Nachricht hinzufügen</string>
+  <string name="connector_remove_from_chat">Aus der nächsten Nachricht entfernen</string>
+  <string name="connector_connect">Über ChatGPT verbinden…</string>
+  <string name="connector_manage_in_chatgpt">In ChatGPT verwalten…</string>
+  <string name="connector_done">Auswahl verwenden</string>
+  <string name="connector_url_rejected">Die Connector-Seite wurde abgelehnt, weil sie keine vertrauenswürdige OpenAI-/ChatGPT-HTTPS-URL ist.</string>
+  <string name="connector_page_failed">Die externe Connector-Seite konnte nicht geöffnet werden.</string>
 
   <string name="transcript_role_you">DU</string>
   <string name="transcript_role_codex" translatable="false">CODEX</string>

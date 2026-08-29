@@ -16,6 +16,7 @@ public final class TestMain {
         passed += CodexSessionControllerTest.run();
         passed += McpCatalogLoaderTest.run();
         passed += McpConfigurationControllerTest.run();
+        passed += ConnectorCatalogLoaderTest.run();
         passed += CredentialGuardTest.run();
         passed += TerminalOutputBufferTest.run();
         passed += ToolchainCommandTest.run();

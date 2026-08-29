@@ -173,6 +173,17 @@
   <string name="message_send">Send</string>
   <string name="chat_import_files">Import files</string>
   <string name="chat_import_detach">Detach</string>
+  <string name="chat_connectors">Gmail and GitHub connectors</string>
+  <string name="chat_connector_detach">Detach connectors</string>
+  <string name="chat_connector_requires_chat">Open a chat before choosing connectors.</string>
+  <string name="chat_connector_picker_failed">The connector picker could not be opened.</string>
+  <string name="chat_connector_context_changed">The active chat or turn changed. The connector selection was not attached.</string>
+  <string name="chat_connector_unavailable">The selected connector is no longer callable. Refresh and reconnect it before sending.</string>
+  <string name="chat_connector_detached_notice">The connectors were detached from this message.</string>
+  <plurals name="chat_connector_selected">
+    <item quantity="one">%1$d connector attached · %2$s</item>
+    <item quantity="other">%1$d connectors attached · %2$s</item>
+  </plurals>
   <string name="review_mode_action">Review workspace</string>
   <string name="review_mode_title">Review mode</string>
   <string name="review_mode_description">Runs Codex’s native reviewer inline in this chat. AGENTCODI sends only a custom instruction target; Git-based working-tree, branch, and commit targets are intentionally unavailable.</string>
@@ -200,6 +211,31 @@
     <item quantity="one">%1$d imported file attached · %2$s</item>
     <item quantity="other">%1$d imported files attached · %2$s</item>
   </plurals>
+
+  <string name="connector_title">Connectors</string>
+  <string name="connector_back">‹ Chat</string>
+  <string name="connector_subtitle">Choose Gmail or GitHub for the next message. AGENTCODI discovers these hosted apps through the active Codex app-server and never implements their APIs itself.</string>
+  <string name="connector_auth_boundary">Connection and provider authentication open only on a validated OpenAI or ChatGPT HTTPS page. Credentials, OAuth codes, tool schemas, remote logos, and connector responses are not stored by this screen.</string>
+  <string name="connector_refresh">Refresh</string>
+  <string name="connector_loading">Reading the hosted connector directory…</string>
+  <string name="connector_ready">Connector state is current.</string>
+  <string name="connector_partial">Connector state is partially available. Refresh before relying on it.</string>
+  <string name="connector_failed">The hosted connector directory could not be loaded.</string>
+  <string name="connector_stopped">Start and sign in to the Codex runtime first.</string>
+  <string name="connector_context_changed">The active chat changed. Close this screen and open the connector picker again.</string>
+  <string name="connector_callable">Ready for this chat · %1$d tools reported</string>
+  <string name="connector_needs_connection">Not connected. Continue on ChatGPT to install and authenticate this hosted connector.</string>
+  <string name="connector_disabled">Connected but disabled by effective Codex configuration. Manage it on ChatGPT/Codex.</string>
+  <string name="connector_not_installed">Available to the account, but not present in the current runtime snapshot.</string>
+  <string name="connector_needs_reauthentication">The runtime cannot call this connector. Reconnect or reauthenticate it through ChatGPT.</string>
+  <string name="connector_not_offered">This connector is not offered by the current Codex account/runtime.</string>
+  <string name="connector_add_to_chat">Add to next message</string>
+  <string name="connector_remove_from_chat">Remove from next message</string>
+  <string name="connector_connect">Connect through ChatGPT…</string>
+  <string name="connector_manage_in_chatgpt">Manage on ChatGPT…</string>
+  <string name="connector_done">Use selection</string>
+  <string name="connector_url_rejected">The connector page was rejected because it is not a trusted OpenAI/ChatGPT HTTPS URL.</string>
+  <string name="connector_page_failed">The external connector page could not be opened.</string>
 
   <string name="transcript_role_you">YOU</string>
   <string name="transcript_role_codex" translatable="false">CODEX</string>

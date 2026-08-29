@@ -38,6 +38,8 @@ find \
   "$PROJECT_ROOT/modules/import-client/src/main/java" \
   "$PROJECT_ROOT/modules/mcp-contracts/src/main/java" \
   "$PROJECT_ROOT/modules/mcp-client/src/main/java" \
+  "$PROJECT_ROOT/modules/connector-contracts/src/main/java" \
+  "$PROJECT_ROOT/modules/connector-client/src/main/java" \
   "$PROJECT_ROOT/tests/java" \
   -type f -name '*.java' -print | sort > "$TEST_BUILD/java-sources.txt"
 

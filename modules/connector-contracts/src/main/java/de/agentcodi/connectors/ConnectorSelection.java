@@ -56,6 +56,41 @@ public final class ConnectorSelection {
         return Collections.unmodifiableList(copy);
     }
 
+    /**
+     * Selects a connector only after the refreshed runtime snapshot confirms that the
+     * exact provider is callable. Existing selections for other providers are retained
+     * in stable provider order, while stale metadata for the connected provider is
+     * replaced by the newly verified identity.
+     */
+    public static List<ConnectorSelection> afterSuccessfulConnection(
+        List<ConnectorSelection> values,
+        ConnectorProvider expectedProvider,
+        ConnectorInfo refreshedConnector
+    ) {
+        List<ConnectorSelection> current = copyOf(values);
+        if (expectedProvider == null || refreshedConnector == null
+            || refreshedConnector.getProvider() != expectedProvider
+            || !refreshedConnector.isCallable()) {
+            return current;
+        }
+        List<ConnectorSelection> updated = new ArrayList<ConnectorSelection>(
+            MAXIMUM_SELECTED
+        );
+        for (ConnectorProvider provider : ConnectorProvider.values()) {
+            if (provider == expectedProvider) {
+                updated.add(refreshedConnector.selection());
+                continue;
+            }
+            for (ConnectorSelection selection : current) {
+                if (selection.provider == provider) {
+                    updated.add(selection);
+                    break;
+                }
+            }
+        }
+        return copyOf(updated);
+    }
+
     public static boolean isSafeId(String value) {
         if (value == null || value.isEmpty() || value.length() > MAXIMUM_ID_CHARACTERS) {
             return false;

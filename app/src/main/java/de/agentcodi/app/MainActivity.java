@@ -1383,7 +1383,6 @@ public final class MainActivity extends Activity {
         connectorStatus.setText(getResources().getQuantityString(
             R.plurals.chat_connector_selected,
             pendingConnectors.size(),
-            Integer.valueOf(pendingConnectors.size()),
             names.toString()
         ));
         connectorStatusRow.setVisibility(View.VISIBLE);

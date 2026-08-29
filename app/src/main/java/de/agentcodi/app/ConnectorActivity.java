@@ -8,6 +8,7 @@ import android.net.Uri;
 import android.os.Bundle;
 import android.os.Handler;
 import android.os.Looper;
+import android.os.SystemClock;
 import android.view.Gravity;
 import android.view.View;
 import android.view.ViewGroup;
@@ -42,6 +43,8 @@ public final class ConnectorActivity extends Activity {
         "de.agentcodi.app.connector.NAMES";
     private static final long ACTIVE_REFRESH_INTERVAL_MS = 250L;
     private static final long IDLE_REFRESH_INTERVAL_MS = 900L;
+    private static final int MAXIMUM_AUTOMATIC_CONNECTION_CHECKS = 2;
+    private static final long AUTOMATIC_CONNECTION_RETRY_DELAY_MS = 1_500L;
 
     private final Handler handler = new Handler(Looper.getMainLooper());
     private final Map<ConnectorProvider, ConnectorSelection> selected =
@@ -52,8 +55,9 @@ public final class ConnectorActivity extends Activity {
             ConnectorCatalogSnapshot catalog = AgentRuntimeService.connectorCatalogSnapshot();
             CodexSessionSnapshot session = AgentRuntimeService.sessionSnapshot();
             render(catalog, session);
+            continuePendingConnectionChecks(catalog);
             long delay = catalog.getPhase() == ConnectorPhase.LOADING
-                || session.isOperationActive()
+                || session.isOperationActive() || hasActiveConnectionCheck()
                 ? ACTIVE_REFRESH_INTERVAL_MS
                 : IDLE_REFRESH_INTERVAL_MS;
             handler.postDelayed(this, delay);
@@ -66,6 +70,11 @@ public final class ConnectorActivity extends Activity {
     private Button refreshButton;
     private Button doneButton;
     private String launchThreadId = "";
+    private ConnectorProvider pendingConnectionProvider;
+    private boolean pendingConnectionChecksStarted;
+    private int pendingConnectionChecksRemaining;
+    private long pendingConnectionCheckRevision = -1L;
+    private long pendingConnectionRetryAtMillis = Long.MAX_VALUE;
     private ConnectorCatalogSnapshot lastCatalogSnapshot;
     private long lastSessionRevision = Long.MIN_VALUE;
 
@@ -133,8 +142,21 @@ public final class ConnectorActivity extends Activity {
         handler.removeCallbacks(refreshTask);
         lastCatalogSnapshot = null;
         lastSessionRevision = Long.MIN_VALUE;
-        AgentRuntimeService.refreshConnectorCatalog(true);
+        if (pendingConnectionProvider == null) {
+            AgentRuntimeService.refreshConnectorCatalog(false, false);
+        } else {
+            beginAutomaticConnectionChecks();
+        }
         handler.post(refreshTask);
+    }
+
+    @Override
+    protected void onResume() {
+        super.onResume();
+        if (pendingConnectionProvider != null && !pendingConnectionChecksStarted) {
+            beginAutomaticConnectionChecks();
+            lastCatalogSnapshot = null;
+        }
     }
 
     @Override
@@ -147,6 +169,7 @@ public final class ConnectorActivity extends Activity {
     protected void onDestroy() {
         handler.removeCallbacksAndMessages(null);
         selected.clear();
+        clearPendingConnection();
         super.onDestroy();
     }
 
@@ -215,7 +238,11 @@ public final class ConnectorActivity extends Activity {
         refreshButton.setOnClickListener(new View.OnClickListener() {
             @Override
             public void onClick(View view) {
-                AgentRuntimeService.refreshConnectorCatalog(true);
+                if (pendingConnectionProvider != null) {
+                    beginAutomaticConnectionChecks();
+                } else {
+                    AgentRuntimeService.refreshConnectorCatalog(true, true);
+                }
                 lastCatalogSnapshot = null;
             }
         });
@@ -269,16 +296,20 @@ public final class ConnectorActivity extends Activity {
         boolean catalogContextValid = launchThreadId.equals(catalog.getThreadId());
         boolean contextValid = sessionContextValid && catalogContextValid;
 
-        for (ConnectorProvider provider : ConnectorProvider.values()) {
-            ConnectorSelection selection = selected.get(provider);
-            ConnectorInfo current = catalog.find(provider);
-            if (selection != null
-                && (!current.isCallable()
-                    || !selection.getId().equals(current.getId())
-                    || !selection.getName().equals(current.getName()))) {
-                selected.remove(provider);
+        if (catalog.getPhase() != ConnectorPhase.LOADING) {
+            for (ConnectorProvider provider : ConnectorProvider.values()) {
+                ConnectorSelection selection = selected.get(provider);
+                ConnectorInfo current = catalog.find(provider);
+                if (selection != null
+                    && (!current.isCallable()
+                        || !selection.getId().equals(current.getId())
+                        || !selection.getName().equals(current.getName()))) {
+                    selected.remove(provider);
+                }
             }
         }
+
+        completePendingConnection(catalog, contextValid);
 
         statusView.setText(statusText(
             catalog.getPhase(),
@@ -306,6 +337,21 @@ public final class ConnectorActivity extends Activity {
         if (!catalogContextValid) {
             return getString(R.string.connector_loading);
         }
+        if (pendingConnectionProvider != null) {
+            if (phase == ConnectorPhase.LOADING || hasActiveConnectionCheck()) {
+                return getString(
+                    R.string.connector_connection_checking,
+                    pendingConnectionProvider.getDisplayName()
+                );
+            }
+            if (phase == ConnectorPhase.READY || phase == ConnectorPhase.PARTIAL
+                || phase == ConnectorPhase.FAILED) {
+                return getString(
+                    R.string.connector_connection_waiting,
+                    pendingConnectionProvider.getDisplayName()
+                );
+            }
+        }
         switch (phase) {
             case LOADING:
                 return getString(R.string.connector_loading);
@@ -326,7 +372,12 @@ public final class ConnectorActivity extends Activity {
         title.setTypeface(Typeface.DEFAULT_BOLD);
         card.addView(title);
 
-        TextView status = theme.text(connectorState(connector), 13, theme.secondary);
+        final boolean isSelected = selected.containsKey(connector.getProvider());
+        TextView status = theme.text(
+            connectorState(connector, isSelected),
+            13,
+            theme.secondary
+        );
         status.setLineSpacing(0.0f, 1.15f);
         theme.addWithTopMargin(card, status, 7);
         if (!connector.getDescription().isEmpty()) {
@@ -335,13 +386,12 @@ public final class ConnectorActivity extends Activity {
             theme.addWithTopMargin(card, description, 8);
         }
 
-        Button action;
+        boolean addedAction = false;
         if (connector.isCallable()) {
-            final boolean isSelected = selected.containsKey(connector.getProvider());
-            action = isSelected
+            Button useAction = isSelected
                 ? theme.secondaryButton(getString(R.string.connector_remove_from_chat))
                 : theme.primaryButton(getString(R.string.connector_add_to_chat));
-            action.setOnClickListener(new View.OnClickListener() {
+            useAction.setOnClickListener(new View.OnClickListener() {
                 @Override
                 public void onClick(View view) {
                     if (selected.containsKey(connector.getProvider())) {
@@ -356,35 +406,49 @@ public final class ConnectorActivity extends Activity {
                     );
                 }
             });
-        } else if (connector.hasTrustedInstallUrl()) {
-            action = theme.primaryButton(getString(
-                connector.isAccessible()
-                    ? R.string.connector_manage_in_chatgpt
-                    : R.string.connector_connect
-            ));
-            action.setOnClickListener(new View.OnClickListener() {
+            useAction.setEnabled(contextValid);
+            theme.addWithTopMargin(card, useAction, 12);
+            addedAction = true;
+        }
+        if (connector.hasTrustedInstallUrl()) {
+            Button signInAction = connector.isCallable()
+                ? theme.secondaryButton(getString(
+                    R.string.connector_manage_sign_in_provider,
+                    connector.getProvider().getDisplayName()
+                ))
+                : theme.primaryButton(getString(
+                    R.string.connector_sign_in_provider,
+                    connector.getProvider().getDisplayName()
+                ));
+            signInAction.setOnClickListener(new View.OnClickListener() {
                 @Override
                 public void onClick(View view) {
-                    openHostedConnectorPage(connector.getInstallUrl());
+                    openConnectorSignIn(connector);
                 }
             });
-        } else {
-            action = theme.secondaryButton(getString(R.string.common_not_available));
-            action.setEnabled(false);
+            signInAction.setEnabled(contextValid);
+            theme.addWithTopMargin(card, signInAction, 12);
+            addedAction = true;
         }
-        action.setEnabled(contextValid && action.isEnabled());
-        theme.addWithTopMargin(card, action, 12);
+        if (!addedAction) {
+            Button unavailableAction = theme.secondaryButton(
+                getString(R.string.common_not_available)
+            );
+            unavailableAction.setEnabled(false);
+            theme.addWithTopMargin(card, unavailableAction, 12);
+        }
         theme.addWithTopMargin(connectorList, card, 10);
     }
 
-    private String connectorState(ConnectorInfo connector) {
+    private String connectorState(ConnectorInfo connector, boolean isSelected) {
         if (!connector.isOffered()) {
             return getString(R.string.connector_not_offered);
         }
         if (connector.isCallable()) {
             return getString(
-                R.string.connector_callable,
-                Integer.valueOf(connector.getToolCount())
+                isSelected
+                    ? R.string.connector_selected_ready
+                    : R.string.connector_connected_ready
             );
         }
         if (!connector.isAccessible()) {
@@ -399,16 +463,156 @@ public final class ConnectorActivity extends Activity {
         return getString(R.string.connector_needs_reauthentication);
     }
 
-    private void openHostedConnectorPage(String url) {
+    private void openConnectorSignIn(ConnectorInfo connector) {
+        String url = connector.getInstallUrl();
         if (!ConnectorInstallUrl.isTrusted(url)) {
             Toast.makeText(this, R.string.connector_url_rejected, Toast.LENGTH_LONG).show();
             return;
         }
+        pendingConnectionProvider = connector.getProvider();
+        pendingConnectionChecksStarted = false;
+        pendingConnectionChecksRemaining = 0;
+        pendingConnectionCheckRevision = -1L;
+        pendingConnectionRetryAtMillis = Long.MAX_VALUE;
+        lastCatalogSnapshot = null;
         try {
             startActivity(new Intent(Intent.ACTION_VIEW, Uri.parse(url)));
         } catch (Throwable error) {
+            clearPendingConnection();
             Toast.makeText(this, R.string.connector_page_failed, Toast.LENGTH_LONG).show();
         }
+    }
+
+    private void beginAutomaticConnectionChecks() {
+        if (pendingConnectionProvider == null) {
+            return;
+        }
+        pendingConnectionChecksStarted = true;
+        pendingConnectionChecksRemaining = MAXIMUM_AUTOMATIC_CONNECTION_CHECKS;
+        pendingConnectionCheckRevision = -1L;
+        pendingConnectionRetryAtMillis = SystemClock.elapsedRealtime();
+        continuePendingConnectionChecks(AgentRuntimeService.connectorCatalogSnapshot());
+    }
+
+    private void continuePendingConnectionChecks(ConnectorCatalogSnapshot catalog) {
+        if (pendingConnectionProvider == null || !pendingConnectionChecksStarted) {
+            return;
+        }
+        long now = SystemClock.elapsedRealtime();
+        if (pendingConnectionCheckRevision >= 0L) {
+            if (catalog.getRevision() < pendingConnectionCheckRevision
+                || (catalog.getRevision() == pendingConnectionCheckRevision
+                    && catalog.getPhase() == ConnectorPhase.LOADING)) {
+                return;
+            }
+            if (catalog.getRevision() > pendingConnectionCheckRevision
+                && catalog.getPhase() == ConnectorPhase.LOADING) {
+                pendingConnectionCheckRevision = catalog.getRevision();
+                return;
+            }
+            pendingConnectionCheckRevision = -1L;
+            pendingConnectionRetryAtMillis = pendingConnectionChecksRemaining > 0
+                ? now + AUTOMATIC_CONNECTION_RETRY_DELAY_MS
+                : Long.MAX_VALUE;
+            return;
+        }
+        if (catalog.getPhase() == ConnectorPhase.LOADING) {
+            // A refresh that began before the browser return is not proof of
+            // the completed sign-in. Wait for it to settle, then start one of
+            // this return flow's explicitly forced checks below.
+            return;
+        }
+        if (pendingConnectionChecksRemaining <= 0
+            || now < pendingConnectionRetryAtMillis) {
+            return;
+        }
+        ConnectorInfo pendingConnector = catalog.find(pendingConnectionProvider);
+        boolean needsFreshDirectory = !pendingConnector.isOffered()
+            || !pendingConnector.isAccessible();
+        boolean began = needsFreshDirectory
+            ? AgentRuntimeService.refreshConnectorCatalog(true, true)
+            : AgentRuntimeService.refreshConnectorAvailability(true);
+        if (!began && !needsFreshDirectory) {
+            began = AgentRuntimeService.refreshConnectorCatalog(true, true);
+        }
+        pendingConnectionChecksRemaining--;
+        if (began) {
+            ConnectorCatalogSnapshot started =
+                AgentRuntimeService.connectorCatalogSnapshot();
+            pendingConnectionCheckRevision = started.getRevision();
+            pendingConnectionRetryAtMillis = Long.MAX_VALUE;
+        } else {
+            pendingConnectionRetryAtMillis = pendingConnectionChecksRemaining > 0
+                ? now + AUTOMATIC_CONNECTION_RETRY_DELAY_MS
+                : Long.MAX_VALUE;
+        }
+        lastCatalogSnapshot = null;
+    }
+
+    private boolean hasActiveConnectionCheck() {
+        return pendingConnectionProvider != null && pendingConnectionChecksStarted
+            && (pendingConnectionCheckRevision >= 0L
+                || (pendingConnectionChecksRemaining > 0
+                    && pendingConnectionRetryAtMillis != Long.MAX_VALUE));
+    }
+
+    private void clearPendingConnection() {
+        pendingConnectionProvider = null;
+        pendingConnectionChecksStarted = false;
+        pendingConnectionChecksRemaining = 0;
+        pendingConnectionCheckRevision = -1L;
+        pendingConnectionRetryAtMillis = Long.MAX_VALUE;
+    }
+
+    private void completePendingConnection(
+        ConnectorCatalogSnapshot catalog,
+        boolean contextValid
+    ) {
+        if (!contextValid || pendingConnectionProvider == null
+            || pendingConnectionCheckRevision < 0L
+            || catalog.getRevision() < pendingConnectionCheckRevision
+            || (catalog.getPhase() != ConnectorPhase.READY
+                && catalog.getPhase() != ConnectorPhase.PARTIAL)) {
+            return;
+        }
+        ConnectorInfo connector = catalog.find(pendingConnectionProvider);
+        if (!connector.isCallable()) {
+            return;
+        }
+        List<ConnectorSelection> updated;
+        try {
+            updated = ConnectorSelection.afterSuccessfulConnection(
+                currentSelections(),
+                pendingConnectionProvider,
+                connector
+            );
+        } catch (RuntimeException error) {
+            clearPendingConnection();
+            Toast.makeText(this, R.string.chat_connector_unavailable, Toast.LENGTH_LONG).show();
+            return;
+        }
+        selected.clear();
+        for (ConnectorSelection selection : updated) {
+            selected.put(selection.getProvider(), selection);
+        }
+        String providerName = pendingConnectionProvider.getDisplayName();
+        clearPendingConnection();
+        Toast.makeText(
+            this,
+            getString(R.string.connector_connected_selected, providerName),
+            Toast.LENGTH_LONG
+        ).show();
+    }
+
+    private List<ConnectorSelection> currentSelections() {
+        List<ConnectorSelection> result = new ArrayList<ConnectorSelection>();
+        for (ConnectorProvider provider : ConnectorProvider.values()) {
+            ConnectorSelection selection = selected.get(provider);
+            if (selection != null) {
+                result.add(selection);
+            }
+        }
+        return ConnectorSelection.copyOf(result);
     }
 
     private void finishWithSelection() {
@@ -417,13 +621,7 @@ public final class ConnectorActivity extends Activity {
             Toast.makeText(this, R.string.connector_context_changed, Toast.LENGTH_LONG).show();
             return;
         }
-        List<ConnectorSelection> result = new ArrayList<ConnectorSelection>();
-        for (ConnectorProvider provider : ConnectorProvider.values()) {
-            ConnectorSelection selection = selected.get(provider);
-            if (selection != null) {
-                result.add(selection);
-            }
-        }
+        List<ConnectorSelection> result = currentSelections();
         Intent data = new Intent();
         data.putExtra(EXTRA_THREAD_ID, launchThreadId);
         putSelections(data, ConnectorSelection.copyOf(result));

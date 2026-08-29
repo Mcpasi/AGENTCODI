@@ -155,6 +155,20 @@ public final class AgentRuntimeService extends Service {
         return controller != null && controller.refresh(forceRefetch);
     }
 
+    public static boolean refreshConnectorCatalog(
+        boolean forceDirectoryRefetch,
+        boolean forceInstalledRefresh
+    ) {
+        ConnectorCatalogController controller = connectorCatalogController;
+        return controller != null
+            && controller.refresh(forceDirectoryRefetch, forceInstalledRefresh);
+    }
+
+    public static boolean refreshConnectorAvailability(boolean forceRefresh) {
+        ConnectorCatalogController controller = connectorCatalogController;
+        return controller != null && controller.refreshInstalled(forceRefresh);
+    }
+
     public static boolean areConnectorsCallable(List<ConnectorSelection> selections) {
         ConnectorCatalogController controller = connectorCatalogController;
         return controller != null && controller.areCallable(selections);

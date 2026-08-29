@@ -29,7 +29,9 @@ public final class ConnectorCatalogLoader {
     static final int MAXIMUM_SCANNED_APPS = 200;
     static final int MAXIMUM_CURSOR_CHARACTERS = 1024;
     static final int MAXIMUM_PROJECTED_CHARACTERS = 64 * 1024;
-    static final long REQUEST_TIMEOUT_MS = 20_000L;
+    static final long DIRECTORY_TIMEOUT_MS = 8_000L;
+    static final long INSTALLED_TIMEOUT_MS = 6_000L;
+    static final long OPTIONAL_DETAILS_TIMEOUT_MS = 3_000L;
 
     private final CodexCatalogRpc rpc;
 
@@ -41,7 +43,7 @@ public final class ConnectorCatalogLoader {
     }
 
     public ConnectorCatalogSnapshot load(long revision, boolean forceRefetch) {
-        return load(revision, forceRefetch, currentThreadId());
+        return load(revision, forceRefetch, forceRefetch, currentThreadId());
     }
 
     String currentThreadId() {
@@ -53,39 +55,159 @@ public final class ConnectorCatalogLoader {
         boolean forceRefetch,
         String requestedThreadId
     ) {
+        return load(revision, forceRefetch, forceRefetch, requestedThreadId);
+    }
+
+    ConnectorCatalogSnapshot load(
+        long revision,
+        boolean forceDirectoryRefetch,
+        boolean forceInstalledRefresh,
+        String requestedThreadId
+    ) {
+        LoadState state;
+        try {
+            state = loadDirectoryState(
+                revision,
+                forceDirectoryRefetch,
+                requestedThreadId
+            );
+        } catch (Exception error) {
+            return ConnectorCatalogSnapshot.empty(
+                revision,
+                ConnectorPhase.FAILED,
+                validatedThreadId(requestedThreadId)
+            );
+        }
+        ConnectorCatalogSnapshot essential;
+        try {
+            essential = loadInstalledState(state, forceInstalledRefresh);
+        } catch (Exception error) {
+            state.projection.partial = true;
+            essential = project(state, ConnectorPhase.PARTIAL);
+        }
+        try {
+            return enrichOptionalDetails(state, essential.getPhase());
+        } catch (Exception error) {
+            return essential;
+        }
+    }
+
+    LoadState loadDirectoryState(
+        long revision,
+        boolean forceRefetch,
+        String requestedThreadId
+    ) throws Exception {
         if (revision < 0L) {
             throw new IllegalArgumentException("Connector revision must not be negative");
         }
         String threadId = validatedThreadId(requestedThreadId);
         Projection projection = new Projection();
-        try {
-            loadDirectory(projection, threadId, forceRefetch);
-        } catch (Exception error) {
-            return ConnectorCatalogSnapshot.empty(
-                revision,
-                ConnectorPhase.FAILED,
-                threadId
-            );
+        loadDirectory(projection, threadId, forceRefetch);
+        return new LoadState(revision, threadId, projection);
+    }
+
+    ConnectorCatalogSnapshot directorySnapshot(LoadState state) {
+        requireState(state);
+        return project(state, ConnectorPhase.LOADING);
+    }
+
+    ConnectorCatalogSnapshot loadInstalledState(
+        LoadState state,
+        boolean forceRefresh
+    ) throws Exception {
+        requireState(state);
+        return applyInstalledState(
+            state,
+            queryInstalledState(state.threadId, forceRefresh)
+        );
+    }
+
+    InstalledState queryInstalledState(
+        String requestedThreadId,
+        boolean forceRefresh
+    ) throws Exception {
+        String threadId = validatedThreadId(requestedThreadId);
+        Projection projection = new Projection();
+        loadInstalled(projection, threadId, forceRefresh);
+        return new InstalledState(threadId, projection);
+    }
+
+    ConnectorCatalogSnapshot applyInstalledState(
+        LoadState state,
+        InstalledState installedState
+    ) {
+        requireState(state);
+        if (installedState == null || !state.threadId.equals(installedState.threadId)) {
+            throw new IllegalArgumentException("Installed connector state has stale scope");
         }
-        try {
-            loadInstalled(projection, threadId, forceRefetch);
-        } catch (Exception error) {
-            projection.partial = true;
+        state.projection.installed.clear();
+        state.projection.installed.putAll(installedState.projection.installed);
+        state.projection.characters += installedState.projection.characters;
+        if (installedState.projection.partial || installedState.projection.truncated
+            || !state.projection.hasBudget()) {
+            state.projection.partial = true;
+            state.projection.truncated = true;
         }
-        try {
-            loadDetails(projection);
-        } catch (Exception error) {
-            projection.partial = true;
+        return project(
+            state,
+            state.projection.partial ? ConnectorPhase.PARTIAL : ConnectorPhase.READY
+        );
+    }
+
+    ConnectorCatalogSnapshot refreshInstalled(
+        long revision,
+        boolean forceRefresh,
+        String requestedThreadId,
+        ConnectorCatalogSnapshot previous
+    ) throws Exception {
+        String threadId = validatedThreadId(requestedThreadId);
+        Projection projection = Projection.fromSnapshot(previous, threadId);
+        if (projection.candidates.isEmpty()) {
+            throw new IllegalStateException("No connector directory state is available");
         }
+        LoadState state = new LoadState(revision, threadId, projection);
+        return loadInstalledState(state, forceRefresh);
+    }
+
+    ConnectorCatalogSnapshot enrichOptionalDetails(
+        LoadState state,
+        ConnectorPhase phase
+    ) throws Exception {
+        requireState(state);
+        if (phase != ConnectorPhase.READY && phase != ConnectorPhase.PARTIAL) {
+            throw new IllegalArgumentException("Connector details require an essential snapshot");
+        }
+        loadDetails(state.projection);
+        return project(state, phase);
+    }
+
+    ConnectorCatalogSnapshot degradedSnapshot(
+        long revision,
+        ConnectorPhase phase,
+        String requestedThreadId,
+        ConnectorCatalogSnapshot previous
+    ) {
+        if (phase != ConnectorPhase.PARTIAL && phase != ConnectorPhase.FAILED) {
+            throw new IllegalArgumentException("Degraded connector phase is invalid");
+        }
+        String threadId = validatedThreadId(requestedThreadId);
+        Projection projection = Projection.fromSnapshot(previous, threadId);
+        projection.installed.clear();
+        LoadState state = new LoadState(revision, threadId, projection);
+        return project(state, phase);
+    }
+
+    private ConnectorCatalogSnapshot project(LoadState state, ConnectorPhase phase) {
+        requireState(state);
 
         List<ConnectorInfo> connectors = new ArrayList<ConnectorInfo>();
         for (ConnectorProvider provider : ConnectorProvider.values()) {
-            Candidate candidate = projection.candidates.get(provider);
+            Candidate candidate = state.projection.candidates.get(provider);
             if (candidate == null) {
                 connectors.add(ConnectorInfo.unavailable(provider));
                 continue;
             }
-            Installed installed = projection.installed.get(candidate.id);
+            Installed installed = state.projection.installed.get(candidate.id);
             boolean installedPresent = installed != null;
             boolean enabled = installedPresent ? installed.enabled : candidate.enabled;
             boolean callable = candidate.accessible && enabled
@@ -105,12 +227,18 @@ public final class ConnectorCatalogLoader {
             ));
         }
         return new ConnectorCatalogSnapshot(
-            revision,
-            projection.partial ? ConnectorPhase.PARTIAL : ConnectorPhase.READY,
-            threadId,
+            state.revision,
+            phase,
+            state.threadId,
             connectors,
-            projection.truncated
+            state.projection.truncated
         );
+    }
+
+    private static void requireState(LoadState state) {
+        if (state == null) {
+            throw new IllegalArgumentException("Connector load state is required");
+        }
     }
 
     private void loadDirectory(
@@ -121,7 +249,14 @@ public final class ConnectorCatalogLoader {
         String cursor = "";
         Set<String> seenCursors = new HashSet<String>();
         int scanned = 0;
+        long deadlineNanos = System.nanoTime() + DIRECTORY_TIMEOUT_MS * 1_000_000L;
         for (int page = 0; page < MAXIMUM_PAGES && scanned < MAXIMUM_SCANNED_APPS; page++) {
+            long timeoutMilliseconds = remainingMilliseconds(deadlineNanos);
+            if (timeoutMilliseconds <= 0L) {
+                projection.partial = true;
+                projection.truncated = true;
+                return;
+            }
             Map<String, Object> params = JsonCodec.object(
                 "limit", Long.valueOf(PAGE_SIZE),
                 "forceRefetch", Boolean.valueOf(forceRefetch)
@@ -130,14 +265,25 @@ public final class ConnectorCatalogLoader {
             if (!cursor.isEmpty()) {
                 params.put("cursor", cursor);
             }
-            Map<String, Object> response = rpc.requestCatalog(
-                "app/list",
-                params,
-                REQUEST_TIMEOUT_MS
-            );
+            Map<String, Object> response;
+            try {
+                response = rpc.requestCatalog(
+                    "app/list",
+                    params,
+                    timeoutMilliseconds
+                );
+            } catch (Exception error) {
+                if (projection.candidates.isEmpty()) {
+                    throw error;
+                }
+                projection.partial = true;
+                projection.truncated = true;
+                return;
+            }
             List<Object> data = JsonCodec.requireArray(response.get("data"), "app list data");
             for (Object value : data) {
                 if (scanned >= MAXIMUM_SCANNED_APPS || !projection.hasBudget()) {
+                    projection.partial = true;
                     projection.truncated = true;
                     break;
                 }
@@ -173,18 +319,39 @@ public final class ConnectorCatalogLoader {
                 ));
             }
             String next = nextCursor(response.get("nextCursor"));
-            if (next.isEmpty()) {
+            if (next.isEmpty() || hasStrongProviderMatches(projection)) {
                 return;
             }
             if (!seenCursors.add(next)) {
+                projection.partial = true;
                 projection.truncated = true;
                 return;
             }
             cursor = next;
         }
         if (!cursor.isEmpty()) {
+            projection.partial = true;
             projection.truncated = true;
         }
+    }
+
+    private static long remainingMilliseconds(long deadlineNanos) {
+        long remainingNanos = deadlineNanos - System.nanoTime();
+        if (remainingNanos <= 0L) {
+            return 0L;
+        }
+        long roundedUp = (remainingNanos + 999_999L) / 1_000_000L;
+        return Math.min(DIRECTORY_TIMEOUT_MS, roundedUp);
+    }
+
+    private static boolean hasStrongProviderMatches(Projection projection) {
+        for (ConnectorProvider provider : ConnectorProvider.values()) {
+            Candidate candidate = projection.candidates.get(provider);
+            if (candidate == null || candidate.score < 190) {
+                return false;
+            }
+        }
+        return true;
     }
 
     private void loadInstalled(
@@ -199,12 +366,13 @@ public final class ConnectorCatalogLoader {
         Map<String, Object> response = rpc.requestCatalog(
             "app/installed",
             params,
-            REQUEST_TIMEOUT_MS
+            INSTALLED_TIMEOUT_MS
         );
         List<Object> values = JsonCodec.requireArray(response.get("apps"), "installed apps");
         int scanned = 0;
         for (Object value : values) {
             if (scanned >= MAXIMUM_SCANNED_APPS || !projection.hasBudget()) {
+                projection.partial = true;
                 projection.truncated = true;
                 return;
             }
@@ -239,7 +407,7 @@ public final class ConnectorCatalogLoader {
         Map<String, Object> response = rpc.requestCatalog(
             "app/read",
             params,
-            REQUEST_TIMEOUT_MS
+            OPTIONAL_DETAILS_TIMEOUT_MS
         );
         Map<String, Candidate> byId = new HashMap<String, Candidate>();
         for (Candidate candidate : projection.candidates.values()) {
@@ -258,7 +426,7 @@ public final class ConnectorCatalogLoader {
             if (candidate == null) {
                 continue;
             }
-            String name = projection.required(app.get("name"), "app detail name", 160);
+            projection.required(app.get("name"), "app detail name", 160);
             String description = projection.optional(
                 app.get("description"),
                 "app detail description",
@@ -267,7 +435,6 @@ public final class ConnectorCatalogLoader {
             String installUrl = trustedUrl(
                 projection.optional(app.get("installUrl"), "app detail installUrl", 8192)
             );
-            candidate.name = name;
             if (!description.isEmpty()) {
                 candidate.description = description;
             }
@@ -287,12 +454,7 @@ public final class ConnectorCatalogLoader {
             }
             candidate.toolCount = toolCount;
         }
-        if (!JsonCodec.requireArray(
-                response.get("missingAppIds"),
-                "missing app ids"
-            ).isEmpty()) {
-            projection.partial = true;
-        }
+        JsonCodec.requireArray(response.get("missingAppIds"), "missing app ids");
     }
 
     private static Match matchProvider(Map<String, Object> app, String id, String name) {
@@ -402,6 +564,28 @@ public final class ConnectorCatalogLoader {
         return cursor;
     }
 
+    static final class LoadState {
+        private final long revision;
+        private final String threadId;
+        private final Projection projection;
+
+        private LoadState(long revision, String threadId, Projection projection) {
+            this.revision = revision;
+            this.threadId = threadId;
+            this.projection = projection;
+        }
+    }
+
+    static final class InstalledState {
+        private final String threadId;
+        private final Projection projection;
+
+        private InstalledState(String threadId, Projection projection) {
+            this.threadId = threadId;
+            this.projection = projection;
+        }
+    }
+
     private static final class Projection {
         private final Map<ConnectorProvider, Candidate> candidates =
             new EnumMap<ConnectorProvider, Candidate>(ConnectorProvider.class);
@@ -410,6 +594,43 @@ public final class ConnectorCatalogLoader {
         private int characters;
         private boolean partial;
         private boolean truncated;
+
+        private static Projection fromSnapshot(
+            ConnectorCatalogSnapshot snapshot,
+            String threadId
+        ) {
+            Projection projection = new Projection();
+            if (snapshot == null || !threadId.equals(snapshot.getThreadId())) {
+                return projection;
+            }
+            projection.truncated = snapshot.isTruncated();
+            projection.partial = snapshot.isTruncated();
+            for (ConnectorInfo connector : snapshot.getConnectors()) {
+                if (!connector.isOffered()) {
+                    continue;
+                }
+                Candidate candidate = new Candidate(
+                    connector.getId(),
+                    connector.getName(),
+                    connector.getDescription(),
+                    connector.getInstallUrl(),
+                    connector.isAccessible(),
+                    connector.isEnabled(),
+                    1_000
+                );
+                candidate.toolCount = connector.getToolCount();
+                projection.candidates.put(connector.getProvider(), candidate);
+                projection.characters += connector.getId().length()
+                    + connector.getName().length()
+                    + connector.getDescription().length()
+                    + connector.getInstallUrl().length();
+            }
+            if (!projection.hasBudget()) {
+                projection.partial = true;
+                projection.truncated = true;
+            }
+            return projection;
+        }
 
         private boolean hasBudget() {
             return characters <= MAXIMUM_PROJECTED_CHARACTERS;

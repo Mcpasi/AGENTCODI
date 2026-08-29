@@ -61,9 +61,9 @@ AGENTCODI does more than display a Codex conversation.
 | Python | Packaged runtime |
 | ripgrep | Packaged no-PCRE2 runtime exposed as `rg` |
 | MCP management | Native Android interface backed by Codex configuration RPCs |
-| Hosted connectors | Gmail and GitHub discovered and invoked through Codex Apps/MCP |
+| Gmail and GitHub | One-tap browser sign-in, automatic selection and direct use in the next Codex message |
 
-The current AGENTCODI 0.6.4 runtime uses **Codex app-server 0.148.1** together with the matching code-mode host from the same pinned artifact.
+The current AGENTCODI 0.6.6 runtime uses **Codex app-server 0.148.1** together with the matching code-mode host from the same pinned artifact.
 
 ---
 
@@ -81,7 +81,7 @@ AGENTCODI exposes the parts of the Codex app-server workflow that matter during 
 - Permanently delete a thread after an explicit confirmation
 - Stream responses live
 - Import external documents directly from the chat composer
-- Attach callable hosted Gmail and GitHub connectors to the next message
+- Connect Gmail and GitHub and use them in the next Codex message
 - Correct or add guidance to an active turn without starting a new turn
 - Start a custom workspace review on the current thread
 - Interrupt active turns
@@ -92,7 +92,7 @@ While a turn is running, the composer switches to **Add guidance** and sends a c
 
 Thread actions are disabled while a turn or native approval/input request is active. Archiving is reversible through the archived view; permanent deletion is a distinct Codex RPC and always requires confirmation. If the currently open thread is archived or deleted, AGENTCODI clears only its in-memory conversation projection. Private workspace files, including imported copies, are not deleted as a side effect.
 
-The chat surface uses compact, accessible icon actions with 48 dp touch targets, localized screen-reader labels and long-press tooltips. Workspace files, terminal and settings live in the header; file import and hosted connector selection sit directly to the left of the composer. Review and Stop share a contextual slot so Stop remains available during an active turn without crowding the input. These local vector resources come from the pinned Apache-2.0 Material Icons source documented in `NOTICE.md`.
+The chat surface uses compact, accessible icon actions with 48 dp touch targets, localized screen-reader labels and long-press tooltips. Workspace files, terminal and settings live in the header; file import and Gmail/GitHub connection sit directly to the left of the composer. Review and Stop share a contextual slot so Stop remains available during an active turn without crowding the input. These local vector resources come from the pinned Apache-2.0 Material Icons source documented in `NOTICE.md`.
 
 ### Review mode
 
@@ -128,7 +128,7 @@ Selections are validated against the options reported by the app-server.
 
 ### Execution modes
 
-AGENTCODI 0.6.4 offers two explicitly separated execution modes:
+AGENTCODI 0.6.6 offers two explicitly separated execution modes:
 
 | Mode | App-server profile | Filesystem behavior |
 |---|---|---|
@@ -150,7 +150,7 @@ AGENTCODI supports:
 
 Authentication controls are kept in the settings surface.
 
-Gmail and GitHub authentication is not implemented or stored by AGENTCODI. If Codex reports that a hosted connector needs installation or reauthentication, the connector screen can open only the validated HTTPS `installUrl` supplied by the app-server under an `openai.com` or `chatgpt.com` host. The hosted account flow owns provider credentials and tokens.
+Gmail and GitHub use a simple **Sign in → finish in the browser → return to AGENTCODI** flow. The secure sign-in action remains available independently of the **Use with Codex** action, including when Codex already reports the service as callable. On return, AGENTCODI performs at most two bounded checks and automatically prepares only the freshly confirmed service for the next message. Provider passwords and tokens are never collected or stored by AGENTCODI. The screen accepts only the validated HTTPS `installUrl` supplied by Codex below `openai.com` or `chatgpt.com`.
 
 ---
 
@@ -295,15 +295,23 @@ This catalog remains a read-only projection of what Codex reports.
 
 ---
 
-## Hosted Gmail and GitHub connectors
+## Gmail and GitHub
 
-The connector icon in the chat composer opens a non-exported native picker for Gmail and GitHub. AGENTCODI reads the active app-server's bounded `app/list`, `app/installed` and `app/read` projections; it does not implement Gmail or GitHub APIs, download connector code or call connector tools itself.
+The Gmail/GitHub icon in the chat composer opens a native connection screen with a three-step guide:
+
+1. Tap **Sign in to Gmail** or **Sign in to GitHub**.
+2. Complete the secure account flow in the system browser.
+3. Return to AGENTCODI. The app checks the connection and selects the service automatically for the next Codex message.
+
+Already connected services can be selected or removed manually, while their separate **Manage sign-in** action stays available. Both services can still be attached to the same message. Changing chats, losing the runtime connection or sending successfully clears the transient per-message selection exactly as before.
+
+AGENTCODI reads the active app-server's bounded `app/list`, `app/installed` and `app/read` projections; it does not implement Gmail or GitHub APIs, download connector code or call connector tools itself. Public directory data is published as soon as it is safe, so a trusted sign-in link is not hidden while runtime availability is still being checked. Essential directory and runtime checks run concurrently when fresh accessibility is required and settle within a shared finite budget; later checks use only `app/installed` once accessibility is current. A request that was already running before the browser return is never accepted as the sign-in confirmation. Optional `app/read` display metadata runs separately and cannot block sign-in, callability or a subsequent refresh.
 
 The app-server protocol can publish the complete merged catalog in an unpaginated `app/list/updated` notification. AGENTCODI does not consume that stream and opts out during `initialize`; connector discovery continues through the bounded paginated requests. The existing 1 MiB Java/native framing limit remains unchanged and unrelated oversized protocol data still fails closed.
 
-Only an app that is accessible, enabled, present in the committed runtime snapshot and reported as callable can be attached. The selection is bounded to Gmail and GitHub, tied to the active thread and kept only in memory for the next message. Immediately before `turn/start` or `turn/steer`, the current snapshot is checked again. Codex receives its supported `$app-id` directive together with the native `{type: "mention", name, path: "app://id"}` input. No connector URL, token, schema, response or extra permission root is added to the turn.
+Only an app that is accessible, enabled, present in the committed runtime snapshot and reported as callable can be selected—even after the browser returns. The selection is bounded to Gmail and GitHub, tied to the active thread and kept only in memory for the next message. Immediately before `turn/start` or `turn/steer`, the current snapshot is checked again. Codex receives its supported `$app-id` directive together with the native `{type: "mention", name, path: "app://id"}` input. No connector URL, token, schema, response or extra permission root is added to the turn.
 
-Installation and reauthentication remain hosted by ChatGPT/Codex. The native picker accepts only app-server-provided HTTPS pages below `openai.com` or `chatgpt.com` and opens them in the external browser; AGENTCODI has no connector WebView, OAuth callback, client secret or token store.
+Installation and reauthentication remain owned by ChatGPT/Codex. The native screen accepts only app-server-provided HTTPS pages below `openai.com` or `chatgpt.com` and opens them in the external browser; AGENTCODI has no connector WebView, OAuth callback, client secret or token store.
 
 ---
 
@@ -381,7 +389,7 @@ Pinned Codex app-server
        +---- Interactive terminal
        +---- Node.js / npm / Python / ripgrep
        +---- MCP / Skills / Tools
-       +---- Hosted Gmail / GitHub Apps
+       +---- Codex Gmail / GitHub Apps
 ```
 
 Java does not directly spawn the runtime processes.
@@ -417,7 +425,7 @@ Current safeguards include:
 - Bounded protocol messages
 - Bounded terminal input and output
 - Bounded, thread-scoped, transient Gmail/GitHub selections with callable-state revalidation before send
-- Hosted connector authentication restricted to validated OpenAI/ChatGPT HTTPS pages, with no local connector credentials or OAuth callback
+- Gmail/GitHub sign-in restricted to validated OpenAI/ChatGPT HTTPS pages, with no local credentials or OAuth callback
 - A private alias-only tool `PATH`, mandatory Node.js/Python/ripgrep ELF guards, and in-binary guard attestation that enforce activation and block ripgrep preprocessor, archive-search and symlink-follow modes even for absolute invocations or substituted policy libraries
 - Credential detection and redaction in sensitive paths
 - Explicit approval handling
@@ -436,7 +444,7 @@ Several sensitive byte and character buffers are explicitly cleared after use.
 
 Current release line:
 
-### AGENTCODI 0.6.4
+### AGENTCODI 0.6.6
 
 | Requirement | Value |
 |---|---|
@@ -477,7 +485,7 @@ Production signing uses the separate release path:
 
 Release credentials and the expected signing certificate are supplied externally to the build process.
 
-The architecture gate also checks important project invariants, including module boundaries, MCP and hosted-connector access boundaries, native process ownership, signing requirements and supported source languages.
+The architecture gate also checks important project invariants, including module boundaries, MCP and Gmail/GitHub trust boundaries, native process ownership, signing requirements and supported source languages.
 
 Physical Android hardware is used separately to validate installation, UI behavior, lifecycle behavior and long-running runtime sessions.
 
@@ -487,7 +495,7 @@ Physical Android hardware is used separately to validate installation, UI behavi
 
 AGENTCODI is under active development.
 
-Version 0.6.4 currently focuses heavily on:
+Version 0.6.6 currently focuses heavily on:
 
 - Native Codex runtime integration
 - A fail-closed app-server `fork()`/`execve()` boundary that prevents unrelated parent file descriptors from entering the Codex child and combines an isolated child process group with parent-side subreaper ownership
@@ -499,7 +507,7 @@ Version 0.6.4 currently focuses heavily on:
 - A native custom-only inline review flow with bounded instructions, bounded split-ID correlation, reliable completion and a stop path that remains available during a pending review start
 - Read-only, app-server-owned ChatGPT quota visibility
 - MCP visibility and guarded configuration
-- Native, per-message Gmail/GitHub selection backed only by the hosted Codex Apps/MCP catalog and hosted authentication
+- Beginner-friendly Gmail/GitHub connection with an always-available secure sign-in/manage action, staged and bounded availability checks, at most two post-return checks, automatic selection only after fresh confirmation and unchanged pre-send callability checks
 - Packaged development toolchains with activation-bound and in-binary-attested native ELF guards plus a pinned no-PCRE2 ripgrep bridge
 - Android runtime stability
 - Workspace boundaries

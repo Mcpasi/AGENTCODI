@@ -34,7 +34,8 @@ public final class ConnectorCatalogLoaderTest {
         preservesTrustedSignInWhenRuntimeVerificationFails();
         optionalDetailsNeverBlockRuntimeRefresh();
         refreshesOnlyRuntimeAvailabilityAfterDiscovery();
-        return 10;
+        failedDirectoryCannotBeLaunderedByRuntimeRefresh();
+        return 11;
     }
 
     private static void projectsOnlyHostedGmailAndGitHub() {
@@ -433,6 +434,89 @@ public final class ConnectorCatalogLoaderTest {
         controller.close();
     }
 
+    private static void failedDirectoryCannotBeLaunderedByRuntimeRefresh()
+        throws Exception {
+        FixtureRpc rpc = new FixtureRpc(false);
+        ConnectorCatalogController controller = new ConnectorCatalogController(rpc);
+        TestSupport.assertTrue(
+            controller.refresh(false, false),
+            "initial verified connector discovery starts"
+        );
+        waitForSettled(controller, 3_000L);
+        ConnectorInfo verifiedGmail = controller.snapshot().find(ConnectorProvider.GMAIL);
+        TestSupport.assertTrue(
+            controller.snapshot().hasReusableDirectoryState(),
+            "successful directory state is reusable"
+        );
+        TestSupport.assertTrue(verifiedGmail.isCallable(), "initial Gmail state is callable");
+
+        rpc.failDirectory = true;
+        long verifiedRevision = controller.snapshot().getRevision();
+        TestSupport.assertTrue(
+            controller.refresh(true, true),
+            "failing forced directory verification starts"
+        );
+        waitForRevision(controller, verifiedRevision, 3_000L);
+        ConnectorCatalogSnapshot failed = controller.snapshot();
+        ConnectorInfo retainedGmail = failed.find(ConnectorProvider.GMAIL);
+        TestSupport.assertEquals(
+            ConnectorPhase.FAILED,
+            failed.getPhase(),
+            "failed app/list remains an explicit failed catalog"
+        );
+        TestSupport.assertTrue(
+            retainedGmail.isOffered() && retainedGmail.hasTrustedInstallUrl(),
+            "failed catalog may retain bounded public display metadata"
+        );
+        TestSupport.assertFalse(
+            failed.hasReusableDirectoryState(),
+            "failed display metadata is not reusable directory proof"
+        );
+        TestSupport.assertFalse(
+            retainedGmail.isCallable(),
+            "failed directory verification clears callability"
+        );
+
+        rpc.clearCalls();
+        long failedRevision = failed.getRevision();
+        TestSupport.assertFalse(
+            controller.refreshInstalled(true),
+            "app/installed alone cannot reuse a failed directory snapshot"
+        );
+        TestSupport.assertEquals(
+            Collections.emptyList(),
+            rpc.methodsSnapshot(),
+            "rejected runtime-only refresh sends no catalog RPC"
+        );
+        TestSupport.assertEquals(
+            Long.valueOf(failedRevision),
+            Long.valueOf(controller.snapshot().getRevision()),
+            "rejected runtime-only refresh cannot create a READY revision"
+        );
+        TestSupport.assertEquals(
+            ConnectorPhase.FAILED,
+            controller.snapshot().getPhase(),
+            "failed catalog cannot be laundered to READY"
+        );
+
+        rpc.failDirectory = false;
+        TestSupport.assertTrue(
+            controller.refresh(true, true),
+            "full directory and runtime revalidation can recover"
+        );
+        waitForRevision(controller, failedRevision, 3_000L);
+        TestSupport.assertEquals(
+            ConnectorPhase.READY,
+            controller.snapshot().getPhase(),
+            "successful app/list and app/installed restore READY"
+        );
+        TestSupport.assertTrue(
+            controller.snapshot().find(ConnectorProvider.GMAIL).isCallable(),
+            "successful full revalidation preserves connector functionality"
+        );
+        controller.close();
+    }
+
     private static void waitForSettled(
         ConnectorCatalogController controller,
         long timeoutMilliseconds
@@ -503,6 +587,7 @@ public final class ConnectorCatalogLoaderTest {
         private final boolean untrustedGithubUrl;
         private String threadId = "thr_fixture";
         private volatile boolean blockInstalled;
+        private volatile boolean failDirectory;
         private volatile boolean failInstalled;
         private volatile boolean failDetails;
         private volatile boolean blockDetails;
@@ -540,6 +625,9 @@ public final class ConnectorCatalogLoaderTest {
             timeouts.add(Long.valueOf(timeoutMilliseconds));
             TestSupport.assertTrue(timeoutMilliseconds > 0L, "finite connector RPC timeout");
             if ("app/list".equals(method)) {
+                if (failDirectory) {
+                    throw new IllegalStateException("Directory fixture failure");
+                }
                 if ("page-2".equals(JsonCodec.optionalString(params.get("cursor")))) {
                     return JsonCodec.object(
                         "data", JsonCodec.array(app(

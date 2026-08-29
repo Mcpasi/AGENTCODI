@@ -161,7 +161,7 @@ public final class ConnectorCatalogLoader {
         ConnectorCatalogSnapshot previous
     ) throws Exception {
         String threadId = validatedThreadId(requestedThreadId);
-        Projection projection = Projection.fromSnapshot(previous, threadId);
+        Projection projection = Projection.fromReusableDirectorySnapshot(previous, threadId);
         if (projection.candidates.isEmpty()) {
             throw new IllegalStateException("No connector directory state is available");
         }
@@ -191,7 +191,7 @@ public final class ConnectorCatalogLoader {
             throw new IllegalArgumentException("Degraded connector phase is invalid");
         }
         String threadId = validatedThreadId(requestedThreadId);
-        Projection projection = Projection.fromSnapshot(previous, threadId);
+        Projection projection = Projection.fromRetainedDisplaySnapshot(previous, threadId);
         projection.installed.clear();
         LoadState state = new LoadState(revision, threadId, projection);
         return project(state, phase);
@@ -595,7 +595,17 @@ public final class ConnectorCatalogLoader {
         private boolean partial;
         private boolean truncated;
 
-        private static Projection fromSnapshot(
+        private static Projection fromReusableDirectorySnapshot(
+            ConnectorCatalogSnapshot snapshot,
+            String threadId
+        ) {
+            if (snapshot == null || !snapshot.hasReusableDirectoryState()) {
+                return new Projection();
+            }
+            return fromRetainedDisplaySnapshot(snapshot, threadId);
+        }
+
+        private static Projection fromRetainedDisplaySnapshot(
             ConnectorCatalogSnapshot snapshot,
             String threadId
         ) {

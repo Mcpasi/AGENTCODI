@@ -105,6 +105,18 @@ public final class ConnectorCatalogSnapshot {
         return truncated;
     }
 
+    public boolean hasReusableDirectoryState() {
+        if (phase != ConnectorPhase.READY && phase != ConnectorPhase.PARTIAL) {
+            return false;
+        }
+        for (ConnectorInfo connector : connectors) {
+            if (connector.isOffered()) {
+                return true;
+            }
+        }
+        return false;
+    }
+
     public ConnectorInfo find(ConnectorProvider provider) {
         for (ConnectorInfo connector : connectors) {
             if (connector.getProvider() == provider) {

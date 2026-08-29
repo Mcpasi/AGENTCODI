@@ -194,6 +194,7 @@ fi
 connector_activity="$PROJECT_ROOT/app/src/main/java/de/agentcodi/app/ConnectorActivity.java"
 connector_loader="$connector_client/de/agentcodi/connectors/client/ConnectorCatalogLoader.java"
 connector_controller="$connector_client/de/agentcodi/connectors/client/ConnectorCatalogController.java"
+connector_snapshot="$connector_contracts/de/agentcodi/connectors/ConnectorCatalogSnapshot.java"
 connector_url="$connector_contracts/de/agentcodi/connectors/ConnectorInstallUrl.java"
 if rg -n '^import de\.agentcodi\.' "$connector_contracts" \
     || rg -n '^import de\.agentcodi\.(app|runtime|storage|imports|mcp|browser|mode|review)\.' "$connector_client" \
@@ -217,6 +218,9 @@ if rg -n '^import de\.agentcodi\.' "$connector_contracts" \
     || ! rg -q 'runtimeExecutor' "$connector_controller" \
     || ! rg -q 'detailsExecutor' "$connector_controller" \
     || ! rg -q 'queryInstalledAsync' "$connector_controller" \
+    || ! rg -q 'hasReusableDirectoryState' "$connector_snapshot" \
+    || ! rg -q 'previous\.hasReusableDirectoryState' "$connector_controller" \
+    || ! rg -q 'fromReusableDirectorySnapshot' "$connector_loader" \
     || ! rg -q 'ConnectorInstallUrl\.isTrusted' "$connector_loader" "$connector_activity" \
     || ! rg -q 'lowerHost\.endsWith\("\.openai\.com"\)' "$connector_url" \
     || ! rg -q 'lowerHost\.endsWith\("\.chatgpt\.com"\)' "$connector_url" \
@@ -225,6 +229,7 @@ if rg -n '^import de\.agentcodi\.' "$connector_contracts" \
     || ! rg -q 'MAXIMUM_AUTOMATIC_CONNECTION_CHECKS = 2' "$connector_activity" \
     || ! rg -q 'refreshConnectorAvailability' "$connector_activity" \
     || ! rg -q 'needsFreshDirectory' "$connector_activity" \
+    || ! rg -q '!catalog\.hasReusableDirectoryState' "$connector_activity" \
     || ! rg -q 'catalog\.getRevision\(\) < pendingConnectionCheckRevision' "$connector_activity" \
     || ! rg -U -q 'if \(catalog\.getPhase\(\) == ConnectorPhase\.LOADING\) \{\n[[:space:]]*// A refresh that began before the browser return' "$connector_activity" \
     || ! rg -q 'connector_manage_sign_in_provider' "$connector_activity" \
@@ -247,6 +252,7 @@ if rg -n '^import de\.agentcodi\.' "$connector_contracts" \
     || ! rg -q '"app://" \+ id' "$PROJECT_ROOT/modules/core/src/main/java/de/agentcodi/core/CodexAppMention.java" \
     || ! rg -q '\$gmail \$github' "$PROJECT_ROOT/tests/java/de/agentcodi/tests/CodexSessionControllerTest.java" \
     || ! rg -q 'ConnectorCatalogLoaderTest\.run' "$PROJECT_ROOT/tests/java/de/agentcodi/tests/TestMain.java" \
+    || ! rg -q 'failedDirectoryCannotBeLaunderedByRuntimeRefresh' "$PROJECT_ROOT/tests/java/de/agentcodi/tests/ConnectorCatalogLoaderTest.java" \
     || ! rg -q 'suppressesUnboundedConnectorCatalogNotifications' "$PROJECT_ROOT/tests/java/de/agentcodi/tests/CodexSessionControllerTest.java" \
     || ! rg -q -- '--connector-roundtrip' "$PROJECT_ROOT/tests/cpp/agentcodi_engine_test.cpp" \
     || ! rg -q -- '--emit-oversized-app-list-update' "$PROJECT_ROOT/tests/cpp/agentcodi_engine_test.cpp" \
@@ -1008,13 +1014,13 @@ if ! rg -q 'PYTHON_SOURCE_EXTENSION_COUNT="75"' "$apk_builder" \
   exit 1
 fi
 
-if ! rg -q 'VERSION_NAME = "0\.6\.6"' "$core_root/BuildIdentity.java" \
-    || ! rg -q 'VERSION_CODE = 73' "$core_root/BuildIdentity.java" \
+if ! rg -q 'VERSION_NAME = "0\.6\.7"' "$core_root/BuildIdentity.java" \
+    || ! rg -q 'VERSION_CODE = 74' "$core_root/BuildIdentity.java" \
     || ! rg -q 'CODEX_RUNTIME_VERSION = "0\.148\.1"' "$core_root/BuildIdentity.java" \
-    || ! rg -q 'android:versionName="0\.6\.6"' "$manifest" \
-    || ! rg -q 'android:versionCode="73"' "$manifest" \
-    || ! rg -q 'APP_VERSION="0\.6\.6"' "$apk_builder" \
-    || ! rg -q 'VERSION_CODE="73"' "$apk_builder" \
+    || ! rg -q 'android:versionName="0\.6\.7"' "$manifest" \
+    || ! rg -q 'android:versionCode="74"' "$manifest" \
+    || ! rg -q 'APP_VERSION="0\.6\.7"' "$apk_builder" \
+    || ! rg -q 'VERSION_CODE="74"' "$apk_builder" \
     || ! rg -q 'CODEX_ANDROID_VERSION="0\.148\.1"' "$apk_builder" \
     || ! rg -q 'CODEX_TERMUX_SOURCE_TAG="v0\.148\.1"' "$apk_builder" \
     || ! rg -q 'CODEX_TERMUX_SOURCE_COMMIT="9d48c76abec320ae3724164d0177299b1acd31ca"' "$apk_builder" \
@@ -1035,7 +1041,7 @@ if ! rg -q 'VERSION_NAME = "0\.6\.6"' "$core_root/BuildIdentity.java" \
     || ! rg -q '9d48c76abec320ae3724164d0177299b1acd31ca' "$PROJECT_ROOT/app/src/main/res/raw/third_party_notices.txt" \
     || ! rg -q '3ba0f711642a888aec92a611a3f3b2211157ff89' "$PROJECT_ROOT/NOTICE.md" \
     || ! rg -q '3ba0f711642a888aec92a611a3f3b2211157ff89' "$PROJECT_ROOT/app/src/main/res/raw/third_party_notices.txt"; then
-  echo "The 0.6.6 / Codex 0.148.1 identity is inconsistent." >&2
+  echo "The 0.6.7 / Codex 0.148.1 identity is inconsistent." >&2
   exit 1
 fi
 

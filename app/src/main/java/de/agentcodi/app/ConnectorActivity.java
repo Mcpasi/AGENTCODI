@@ -527,7 +527,8 @@ public final class ConnectorActivity extends Activity {
             return;
         }
         ConnectorInfo pendingConnector = catalog.find(pendingConnectionProvider);
-        boolean needsFreshDirectory = !pendingConnector.isOffered()
+        boolean needsFreshDirectory = !catalog.hasReusableDirectoryState()
+            || !pendingConnector.isOffered()
             || !pendingConnector.isAccessible();
         boolean began = needsFreshDirectory
             ? AgentRuntimeService.refreshConnectorCatalog(true, true)

@@ -3,8 +3,8 @@ package de.agentcodi.core;
 public final class BuildIdentity {
     public static final String APP_NAME = "AGENTCODI";
     public static final String APPLICATION_ID = "de.agentcodi.app";
-    public static final String VERSION_NAME = "0.6.6";
-    public static final int VERSION_CODE = 73;
+    public static final String VERSION_NAME = "0.6.7";
+    public static final int VERSION_CODE = 74;
     public static final String CODEX_RUNTIME_VERSION = "0.148.1";
     public static final String CODEX_RUNTIME_LIBRARY = "libcodex.so";
     public static final String CODEX_CODE_MODE_HOST_LIBRARY = "libcodex-codehost.so";

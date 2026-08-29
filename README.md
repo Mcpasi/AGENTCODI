@@ -63,7 +63,7 @@ AGENTCODI does more than display a Codex conversation.
 | MCP management | Native Android interface backed by Codex configuration RPCs |
 | Gmail and GitHub | One-tap browser sign-in, automatic selection and direct use in the next Codex message |
 
-The current AGENTCODI 0.6.6 runtime uses **Codex app-server 0.148.1** together with the matching code-mode host from the same pinned artifact.
+The current AGENTCODI 0.6.7 runtime uses **Codex app-server 0.148.1** together with the matching code-mode host from the same pinned artifact.
 
 ---
 
@@ -128,7 +128,7 @@ Selections are validated against the options reported by the app-server.
 
 ### Execution modes
 
-AGENTCODI 0.6.6 offers two explicitly separated execution modes:
+AGENTCODI 0.6.7 offers two explicitly separated execution modes:
 
 | Mode | App-server profile | Filesystem behavior |
 |---|---|---|
@@ -305,7 +305,7 @@ The Gmail/GitHub icon in the chat composer opens a native connection screen with
 
 Already connected services can be selected or removed manually, while their separate **Manage sign-in** action stays available. Both services can still be attached to the same message. Changing chats, losing the runtime connection or sending successfully clears the transient per-message selection exactly as before.
 
-AGENTCODI reads the active app-server's bounded `app/list`, `app/installed` and `app/read` projections; it does not implement Gmail or GitHub APIs, download connector code or call connector tools itself. Public directory data is published as soon as it is safe, so a trusted sign-in link is not hidden while runtime availability is still being checked. Essential directory and runtime checks run concurrently when fresh accessibility is required and settle within a shared finite budget; later checks use only `app/installed` once accessibility is current. A request that was already running before the browser return is never accepted as the sign-in confirmation. Optional `app/read` display metadata runs separately and cannot block sign-in, callability or a subsequent refresh.
+AGENTCODI reads the active app-server's bounded `app/list`, `app/installed` and `app/read` projections; it does not implement Gmail or GitHub APIs, download connector code or call connector tools itself. Public directory data is published as soon as it is safe, so a trusted sign-in link is not hidden while runtime availability is still being checked. Essential directory and runtime checks run concurrently when fresh accessibility is required and settle within a shared finite budget; later checks use only `app/installed` once a successful directory phase is still current. If `app/list` fails, retained public metadata remains display-only: a runtime-only refresh cannot turn that failed snapshot into `READY`, and recovery requires another successful directory check. A request that was already running before the browser return is never accepted as the sign-in confirmation. Optional `app/read` display metadata runs separately and cannot block sign-in, callability or a subsequent refresh.
 
 The app-server protocol can publish the complete merged catalog in an unpaginated `app/list/updated` notification. AGENTCODI does not consume that stream and opts out during `initialize`; connector discovery continues through the bounded paginated requests. The existing 1 MiB Java/native framing limit remains unchanged and unrelated oversized protocol data still fails closed.
 
@@ -444,7 +444,7 @@ Several sensitive byte and character buffers are explicitly cleared after use.
 
 Current release line:
 
-### AGENTCODI 0.6.6
+### AGENTCODI 0.6.7
 
 | Requirement | Value |
 |---|---|
@@ -495,7 +495,7 @@ Physical Android hardware is used separately to validate installation, UI behavi
 
 AGENTCODI is under active development.
 
-Version 0.6.6 currently focuses heavily on:
+Version 0.6.7 currently focuses heavily on:
 
 - Native Codex runtime integration
 - A fail-closed app-server `fork()`/`execve()` boundary that prevents unrelated parent file descriptors from entering the Codex child and combines an isolated child process group with parent-side subreaper ownership
@@ -507,7 +507,7 @@ Version 0.6.6 currently focuses heavily on:
 - A native custom-only inline review flow with bounded instructions, bounded split-ID correlation, reliable completion and a stop path that remains available during a pending review start
 - Read-only, app-server-owned ChatGPT quota visibility
 - MCP visibility and guarded configuration
-- Beginner-friendly Gmail/GitHub connection with an always-available secure sign-in/manage action, staged and bounded availability checks, at most two post-return checks, automatic selection only after fresh confirmation and unchanged pre-send callability checks
+- Beginner-friendly Gmail/GitHub connection with an always-available secure sign-in/manage action, staged and bounded availability checks, failed-directory provenance preserved across runtime-only refreshes, at most two post-return checks, automatic selection only after fresh confirmation and unchanged pre-send callability checks
 - Packaged development toolchains with activation-bound and in-binary-attested native ELF guards plus a pinned no-PCRE2 ripgrep bridge
 - Android runtime stability
 - Workspace boundaries

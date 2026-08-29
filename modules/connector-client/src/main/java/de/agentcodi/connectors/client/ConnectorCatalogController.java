@@ -159,7 +159,8 @@ public final class ConnectorCatalogController implements AutoCloseable {
             return false;
         }
         final ConnectorCatalogSnapshot previous = snapshot;
-        if (!threadId.equals(previous.getThreadId()) || !hasDirectoryState(previous)) {
+        if (!threadId.equals(previous.getThreadId())
+            || !previous.hasReusableDirectoryState()) {
             return false;
         }
         refreshActive = true;
@@ -330,15 +331,6 @@ public final class ConnectorCatalogController implements AutoCloseable {
         } catch (RuntimeException error) {
             return "";
         }
-    }
-
-    private static boolean hasDirectoryState(ConnectorCatalogSnapshot value) {
-        for (ConnectorInfo connector : value.getConnectors()) {
-            if (connector.isOffered()) {
-                return true;
-            }
-        }
-        return false;
     }
 
     public synchronized boolean areCallable(List<ConnectorSelection> selections) {

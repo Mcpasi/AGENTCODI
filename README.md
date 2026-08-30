@@ -23,6 +23,17 @@
 
 ---
 
+p align="center">
+  <img src="screenshots/AGENTCODI_1.jpg" width="30%">
+  &nbsp;
+  <img src="screenshots/AGENTCODI_2.jpg" width="30%">
+  &nbsp;
+  <img src="screenshots/AGENTCODI_3.jpg" width="30%">
+</p>
+
+---
+
+
 ## Codex development in your pocket
 
 AGENTCODI is a native Android app that turns an ARM64 phone or tablet into a workspace for Codex.

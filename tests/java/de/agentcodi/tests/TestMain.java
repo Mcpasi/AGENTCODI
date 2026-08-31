@@ -12,6 +12,7 @@ public final class TestMain {
         passed += CustomReviewModeTest.run();
         passed += JsonCodecTest.run();
         passed += CodexAppServerClientTest.run();
+        passed += CodexLargeIncomingFrameTest.run();
         passed += CodexWorkspaceAttachmentContextTest.run();
         passed += CodexSessionControllerTest.run();
         passed += McpCatalogLoaderTest.run();

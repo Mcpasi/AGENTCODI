@@ -261,7 +261,7 @@ Java_de_agentcodi_runtime_NativeEngine_nativeReadAppServerLine(
     jclass,
     jlong handle,
     jint maximum_bytes) {
-  if (maximum_bytes <= 0 || maximum_bytes > 1024 * 1024) {
+  if (maximum_bytes <= 0 || maximum_bytes > 16 * 1024 * 1024) {
     throw_io_exception(environment, "Incoming app-server byte limit is invalid");
     return nullptr;
   }

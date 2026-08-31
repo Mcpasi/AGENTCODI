@@ -15,7 +15,7 @@ import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.concurrent.atomic.AtomicLong;
 
 public final class CodexAppServerClient implements AutoCloseable {
-    public static final int MAX_INCOMING_BYTES = 1024 * 1024;
+    public static final int MAX_INCOMING_BYTES = 16 * 1024 * 1024;
     public static final int MAX_OUTGOING_BYTES = 256 * 1024;
     public static final long MAX_REQUEST_ID = Integer.MAX_VALUE;
     public static final int MAX_PENDING_SERVER_REQUESTS = 16;

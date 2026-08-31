@@ -8,9 +8,11 @@ import java.util.Map;
 
 public final class JsonCodec {
     private static final int MAX_INPUT_CHARACTERS = 16 * 1024 * 1024;
+    private static final int MAX_OUTPUT_CHARACTERS = 1024 * 1024;
     private static final int MAX_DEPTH = 64;
     private static final int MAX_CONTAINER_ENTRIES = 10_000;
-    private static final int MAX_STRING_CHARACTERS = 16 * 1024 * 1024;
+    private static final int MAX_INPUT_STRING_CHARACTERS = 16 * 1024 * 1024;
+    private static final int MAX_OUTPUT_STRING_CHARACTERS = 512 * 1024;
 
     private JsonCodec() {
     }
@@ -32,7 +34,7 @@ public final class JsonCodec {
     public static String stringify(Object value) {
         StringBuilder output = new StringBuilder();
         appendValue(output, value, 0);
-        if (output.length() > MAX_INPUT_CHARACTERS) {
+        if (output.length() > MAX_OUTPUT_CHARACTERS) {
             throw new IllegalArgumentException("JSON exceeds the output limit");
         }
         return output.toString();
@@ -179,7 +181,7 @@ public final class JsonCodec {
     }
 
     private static void appendString(StringBuilder output, String value) {
-        if (value.length() > MAX_STRING_CHARACTERS) {
+        if (value.length() > MAX_OUTPUT_STRING_CHARACTERS) {
             throw new IllegalArgumentException("JSON string exceeds the limit");
         }
         output.append('"');
@@ -386,7 +388,7 @@ public final class JsonCodec {
                     }
                     value.append(character);
                 }
-                if (value.length() > MAX_STRING_CHARACTERS) {
+                if (value.length() > MAX_INPUT_STRING_CHARACTERS) {
                     fail("JSON string exceeds the limit");
                 }
             }
@@ -502,7 +504,7 @@ public final class JsonCodec {
     }
 
     private static void ensureOutputLimit(StringBuilder output) {
-        if (output.length() > MAX_INPUT_CHARACTERS) {
+        if (output.length() > MAX_OUTPUT_CHARACTERS) {
             throw new IllegalArgumentException("JSON exceeds the output limit");
         }
     }

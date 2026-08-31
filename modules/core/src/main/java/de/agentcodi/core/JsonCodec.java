@@ -7,10 +7,10 @@ import java.util.List;
 import java.util.Map;
 
 public final class JsonCodec {
-    private static final int MAX_INPUT_CHARACTERS = 1024 * 1024;
+    private static final int MAX_INPUT_CHARACTERS = 16 * 1024 * 1024;
     private static final int MAX_DEPTH = 64;
     private static final int MAX_CONTAINER_ENTRIES = 10_000;
-    private static final int MAX_STRING_CHARACTERS = 512 * 1024;
+    private static final int MAX_STRING_CHARACTERS = 16 * 1024 * 1024;
 
     private JsonCodec() {
     }

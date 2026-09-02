@@ -410,8 +410,10 @@ public final class WorkspaceArchive {
             collectDirectory(selectedDirectory, true);
         }
 
-        private boolean collectDirectory(String relativeDirectory, boolean selectedRoot)
-            throws IOException {
+        private List<WorkspaceDirectoryCatalog.Entry> readDirectory(
+            String relativeDirectory,
+            boolean rethrowFailure
+        ) throws IOException {
             final WorkspaceDirectoryCatalog.Snapshot snapshot;
             try {
                 snapshot = directoryReader.list(
@@ -422,11 +424,10 @@ public final class WorkspaceArchive {
                     maximumDepth
                 );
             } catch (IOException error) {
-                if (selectedRoot || Thread.currentThread().isInterrupted()) {
+                if (rethrowFailure || Thread.currentThread().isInterrupted()) {
                     throw error;
                 }
-                omitEntry();
-                return false;
+                return null;
             }
             if (snapshot == null || snapshot.getEntries() == null) {
                 throw new IOException("Workspace archive directory catalog is invalid");
@@ -441,6 +442,17 @@ public final class WorkspaceArchive {
             }
             scannedEntryCount += entries.size();
             Collections.sort(entries, ENTRY_ORDER);
+            return entries;
+        }
+
+        private boolean collectDirectory(String relativeDirectory, boolean selectedRoot)
+            throws IOException {
+            List<WorkspaceDirectoryCatalog.Entry> entries =
+                readDirectory(relativeDirectory, selectedRoot);
+            if (entries == null) {
+                omitEntry();
+                return false;
+            }
             Set<String> rawChildren = new HashSet<String>();
             for (WorkspaceDirectoryCatalog.Entry entry : entries) {
                 if (Thread.currentThread().isInterrupted()) {
@@ -459,6 +471,7 @@ public final class WorkspaceArchive {
                 if (entry.getKind() == WorkspaceDirectoryCatalog.Entry.Kind.DIRECTORY) {
                     if (!portablePaths.reserveDirectory(archivePath)) {
                         omitEntry();
+                        omitDirectorySubtree(childPath);
                         continue;
                     }
                     int memberCountBeforeDirectory = members.size();
@@ -514,6 +527,32 @@ public final class WorkspaceArchive {
                 members.add(new ArchiveMember(source, archivePath));
             }
             return true;
+        }
+
+        // A directory that cannot receive a safe archive name hides every entry
+        // below it from the ZIP. Those entries are still scanned and counted so
+        // the reported omission count matches what the archive actually leaves
+        // out; nothing below such a directory is opened, reserved or exported.
+        private void omitDirectorySubtree(String relativeDirectory) throws IOException {
+            List<WorkspaceDirectoryCatalog.Entry> entries =
+                readDirectory(relativeDirectory, false);
+            if (entries == null) {
+                return;
+            }
+            Set<String> rawChildren = new HashSet<String>();
+            for (WorkspaceDirectoryCatalog.Entry entry : entries) {
+                if (Thread.currentThread().isInterrupted()) {
+                    throw new IOException("Workspace archive catalog was cancelled");
+                }
+                omitEntry();
+                String childPath = directChildPath(relativeDirectory, entry);
+                if (childPath == null || !rawChildren.add(childPath)) {
+                    continue;
+                }
+                if (entry.getKind() == WorkspaceDirectoryCatalog.Entry.Kind.DIRECTORY) {
+                    omitDirectorySubtree(childPath);
+                }
+            }
         }
 
         private String archivePath(String workspaceRelativePath) throws IOException {

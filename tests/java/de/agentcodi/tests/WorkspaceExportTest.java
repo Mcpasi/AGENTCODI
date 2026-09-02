@@ -53,7 +53,8 @@ public final class WorkspaceExportTest {
         rejectsArchiveSymlinkSwapBeforeOpen();
         archivesRegularFilesWhileOmittingSymbolicEntries();
         archivesRegularFilesWhileOmittingHardLinks();
-        return 27;
+        countsEveryEntryHiddenByAnUnsafeArchiveFolder();
+        return 28;
     }
 
     private static void catalogsAllRegularFileTypes() throws Exception {
@@ -1309,6 +1310,55 @@ public final class WorkspaceExportTest {
             TestSupport.assertFalse(
                 entries.containsKey("ordinary-looking.json"),
                 "hard-linked private bytes never enter the ZIP"
+            );
+        } finally {
+            deleteRecursively(base);
+        }
+    }
+
+    private static void countsEveryEntryHiddenByAnUnsafeArchiveFolder()
+        throws Exception {
+        Path base = Files.createTempDirectory("agentcodi-export-hidden-subtree-");
+        try {
+            WorkspaceLayout layout = WorkspaceLayout.create(base.toFile());
+            Path workspace = layout.getWorkspace().toPath();
+            byte[] safe = "safe".getBytes("UTF-8");
+            Files.write(workspace.resolve("safe.txt"), safe);
+            // "aux" is a reserved portable name, so no entry below it can receive
+            // a safe archive name.
+            Files.createDirectories(workspace.resolve("aux/deep"));
+            Files.write(workspace.resolve("aux/notes.txt"), "notes".getBytes("UTF-8"));
+            Files.write(workspace.resolve("aux/deep/data.bin"), new byte[] {1, 2, 3});
+
+            ByteArrayOutputStream destination = new ByteArrayOutputStream();
+            WorkspaceArchive.Summary summary = WorkspaceArchive.write(
+                layout.getWorkspace(),
+                destination,
+                20,
+                1024L,
+                4096L,
+                256,
+                8
+            );
+            Map<String, byte[]> entries = unzip(destination.toByteArray());
+            TestSupport.assertEquals(
+                Integer.valueOf(1),
+                Integer.valueOf(summary.getFileCount()),
+                "only the safe sibling is archived"
+            );
+            TestSupport.assertTrue(
+                java.util.Arrays.equals(safe, entries.get("safe.txt")),
+                "an unsafe folder does not block its safe siblings"
+            );
+            TestSupport.assertFalse(
+                entries.containsKey("aux/notes.txt")
+                    || entries.containsKey("aux/deep/data.bin"),
+                "no unsafe archive name enters the ZIP"
+            );
+            TestSupport.assertEquals(
+                Integer.valueOf(4),
+                Integer.valueOf(summary.getOmittedEntryCount()),
+                "every entry hidden by the unsafe folder is counted as omitted"
             );
         } finally {
             deleteRecursively(base);

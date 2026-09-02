@@ -357,7 +357,13 @@ public final class McpCatalogLoader {
                 break;
             }
             Map<String, Object> app = JsonCodec.requireObject(value, "installed app");
-            String id = context.required(app.get("id"), "app id", 256);
+            String id = context.identity(app.get("id"), "app id", 256);
+            if (id.isEmpty()) {
+                // The identifier addresses app/read and indexes the detail response, so an
+                // entry that cannot be carried through unchanged is dropped, never reshaped.
+                context.truncated = true;
+                continue;
+            }
             if (records.containsKey(id)) {
                 continue;
             }
@@ -673,6 +679,34 @@ public final class McpCatalogLoader {
                 throw new IllegalArgumentException(field + " must be a string or null");
             }
             return project((String) value, maximumCharacters);
+        }
+
+        /**
+         * Projects an identifier that is used as more than display text. Identity must stay
+         * byte-exact, so a value the display projection would shorten or rewrite is reported
+         * as unusable instead of being returned in a mangled form.
+         */
+        private String identity(Object value, String field, int maximumCharacters) {
+            if (!(value instanceof String) || ((String) value).trim().isEmpty()) {
+                throw new IllegalArgumentException(field + " must be a non-empty string");
+            }
+            String raw = (String) value;
+            if (raw.length() > maximumCharacters || !raw.equals(raw.trim())
+                || hasControlCharacter(raw)
+                || !CrashReportFormatter.redact(raw).equals(raw)) {
+                return "";
+            }
+            remainingCharacters -= Math.min(raw.length(), remainingCharacters);
+            return raw;
+        }
+
+        private static boolean hasControlCharacter(String value) {
+            for (int index = 0; index < value.length(); index++) {
+                if (Character.isISOControl(value.charAt(index))) {
+                    return true;
+                }
+            }
+            return false;
         }
 
         private String project(String value, int maximumCharacters) {

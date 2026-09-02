@@ -285,13 +285,15 @@
   <string name="settings_initialization_failed">AGENTCODI konnte die Einstellungen nicht initialisieren.</string>
 
   <string name="execution_mode_section">AUSFÜHRUNGSMODUS</string>
-  <string name="execution_mode_description">Die Auswahl wird ausschließlich als natives Berechtigungsprofil an Thread, Turn und Terminal übergeben. AGENTCODI fügt dafür keine System- oder Entwickler-Prompts ein. Ein System-Neustart des Dienstes ohne neu bestätigte Auswahl verwendet den geschützten Standard.</string>
+  <string name="execution_mode_description">Ausführungsmodus und Bestätigungseinstellung werden ausschließlich als native Berechtigungs- und Zustimmungsoptionen an Threads und Turns übergeben; das Terminal verwendet weiterhin das gewählte Berechtigungsprofil. AGENTCODI fügt dafür keine System- oder Entwickler-Prompts ein. Ein System-Neustart des Dienstes ohne neu bestätigte Auswahl verwendet den geschützten Standard.</string>
   <string name="execution_mode_protected_name">Geschützt – Standard</string>
   <string name="execution_mode_compatibility_name">Kompatibilität – experimentell</string>
   <string name="execution_mode_protected_option">Geschützt – Standard\nagentcodi-workspace\nNur Workspace; Änderungen nach Möglichkeit als ein zusammengefasster Patch mit Vorschau</string>
   <string name="execution_mode_protected_selected">✓ Geschützt – Standard\nagentcodi-workspace\nNur Workspace; Änderungen nach Möglichkeit als ein zusammengefasster Patch mit Vorschau</string>
   <string name="execution_mode_compatibility_option">Kompatibilität – experimentell\n:danger-full-access\nDirekte Dateibearbeitung möglich, aber keine wirksame Dateisystem-Isolation</string>
   <string name="execution_mode_compatibility_selected">✓ Kompatibilität – experimentell\n:danger-full-access\nDirekte Dateibearbeitung möglich, aber keine wirksame Dateisystem-Isolation</string>
+  <string name="execution_mode_compatibility_approvals">Dateiänderungen und Befehle bestätigen</string>
+  <string name="execution_mode_compatibility_approvals_description">Verwendet die Codex-Zustimmungsrichtlinie „untrusted“: Vor Dateiänderungen und Befehlen außer erkannten sicheren Lesezugriffen wird nachgefragt. :danger-full-access und der vollständige Dateisystemzugriff bleiben aktiv.</string>
   <string name="execution_mode_active">Aktiv: %1$s · %2$s</string>
   <string name="execution_mode_next_start">Für den nächsten Start gewählt: %1$s · %2$s</string>
   <string name="execution_mode_change_rejected">Der Modus konnte nicht gewechselt werden. Beende zuerst den laufenden Turn, eine offene Rückfrage oder das Terminal.</string>

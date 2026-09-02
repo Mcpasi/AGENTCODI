@@ -641,6 +641,10 @@ int main(int argc, char* argv[]) {
             == std::string::npos
         || request.find("\"permissions\":\":danger-full-access\"")
             == std::string::npos
+        || request.find("\"approvalPolicy\":\"untrusted\"")
+            == std::string::npos
+        || request.find("\"approvalPolicy\":\"on-request\"")
+            != std::string::npos
         || request.find("\"baseInstructions\":") != std::string::npos
         || request.find("\"developerInstructions\":") != std::string::npos
         || request.find("\"systemPrompt\":") != std::string::npos
@@ -848,7 +852,7 @@ int main(int argc, char* argv[]) {
   }
 
   const std::string version = agentcodi::engine_version();
-  expect(version == "agentcodi-native/0.6.9", "engine version");
+  expect(version == "agentcodi-native/0.6.10", "engine version");
   expect(agentcodi::run_self_test() == 0, "native self-test");
   const std::string abc = "abc";
   expect(
@@ -2492,13 +2496,13 @@ int main(int argc, char* argv[]) {
             "\"type\":\"text\",\"text\":\"Edit the file.\"}],"
             "\"cwd\":\"/private/workspace\","
             "\"runtimeWorkspaceRoots\":[\"/private/workspace\"],"
-            "\"approvalPolicy\":\"on-request\","
+            "\"approvalPolicy\":\"untrusted\","
             "\"permissions\":\":danger-full-access\","
             "\"model\":\"gpt-5.6-sol\",\"effort\":\"high\","
             "\"summary\":\"auto\"}}";
         expect(
             process->WriteLine(turn_request, 16U * 1024U, &error),
-            "write compatibility turn request without system prompt fields");
+            "write compatibility turn with untrusted native approvals");
         expect(
             process->ReadLine(16U * 1024U, &mode_line, &error)
                     == agentcodi::LineReadStatus::kLine

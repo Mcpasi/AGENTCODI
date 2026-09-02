@@ -65,6 +65,8 @@ public final class CodexSessionControllerTest {
         suppressesUnboundedConnectorCatalogNotifications();
         usesAdvertisedModelEffortAndPermissionProfile();
         switchesToCompatibilityProfileWithoutPromptOverrides();
+        enablesCompatibilityApprovalsWithoutReducingFullAccess();
+        startsCompatibilityWithApprovalsEnabled();
         carriesCompatibilityProfileIntoTerminal();
         handlesCommandAndFileApprovals();
         acceptsFileCreationApproval();
@@ -77,7 +79,7 @@ public final class CodexSessionControllerTest {
         terminatesTerminalWhenOutputCapIsReached();
         rejectsTerminalCredentialsAndMalformedOutput();
         usesVettedMcpConfigurationRpcs();
-        return 38;
+        return 40;
     }
 
     private static void suppressesUnboundedConnectorCatalogNotifications()
@@ -2914,6 +2916,178 @@ public final class CodexSessionControllerTest {
         controller.close();
     }
 
+    private static void enablesCompatibilityApprovalsWithoutReducingFullAccess()
+        throws Exception {
+        final FixtureServer server = new FixtureServer(true);
+        final CodexSessionController controller = new CodexSessionController(
+            server,
+            "/private/workspace"
+        );
+        controller.start();
+        TestSupport.assertFalse(
+            controller.setCompatibilityApprovalsEnabled(true),
+            "protected mode rejects compatibility-only approvals"
+        );
+        TestSupport.assertFalse(
+            controller.snapshot().isCompatibilityApprovalsEnabled(),
+            "protected mode remains on its existing approval policy"
+        );
+        TestSupport.assertTrue(
+            controller.selectExecutionMode(
+                CompatibilityExecutionMode.afterWarningAcknowledged(true)
+            ),
+            "compatibility mode change queued"
+        );
+        waitFor(new Condition() {
+            @Override
+            public boolean isTrue() {
+                return "compatibility".equals(
+                        controller.snapshot().getExecutionModeId()
+                    )
+                    && !controller.snapshot().isOperationActive();
+            }
+        }, "compatibility mode activated before approval opt-in");
+        TestSupport.assertFalse(
+            controller.snapshot().isCompatibilityApprovalsEnabled(),
+            "compatibility approvals remain opt-in"
+        );
+        TestSupport.assertTrue(
+            controller.setCompatibilityApprovalsEnabled(true),
+            "compatibility approval opt-in accepted"
+        );
+        TestSupport.assertTrue(
+            controller.snapshot().isCompatibilityApprovalsEnabled(),
+            "compatibility approval choice is visible in session state"
+        );
+        TestSupport.assertEquals(
+            ":danger-full-access",
+            controller.snapshot().getPermissionProfileId(),
+            "approval opt-in does not reduce filesystem access"
+        );
+
+        controller.startNewThread();
+        waitFor(new Condition() {
+            @Override
+            public boolean isTrue() {
+                return server.lastThreadStartParams != null
+                    && !controller.snapshot().isOperationActive();
+            }
+        }, "untrusted compatibility thread/start captured");
+        assertExecutionPermissionRequest(
+            server.lastThreadStartParams,
+            ":danger-full-access",
+            "untrusted",
+            "confirmed compatibility thread/start"
+        );
+        assertNoPromptOverrides(
+            server.lastThreadStartParams,
+            "confirmed compatibility thread/start"
+        );
+
+        controller.openThread("thr_existing");
+        waitFor(new Condition() {
+            @Override
+            public boolean isTrue() {
+                return "thr_existing".equals(controller.snapshot().getActiveThreadId())
+                    && !controller.snapshot().isOperationActive();
+            }
+        }, "untrusted compatibility thread/resume captured");
+        assertExecutionPermissionRequest(
+            server.lastThreadResumeParams,
+            ":danger-full-access",
+            "untrusted",
+            "confirmed compatibility thread/resume"
+        );
+        assertNoPromptOverrides(
+            server.lastThreadResumeParams,
+            "confirmed compatibility thread/resume"
+        );
+
+        controller.sendMessage("Kompatibilitätsprofil mit nativen Bestätigungen");
+        waitFor(new Condition() {
+            @Override
+            public boolean isTrue() {
+                return server.lastTurnStartParams != null
+                    && !controller.snapshot().isOperationActive()
+                    && !controller.snapshot().isTurnActive();
+            }
+        }, "untrusted compatibility turn/start captured");
+        assertExecutionPermissionRequest(
+            server.lastTurnStartParams,
+            ":danger-full-access",
+            "untrusted",
+            "confirmed compatibility turn/start"
+        );
+        assertNoPromptOverrides(
+            server.lastTurnStartParams,
+            "confirmed compatibility turn/start"
+        );
+
+        TestSupport.assertTrue(
+            controller.setCompatibilityApprovalsEnabled(false),
+            "compatibility approval opt-out accepted"
+        );
+        TestSupport.assertFalse(
+            controller.snapshot().isCompatibilityApprovalsEnabled(),
+            "compatibility approval choice can be disabled"
+        );
+        server.lastThreadStartParams = null;
+        controller.startNewThread();
+        waitFor(new Condition() {
+            @Override
+            public boolean isTrue() {
+                return server.lastThreadStartParams != null
+                    && !controller.snapshot().isOperationActive();
+            }
+        }, "default compatibility thread/start recaptured");
+        assertExecutionPermissionRequest(
+            server.lastThreadStartParams,
+            ":danger-full-access",
+            "on-request",
+            "default compatibility thread/start after opt-out"
+        );
+        controller.close();
+    }
+
+    private static void startsCompatibilityWithApprovalsEnabled() throws Exception {
+        final FixtureServer server = new FixtureServer(true);
+        final CodexSessionController controller = new CodexSessionController(
+            server,
+            "/private/workspace",
+            null,
+            null,
+            CompatibilityExecutionMode.afterWarningAcknowledged(true),
+            null,
+            true
+        );
+        controller.start();
+        TestSupport.assertTrue(
+            controller.snapshot().isCompatibilityApprovalsEnabled(),
+            "launch-time compatibility approval choice reaches session state"
+        );
+        TestSupport.assertEquals(
+            ":danger-full-access",
+            controller.snapshot().getPermissionProfileId(),
+            "launch-time approvals preserve compatibility permission profile"
+        );
+
+        controller.startNewThread();
+        waitFor(new Condition() {
+            @Override
+            public boolean isTrue() {
+                return server.lastThreadStartParams != null
+                    && !controller.snapshot().isOperationActive();
+            }
+        }, "launch-time untrusted thread/start captured");
+        assertExecutionPermissionRequest(
+            server.lastThreadStartParams,
+            ":danger-full-access",
+            "untrusted",
+            "launch-time confirmed compatibility thread/start"
+        );
+        controller.close();
+    }
+
     private static void carriesCompatibilityProfileIntoTerminal() throws Exception {
         final FixtureServer server = new FixtureServer(true);
         final CodexSessionController controller = new CodexSessionController(
@@ -3752,9 +3926,44 @@ public final class CodexSessionControllerTest {
         assertExecutionPermissionRequest(params, "agentcodi-workspace", method);
     }
 
+    private static void assertSupportedExecutionPermissionRequest(
+        Map<String, Object> params,
+        String expectedPermissionProfile,
+        String method
+    ) {
+        String approvalPolicy = JsonCodec.requireString(
+            params.get("approvalPolicy"),
+            method + " approval policy"
+        );
+        TestSupport.assertTrue(
+            "on-request".equals(approvalPolicy) || "untrusted".equals(approvalPolicy),
+            method + " supported native approval policy"
+        );
+        assertExecutionPermissionRequest(
+            params,
+            expectedPermissionProfile,
+            approvalPolicy,
+            method
+        );
+    }
+
     private static void assertExecutionPermissionRequest(
         Map<String, Object> params,
         String expectedPermissionProfile,
+        String method
+    ) {
+        assertExecutionPermissionRequest(
+            params,
+            expectedPermissionProfile,
+            "on-request",
+            method
+        );
+    }
+
+    private static void assertExecutionPermissionRequest(
+        Map<String, Object> params,
+        String expectedPermissionProfile,
+        String expectedApprovalPolicy,
         String method
     ) {
         TestSupport.assertTrue(params != null, method + " params captured");
@@ -3769,7 +3978,7 @@ public final class CodexSessionControllerTest {
             method + " runtime workspace root"
         );
         TestSupport.assertEquals(
-            "on-request",
+            expectedApprovalPolicy,
             params.get("approvalPolicy"),
             method + " native approval policy"
         );
@@ -4164,7 +4373,7 @@ public final class CodexSessionControllerTest {
                     lastThreadResumeParams.get("permissions"),
                     "thread/resume permissions"
                 );
-                assertExecutionPermissionRequest(
+                assertSupportedExecutionPermissionRequest(
                     lastThreadResumeParams,
                     requestedPermissionProfile,
                     "fixture thread/resume"
@@ -4239,7 +4448,7 @@ public final class CodexSessionControllerTest {
                     params.get("permissions"),
                     "thread/start permissions"
                 );
-                assertExecutionPermissionRequest(
+                assertSupportedExecutionPermissionRequest(
                     params,
                     requestedPermissionProfile,
                     "fixture thread/start"
@@ -4260,7 +4469,7 @@ public final class CodexSessionControllerTest {
                     lastTurnStartParams.get("permissions"),
                     "turn/start permissions"
                 );
-                assertExecutionPermissionRequest(
+                assertSupportedExecutionPermissionRequest(
                     lastTurnStartParams,
                     requestedPermissionProfile,
                     "fixture turn/start"

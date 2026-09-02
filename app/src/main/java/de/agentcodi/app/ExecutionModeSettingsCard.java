@@ -6,7 +6,9 @@ import android.content.DialogInterface;
 import android.graphics.Typeface;
 import android.view.View;
 import android.widget.Button;
+import android.widget.CompoundButton;
 import android.widget.LinearLayout;
+import android.widget.Switch;
 import android.widget.TextView;
 
 import de.agentcodi.core.CodexExecutionMode;
@@ -21,12 +23,15 @@ final class ExecutionModeSettingsCard {
             String executionModeId,
             boolean dangerWarningAcknowledged
         );
+
+        boolean onActiveCompatibilityApprovalsRequested(boolean enabled);
     }
 
     interface ConfirmedLaunchListener {
         void onLaunchConfirmed(
             String executionModeId,
-            boolean dangerWarningAcknowledged
+            boolean dangerWarningAcknowledged,
+            boolean compatibilityApprovalsEnabled
         );
     }
 
@@ -37,10 +42,14 @@ final class ExecutionModeSettingsCard {
     private final TextView statusView;
     private final Button protectedButton;
     private final Button compatibilityButton;
+    private final LinearLayout compatibilityApprovalCard;
+    private final Switch compatibilityApprovalSwitch;
 
     private String selectedModeId = CodexExecutionMode.PROTECTED_ID;
+    private boolean compatibilityApprovalsEnabled;
     private boolean runtimeReady;
     private boolean controlsEnabled = true;
+    private boolean updatingApprovalSwitch;
     private AlertDialog warningDialog;
 
     ExecutionModeSettingsCard(
@@ -83,6 +92,50 @@ final class ExecutionModeSettingsCard {
             }
         });
         theme.addWithTopMargin(card, compatibilityButton, 8);
+
+        compatibilityApprovalCard = new LinearLayout(activity);
+        compatibilityApprovalCard.setOrientation(LinearLayout.VERTICAL);
+        compatibilityApprovalCard.setPadding(
+            theme.dp(14),
+            theme.dp(12),
+            theme.dp(14),
+            theme.dp(12)
+        );
+        compatibilityApprovalCard.setBackground(theme.background(
+            theme.surfaceRaised,
+            theme.border,
+            13
+        ));
+        compatibilityApprovalSwitch = new Switch(activity);
+        compatibilityApprovalSwitch.setText(
+            activity.getString(R.string.execution_mode_compatibility_approvals)
+        );
+        compatibilityApprovalSwitch.setTextColor(theme.primary);
+        compatibilityApprovalSwitch.setTextSize(15);
+        compatibilityApprovalSwitch.setTypeface(Typeface.DEFAULT_BOLD);
+        compatibilityApprovalSwitch.setSaveEnabled(false);
+        compatibilityApprovalSwitch.setOnCheckedChangeListener(
+            new CompoundButton.OnCheckedChangeListener() {
+                @Override
+                public void onCheckedChanged(
+                    CompoundButton buttonView,
+                    boolean isChecked
+                ) {
+                    handleCompatibilityApprovalChange(isChecked);
+                }
+            }
+        );
+        compatibilityApprovalCard.addView(compatibilityApprovalSwitch);
+        TextView approvalDescription = theme.text(
+            activity.getString(
+                R.string.execution_mode_compatibility_approvals_description
+            ),
+            13,
+            theme.secondary
+        );
+        approvalDescription.setLineSpacing(0.0f, 1.16f);
+        theme.addWithTopMargin(compatibilityApprovalCard, approvalDescription, 6);
+        theme.addWithTopMargin(card, compatibilityApprovalCard, 8);
         updatePresentation();
     }
 
@@ -94,9 +147,13 @@ final class ExecutionModeSettingsCard {
         runtimeReady = runtime.getPhase() == RuntimePhase.READY && session.isReady();
         if (runtimeReady) {
             selectedModeId = session.getExecutionModeId();
+            compatibilityApprovalsEnabled =
+                session.isCompatibilityApprovalsEnabled();
         } else if (runtime.getPhase() == RuntimePhase.STARTING
             && !runtime.getExecutionModeId().isEmpty()) {
             selectedModeId = runtime.getExecutionModeId();
+            compatibilityApprovalsEnabled =
+                runtime.isCompatibilityApprovalsEnabled();
         }
         controlsEnabled = runtime.getPhase() != RuntimePhase.STARTING
             && (!runtimeReady
@@ -114,7 +171,11 @@ final class ExecutionModeSettingsCard {
             showDangerWarning(listener);
             return;
         }
-        listener.onLaunchConfirmed(CodexExecutionMode.PROTECTED_ID, false);
+        listener.onLaunchConfirmed(
+            CodexExecutionMode.PROTECTED_ID,
+            false,
+            false
+        );
     }
 
     void dismiss() {
@@ -136,6 +197,7 @@ final class ExecutionModeSettingsCard {
             return;
         }
         selectedModeId = CodexExecutionMode.PROTECTED_ID;
+        compatibilityApprovalsEnabled = false;
         updatePresentation();
     }
 
@@ -153,7 +215,8 @@ final class ExecutionModeSettingsCard {
             @Override
             public void onLaunchConfirmed(
                 String executionModeId,
-                boolean dangerWarningAcknowledged
+                boolean dangerWarningAcknowledged,
+                boolean ignoredCompatibilityApprovalsEnabled
             ) {
                 activeModeListener.onActiveModeRequested(
                     executionModeId,
@@ -177,7 +240,8 @@ final class ExecutionModeSettingsCard {
                         warningDialog = null;
                         listener.onLaunchConfirmed(
                             CodexExecutionMode.COMPATIBILITY_ID,
-                            true
+                            true,
+                            compatibilityApprovalsEnabled
                         );
                     }
                 }
@@ -218,6 +282,38 @@ final class ExecutionModeSettingsCard {
         ));
         theme.setEnabled(protectedButton, controlsEnabled && compatibility);
         theme.setEnabled(compatibilityButton, controlsEnabled && !compatibility);
+        compatibilityApprovalCard.setVisibility(
+            compatibility ? View.VISIBLE : View.GONE
+        );
+        updatingApprovalSwitch = true;
+        compatibilityApprovalSwitch.setChecked(
+            compatibility && compatibilityApprovalsEnabled
+        );
+        updatingApprovalSwitch = false;
+        theme.setEnabled(
+            compatibilityApprovalSwitch,
+            controlsEnabled && compatibility
+        );
+    }
+
+    private void handleCompatibilityApprovalChange(boolean enabled) {
+        if (updatingApprovalSwitch) {
+            return;
+        }
+        boolean compatibility = CodexExecutionMode.COMPATIBILITY_ID.equals(
+            selectedModeId
+        );
+        if (!controlsEnabled || !compatibility) {
+            updatePresentation();
+            return;
+        }
+        if (runtimeReady
+            && !activeModeListener.onActiveCompatibilityApprovalsRequested(enabled)) {
+            updatePresentation();
+            return;
+        }
+        compatibilityApprovalsEnabled = enabled;
+        updatePresentation();
     }
 
     private String modeName(boolean compatibility) {

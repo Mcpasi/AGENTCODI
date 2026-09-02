@@ -100,6 +100,7 @@ public final class SettingsActivity extends Activity {
     private boolean launchAfterNotificationPermission;
     private String pendingLaunchExecutionModeId = CodexExecutionMode.PROTECTED_ID;
     private boolean pendingLaunchDangerWarningAcknowledged;
+    private boolean pendingLaunchCompatibilityApprovalsEnabled;
     private CrashDiagnostics crashDiagnostics;
     private InteractiveRequestDialog interactiveRequestDialog;
     private boolean destroyed;
@@ -238,6 +239,22 @@ public final class SettingsActivity extends Activity {
                         executionModeId,
                         dangerWarningAcknowledged
                     );
+                    if (!accepted) {
+                        Toast.makeText(
+                            SettingsActivity.this,
+                            R.string.execution_mode_change_rejected,
+                            Toast.LENGTH_LONG
+                        ).show();
+                    }
+                    return accepted;
+                }
+
+                @Override
+                public boolean onActiveCompatibilityApprovalsRequested(
+                    boolean enabled
+                ) {
+                    boolean accepted =
+                        AgentRuntimeService.setCompatibilityApprovalsEnabled(enabled);
                     if (!accepted) {
                         Toast.makeText(
                             SettingsActivity.this,
@@ -719,6 +736,7 @@ public final class SettingsActivity extends Activity {
         if (executionModeSettingsCard == null) {
             pendingLaunchExecutionModeId = CodexExecutionMode.PROTECTED_ID;
             pendingLaunchDangerWarningAcknowledged = false;
+            pendingLaunchCompatibilityApprovalsEnabled = false;
             requestNotificationPermissionAndLaunchRuntime();
             return;
         }
@@ -727,11 +745,14 @@ public final class SettingsActivity extends Activity {
                 @Override
                 public void onLaunchConfirmed(
                     String executionModeId,
-                    boolean dangerWarningAcknowledged
+                    boolean dangerWarningAcknowledged,
+                    boolean compatibilityApprovalsEnabled
                 ) {
                     pendingLaunchExecutionModeId = executionModeId;
                     pendingLaunchDangerWarningAcknowledged =
                         dangerWarningAcknowledged;
+                    pendingLaunchCompatibilityApprovalsEnabled =
+                        compatibilityApprovalsEnabled;
                     requestNotificationPermissionAndLaunchRuntime();
                 }
             }
@@ -772,9 +793,11 @@ public final class SettingsActivity extends Activity {
             runtimeIntent = AgentRuntimeService.createLaunchIntent(
                 this,
                 pendingLaunchExecutionModeId,
-                pendingLaunchDangerWarningAcknowledged
+                pendingLaunchDangerWarningAcknowledged,
+                pendingLaunchCompatibilityApprovalsEnabled
             );
             pendingLaunchDangerWarningAcknowledged = false;
+            pendingLaunchCompatibilityApprovalsEnabled = false;
             clearCrashReport();
             if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.O) {
                 startForegroundService(runtimeIntent);
@@ -785,6 +808,7 @@ public final class SettingsActivity extends Activity {
             lastSessionRevision = Long.MIN_VALUE;
         } catch (Throwable error) {
             pendingLaunchDangerWarningAcknowledged = false;
+            pendingLaunchCompatibilityApprovalsEnabled = false;
             persistCrash("settings-start-service", error);
             showInlineFailure(error);
             Toast.makeText(

@@ -60,6 +60,8 @@ public final class CodexSessionController
     private static final long MAX_INTERACTIVE_WAIT_MS = 10L * 60L * 1000L;
     private static final String WORKSPACE_PERMISSION_PROFILE =
         CodexExecutionMode.PROTECTED_PERMISSION_PROFILE_ID;
+    private static final String APPROVAL_POLICY_ON_REQUEST = "on-request";
+    private static final String APPROVAL_POLICY_UNTRUSTED = "untrusted";
     private static final String OPENAI_HTTP_MODEL_PROVIDER = "agentcodi-openai-http";
     private static final String COMMAND_APPROVAL_METHOD =
         "item/commandExecution/requestApproval";
@@ -141,6 +143,7 @@ public final class CodexSessionController
     private String executionModeId;
     private String permissionProfileId;
     private boolean dangerousExecutionMode;
+    private boolean compatibilityApprovalsEnabled;
     private CodexSessionSnapshot snapshot;
 
     public CodexSessionController(CodexRpcTransport transport, String workspacePath) {
@@ -195,6 +198,26 @@ public final class CodexSessionController
         CodexExecutionMode executionMode,
         CodexReviewMode reviewMode
     ) {
+        this(
+            transport,
+            workspacePath,
+            connectionFailureListener,
+            terminalShellPath,
+            executionMode,
+            reviewMode,
+            false
+        );
+    }
+
+    public CodexSessionController(
+        CodexRpcTransport transport,
+        String workspacePath,
+        ConnectionFailureListener connectionFailureListener,
+        String terminalShellPath,
+        CodexExecutionMode executionMode,
+        CodexReviewMode reviewMode,
+        boolean compatibilityApprovalsEnabled
+    ) {
         if (workspacePath == null || workspacePath.trim().isEmpty()
             || !workspacePath.startsWith("/")) {
             throw new IllegalArgumentException("Workspace path must be absolute");
@@ -206,6 +229,8 @@ public final class CodexSessionController
         executionModeId = mode.id;
         permissionProfileId = mode.permissionProfileId;
         dangerousExecutionMode = mode.dangerous;
+        this.compatibilityApprovalsEnabled = mode.dangerous
+            && compatibilityApprovalsEnabled;
         client = new CodexAppServerClient(transport, this);
         terminal = terminalShellPath == null
             ? null
@@ -466,14 +491,59 @@ public final class CodexSessionController
     }
 
     public boolean selectExecutionMode(CodexExecutionMode requestedMode) {
-        final ExecutionModeValues candidate = validatedExecutionMode(requestedMode);
+        return selectExecutionConfiguration(
+            validatedExecutionMode(requestedMode),
+            false
+        );
+    }
+
+    public synchronized boolean setCompatibilityApprovalsEnabled(boolean enabled) {
+        if (closed || !ready) {
+            setUserError("Codex App-Server ist nicht bereit.");
+            return false;
+        }
+        if (!CodexExecutionMode.COMPATIBILITY_ID.equals(executionModeId)
+            || !dangerousExecutionMode) {
+            return false;
+        }
+        if (compatibilityApprovalsEnabled == enabled) {
+            return true;
+        }
+        if (operationActive || turnInterruptPending || turnActive
+            || !interactiveRequests.isEmpty()) {
+            setUserError(
+                "Der Ausführungsmodus kann erst nach dem laufenden Turn gewechselt werden."
+            );
+            return false;
+        }
+        TerminalSessionSnapshot terminalState = terminalSnapshot();
+        if (terminalState.isRunning() || terminalState.isStarting()) {
+            setUserError(
+                "Das Terminal muss vor einem Wechsel des Ausführungsmodus gestoppt werden."
+            );
+            return false;
+        }
+        compatibilityApprovalsEnabled = enabled;
+        operationMessage = "Kompatibilitätsmodus ist aktiv.";
+        errorMessage = "";
+        publishLocked();
+        return true;
+    }
+
+    private boolean selectExecutionConfiguration(
+        final ExecutionModeValues candidate,
+        final boolean requestedCompatibilityApprovalsEnabled
+    ) {
+        final boolean candidateApprovalsEnabled = candidate.dangerous
+            && requestedCompatibilityApprovalsEnabled;
         synchronized (this) {
             if (closed || !ready) {
                 setUserError("Codex App-Server ist nicht bereit.");
                 return false;
             }
             if (candidate.id.equals(executionModeId)
-                && candidate.permissionProfileId.equals(permissionProfileId)) {
+                && candidate.permissionProfileId.equals(permissionProfileId)
+                && candidateApprovalsEnabled == compatibilityApprovalsEnabled) {
                 return true;
             }
             if (turnActive || !interactiveRequests.isEmpty()) {
@@ -510,6 +580,7 @@ public final class CodexSessionController
                     executionModeId = candidate.id;
                     permissionProfileId = candidate.permissionProfileId;
                     dangerousExecutionMode = candidate.dangerous;
+                    compatibilityApprovalsEnabled = candidateApprovalsEnabled;
                     operationMessage = candidate.dangerous
                         ? "Kompatibilitätsmodus ist aktiv."
                         : "Geschützter Modus ist aktiv.";
@@ -657,9 +728,11 @@ public final class CodexSessionController
             @Override
             public void run() throws Exception {
                 final String requestedPermissionProfile;
+                final String requestedApprovalPolicy;
                 synchronized (CodexSessionController.this) {
                     requireNoActiveTurnOrRequestLocked();
                     requestedPermissionProfile = permissionProfileId;
+                    requestedApprovalPolicy = approvalPolicyLocked();
                 }
                 Map<String, Object> result = client.request(
                     "thread/resume",
@@ -668,7 +741,7 @@ public final class CodexSessionController
                         "modelProvider", OPENAI_HTTP_MODEL_PROVIDER,
                         "cwd", workspacePath,
                         "runtimeWorkspaceRoots", JsonCodec.array(workspacePath),
-                        "approvalPolicy", "on-request",
+                        "approvalPolicy", requestedApprovalPolicy,
                         "permissions", requestedPermissionProfile
                     ),
                     NORMAL_TIMEOUT_MS
@@ -1068,7 +1141,7 @@ public final class CodexSessionController
             "input", userInput,
             "cwd", workspacePath,
             "runtimeWorkspaceRoots", JsonCodec.array(workspacePath),
-            "approvalPolicy", "on-request",
+            "approvalPolicy", currentApprovalPolicy(),
             "permissions", currentPermissionProfile(),
             "model", requestModel,
             "effort", requestEffort,
@@ -2012,6 +2085,7 @@ public final class CodexSessionController
     private String startNewThreadInternal() throws Exception {
         String requestModel;
         String requestedPermissionProfile;
+        String requestedApprovalPolicy;
         synchronized (this) {
             requireNoActiveTurnOrRequestLocked();
             if (requiresOpenaiAuth && authMode.isEmpty()) {
@@ -2023,11 +2097,12 @@ public final class CodexSessionController
             }
             requestModel = model.getModel();
             requestedPermissionProfile = permissionProfileId;
+            requestedApprovalPolicy = approvalPolicyLocked();
         }
         Map<String, Object> params = JsonCodec.object(
             "cwd", workspacePath,
             "runtimeWorkspaceRoots", JsonCodec.array(workspacePath),
-            "approvalPolicy", "on-request",
+            "approvalPolicy", requestedApprovalPolicy,
             "permissions", requestedPermissionProfile,
             "modelProvider", OPENAI_HTTP_MODEL_PROVIDER,
             "model", requestModel,
@@ -4216,6 +4291,7 @@ public final class CodexSessionController
             executionModeId,
             permissionProfileId,
             dangerousExecutionMode,
+            compatibilityApprovalsEnabled,
             requiresOpenaiAuth,
             authMode,
             accountEmail,
@@ -4334,6 +4410,19 @@ public final class CodexSessionController
 
     private synchronized String currentPermissionProfile() {
         return permissionProfileId;
+    }
+
+    private synchronized String currentApprovalPolicy() {
+        return approvalPolicyLocked();
+    }
+
+    private String approvalPolicyLocked() {
+        // The app-server protocol calls its internal UnlessTrusted policy
+        // "untrusted". Unlike on-request, it still asks in an unrestricted
+        // permission profile before patches and commands that are not safe reads.
+        return dangerousExecutionMode && compatibilityApprovalsEnabled
+            ? APPROVAL_POLICY_UNTRUSTED
+            : APPROVAL_POLICY_ON_REQUEST;
     }
 
     private static ExecutionModeValues validatedExecutionMode(

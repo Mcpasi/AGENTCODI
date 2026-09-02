@@ -17,13 +17,22 @@ public final class RuntimeStateMachine {
     public synchronized long beginStart() {
         return beginStart(
             CodexExecutionMode.PROTECTED_ID,
-            CodexExecutionMode.PROTECTED_PERMISSION_PROFILE_ID
+            CodexExecutionMode.PROTECTED_PERMISSION_PROFILE_ID,
+            false
         );
     }
 
     public synchronized long beginStart(
         String executionModeId,
         String permissionProfileId
+    ) {
+        return beginStart(executionModeId, permissionProfileId, false);
+    }
+
+    public synchronized long beginStart(
+        String executionModeId,
+        String permissionProfileId,
+        boolean compatibilityApprovalsEnabled
     ) {
         RuntimePhase phase = snapshot.getPhase();
         if (phase == RuntimePhase.STARTING || phase == RuntimePhase.READY) {
@@ -38,7 +47,8 @@ public final class RuntimeStateMachine {
             "",
             "",
             requiredModeValue(executionModeId, "Execution mode"),
-            requiredModeValue(permissionProfileId, "Permission profile")
+            requiredModeValue(permissionProfileId, "Permission profile"),
+            compatibilityApprovalsEnabled
         );
         return generation;
     }
@@ -63,7 +73,8 @@ public final class RuntimeStateMachine {
             diagnostics,
             workspacePath,
             snapshot.getExecutionModeId(),
-            snapshot.getPermissionProfileId()
+            snapshot.getPermissionProfileId(),
+            snapshot.isCompatibilityApprovalsEnabled()
         );
         return true;
     }
@@ -82,7 +93,8 @@ public final class RuntimeStateMachine {
             phase == RuntimePhase.READY ? snapshot.getDiagnostics() : "",
             phase == RuntimePhase.READY ? snapshot.getWorkspacePath() : "",
             snapshot.getExecutionModeId(),
-            snapshot.getPermissionProfileId()
+            snapshot.getPermissionProfileId(),
+            snapshot.isCompatibilityApprovalsEnabled()
         );
         return true;
     }
@@ -96,7 +108,8 @@ public final class RuntimeStateMachine {
             snapshot.getDiagnostics(),
             snapshot.getWorkspacePath(),
             snapshot.getExecutionModeId(),
-            snapshot.getPermissionProfileId()
+            snapshot.getPermissionProfileId(),
+            snapshot.isCompatibilityApprovalsEnabled()
         );
     }
 

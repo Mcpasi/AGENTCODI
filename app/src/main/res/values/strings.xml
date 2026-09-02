@@ -285,13 +285,15 @@
   <string name="settings_initialization_failed">AGENTCODI could not initialize Settings.</string>
 
   <string name="execution_mode_section">EXECUTION MODE</string>
-  <string name="execution_mode_description">The selection is sent only as a native permission profile for threads, turns, and the terminal. AGENTCODI does not inject system or developer prompts for it. A system service restart without a newly confirmed selection uses the protected default.</string>
+  <string name="execution_mode_description">The execution mode and approval setting are sent only as native permission and approval settings for threads and turns; the terminal continues to use the selected permission profile. AGENTCODI does not inject system or developer prompts for them. A system service restart without a newly confirmed selection uses the protected default.</string>
   <string name="execution_mode_protected_name">Protected – default</string>
   <string name="execution_mode_compatibility_name">Compatibility – experimental</string>
   <string name="execution_mode_protected_option">Protected – default\nagentcodi-workspace\nWorkspace only; changes are grouped into one patch with a preview where possible</string>
   <string name="execution_mode_protected_selected">✓ Protected – default\nagentcodi-workspace\nWorkspace only; changes are grouped into one patch with a preview where possible</string>
   <string name="execution_mode_compatibility_option">Compatibility – experimental\n:danger-full-access\nDirect file editing is possible, but there is no effective filesystem isolation</string>
   <string name="execution_mode_compatibility_selected">✓ Compatibility – experimental\n:danger-full-access\nDirect file editing is possible, but there is no effective filesystem isolation</string>
+  <string name="execution_mode_compatibility_approvals">Confirm file changes and commands</string>
+  <string name="execution_mode_compatibility_approvals_description">Uses Codex’s untrusted approval policy: file changes and commands other than recognized safe reads ask first. :danger-full-access and full filesystem reach remain active.</string>
   <string name="execution_mode_active">Active: %1$s · %2$s</string>
   <string name="execution_mode_next_start">Selected for the next start: %1$s · %2$s</string>
   <string name="execution_mode_change_rejected">The mode could not be changed. Finish the active turn, open request, or terminal first.</string>

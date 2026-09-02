@@ -23,6 +23,10 @@ public final class RuntimeStateMachineTest {
         RuntimeSnapshot snapshot = new RuntimeStateMachine().snapshot();
         TestSupport.assertEquals(RuntimePhase.IDLE, snapshot.getPhase(), "initial phase");
         TestSupport.assertEquals(Long.valueOf(0L), Long.valueOf(snapshot.getGeneration()), "generation");
+        TestSupport.assertFalse(
+            snapshot.isCompatibilityApprovalsEnabled(),
+            "compatibility approvals default off"
+        );
     }
 
     private static void successfulStartBecomesReady() {
@@ -126,7 +130,11 @@ public final class RuntimeStateMachineTest {
 
     private static void retainsSelectedExecutionModeAcrossRuntimeStates() {
         RuntimeStateMachine machine = new RuntimeStateMachine();
-        long generation = machine.beginStart("compatibility", ":danger-full-access");
+        long generation = machine.beginStart(
+            "compatibility",
+            ":danger-full-access",
+            true
+        );
         RuntimeSnapshot starting = machine.snapshot();
         TestSupport.assertEquals(
             "compatibility",
@@ -137,6 +145,10 @@ public final class RuntimeStateMachineTest {
             ":danger-full-access",
             starting.getPermissionProfileId(),
             "starting permission profile"
+        );
+        TestSupport.assertTrue(
+            starting.isCompatibilityApprovalsEnabled(),
+            "starting state retains compatibility approval choice"
         );
         TestSupport.assertTrue(
             machine.markReady(
@@ -153,9 +165,14 @@ public final class RuntimeStateMachineTest {
             machine.snapshot().getPermissionProfileId(),
             "failed state retains selected profile for diagnosis"
         );
+        TestSupport.assertTrue(
+            machine.snapshot().isCompatibilityApprovalsEnabled(),
+            "failed state retains transient compatibility approval choice"
+        );
         RuntimeSnapshot projected = machine.snapshot().withExecutionMode(
             "protected",
-            "agentcodi-workspace"
+            "agentcodi-workspace",
+            false
         );
         TestSupport.assertEquals(
             RuntimePhase.FAILED,
@@ -171,6 +188,20 @@ public final class RuntimeStateMachineTest {
             "transport=stdio",
             projected.getDiagnostics(),
             "mode projection preserves diagnostics"
+        );
+        TestSupport.assertFalse(
+            projected.isCompatibilityApprovalsEnabled(),
+            "protected projection clears compatibility approval choice"
+        );
+        machine.beginStart();
+        TestSupport.assertEquals(
+            "protected",
+            machine.snapshot().getExecutionModeId(),
+            "unconfirmed restart returns to protected mode"
+        );
+        TestSupport.assertFalse(
+            machine.snapshot().isCompatibilityApprovalsEnabled(),
+            "unconfirmed restart clears compatibility approval choice"
         );
     }
 }

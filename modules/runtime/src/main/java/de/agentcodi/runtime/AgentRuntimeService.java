@@ -52,6 +52,8 @@ public final class AgentRuntimeService extends Service {
         "de.agentcodi.runtime.extra.EXECUTION_MODE";
     private static final String EXTRA_DANGER_WARNING_ACKNOWLEDGED =
         "de.agentcodi.runtime.extra.DANGER_WARNING_ACKNOWLEDGED";
+    private static final String EXTRA_COMPATIBILITY_APPROVALS_ENABLED =
+        "de.agentcodi.runtime.extra.COMPATIBILITY_APPROVALS_ENABLED";
     private static final RuntimeStateMachine STATE = new RuntimeStateMachine();
     private static final AtomicBoolean BOOTSTRAP_ACTIVE = new AtomicBoolean(false);
     private static final CodexSessionSnapshot STOPPED_SESSION = CodexSessionSnapshot.stopped();
@@ -84,12 +86,15 @@ public final class AgentRuntimeService extends Service {
             || (runtime.getExecutionModeId().equals(session.getExecutionModeId())
                 && runtime.getPermissionProfileId().equals(
                     session.getPermissionProfileId()
-                ))) {
+                )
+                && runtime.isCompatibilityApprovalsEnabled()
+                    == session.isCompatibilityApprovalsEnabled())) {
             return runtime;
         }
         return runtime.withExecutionMode(
             session.getExecutionModeId(),
-            session.getPermissionProfileId()
+            session.getPermissionProfileId(),
+            session.isCompatibilityApprovalsEnabled()
         );
     }
 
@@ -97,6 +102,20 @@ public final class AgentRuntimeService extends Service {
         Context context,
         String executionModeId,
         boolean dangerWarningAcknowledged
+    ) {
+        return createLaunchIntent(
+            context,
+            executionModeId,
+            dangerWarningAcknowledged,
+            false
+        );
+    }
+
+    public static Intent createLaunchIntent(
+        Context context,
+        String executionModeId,
+        boolean dangerWarningAcknowledged,
+        boolean compatibilityApprovalsEnabled
     ) {
         if (context == null) {
             throw new IllegalArgumentException("Context is required");
@@ -110,6 +129,10 @@ public final class AgentRuntimeService extends Service {
             .putExtra(
                 EXTRA_DANGER_WARNING_ACKNOWLEDGED,
                 dangerWarningAcknowledged
+            )
+            .putExtra(
+                EXTRA_COMPATIBILITY_APPROVALS_ENABLED,
+                isCompatibilityMode(mode) && compatibilityApprovalsEnabled
             );
     }
 
@@ -123,6 +146,12 @@ public final class AgentRuntimeService extends Service {
         );
         CodexSessionController controller = sessionController;
         return controller != null && controller.selectExecutionMode(mode);
+    }
+
+    public static boolean setCompatibilityApprovalsEnabled(boolean enabled) {
+        CodexSessionController controller = sessionController;
+        return controller != null
+            && controller.setCompatibilityApprovalsEnabled(enabled);
     }
 
     public static CodexSessionSnapshot sessionSnapshot() {
@@ -568,7 +597,11 @@ public final class AgentRuntimeService extends Service {
     @Override
     public int onStartCommand(Intent intent, int flags, int startId) {
         try {
-            startRuntimeIfNeeded(executionModeFromIntent(intent));
+            CodexExecutionMode executionMode = executionModeFromIntent(intent);
+            startRuntimeIfNeeded(
+                executionMode,
+                compatibilityApprovalsFromIntent(intent, executionMode)
+            );
         } catch (Throwable error) {
             recordServiceFailure("service-onStartCommand", error);
             stopSelf(startId);
@@ -624,7 +657,10 @@ public final class AgentRuntimeService extends Service {
         super.onDestroy();
     }
 
-    private void startRuntimeIfNeeded(final CodexExecutionMode executionMode) {
+    private void startRuntimeIfNeeded(
+        final CodexExecutionMode executionMode,
+        final boolean compatibilityApprovalsEnabled
+    ) {
         RuntimePhase phase = STATE.snapshot().getPhase();
         if (phase == RuntimePhase.STARTING || phase == RuntimePhase.READY) {
             return;
@@ -637,7 +673,8 @@ public final class AgentRuntimeService extends Service {
         try {
             generation = STATE.beginStart(
                 executionMode.getId(),
-                executionMode.getPermissionProfileId()
+                executionMode.getPermissionProfileId(),
+                compatibilityApprovalsEnabled
             );
         } catch (RuntimeException error) {
             BOOTSTRAP_ACTIVE.set(false);
@@ -739,7 +776,8 @@ public final class AgentRuntimeService extends Service {
                         },
                         shellExecutable.getAbsolutePath(),
                         executionMode,
-                        CustomReviewMode.get()
+                        CustomReviewMode.get(),
+                        compatibilityApprovalsEnabled
                     );
                     startedController.start();
                     startedCatalogController = new McpCatalogController(
@@ -1004,6 +1042,23 @@ public final class AgentRuntimeService extends Service {
             intent.getStringExtra(EXTRA_EXECUTION_MODE),
             intent.getBooleanExtra(EXTRA_DANGER_WARNING_ACKNOWLEDGED, false)
         );
+    }
+
+    private static boolean compatibilityApprovalsFromIntent(
+        Intent intent,
+        CodexExecutionMode executionMode
+    ) {
+        return intent != null
+            && isCompatibilityMode(executionMode)
+            && intent.getBooleanExtra(
+                EXTRA_COMPATIBILITY_APPROVALS_ENABLED,
+                false
+            );
+    }
+
+    private static boolean isCompatibilityMode(CodexExecutionMode executionMode) {
+        return executionMode != null
+            && CodexExecutionMode.COMPATIBILITY_ID.equals(executionMode.getId());
     }
 
     private static CodexExecutionMode resolveExecutionMode(

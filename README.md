@@ -103,7 +103,7 @@ AGENTCODI keeps its workspace in private app storage and separates it from Codex
 | Device | ARM64 |
 | Connection | Internet access for Codex requests |
 | Authentication | ChatGPT sign-in or OpenAI API key |
-| Current release line | AGENTCODI 0.6.8 |
+| Current release line | AGENTCODI 0.6.9 |
 | Packaged Codex runtime | 0.148.1 |
 
 ---
@@ -136,6 +136,11 @@ The debug APK uses local test signing. Production builds use the separate releas
 
 Device installation and behavior must be validated separately on physical Android hardware.
 
+Automatically increment version
+
+```sh
+./scripts/bump-version.sh
+```
 ---
 
 ## License

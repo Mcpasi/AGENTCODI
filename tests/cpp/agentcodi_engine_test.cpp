@@ -848,7 +848,7 @@ int main(int argc, char* argv[]) {
   }
 
   const std::string version = agentcodi::engine_version();
-  expect(version == "agentcodi-native/0.6.8", "engine version");
+  expect(version == "agentcodi-native/0.6.9", "engine version");
   expect(agentcodi::run_self_test() == 0, "native self-test");
   const std::string abc = "abc";
   expect(

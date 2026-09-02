@@ -19,7 +19,6 @@ public final class TerminalOutputBuffer {
     private int ansiState;
     private int ansiSequenceCharacters;
     private boolean carriageReturn;
-    private boolean omitted;
 
     public void append(byte[] bytes) {
         if (bytes == null || bytes.length == 0) {
@@ -73,7 +72,6 @@ public final class TerminalOutputBuffer {
         ansiState = ANSI_NORMAL;
         ansiSequenceCharacters = 0;
         carriageReturn = false;
-        omitted = false;
     }
 
     public String snapshot() {
@@ -177,10 +175,9 @@ public final class TerminalOutputBuffer {
             remove++;
         }
         output.delete(0, Math.min(remove, output.length()));
-        if (!omitted) {
-            output.insert(0, OMITTED_PREFIX);
-            omitted = true;
-        }
+        // Every trim drops the head of the buffer, including a marker that an
+        // earlier trim inserted, so the notice has to be written again.
+        output.insert(0, OMITTED_PREFIX);
         if (output.length() > MAXIMUM_CHARACTERS) {
             output.delete(
                 OMITTED_PREFIX.length(),

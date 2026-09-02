@@ -12,10 +12,11 @@ public final class TerminalOutputBufferTest {
     public static int run() {
         decodesSplitUtf8AndStripsTerminalControls();
         boundsOutputAndMarksOmission();
+        keepsOmissionMarkerAcrossRepeatedTrims();
         redactsCredentialShapesFromSnapshots();
         finishesIncompleteUtf8Safely();
         removesRemainingControlsAndResetsIncompleteAnsi();
-        return 5;
+        return 6;
     }
 
     private static void decodesSplitUtf8AndStripsTerminalControls() {
@@ -56,6 +57,36 @@ public final class TerminalOutputBufferTest {
         TestSupport.assertTrue(
             snapshot.startsWith("[earlier terminal output omitted]"),
             "terminal omission marker"
+        );
+    }
+
+    private static void keepsOmissionMarkerAcrossRepeatedTrims() {
+        TerminalOutputBuffer buffer = new TerminalOutputBuffer();
+        byte[] oversized = new byte[TerminalOutputBuffer.MAXIMUM_CHARACTERS + 4096];
+        Arrays.fill(oversized, (byte) 'x');
+        buffer.append(oversized);
+        buffer.append("\nolder command output\n".getBytes(StandardCharsets.UTF_8));
+        buffer.append(oversized);
+        String snapshot = buffer.snapshot();
+        TestSupport.assertTrue(
+            snapshot.length() <= TerminalOutputBuffer.MAXIMUM_CHARACTERS,
+            "terminal snapshot limit after a second trim"
+        );
+        TestSupport.assertFalse(
+            snapshot.contains("older command output"),
+            "second trim drops the oldest terminal output"
+        );
+        TestSupport.assertTrue(
+            snapshot.startsWith("[earlier terminal output omitted]"),
+            "terminal omission marker survives a second trim"
+        );
+        TestSupport.assertEquals(
+            Integer.valueOf(-1),
+            Integer.valueOf(snapshot.indexOf(
+                "[earlier terminal output omitted]",
+                1
+            )),
+            "terminal omission marker is not duplicated"
         );
     }
 

@@ -22,12 +22,17 @@ public final class McpCatalogLoaderTest {
     private McpCatalogLoaderTest() {
     }
 
+    /** Mirrors McpCatalogLoader.MAX_PROJECTED_CHARACTERS, which is not visible from here. */
+    private static final int DISPLAY_BUDGET = 128 * 1024;
+
     public static int run() throws Exception {
         loadsBoundedCatalogWithoutProjectingPaths();
         keepsExperimentalFailurePartialAndOpaque();
         truncatesOversizedSkillInventory();
+        keepsAppIdentityExactWhenTheDisplayBudgetIsExhausted();
+        dropsAppsWhoseIdentityCannotSurviveTheProjection();
         enforcesReadOnlyRpcAllowlistAndControllerLifecycle();
-        return 4;
+        return 6;
     }
 
     private static void loadsBoundedCatalogWithoutProjectingPaths() {
@@ -126,6 +131,75 @@ public final class McpCatalogLoaderTest {
             },
             "snapshot list immutable"
         );
+    }
+
+    private static void keepsAppIdentityExactWhenTheDisplayBudgetIsExhausted() {
+        // A workspace with a couple of hundred documented MCP tools spends the display budget
+        // before the installed apps are read. The remaining budget must never shorten an app
+        // id: it addresses app/read and indexes the detail response that carries name and tools.
+        AppFixtureRpc rpc = new AppFixtureRpc(
+            DISPLAY_BUDGET - 5,
+            Collections.singletonList("connector_fixture")
+        );
+        McpCatalogSnapshot snapshot = new McpCatalogLoader(
+            rpc,
+            "/private/workspace"
+        ).load(11L);
+
+        TestSupport.assertEquals(
+            Integer.valueOf(1),
+            Integer.valueOf(snapshot.getApps().size()),
+            "installed app retained under an exhausted budget"
+        );
+        TestSupport.assertEquals(
+            "connector_fixture",
+            snapshot.getApps().get(0).getId(),
+            "app id is never shortened for display"
+        );
+        TestSupport.assertEquals(
+            Collections.singletonList("connector_fixture"),
+            rpc.requestedAppIds,
+            "app/read is addressed with the exact installed id"
+        );
+        TestSupport.assertTrue(
+            snapshot.getWarnings().contains(McpCatalogWarning.CATALOG_TRUNCATED),
+            "exhausted display budget stays disclosed"
+        );
+    }
+
+    private static void dropsAppsWhoseIdentityCannotSurviveTheProjection() {
+        List<String> installed = new ArrayList<String>();
+        installed.add("connector_fixture");
+        installed.add("sk-fixtureidvalue");
+        installed.add("connector_spaced ");
+        AppFixtureRpc rpc = new AppFixtureRpc(0, installed);
+        McpCatalogSnapshot snapshot = new McpCatalogLoader(
+            rpc,
+            "/private/workspace"
+        ).load(12L);
+
+        TestSupport.assertEquals(
+            Integer.valueOf(1),
+            Integer.valueOf(snapshot.getApps().size()),
+            "only apps with a carryable identity are listed"
+        );
+        TestSupport.assertEquals(
+            "connector_fixture",
+            snapshot.getApps().get(0).getId(),
+            "carryable app identity retained"
+        );
+        TestSupport.assertEquals(
+            Collections.singletonList("connector_fixture"),
+            rpc.requestedAppIds,
+            "no rewritten identity reaches app/read"
+        );
+        TestSupport.assertTrue(
+            snapshot.getWarnings().contains(McpCatalogWarning.CATALOG_TRUNCATED),
+            "dropped apps stay disclosed"
+        );
+        String projected = flatten(snapshot);
+        TestSupport.assertFalse(projected.contains("sk-fixtureid"), "token-shaped id omitted");
+        TestSupport.assertFalse(projected.contains("redacted"), "no redaction placeholder shown");
     }
 
     private static void enforcesReadOnlyRpcAllowlistAndControllerLifecycle() throws Exception {
@@ -424,6 +498,121 @@ public final class McpCatalogLoaderTest {
                 )),
                 "marketplaceLoadErrors", JsonCodec.array()
             );
+        }
+    }
+
+    /** Serves a catalog whose earlier sections spend a chosen share of the display budget. */
+    private static final class AppFixtureRpc implements CodexCatalogRpc {
+        private final int burnedCharacters;
+        private final List<String> installedIds;
+        private final List<String> requestedAppIds = new ArrayList<String>();
+
+        private AppFixtureRpc(int burnedCharacters, List<String> installedIds) {
+            this.burnedCharacters = burnedCharacters;
+            this.installedIds = installedIds;
+        }
+
+        @Override
+        public String catalogThreadId() {
+            return "thrfixture";
+        }
+
+        @Override
+        public Map<String, Object> requestCatalog(
+            String method,
+            Map<String, Object> params,
+            long timeoutMilliseconds
+        ) {
+            if ("experimentalFeature/list".equals(method)) {
+                return JsonCodec.object("data", JsonCodec.array(), "nextCursor", null);
+            }
+            if ("skills/list".equals(method)) {
+                return JsonCodec.object("data", JsonCodec.array());
+            }
+            if ("mcpServerStatus/list".equals(method)) {
+                return JsonCodec.object(
+                    "data",
+                    burnedCharacters <= 0 ? JsonCodec.array() : JsonCodec.array(burningServer()),
+                    "nextCursor",
+                    null
+                );
+            }
+            if ("app/installed".equals(method)) {
+                List<Object> apps = new ArrayList<Object>();
+                for (String id : installedIds) {
+                    apps.add(JsonCodec.object(
+                        "id", id,
+                        "runtimeName", "Installed Connector",
+                        "enabled", Boolean.TRUE,
+                        "callable", Boolean.TRUE
+                    ));
+                }
+                return JsonCodec.object("apps", apps);
+            }
+            if ("app/read".equals(method)) {
+                List<Object> apps = new ArrayList<Object>();
+                for (Object id : JsonCodec.requireArray(params.get("appIds"), "app ids")) {
+                    String requested = JsonCodec.requireString(id, "app id");
+                    requestedAppIds.add(requested);
+                    apps.add(JsonCodec.object(
+                        "id", requested,
+                        "name", "Fixture Connector",
+                        "toolSummaries", JsonCodec.array(JsonCodec.object(
+                            "name", "connector_lookup",
+                            "description", "Looks up fixture records.",
+                            "isEnabled", Boolean.TRUE,
+                            "isReadOnly", Boolean.TRUE
+                        ))
+                    ));
+                }
+                return JsonCodec.object("apps", apps, "missingAppIds", JsonCodec.array());
+            }
+            if ("plugin/list".equals(method)) {
+                return JsonCodec.object(
+                    "marketplaces", JsonCodec.array(),
+                    "marketplaceLoadErrors", JsonCodec.array()
+                );
+            }
+            throw new IllegalArgumentException("Unexpected catalog method: " + method);
+        }
+
+        /** One server whose name, auth status and tool texts consume exactly the burn target. */
+        private Map<String, Object> burningServer() {
+            int remaining = burnedCharacters - 2;
+            Map<String, Object> tools = new LinkedHashMap<String, Object>();
+            int index = 0;
+            while (remaining > 0) {
+                int name = Math.min(160, remaining);
+                remaining -= name;
+                int title = Math.min(160, remaining);
+                remaining -= title;
+                int description = Math.min(320, remaining);
+                remaining -= description;
+                Map<String, Object> tool = JsonCodec.object("name", repeated('n', name));
+                if (title > 0) {
+                    tool.put("title", repeated('t', title));
+                }
+                if (description > 0) {
+                    tool.put("description", repeated('d', description));
+                }
+                tools.put("tool-" + index, tool);
+                index++;
+            }
+            return JsonCodec.object(
+                "name", "s",
+                "authStatus", "a",
+                "tools", tools,
+                "resources", JsonCodec.array(),
+                "resourceTemplates", JsonCodec.array()
+            );
+        }
+
+        private static String repeated(char character, int count) {
+            StringBuilder value = new StringBuilder(count);
+            for (int index = 0; index < count; index++) {
+                value.append(character);
+            }
+            return value.toString();
         }
     }
 }

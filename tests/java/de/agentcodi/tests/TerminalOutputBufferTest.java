@@ -15,7 +15,43 @@ public final class TerminalOutputBufferTest {
         redactsCredentialShapesFromSnapshots();
         finishesIncompleteUtf8Safely();
         removesRemainingControlsAndResetsIncompleteAnsi();
-        return 5;
+        backspaceRemovesWholeSupplementaryCodePoint();
+        return 6;
+    }
+
+    private static void backspaceRemovesWholeSupplementaryCodePoint() {
+        TerminalOutputBuffer buffer = new TerminalOutputBuffer();
+        buffer.append("a😀".getBytes(StandardCharsets.UTF_8));
+        buffer.append(new byte[] {0x08});
+        String afterFirst = buffer.snapshot();
+        TestSupport.assertEquals("a", afterFirst, "backspace deletes whole emoji code point");
+        TestSupport.assertFalse(
+            hasUnpairedSurrogate(afterFirst),
+            "backspace leaves no dangling surrogate"
+        );
+        buffer.append(new byte[] {0x08});
+        TestSupport.assertEquals("", buffer.snapshot(), "second backspace clears remaining char");
+
+        TerminalOutputBuffer plain = new TerminalOutputBuffer();
+        plain.append("ab".getBytes(StandardCharsets.UTF_8));
+        plain.append(new byte[] {0x08});
+        TestSupport.assertEquals("a", plain.snapshot(), "backspace still removes a single char");
+    }
+
+    private static boolean hasUnpairedSurrogate(String value) {
+        for (int index = 0; index < value.length(); index++) {
+            char character = value.charAt(index);
+            if (Character.isHighSurrogate(character)) {
+                if (index + 1 >= value.length()
+                    || !Character.isLowSurrogate(value.charAt(index + 1))) {
+                    return true;
+                }
+                index++;
+            } else if (Character.isLowSurrogate(character)) {
+                return true;
+            }
+        }
+        return false;
     }
 
     private static void decodesSplitUtf8AndStripsTerminalControls() {

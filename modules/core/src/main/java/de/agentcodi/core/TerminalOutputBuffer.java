@@ -153,7 +153,13 @@ public final class TerminalOutputBuffer {
             if (character == '\b') {
                 int length = output.length();
                 if (length > 0 && output.charAt(length - 1) != '\n') {
-                    output.setLength(length - 1);
+                    int removed = length - 1;
+                    if (removed > 0
+                        && Character.isLowSurrogate(output.charAt(removed))
+                        && Character.isHighSurrogate(output.charAt(removed - 1))) {
+                        removed--;
+                    }
+                    output.setLength(removed);
                 }
             } else if (character == '\t'
                 || (character >= 0x20

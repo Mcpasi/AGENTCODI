@@ -30,6 +30,18 @@ SHA-256: 4e3d825c54ab29389e5989b819a087efb1baa2dbb3daaee76a2f60614088dc39
 
 SHA-256: a9be3287860eb91962a9ed565fae76140657a7d0319933de8c054c423d33b0e3
 
+## AGENTCODI 0.6.13 
+
+- Refined the native interface with redesigned tool cards, clearer status badges, improved command and diff presentation, and better visual separation of tool details.
+
+- Improved the thread list with more spacious cards, two-line titles, and clearer highlighting of the currently opened chat.
+
+- Adjusted interface colors and badge contrast for improved readability in both light and dark themes.
+
+236 Java and 297 C++ tests passed
+
+SHA-256: bc8f66420f8b6376a22eef13dd483d9d67de0dd5c1e77d0c192ae54d07d1da9b
+
 # RELEASE_APK
 
 ## AGENTCODI 0.6.11 - RELEASE - 2026-09-04

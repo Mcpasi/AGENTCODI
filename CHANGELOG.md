@@ -18,6 +18,18 @@ Fixed terminal backspace handling for emojis and other Unicode characters, preve
 
 SHA-256: 4e3d825c54ab29389e5989b819a087efb1baa2dbb3daaee76a2f60614088dc39
 
+## AGENTCODI 0.6.12 
+
+- Refined the shared UI theme with softer corners, subtle elevation, and improved button styling.
+
+- Unified card, status banner, thread list, and icon button styling across the app.
+
+- Improved system bar and accent colors for a more consistent Android UI.
+
+331 Java and 297 C++ tests passed
+
+SHA-256: a9be3287860eb91962a9ed565fae76140657a7d0319933de8c054c423d33b0e3
+
 # RELEASE_APK
 
 ## AGENTCODI 0.6.11 - RELEASE - 2026-09-04

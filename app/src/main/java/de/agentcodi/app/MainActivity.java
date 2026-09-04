@@ -23,6 +23,7 @@ import android.widget.ArrayAdapter;
 import android.widget.BaseAdapter;
 import android.widget.EditText;
 import android.widget.ImageButton;
+import android.widget.ImageView;
 import android.widget.LinearLayout;
 import android.widget.ListView;
 import android.widget.ScrollView;
@@ -120,6 +121,7 @@ public final class MainActivity extends Activity {
     private ImageButton refreshThreadsButton;
     private ImageButton activeThreadsButton;
     private ImageButton archivedThreadsButton;
+    private TextView threadSectionLabel;
     private TextView threadEmptyView;
     private ListView threadList;
     private ThreadAdapter threadAdapter;
@@ -463,7 +465,15 @@ public final class MainActivity extends Activity {
 
         LinearLayout threadViews = new LinearLayout(this);
         threadViews.setOrientation(LinearLayout.HORIZONTAL);
-        threadViews.setGravity(Gravity.END);
+        threadViews.setGravity(Gravity.CENTER_VERTICAL);
+        threadSectionLabel = theme.sectionLabel(getString(R.string.chat_active_threads));
+        threadViews.addView(threadSectionLabel, new LinearLayout.LayoutParams(
+            0, ViewGroup.LayoutParams.WRAP_CONTENT, 1.0f
+        ));
+        LinearLayout filters = new LinearLayout(this);
+        filters.setOrientation(LinearLayout.HORIZONTAL);
+        filters.setPadding(theme.dp(4), theme.dp(4), theme.dp(4), theme.dp(4));
+        filters.setBackground(theme.background(theme.surface, theme.border, 18));
         activeThreadsButton = theme.iconButton(
             R.drawable.ic_chat_active_threads,
             getString(R.string.chat_active_threads)
@@ -474,7 +484,7 @@ public final class MainActivity extends Activity {
                 AgentRuntimeService.showActiveThreads();
             }
         });
-        threadViews.addView(activeThreadsButton);
+        filters.addView(activeThreadsButton, iconMarginParams(0));
         archivedThreadsButton = theme.iconButton(
             R.drawable.ic_chat_archived_threads,
             getString(R.string.chat_archived_threads)
@@ -485,8 +495,9 @@ public final class MainActivity extends Activity {
                 AgentRuntimeService.showArchivedThreads();
             }
         });
-        threadViews.addView(archivedThreadsButton, iconMarginParams(6));
-        theme.addWithTopMargin(page, threadViews, 8);
+        filters.addView(archivedThreadsButton, iconMarginParams(4));
+        threadViews.addView(filters);
+        theme.addWithTopMargin(page, threadViews, 14);
 
         threadEmptyView = theme.text(
             getString(R.string.chat_empty),
@@ -494,6 +505,7 @@ public final class MainActivity extends Activity {
             theme.secondary
         );
         threadEmptyView.setGravity(Gravity.CENTER);
+        threadEmptyView.setLineSpacing(0.0f, 1.25f);
         threadEmptyView.setPadding(
             theme.dp(24),
             theme.dp(48),
@@ -507,9 +519,11 @@ public final class MainActivity extends Activity {
         ));
 
         threadList = new ListView(this);
-        threadList.setBackground(theme.background(theme.surface, theme.border, 20));
-        threadList.setDivider(new ColorDrawable(theme.border));
-        threadList.setDividerHeight(theme.dp(1));
+        threadList.setBackgroundColor(Color.TRANSPARENT);
+        threadList.setDivider(new ColorDrawable(Color.TRANSPARENT));
+        threadList.setDividerHeight(theme.dp(10));
+        threadList.setSelector(theme.touchBackground(Color.TRANSPARENT, Color.TRANSPARENT, 20));
+        threadList.setDrawSelectorOnTop(true);
         threadList.setClipToPadding(false);
         threadList.setPadding(0, theme.dp(4), 0, theme.dp(4));
         threadAdapter = new ThreadAdapter();
@@ -1509,14 +1523,18 @@ public final class MainActivity extends Activity {
         boolean threadNavigationReady = canChat
             && !session.isTurnActive()
             && !interactionOpen;
-        theme.setEnabled(
+        styleThreadFilter(
             activeThreadsButton,
-            threadNavigationReady && session.isShowingArchivedThreads()
+            !session.isShowingArchivedThreads(),
+            threadNavigationReady
         );
-        theme.setEnabled(
+        styleThreadFilter(
             archivedThreadsButton,
-            threadNavigationReady && !session.isShowingArchivedThreads()
+            session.isShowingArchivedThreads(),
+            threadNavigationReady
         );
+        threadSectionLabel.setText(session.isShowingArchivedThreads()
+            ? R.string.chat_archived_threads : R.string.chat_active_threads);
         newThreadButton.setVisibility(
             session.isShowingArchivedThreads() ? View.GONE : View.VISIBLE
         );
@@ -1770,12 +1788,16 @@ public final class MainActivity extends Activity {
         boolean changed = false;
         for (int index = 0; index < items.size(); index++) {
             CodexTranscriptItem item = items.get(index);
-            String value = transcriptText(item);
             TranscriptRow row = renderedTranscriptRows.get(index);
-            if (!value.contentEquals(row.text.getText())) {
-                row.text.setText(value);
-                styleTranscriptView(row.text, item);
-                changed = true;
+            if (row.card != null) {
+                changed |= row.card.bind(item);
+            } else {
+                String value = messageText(item.getMessage());
+                if (!value.contentEquals(row.text.getText())) {
+                    row.text.setText(value);
+                    styleTranscriptView(row.text, item);
+                    changed = true;
+                }
             }
             bindImageAction(row, item);
         }
@@ -1785,20 +1807,26 @@ public final class MainActivity extends Activity {
     }
 
     private TranscriptRow createTranscriptRow(CodexTranscriptItem item) {
-        LinearLayout root = new LinearLayout(this);
-        root.setOrientation(LinearLayout.VERTICAL);
-        TextView text = theme.text(
-            transcriptText(item),
-            item.isMessage() ? 14 : 13,
-            theme.primary
-        );
-        text.setTextIsSelectable(true);
-        text.setLineSpacing(0.0f, 1.2f);
-        text.setPadding(theme.dp(14), theme.dp(12), theme.dp(14), theme.dp(12));
-        root.addView(text, new LinearLayout.LayoutParams(
-            ViewGroup.LayoutParams.MATCH_PARENT,
-            ViewGroup.LayoutParams.WRAP_CONTENT
-        ));
+        LinearLayout root;
+        TextView text = null;
+        TranscriptCardView card = null;
+        if (item.isMessage()) {
+            root = new LinearLayout(this);
+            root.setOrientation(LinearLayout.VERTICAL);
+            text = theme.text(messageText(item.getMessage()), 14, theme.primary);
+            text.setTextIsSelectable(true);
+            text.setLineSpacing(0.0f, 1.2f);
+            text.setPadding(theme.dp(14), theme.dp(12), theme.dp(14), theme.dp(12));
+            root.addView(text, new LinearLayout.LayoutParams(
+                ViewGroup.LayoutParams.MATCH_PARENT,
+                ViewGroup.LayoutParams.WRAP_CONTENT
+            ));
+            styleTranscriptView(text, item);
+        } else {
+            card = new TranscriptCardView(this, theme);
+            card.bind(item);
+            root = card;
+        }
 
         TextView imageStatus = theme.text("", 12, theme.secondary);
         imageStatus.setLineSpacing(0.0f, 1.15f);
@@ -1814,17 +1842,14 @@ public final class MainActivity extends Activity {
         imageActionParams.topMargin = theme.dp(6);
         root.addView(imageAction, imageActionParams);
 
-        TranscriptRow row = new TranscriptRow(root, text, imageStatus, imageAction);
-        styleTranscriptView(text, item);
+        TranscriptRow row = new TranscriptRow(root, text, card, imageStatus, imageAction);
         bindImageAction(row, item);
         return row;
     }
 
     private void styleTranscriptView(TextView view, CodexTranscriptItem item) {
         int fill;
-        if (!item.isMessage()) {
-            fill = cardFill(item);
-        } else if (item.getMessage().getRole() == ChatMessage.Role.USER) {
+        if (item.getMessage().getRole() == ChatMessage.Role.USER) {
             fill = theme.dark ? 0xFF123B3A : 0xFFE7FAF6;
         } else if (item.getMessage().getRole() == ChatMessage.Role.SYSTEM) {
             fill = theme.dark ? 0xFF3A2420 : 0xFFFFF4E5;
@@ -2349,74 +2374,16 @@ public final class MainActivity extends Activity {
         return item.getKind().name() + ":" + item.getId();
     }
 
-    private String transcriptText(CodexTranscriptItem item) {
-        if (item.isMessage()) {
-            return messageText(item.getMessage());
-        }
-        StringBuilder text = new StringBuilder(
-            UiText.cardTitle(this, item).toUpperCase(java.util.Locale.ROOT)
-        );
-        String status = statusLabel(item.getStatus());
-        if (!status.isEmpty()) {
-            text.append(" · ").append(status);
-        } else if (item.isStreaming()) {
-            text.append(" · ").append(getString(R.string.transcript_stream));
-        }
-        String summary = UiText.cardSummary(this, item);
-        String detail = UiText.cardDetail(this, item.getDetail());
-        if (!summary.isEmpty()) {
-            text.append("\n").append(summary);
-        }
-        if (!detail.isEmpty()) {
-            if (item.getKind() == CodexTranscriptItem.Kind.REASONING
-                && !summary.isEmpty()) {
-                text.append("\n\n").append(getString(R.string.transcript_details)).append('\n');
-            } else {
-                text.append("\n");
-            }
-            text.append(detail);
-        }
-        if (summary.isEmpty() && detail.isEmpty() && item.isStreaming()) {
-            text.append("\n").append(getString(R.string.transcript_receiving));
-        }
-        return text.toString();
-    }
-
-    private String statusLabel(String status) {
-        if ("inProgress".equals(status)) {
-            return getString(R.string.status_in_progress);
-        }
-        if ("completed".equals(status)) {
-            return getString(R.string.status_completed);
-        }
-        if ("failed".equals(status)) {
-            return getString(R.string.status_failed);
-        }
-        if ("declined".equals(status)) {
-            return getString(R.string.status_declined);
-        }
-        if ("interrupted".equals(status)) {
-            return getString(R.string.status_interrupted);
-        }
-        return status == null ? "" : status.toUpperCase(java.util.Locale.ROOT);
-    }
-
-    private int cardFill(CodexTranscriptItem item) {
-        if ("failed".equals(item.getStatus())
-            || "declined".equals(item.getStatus())
-            || "interrupted".equals(item.getStatus())) {
-            return theme.dark ? 0xFF3A2420 : 0xFFFFF1F2;
-        }
-        if (item.getKind() == CodexTranscriptItem.Kind.REASONING) {
-            return theme.dark ? 0xFF25203D : 0xFFF5F3FF;
-        }
-        if (item.getKind() == CodexTranscriptItem.Kind.PLAN) {
-            return theme.dark ? 0xFF172E46 : 0xFFEFF6FF;
-        }
-        if (item.isStreaming()) {
-            return theme.dark ? 0xFF1C3040 : 0xFFECFEFF;
-        }
-        return theme.dark ? 0xFF162D29 : 0xFFF0FDFA;
+    private void styleThreadFilter(ImageButton button, boolean selected, boolean enabled) {
+        button.setSelected(selected);
+        button.setEnabled(enabled && !selected);
+        button.setAlpha(enabled ? 1.0f : 0.45f);
+        button.setColorFilter(selected ? theme.accent : theme.secondary);
+        button.setBackground(theme.touchBackground(
+            selected ? theme.tintedSurface(theme.accent, 0.12f) : Color.TRANSPARENT,
+            Color.TRANSPARENT,
+            14
+        ));
     }
 
     private final class ThreadAdapter extends BaseAdapter {
@@ -2482,40 +2449,53 @@ public final class MainActivity extends Activity {
                 LinearLayout container = new LinearLayout(MainActivity.this);
                 container.setOrientation(LinearLayout.HORIZONTAL);
                 container.setGravity(Gravity.CENTER_VERTICAL);
-                container.setPadding(theme.dp(18), theme.dp(14), theme.dp(18), theme.dp(14));
+                container.setPadding(theme.dp(14), theme.dp(16), theme.dp(10), theme.dp(16));
+                ImageView icon = new ImageView(MainActivity.this);
+                icon.setPadding(theme.dp(9), theme.dp(9), theme.dp(9), theme.dp(9));
+                icon.setImportantForAccessibility(View.IMPORTANT_FOR_ACCESSIBILITY_NO);
+                container.addView(icon, new LinearLayout.LayoutParams(
+                    theme.dp(40), theme.dp(40)
+                ));
                 LinearLayout textColumn = new LinearLayout(MainActivity.this);
                 textColumn.setOrientation(LinearLayout.VERTICAL);
-                TextView title = theme.text("", 16, theme.primary);
+                TextView title = theme.text("", 15, theme.primary);
                 title.setTypeface(Typeface.DEFAULT_BOLD);
-                title.setSingleLine(true);
+                title.setMaxLines(2);
                 title.setEllipsize(android.text.TextUtils.TruncateAt.END);
+                title.setLineSpacing(0.0f, 1.12f);
                 textColumn.addView(title);
                 TextView metadata = theme.text("", 12, theme.secondary);
-                metadata.setSingleLine(true);
-                metadata.setEllipsize(android.text.TextUtils.TruncateAt.END);
-                theme.addWithTopMargin(textColumn, metadata, 4);
-                container.addView(textColumn, new LinearLayout.LayoutParams(
+                metadata.setLineSpacing(0.0f, 1.15f);
+                theme.addWithTopMargin(textColumn, metadata, 6);
+                LinearLayout.LayoutParams textParams = new LinearLayout.LayoutParams(
                     0,
                     ViewGroup.LayoutParams.WRAP_CONTENT,
                     1.0f
-                ));
+                );
+                textParams.setMarginStart(theme.dp(12));
+                container.addView(textColumn, textParams);
                 ImageButton action = theme.iconButton(
                     R.drawable.ic_chat_more,
                     getString(R.string.chat_actions)
                 );
                 action.setFocusable(false);
+                action.setColorFilter(theme.secondary);
+                action.setBackground(theme.touchBackground(
+                    Color.TRANSPARENT, Color.TRANSPARENT, 14
+                ));
                 LinearLayout.LayoutParams actionParams = new LinearLayout.LayoutParams(
                     ViewGroup.LayoutParams.WRAP_CONTENT,
                     ViewGroup.LayoutParams.WRAP_CONTENT
                 );
-                actionParams.leftMargin = theme.dp(10);
+                actionParams.setMarginStart(theme.dp(4));
                 container.addView(action, actionParams);
-                row = new ThreadRow(container, title, metadata, action);
+                row = new ThreadRow(container, icon, title, metadata, action);
                 container.setTag(row);
             }
             final CodexThreadSummary value = item(position);
             boolean active = !value.isArchived() && value.getId().equals(activeId);
             row.title.setText(UiText.threadTitle(MainActivity.this, value.getTitle()));
+            row.title.setContentDescription(row.title.getText());
             String updated = value.getUpdatedAtSeconds() <= 0
                 ? getString(R.string.chat_not_updated)
                 : DateFormat.getDateTimeInstance(DateFormat.SHORT, DateFormat.SHORT)
@@ -2527,10 +2507,20 @@ public final class MainActivity extends Activity {
                     active ? getString(R.string.chat_active_metadata, updated) : updated
                 );
             }
-            row.root.setBackground(theme.background(
-                active ? (theme.dark ? 0xFF123B3A : 0xFFE7FAF6) : theme.surface,
+            row.metadata.setTextColor(active ? theme.accent : theme.secondary);
+            row.icon.setImageResource(value.isArchived()
+                ? R.drawable.ic_chat_archived_threads : R.drawable.ic_chat_active_threads);
+            row.icon.setColorFilter(active ? theme.accent : theme.secondary);
+            row.icon.setBackground(theme.background(
+                active ? theme.tintedSurface(theme.accent, 0.14f) : theme.surfaceRaised,
                 Color.TRANSPARENT,
-                0
+                13
+            ));
+            row.root.setActivated(active);
+            row.root.setBackground(theme.background(
+                active ? theme.tintedSurface(theme.accent, 0.05f) : theme.surface,
+                active ? theme.accent : theme.border,
+                20
             ));
             row.root.setAlpha(enabled ? 1.0f : 0.55f);
             row.action.setEnabled(enabled);
@@ -2562,6 +2552,7 @@ public final class MainActivity extends Activity {
     private static final class TranscriptRow {
         private final LinearLayout root;
         private final TextView text;
+        private final TranscriptCardView card;
         private final TextView imageStatus;
         private final ImageButton imageAction;
         private String imagePath = "";
@@ -2573,11 +2564,13 @@ public final class MainActivity extends Activity {
         private TranscriptRow(
             LinearLayout root,
             TextView text,
+            TranscriptCardView card,
             TextView imageStatus,
             ImageButton imageAction
         ) {
             this.root = root;
             this.text = text;
+            this.card = card;
             this.imageStatus = imageStatus;
             this.imageAction = imageAction;
         }
@@ -2585,17 +2578,20 @@ public final class MainActivity extends Activity {
 
     private static final class ThreadRow {
         private final LinearLayout root;
+        private final ImageView icon;
         private final TextView title;
         private final TextView metadata;
         private final ImageButton action;
 
         private ThreadRow(
             LinearLayout root,
+            ImageView icon,
             TextView title,
             TextView metadata,
             ImageButton action
         ) {
             this.root = root;
+            this.icon = icon;
             this.title = title;
             this.metadata = metadata;
             this.action = action;

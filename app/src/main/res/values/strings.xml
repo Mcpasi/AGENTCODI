@@ -245,13 +245,13 @@
   <string name="transcript_role_codex" translatable="false">CODEX</string>
   <string name="transcript_role_system">SYSTEM</string>
   <string name="transcript_stream">STREAM</string>
-  <string name="transcript_details">DETAILS</string>
+  <string name="transcript_details">Details</string>
   <string name="transcript_receiving">Receiving…</string>
-  <string name="status_in_progress">IN PROGRESS</string>
-  <string name="status_completed">COMPLETED</string>
-  <string name="status_failed">FAILED</string>
-  <string name="status_declined">DECLINED</string>
-  <string name="status_interrupted">STOPPED</string>
+  <string name="status_in_progress">In progress</string>
+  <string name="status_completed">Completed</string>
+  <string name="status_failed">Failed</string>
+  <string name="status_declined">Declined</string>
+  <string name="status_interrupted">Stopped</string>
 
   <string name="image_export">Export image</string>
   <string name="image_exported">Image exported: %1$s</string>

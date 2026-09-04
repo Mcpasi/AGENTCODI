@@ -8,6 +8,7 @@ public final class TestMain {
         int passed = 0;
         passed += BuildIdentityTest.run();
         passed += ChatUiIconResourcesTest.run();
+        passed += de.agentcodi.app.TranscriptCardPresentationTest.run();
         passed += ExecutionModeTest.run();
         passed += CustomReviewModeTest.run();
         passed += JsonCodecTest.run();

@@ -68,6 +68,22 @@ final class UiTheme {
         return drawable;
     }
 
+    int tintedSurface(int color, float amount) {
+        return Color.rgb(
+            Math.round(Color.red(surface) + (Color.red(color) - Color.red(surface)) * amount),
+            Math.round(Color.green(surface) + (Color.green(color) - Color.green(surface)) * amount),
+            Math.round(Color.blue(surface) + (Color.blue(color) - Color.blue(surface)) * amount)
+        );
+    }
+
+    Drawable touchBackground(int fill, int stroke, int radiusDp) {
+        GradientDrawable content = background(fill, stroke, radiusDp);
+        GradientDrawable mask = background(Color.WHITE, Color.TRANSPARENT, radiusDp);
+        return new RippleDrawable(
+            ColorStateList.valueOf(dark ? 0x33FFFFFF : 0x22000000), content, mask
+        );
+    }
+
     private GradientDrawable accentGradient(int radiusDp) {
         GradientDrawable drawable = new GradientDrawable(
             GradientDrawable.Orientation.TL_BR,

@@ -103,7 +103,7 @@ AGENTCODI keeps its workspace in private app storage and separates it from Codex
 | Device | ARM64 |
 | Connection | Internet access for Codex requests |
 | Authentication | ChatGPT sign-in or OpenAI API key |
-| Current release line | AGENTCODI 0.6.11 |
+| Current release line | AGENTCODI 0.6.12 |
 | Packaged Codex runtime | 0.148.1 |
 
 ---

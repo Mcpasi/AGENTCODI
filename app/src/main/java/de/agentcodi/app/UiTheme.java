@@ -68,6 +68,22 @@ final class UiTheme {
         return drawable;
     }
 
+    private GradientDrawable accentGradient(int radiusDp) {
+        GradientDrawable drawable = new GradientDrawable(
+            GradientDrawable.Orientation.TL_BR,
+            new int[] { accent, shade(accent, 0.8f) }
+        );
+        drawable.setCornerRadius(dp(radiusDp));
+        return drawable;
+    }
+
+    private static int shade(int color, float factor) {
+        int r = Math.round(Color.red(color) * factor);
+        int g = Math.round(Color.green(color) * factor);
+        int b = Math.round(Color.blue(color) * factor);
+        return Color.rgb(r, g, b);
+    }
+
     TextView text(String value, int sizeSp, int color) {
         TextView view = new TextView(context);
         view.setText(value);
@@ -93,21 +109,23 @@ final class UiTheme {
         LinearLayout card = new LinearLayout(context);
         card.setOrientation(LinearLayout.VERTICAL);
         card.setPadding(dp(18), dp(18), dp(18), dp(18));
-        card.setBackground(background(surface, border, 18));
+        card.setBackground(background(surface, border, 20));
+        card.setElevation(dp(1));
         return card;
     }
 
     Button primaryButton(String label) {
         Button button = baseButton(label);
         button.setTextColor(Color.WHITE);
-        button.setBackground(background(accent, Color.TRANSPARENT, 13));
+        button.setBackground(accentGradient(16));
+        button.setElevation(dp(3));
         return button;
     }
 
     Button secondaryButton(String label) {
         Button button = baseButton(label);
         button.setTextColor(dark ? 0xFF99F6E4 : accent);
-        button.setBackground(background(surfaceRaised, border, 13));
+        button.setBackground(background(surfaceRaised, border, 16));
         return button;
     }
 
@@ -131,13 +149,16 @@ final class UiTheme {
     }
 
     ImageButton primaryIconButton(int iconResource, String description) {
-        return baseIconButton(
+        ImageButton button = baseIconButton(
             iconResource,
             description,
             accent,
             Color.TRANSPARENT,
             Color.WHITE
         );
+        button.setBackground(ripple(accentGradient(16)));
+        button.setElevation(dp(2));
+        return button;
     }
 
     ImageButton dangerIconButton(int iconResource, String description) {
@@ -202,9 +223,12 @@ final class UiTheme {
     }
 
     private Drawable iconBackground(int fill, int stroke) {
-        GradientDrawable content = background(fill, stroke, 14);
-        GradientDrawable mask = background(Color.WHITE, Color.TRANSPARENT, 14);
-        int ripple = dark ? 0x33FFFFFF : 0x22000000;
-        return new RippleDrawable(ColorStateList.valueOf(ripple), content, mask);
+        return ripple(background(fill, stroke, 16));
+    }
+
+    private Drawable ripple(GradientDrawable content) {
+        GradientDrawable mask = background(Color.WHITE, Color.TRANSPARENT, 16);
+        int rippleColor = dark ? 0x33FFFFFF : 0x22000000;
+        return new RippleDrawable(ColorStateList.valueOf(rippleColor), content, mask);
     }
 }

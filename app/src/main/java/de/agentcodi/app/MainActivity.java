@@ -372,7 +372,7 @@ public final class MainActivity extends Activity {
         statusBanner.setOrientation(LinearLayout.HORIZONTAL);
         statusBanner.setGravity(Gravity.CENTER_VERTICAL);
         statusBanner.setPadding(theme.dp(14), theme.dp(12), theme.dp(12), theme.dp(12));
-        statusBanner.setBackground(theme.background(theme.surfaceRaised, theme.border, 14));
+        statusBanner.setBackground(theme.background(theme.surfaceRaised, theme.border, 16));
         statusText = theme.text(getString(R.string.chat_runtime_checking), 13, theme.primary);
         statusText.setLineSpacing(0.0f, 1.15f);
         statusBanner.addView(statusText, new LinearLayout.LayoutParams(
@@ -507,7 +507,7 @@ public final class MainActivity extends Activity {
         ));
 
         threadList = new ListView(this);
-        threadList.setBackground(theme.background(theme.surface, theme.border, 18));
+        threadList.setBackground(theme.background(theme.surface, theme.border, 20));
         threadList.setDivider(new ColorDrawable(theme.border));
         threadList.setDividerHeight(theme.dp(1));
         threadList.setClipToPadding(false);

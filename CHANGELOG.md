@@ -25,8 +25,7 @@ SHA-256: 4e3d825c54ab29389e5989b819a087efb1baa2dbb3daaee76a2f60614088dc39
 - Unified card, status banner, thread list, and icon button styling across the app.
 
 - Improved system bar and accent colors for a more consistent Android UI.
-
-331 Java and 297 C++ tests passed
+231 Java and 297 C++ tests passed
 
 SHA-256: a9be3287860eb91962a9ed565fae76140657a7d0319933de8c054c423d33b0e3
 
@@ -41,6 +40,16 @@ SHA-256: a9be3287860eb91962a9ed565fae76140657a7d0319933de8c054c423d33b0e3
 236 Java and 297 C++ tests passed
 
 SHA-256: bc8f66420f8b6376a22eef13dd483d9d67de0dd5c1e77d0c192ae54d07d1da9b
+
+## AGENTCODI 0.7.0 
+
+-  The pinned app server has been upgraded to version 0.153.2; the new app server includes support for GPT6-Astra.
+
+258 Java and 302 C++ tests passed
+
+The release will follow shortly after extensive device testing.
+
+SHA-256: 22447a04daca6622199143bd785ed62346c817d31d2d144c8b85c8214ad26349
 
 # RELEASE_APK
 

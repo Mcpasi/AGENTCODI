@@ -41,6 +41,7 @@ find \
   "$PROJECT_ROOT/modules/connector-contracts/src/main/java" \
   "$PROJECT_ROOT/modules/connector-client/src/main/java" \
   "$PROJECT_ROOT/app/src/main/java/de/agentcodi/app/TranscriptCardPresentation.java" \
+  "$PROJECT_ROOT/scripts/java/de/agentcodi/tools/CodexPackageMetadata.java" \
   "$PROJECT_ROOT/scripts/java/de/agentcodi/tools/CodexRuntimeUpdater.java" \
   "$PROJECT_ROOT/tests/java" \
   -type f -name '*.java' -print | sort > "$TEST_BUILD/java-sources.txt"

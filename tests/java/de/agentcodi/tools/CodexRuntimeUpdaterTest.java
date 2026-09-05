@@ -15,6 +15,7 @@ import java.util.Arrays;
 import java.util.Base64;
 import java.util.Collections;
 import java.util.LinkedHashMap;
+import java.util.List;
 import java.util.Map;
 import java.util.Set;
 import java.util.zip.GZIPOutputStream;
@@ -35,6 +36,10 @@ public final class CodexRuntimeUpdaterTest {
         validatesElfAndFindsOnlyReviewedHostField();
         rejectsChangedElfContracts();
         checksSchemaCompatibility();
+        acceptsReviewedRawAndThreadChanges();
+        rejectsChangedConsumersOfReviewedSchemaTypes();
+        keepsExistingProtocolFieldsStrict();
+        supportsSuccessiveSchemaUpdates();
         updatesAllPinsAndPreservesUnrelatedContent();
         rejectsUnexpectedManagedContentBeforeWrites();
         refusesConcurrentEdits();
@@ -42,7 +47,7 @@ public final class CodexRuntimeUpdaterTest {
         rollsBackFailedInstall();
         preservesConflictingEditsDuringRollback();
         boundsSubprocessExecution();
-        return 14;
+        return 18;
     }
 
     public static void main(String[] args) throws Exception {
@@ -61,22 +66,16 @@ public final class CodexRuntimeUpdaterTest {
             "repository", JsonCodec.object("url", "git+https://github.com/" + CodexRuntimeUpdater.FORK + ".git"),
             "description", "OpenAI Codex CLI upstream rust-v1.2.0 packaged for Android Termux"
         );
-        CodexRuntimeUpdater.validatePackage(metadata, "1.2.3");
-        TestSupport.assertEquals("rust-v1.2.0", CodexRuntimeUpdater.upstreamTag(metadata), "distinct upstream version");
-        CodexRuntimeUpdater.validateReadme("built from upstream OpenAI Codex `rust-v1.2.0`", "rust-v1.2.0");
-        rejects(new Action() {
-            public void run() throws Exception {
-                CodexRuntimeUpdater.validateReadme("built from upstream OpenAI Codex `rust-v1.1.0`", "rust-v1.2.0");
-            }
-        });
+        CodexPackageMetadata.validatePackage(metadata, "1.2.3");
+        TestSupport.assertEquals("rust-v1.2.0", CodexPackageMetadata.upstreamTag(metadata), "distinct upstream version");
         metadata.put("license", "GPL-3.0");
-        rejects(new Action() { public void run() throws Exception { CodexRuntimeUpdater.validatePackage(metadata, "1.2.3"); } });
+        rejects(new Action() { public void run() throws Exception { CodexPackageMetadata.validatePackage(metadata, "1.2.3"); } });
         metadata.put("license", "Apache-2.0");
         metadata.put("cpu", JsonCodec.array("x64"));
-        rejects(new Action() { public void run() throws Exception { CodexRuntimeUpdater.validatePackage(metadata, "1.2.3"); } });
+        rejects(new Action() { public void run() throws Exception { CodexPackageMetadata.validatePackage(metadata, "1.2.3"); } });
         metadata.put("cpu", JsonCodec.array("arm64"));
         metadata.put("name", "other/package");
-        rejects(new Action() { public void run() throws Exception { CodexRuntimeUpdater.validatePackage(metadata, "1.2.3"); } });
+        rejects(new Action() { public void run() throws Exception { CodexPackageMetadata.validatePackage(metadata, "1.2.3"); } });
     }
 
     private static void verifiesPublishedIntegrity() throws Exception {
@@ -118,8 +117,13 @@ public final class CodexRuntimeUpdaterTest {
     }
 
     private static byte[] archiveBytes(String extra, char type, boolean corrupt, boolean truncate) throws Exception {
+        return archiveBytes(extra, type, corrupt, truncate, true);
+    }
+
+    private static byte[] archiveBytes(String extra, char type, boolean corrupt, boolean truncate, boolean includeReadme) throws Exception {
         ByteArrayOutputStream tar = new ByteArrayOutputStream();
         for (String name : CodexRuntimeUpdater.ARCHIVE_MEMBERS) {
+            if (!includeReadme && "package/README.md".equals(name)) continue;
             byte[] h = header(name, '0', 4);
             if (corrupt) h[0] ^= 1;
             tar.write(h);
@@ -146,9 +150,14 @@ public final class CodexRuntimeUpdaterTest {
             for (String name : CodexRuntimeUpdater.MATERIALIZED) {
                 TestSupport.assertEquals(4L, Files.size(target.resolve(name)), "bounded regular bytes extracted");
             }
-            for (String name : new String[] {"package/bin/codex", "package/bin/codex.js", "package/scripts/postinstall_termux_launcher.js", "package/bin/libc++_shared.so"}) {
+            for (String name : new String[] {"package/bin/codex", "package/bin/codex.js", "package/scripts/postinstall_termux_launcher.js", "package/bin/libc++_shared.so", "package/README.md"}) {
                 TestSupport.assertFalse(Files.exists(target.resolve(name)), "no wrapper/script or unused library extracted");
             }
+            Path withoutReadme = work.resolve("without-readme.tgz");
+            Files.write(withoutReadme, archiveBytes(null, '0', false, false, false));
+            CodexRuntimeUpdater.unpack(withoutReadme, work.resolve("without-readme"));
+            TestSupport.assertTrue(Files.isRegularFile(work.resolve("without-readme/package/LICENSE")),
+                "a missing README does not remove required legal material");
         } finally { remove(work); }
     }
 
@@ -264,6 +273,115 @@ public final class CodexRuntimeUpdaterTest {
         rejects(new Action() { public void run() throws Exception { CodexRuntimeUpdater.compareSchemas(old, schema("integer", false)); } });
         rejects(new Action() { public void run() throws Exception { CodexRuntimeUpdater.compareSchemas(old, schema("string", true)); } });
         rejects(new Action() { public void run() throws Exception { CodexRuntimeUpdater.compareSchemas(old, JsonCodec.object("definitions", JsonCodec.object())); } });
+    }
+
+    // Minimal wire contracts reproduce the 0.148.1 -> 0.150.1/0.153.2 schema changes.
+    private static Map<String, Object> schemaFixture(boolean nested, boolean newer) {
+        String prefix = nested ? "#/definitions/v2/" : "#/definitions/";
+        Map<String, Object> threadProperties = JsonCodec.object("id", JsonCodec.object("type", "string"));
+        if (newer) threadProperties.put("projectId", JsonCodec.object("type", JsonCodec.array("string", "null")));
+        Map<String, Object> definitions = JsonCodec.object(
+            "Thread", JsonCodec.object("type", "object", "properties", threadProperties,
+                "required", newer ? JsonCodec.array("id", "projectId") : JsonCodec.array("id")),
+            "ThreadResumeResponse", JsonCodec.object("type", "object", "properties",
+                JsonCodec.object("thread", JsonCodec.object("$ref", prefix + "Thread"))),
+            "TurnStartParams", JsonCodec.object("type", "object", "properties",
+                JsonCodec.object("threadId", JsonCodec.object("type", "string")), "required", JsonCodec.array("threadId")),
+            "ResponseItem", JsonCodec.object("oneOf", JsonCodec.array(JsonCodec.object(
+                "type", "object", "properties", JsonCodec.object(
+                    "type", JsonCodec.object("type", "string", "enum", JsonCodec.array("function_call_output")),
+                    "call_id", JsonCodec.object("type", newer ? JsonCodec.array("string", "null") : "string"),
+                    "output", JsonCodec.object("type", "string")),
+                "required", newer ? JsonCodec.array("output", "type") : JsonCodec.array("call_id", "output", "type")))),
+            "RawResponseItemCompletedNotification", JsonCodec.object("type", "object", "properties",
+                JsonCodec.object("item", JsonCodec.object("$ref", prefix + "ResponseItem")))
+        );
+        Map<String, Object> rootDefinitions = nested ? JsonCodec.object("v2", definitions) : definitions;
+        rootDefinitions.put("ClientRequest", JsonCodec.object("$ref", prefix + "TurnStartParams"));
+        return JsonCodec.object("definitions", rootDefinitions);
+    }
+
+    private static Map<String, Object> definitions(Map<String, Object> schema, boolean nested) {
+        Map<String, Object> definitions = CodexRuntimeUpdater.object(schema.get("definitions"));
+        return nested ? CodexRuntimeUpdater.object(definitions.get("v2")) : definitions;
+    }
+
+    private static Map<String, Object> definition(Map<String, Object> schema, boolean nested, String name) {
+        return CodexRuntimeUpdater.object(definitions(schema, nested).get(name));
+    }
+
+    private static Map<String, Object> properties(Map<String, Object> schema, boolean nested, String name) {
+        return CodexRuntimeUpdater.object(definition(schema, nested, name).get("properties"));
+    }
+
+    private static Map<String, Object> outputVariant(Map<String, Object> schema, boolean nested) {
+        return CodexRuntimeUpdater.object(((List<?>) definition(schema, nested, "ResponseItem").get("oneOf")).get(0));
+    }
+
+    private static void acceptsReviewedRawAndThreadChanges() throws Exception {
+        for (boolean nested : new boolean[] {true, false}) {
+            Map<String, Object> old = schemaFixture(nested, false);
+            Map<String, Object> next = schemaFixture(nested, true);
+            String oldBytes = JsonCodec.stringify(old), newBytes = JsonCodec.stringify(next);
+            List<String> reviewed = CodexRuntimeUpdater.compareSchemas(old, next);
+            TestSupport.assertEquals(2, reviewed.size(), "both reviewed changes are reported");
+            TestSupport.assertEquals(oldBytes, JsonCodec.stringify(old), "baseline schema is not rewritten");
+            TestSupport.assertEquals(newBytes, JsonCodec.stringify(next), "candidate SHA remains bound to original schema bytes");
+        }
+    }
+
+    private static void rejectsChangedConsumersOfReviewedSchemaTypes() throws Exception {
+        for (boolean nested : new boolean[] {true, false}) {
+            String prefix = nested ? "#/definitions/v2/" : "#/definitions/";
+            for (String consumer : new String[] {"raw-other-notification", "thread-request", "thread-user-answer", "thread-indirect-request"}) {
+                final Map<String, Object> old = schemaFixture(nested, false);
+                final Map<String, Object> next = schemaFixture(nested, true);
+                if ("raw-other-notification".equals(consumer)) {
+                    definitions(next, nested).put("OtherNotification", JsonCodec.object("$ref", prefix + "ResponseItem"));
+                } else if ("thread-user-answer".equals(consumer)) {
+                    definitions(next, nested).put("ToolRequestUserInputResponse", JsonCodec.object("$ref", prefix + "Thread"));
+                } else if ("thread-indirect-request".equals(consumer)) {
+                    properties(next, nested, "TurnStartParams").put("extra", JsonCodec.object("$ref", prefix + "Wrapper"));
+                    definitions(next, nested).put("Wrapper", JsonCodec.object("properties", JsonCodec.object(
+                        "cycle", JsonCodec.object("$ref", prefix + "Wrapper"),
+                        "thread", JsonCodec.object("$ref", prefix + "Thread"))));
+                } else {
+                    properties(next, nested, "TurnStartParams").put("extra", JsonCodec.object("$ref", prefix + "Thread"));
+                }
+                rejects(new Action() { public void run() throws Exception { CodexRuntimeUpdater.compareSchemas(old, next); } });
+            }
+        }
+    }
+
+    private static void keepsExistingProtocolFieldsStrict() throws Exception {
+        for (String changed : new String[] {"thread-id", "thread-required", "raw-output", "raw-call-id", "input-required", "raw-ref"}) {
+            final Map<String, Object> old = schemaFixture(true, false);
+            final Map<String, Object> next = schemaFixture(true, true);
+            if ("thread-id".equals(changed)) properties(next, true, "Thread").put("id", JsonCodec.object("type", "integer"));
+            if ("thread-required".equals(changed)) definition(next, true, "Thread").put("required", JsonCodec.array("projectId"));
+            if ("raw-output".equals(changed) || "raw-call-id".equals(changed)) {
+                String key = "raw-output".equals(changed) ? "output" : "call_id";
+                CodexRuntimeUpdater.object(outputVariant(next, true).get("properties")).put(key, JsonCodec.object("type", "integer"));
+            }
+            if ("input-required".equals(changed)) {
+                properties(next, true, "TurnStartParams").put("newField", JsonCodec.object("type", "string"));
+                definition(next, true, "TurnStartParams").put("required", JsonCodec.array("threadId", "newField"));
+            }
+            if ("raw-ref".equals(changed)) {
+                properties(next, true, "RawResponseItemCompletedNotification").put("item", JsonCodec.object("type", "string"));
+            }
+            rejects(new Action() { public void run() throws Exception { CodexRuntimeUpdater.compareSchemas(old, next); } });
+        }
+    }
+
+    private static void supportsSuccessiveSchemaUpdates() throws Exception {
+        final Map<String, Object> old = schemaFixture(false, true);
+        final Map<String, Object> next = schemaFixture(false, true);
+        properties(next, false, "Thread").put("model", JsonCodec.object("type", JsonCodec.array("string", "null")));
+        TestSupport.assertTrue(CodexRuntimeUpdater.compareSchemas(old, next).isEmpty(), "later additive update remains compatible");
+        TestSupport.assertTrue(CodexRuntimeUpdater.compareSchemas(next, next).isEmpty(), "same-version recheck is idempotent");
+        properties(next, false, "Thread").put("projectId", JsonCodec.object("type", "integer"));
+        rejects(new Action() { public void run() throws Exception { CodexRuntimeUpdater.compareSchemas(old, next); } });
     }
 
     private static Path fixture() throws Exception {

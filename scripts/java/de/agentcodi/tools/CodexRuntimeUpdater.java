@@ -1,6 +1,7 @@
 package de.agentcodi.tools;
 
 import de.agentcodi.core.JsonCodec;
+import static de.agentcodi.tools.CodexPackageMetadata.validatePackage;
 import java.io.IOException;
 import java.io.InputStream;
 import java.io.OutputStream;
@@ -39,9 +40,9 @@ import java.util.zip.GZIPInputStream;
 public final class CodexRuntimeUpdater {
     static final long ARCHIVE_LIMIT = 192L * 1024 * 1024;
     static final int TEXT_LIMIT = 16 * 1024 * 1024;
-    static final String PACKAGE = "@mmmbuto/codex-cli-termux";
+    static final String PACKAGE = CodexPackageMetadata.PACKAGE;
     static final String REGISTRY = "https://registry.npmjs.org/";
-    static final String FORK = "DioNanos/codex-termux";
+    static final String FORK = CodexPackageMetadata.FORK;
     static final String BUILD = "scripts/build-debug-apk.sh";
     static final String ARCHITECTURE = "scripts/check-architecture.sh";
     static final String IDENTITY = "modules/core/src/main/java/de/agentcodi/core/BuildIdentity.java";
@@ -73,7 +74,7 @@ public final class CodexRuntimeUpdater {
     );
     static final Set<String> MATERIALIZED = set(
         "package/bin/codex.bin", "package/bin/codex-code-mode-host",
-        "package/package.json", "package/README.md", "package/LICENSE", "package/NOTICE"
+        "package/package.json", "package/LICENSE", "package/NOTICE"
     );
     private final Path root;
     private final Path work;
@@ -160,11 +161,8 @@ public final class CodexRuntimeUpdater {
         Path candidateArchive = acquire(version, integrity, null, "candidate.tgz");
         Path candidate = work.resolve("candidate");
         unpack(candidateArchive, candidate);
-        Map<String, Object> packageJson = json(candidate.resolve("package/package.json"));
-        validatePackage(packageJson, version);
-        String upstreamTag = upstreamTag(packageJson);
-        require(upstreamTag.equals(upstreamTag(metadata)), "Registry/package upstream versions disagree.");
-        validateReadme(text(candidate.resolve("package/README.md")), upstreamTag);
+        Map<String, Object> packageJson = CodexPackageMetadata.read(candidate.resolve("package/package.json"));
+        String upstreamTag = CodexPackageMetadata.verifyAgreement(version, metadata, packageJson);
         // Legal changes require a fresh review; do not bless new license texts by hashing them.
         checkHash(candidate.resolve("package/LICENSE"), old.get("CODEX_LICENSE_SHA256"));
         checkHash(candidate.resolve("package/NOTICE"), old.get("CODEX_NOTICE_SHA256"));
@@ -172,14 +170,15 @@ public final class CodexRuntimeUpdater {
         String forkCommit = resolveTag(FORK, "v" + version, "fork");
         String upstreamCommit = resolveTag("openai/codex", upstreamTag, "upstream");
         String raw = "https://raw.githubusercontent.com/" + FORK + "/" + forkCommit + "/";
-        Map<String, Object> sourcePackage = json(download(raw + "npm-package/package.json", "source-package.json", TEXT_LIMIT));
-        validatePackage(sourcePackage, version);
-        require(upstreamTag.equals(upstreamTag(sourcePackage)), "Source/package provenance differs.");
+        Map<String, Object> sourcePackage = CodexPackageMetadata.read(
+            download(raw + "npm-package/package.json", "source-package.json", 2 * 1024 * 1024));
+        CodexPackageMetadata.verifyAgreement(version, metadata, packageJson, sourcePackage);
         for (String legal : new String[] {"LICENSE", "NOTICE"}) {
             Path source = download(raw + legal, "source-" + legal, TEXT_LIMIT);
             require(digest(source, "SHA-256").equals(digest(candidate.resolve("package/" + legal), "SHA-256")),
                 "Published " + legal + " differs from the tagged source; review required.");
         }
+        System.out.println("Provenance verified against registry, archive and tagged source metadata (README is informational).");
 
         Path baselineArchive = version.equals(current) ? candidateArchive
             : acquire(current, null, old.get("CODEX_ANDROID_SHA256"), "baseline.tgz");
@@ -199,9 +198,17 @@ public final class CodexRuntimeUpdater {
         next.put("CODEX_UPSTREAM_SOURCE_TAG", upstreamTag);
         next.put("CODEX_UPSTREAM_SOURCE_COMMIT", upstreamCommit);
         if (version.equals(current)) require(old.equals(next), "The pinned version was republished or its source tags moved.");
+        StringBuilder compatibility = new StringBuilder();
         for (String schema : SCHEMAS) {
-            compareSchemas(json(baseline.resolve("schema/" + schema)), json(candidate.resolve("schema/" + schema)));
+            List<String> reviewed = compareSchemas(json(baseline.resolve("schema/" + schema)), json(candidate.resolve("schema/" + schema)));
+            compatibility.append(schema).append(": compatible\n");
+            for (String change : reviewed) {
+                compatibility.append("  ").append(change).append('\n');
+                System.out.println("Compatible schema change: " + change);
+            }
         }
+        Files.write(work.resolve("compatibility.txt"), compatibility.toString().getBytes(StandardCharsets.UTF_8),
+            StandardOpenOption.CREATE_NEW);
         plan.update(old, next);
         plan.saveProposal(next);
         System.out.println("All artifact checks passed. Proposed pins:");
@@ -354,35 +361,8 @@ public final class CodexRuntimeUpdater {
         return result;
     }
 
-    static void validatePackage(Map<String, Object> metadata, String version) throws IOException {
-        require(isVersion(version) && version.equals(string(metadata, "version")), "Invalid package version.");
-        require(PACKAGE.equals(string(metadata, "name")), "Unexpected package name.");
-        require("Apache-2.0".equals(string(metadata, "license")), "Package license changed; review required.");
-        require(Collections.singletonList("android").equals(metadata.get("os"))
-            && Collections.singletonList("arm64").equals(metadata.get("cpu")), "Package is not Android ARM64-only.");
-        require(("git+https://github.com/" + FORK + ".git").equals(string(object(metadata.get("repository")), "url")),
-            "Package repository changed; provenance review required.");
-    }
-
-    static String upstreamTag(Map<String, Object> metadata) throws IOException {
-        Matcher matcher = Pattern.compile("\\bupstream (rust-v[0-9]+\\.[0-9]+\\.[0-9]+)\\b").matcher(string(metadata, "description"));
-        require(matcher.find(), "Missing upstream release tag.");
-        String result = matcher.group(1);
-        require(!matcher.find(), "Ambiguous upstream release tag.");
-        return result;
-    }
-
-    static void validateReadme(String readme, String expectedTag) throws IOException {
-        Matcher matcher = Pattern.compile("built from upstream OpenAI Codex `(rust-v[0-9]+\\.[0-9]+\\.[0-9]+)`").matcher(readme);
-        require(matcher.find(), "Package README is missing the upstream provenance required by the APK builder.");
-        String actual = matcher.group(1);
-        require(expectedTag.equals(actual) && !matcher.find(), "Package README reports " + actual
-            + " but package metadata reports " + expectedTag + ". The APK builder also rejects this mismatch; source pins were not changed.");
-    }
-
     static boolean isVersion(String version) {
-        return version != null && version.length() <= 32
-            && version.matches("(0|[1-9][0-9]*)\\.(0|[1-9][0-9]*)\\.(0|[1-9][0-9]*)");
+        return CodexPackageMetadata.isVersion(version);
     }
 
     static int compareVersions(String left, String right) throws IOException {
@@ -758,14 +738,153 @@ public final class CodexRuntimeUpdater {
         @Override public void close() throws IOException { channel.close(); }
     }
 
-    /** Conservative structural gate: additions are allowed; changed existing contracts need review. */
-    static void compareSchemas(Map<String, Object> old, Map<String, Object> next) throws IOException {
+    /** Keep existing contracts strict, with the two reviewed consumer-compatible exceptions below. */
+    static List<String> compareSchemas(Map<String, Object> old, Map<String, Object> next) throws IOException {
         Map<String, Object> oldDefinitions = object(old.get("definitions"));
         Map<String, Object> newDefinitions = object(next.get("definitions"));
         for (String required : new String[] {"ClientRequest", "ServerRequest", "ServerNotification"}) {
             if (oldDefinitions.containsKey(required)) require(newDefinitions.containsKey(required), "Missing protocol envelope: " + required);
         }
-        compareSchemaNode(old, next, "schema");
+        // Work on copies: the original bytes remain the source of the schema SHA-256 pins.
+        Map<String, Object> before = JsonCodec.parseObject(JsonCodec.stringify(old));
+        Map<String, Object> after = JsonCodec.parseObject(JsonCodec.stringify(next));
+        List<String> reviewed = new ArrayList<String>();
+        String prefix = oldDefinitions.containsKey("v2") ? "#/definitions/v2/" : "#/definitions/";
+        normalizeRawCallId(before, after, prefix, reviewed);
+        normalizeThreadAdditions(before, after, prefix, reviewed);
+        compareSchemaNode(before, after, "schema");
+        return reviewed;
+    }
+
+    private static Object reference(Map<String, Object> schema, String ref) throws IOException {
+        require(ref.equals("#/definitions") || ref.startsWith("#/definitions/"),
+            "Non-local schema reference; protocol review required.");
+        Object value = schema;
+        for (String part : ref.substring(2).split("/")) {
+            require(value instanceof Map && object(value).containsKey(part), "Unresolved schema reference: " + ref);
+            value = object(value).get(part);
+        }
+        return value;
+    }
+
+    private static void findReferences(Object node, String path, Map<String, String> references) throws IOException {
+        if (node instanceof Map) {
+            for (Map.Entry<String, Object> entry : object(node).entrySet()) {
+                if (set("description", "title", "default", "examples", "$schema").contains(entry.getKey())) continue;
+                if ("$ref".equals(entry.getKey())) {
+                    require(entry.getValue() instanceof String, "Malformed schema reference.");
+                    references.put(path + "/$ref", (String) entry.getValue());
+                } else findReferences(entry.getValue(), path + "/" + entry.getKey(), references);
+            }
+        } else if (node instanceof List) {
+            int index = 0;
+            for (Object child : (List<?>) node) findReferences(child, path + "/" + index++, references);
+        }
+    }
+
+    private static void requireRawItemOnly(Map<String, Object> schema, String prefix) throws IOException {
+        Map<String, String> references = new LinkedHashMap<String, String>();
+        findReferences(schema, "#", references);
+        int count = 0;
+        for (Map.Entry<String, String> ref : references.entrySet()) {
+            if (!(prefix + "ResponseItem").equals(ref.getValue())) continue;
+            require((prefix + "RawResponseItemCompletedNotification/properties/item/$ref").equals(ref.getKey()),
+                "ResponseItem is no longer exclusive to the opted-out raw notification; protocol review required.");
+            count++;
+        }
+        require(count == 1, "Raw ResponseItem usage changed; protocol review required.");
+    }
+
+    private static Map<String, Object> rawFunctionOutput(Map<String, Object> schema, String prefix) throws IOException {
+        Map<String, Object> definitions = object(reference(schema, prefix.substring(0, prefix.length() - 1)));
+        if (!definitions.containsKey("ResponseItem")) return null;
+        Object variants = object(definitions.get("ResponseItem")).get("oneOf");
+        require(variants instanceof List, "ResponseItem union changed; protocol review required.");
+        Map<String, Object> found = null;
+        for (Object variant : (List<?>) variants) {
+            Map<String, Object> node = object(variant);
+            Map<String, Object> properties = object(node.get("properties"));
+            if (!Collections.singletonList("function_call_output").equals(object(properties.get("type")).get("enum"))) continue;
+            require(found == null, "Ambiguous function_call_output schema.");
+            found = node;
+        }
+        return found;
+    }
+
+    private static void normalizeRawCallId(Map<String, Object> old, Map<String, Object> next,
+            String prefix, List<String> reviewed) throws IOException {
+        Map<String, Object> before = rawFunctionOutput(old, prefix);
+        Map<String, Object> after = rawFunctionOutput(next, prefix);
+        if (before == null || after == null) return; // The structural gate still rejects removed variants.
+        Map<String, Object> oldProperties = object(before.get("properties"));
+        Map<String, Object> newProperties = object(after.get("properties"));
+        Object a = oldProperties.get("call_id"), b = newProperties.get("call_id");
+        if (java.util.Objects.equals(a, b) && java.util.Objects.equals(before.get("required"), after.get("required"))) return;
+        requireRawItemOnly(old, prefix);
+        requireRawItemOnly(next, prefix);
+        // CodexSessionController opts out of rawResponseItem/completed and ignores it even
+        // if delivered. Only this field's string/null and presence changes were reviewed.
+        // Do not exempt the rest of ResponseItem, its outputs, or another call_id field.
+        for (Map<String, Object> node : Arrays.asList(before, after)) {
+            Map<String, Object> callId = object(object(node.get("properties")).get("call_id"));
+            Object type = callId.get("type");
+            require("string".equals(type) || Arrays.asList("string", "null").equals(type),
+                "Raw function_call_output.call_id changed beyond optional/nullable string.");
+            callId.put("type", Arrays.asList("string", "null"));
+            List<Object> required = new ArrayList<Object>(JsonCodec.requireArray(node.get("required"), "required"));
+            required.remove("call_id");
+            node.put("required", required);
+        }
+        reviewed.add("ResponseItem.function_call_output.call_id may be absent/null in the unused raw notification.");
+    }
+
+    private static void requireThreadNotSent(Map<String, Object> schema, String prefix) throws IOException {
+        Map<String, Object> definitions = object(reference(schema, prefix.substring(0, prefix.length() - 1)));
+        Set<String> pending = new LinkedHashSet<String>();
+        // Parameters include both client and server requests. The three native dialog
+        // responses are the only additional typed payloads AGENTCODI sends to the server.
+        Set<String> envelopes = set("ClientRequest", "ClientNotification", "ServerRequest",
+            "CommandExecutionRequestApprovalResponse", "FileChangeRequestApprovalResponse", "ToolRequestUserInputResponse");
+        for (String name : definitions.keySet()) {
+            if (name.endsWith("Params") || envelopes.contains(name)) pending.add(prefix + name);
+        }
+        for (String name : envelopes) {
+            if (object(schema.get("definitions")).containsKey(name)) pending.add("#/definitions/" + name);
+        }
+        Set<String> visited = new HashSet<String>();
+        while (!pending.isEmpty()) {
+            String ref = pending.iterator().next();
+            pending.remove(ref);
+            if (!visited.add(ref)) continue;
+            require(!(prefix + "Thread").equals(ref), "Thread is now a request payload; protocol review required.");
+            Map<String, String> nested = new LinkedHashMap<String, String>();
+            findReferences(reference(schema, ref), ref, nested);
+            pending.addAll(nested.values());
+        }
+    }
+
+    private static void normalizeThreadAdditions(Map<String, Object> old, Map<String, Object> next,
+            String prefix, List<String> reviewed) throws IOException {
+        Map<String, Object> oldDefinitions = object(reference(old, prefix.substring(0, prefix.length() - 1)));
+        Map<String, Object> newDefinitions = object(reference(next, prefix.substring(0, prefix.length() - 1)));
+        if (!oldDefinitions.containsKey("Thread") || !newDefinitions.containsKey("Thread")) return;
+        Map<String, Object> before = object(oldDefinitions.get("Thread"));
+        Map<String, Object> after = object(newDefinitions.get("Thread"));
+        if (java.util.Objects.equals(before.get("required"), after.get("required"))) return;
+        requireThreadNotSent(old, prefix);
+        requireThreadNotSent(next, prefix);
+        Map<String, Object> oldProperties = object(before.get("properties"));
+        Map<String, Object> newProperties = object(after.get("properties"));
+        List<Object> required = new ArrayList<Object>(JsonCodec.requireArray(after.get("required"), "required"));
+        for (Object field : new ArrayList<Object>(required)) {
+            // Thread projection explicitly reads known fields. A new guaranteed output
+            // field (e.g. projectId) needs no request change. Existing fields stay strict.
+            if (field instanceof String && !oldProperties.containsKey(field) && newProperties.containsKey(field)) {
+                required.remove(field);
+                reviewed.add("Thread." + field + " is a new server-output field; existing thread contracts are unchanged.");
+            }
+        }
+        after.put("required", required);
     }
 
     static void compareSchemaNode(Object old, Object next, String path) throws IOException {

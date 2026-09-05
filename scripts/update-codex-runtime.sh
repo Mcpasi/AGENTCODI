@@ -18,6 +18,7 @@ Requires the existing Android ARM64 build host, Java/Javac 17, curl and timeout.
 AGENTCODI_JAVA_HOME and AGENTCODI_CACHE_DIR have the same meaning as in the APK
 builder. Downloads, generated schemas, the proposed diff and backups remain
 in a private .build/codex-update.* directory for inspection.
+compatibility.txt records reviewed schema additions accepted by this update.
 
 Updates runtime/source/schema hashes, the verified ELF relocation offset,
 build identity, its test, architecture checks and bundled Android notices.
@@ -25,6 +26,10 @@ Markdown documentation (including NOTICE.md), the app version and other
 toolchain pins are not changed. Unexpected package/license/dependency/ELF
 or incompatible schema changes abort; this tool cannot implement arbitrary
 future protocol migrations. It never runs npm scripts or accesses login data.
+The package README is informational; registry, archive and tagged source
+package.json metadata must agree. The APK builder uses the same metadata gate.
+Reviewed optional/nullable raw call IDs and new Thread output fields are accepted
+only while their schema references preserve AGENTCODI's existing consumer roles.
 
 After success: update your documentation, then run ./scripts/test.sh and
 ./scripts/build-debug-apk.sh. Device validation remains a separate user step.
@@ -51,6 +56,7 @@ trap 'exit 143' TERM
 "$JAVA_HOME_17/bin/javac" -encoding UTF-8 -source 8 -target 8 -Xlint:-options \
   -d "$classes_dir" \
   "$PROJECT_ROOT/modules/core/src/main/java/de/agentcodi/core/JsonCodec.java" \
+  "$SCRIPT_DIR/java/de/agentcodi/tools/CodexPackageMetadata.java" \
   "$SCRIPT_DIR/java/de/agentcodi/tools/CodexRuntimeUpdater.java"
 "$JAVA_HOME_17/bin/java" -Xmx512m -cp "$classes_dir" \
   de.agentcodi.tools.CodexRuntimeUpdater "$PROJECT_ROOT" "$@"

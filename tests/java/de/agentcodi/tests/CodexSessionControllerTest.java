@@ -40,6 +40,7 @@ public final class CodexSessionControllerTest {
 
     public static int run() throws Exception {
         loadsAccountThreadsAndHistory();
+        toleratesReviewedRuntimeSchemaAdditions();
         managesThreadArchiveAndDeletion();
         rejectsThreadMutationDuringActiveTurn();
         loadsAndRefreshesRateLimits();
@@ -79,7 +80,39 @@ public final class CodexSessionControllerTest {
         terminatesTerminalWhenOutputCapIsReached();
         rejectsTerminalCredentialsAndMalformedOutput();
         usesVettedMcpConfigurationRpcs();
-        return 40;
+        return 41;
+    }
+
+    private static void toleratesReviewedRuntimeSchemaAdditions() throws Exception {
+        FixtureServer server = new FixtureServer(true);
+        server.newerThreadMetadata = true;
+        final CodexSessionController controller = new CodexSessionController(server, "/private/workspace");
+        try {
+            controller.start();
+            TestSupport.assertTrue(controller.snapshot().isReady(), "new Thread metadata preserves startup");
+            TestSupport.assertEquals("thr_existing", controller.snapshot().getThreads().get(0).getId(),
+                "thread list projects its known fields with projectId present");
+            controller.openThread("thr_existing");
+            waitFor(new Condition() {
+                @Override public boolean isTrue() {
+                    return "thr_existing".equals(controller.snapshot().getActiveThreadId())
+                        && !controller.snapshot().isOperationActive();
+                }
+            }, "resume with newer Thread output metadata");
+            int messageCount = controller.snapshot().getMessages().size();
+            // The runtime normally suppresses these through initialize. Unexpected bounded
+            // deliveries with either new call_id shape must still leave the UI untouched.
+            for (boolean nullCallId : new boolean[] {false, true}) {
+                Map<String, Object> item = JsonCodec.object("type", "function_call_output", "output", "ignored fixture");
+                if (nullCallId) item.put("call_id", null);
+                controller.onNotification("rawResponseItem/completed", JsonCodec.object(
+                    "threadId", "thr_existing", "turnId", "turn_history", "item", item));
+                TestSupport.assertTrue(controller.snapshot().isReady(), "raw optional/nullable call_id does not fail the session");
+                TestSupport.assertEquals(messageCount, controller.snapshot().getMessages().size(), "raw model output is not chat history");
+            }
+            TestSupport.assertEquals("Historische Antwort", controller.snapshot().getMessages().get(1).getText(),
+                "authoritative thread history is retained");
+        } finally { controller.close(); }
     }
 
     private static void suppressesUnboundedConnectorCatalogNotifications()
@@ -4213,6 +4246,7 @@ public final class CodexSessionControllerTest {
         private volatile Map<String, Object> pendingReviewStartRequest;
         private volatile String steerResponseTurnId = "turn_fixture";
         private volatile boolean richHistory;
+        private volatile boolean newerThreadMetadata;
         private volatile boolean existingThreadArchived;
         private volatile boolean existingThreadDeleted;
         private volatile boolean archivedFixtureDeleted;
@@ -4882,13 +4916,20 @@ public final class CodexSessionControllerTest {
                     "items", items
                 ));
             }
-            return JsonCodec.object(
+            Map<String, Object> result = JsonCodec.object(
                 "id", id,
                 "modelProvider", "agentcodi-openai-http",
                 "preview", "Historische Aufgabe",
                 "updatedAt", Long.valueOf(100L),
                 "turns", turns
             );
+            if (newerThreadMetadata) {
+                result.put("projectId", includeTurns ? "project_fixture" : null);
+                result.put("model", null);
+                result.put("reasoningEffort", null);
+                result.put("historyMode", "legacy");
+            }
+            return result;
         }
 
         private static Map<String, Object> model(

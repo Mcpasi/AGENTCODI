@@ -512,7 +512,6 @@ CODEX_CODE_MODE_HOST_BINARY="$CODEX_EXTRACT/package/bin/codex-code-mode-host"
 CODEX_LICENSE="$CODEX_EXTRACT/package/LICENSE"
 CODEX_NOTICE="$CODEX_EXTRACT/package/NOTICE"
 CODEX_PACKAGE_JSON="$CODEX_EXTRACT/package/package.json"
-CODEX_PACKAGE_README="$CODEX_EXTRACT/package/README.md"
 TERMUX_RUNTIME_PREFIX="$AAPT2_EXTRACT/data/data/com.termux/files/usr"
 NODE_SOURCE_BINARY="$TERMUX_RUNTIME_PREFIX/bin/node"
 CARES_SOURCE_LIBRARY="$TERMUX_RUNTIME_PREFIX/lib/libcares.so"
@@ -545,7 +544,7 @@ if [ ! -f "$LIBCXX_SHARED" ] || ! file "$LIBCXX_SHARED" | grep -q 'ARM aarch64';
   echo "Pinned libc++ runtime is missing or not ARM64." >&2
   exit 1
 fi
-for codex_file in "$CODEX_SOURCE_BINARY" "$CODEX_CODE_MODE_HOST_BINARY" "$CODEX_LICENSE" "$CODEX_NOTICE" "$CODEX_PACKAGE_JSON" "$CODEX_PACKAGE_README"; do
+for codex_file in "$CODEX_SOURCE_BINARY" "$CODEX_CODE_MODE_HOST_BINARY" "$CODEX_LICENSE" "$CODEX_NOTICE" "$CODEX_PACKAGE_JSON"; do
   if [ ! -f "$codex_file" ]; then
     echo "Pinned Codex archive is missing: $codex_file" >&2
     exit 1
@@ -585,12 +584,17 @@ if ! printf '%s  %s\n' "$CODEX_APP_SERVER_SOURCE_SHA256" "$CODEX_SOURCE_BINARY" 
 fi
 verify_file_sha256 "$CODEX_LICENSE" "$CODEX_LICENSE_SHA256"
 verify_file_sha256 "$CODEX_NOTICE" "$CODEX_NOTICE_SHA256"
-if ! grep -Fq "\"version\": \"$CODEX_ANDROID_VERSION\"" "$CODEX_PACKAGE_JSON" \
-    || ! grep -Fq "upstream $CODEX_UPSTREAM_SOURCE_TAG" "$CODEX_PACKAGE_JSON" \
-    || ! grep -Fq "built from upstream OpenAI Codex \`$CODEX_UPSTREAM_SOURCE_TAG\`" "$CODEX_PACKAGE_README"; then
-  echo "Pinned Codex package metadata does not match the reviewed runtime/source tag." >&2
-  exit 1
-fi
+# Archive/executable/license hashes above bind these declarations to the pinned
+# release. Human-maintained README text can lag behind the actual package.
+CODEX_METADATA_CLASSES="$WORK_DIR/codex-metadata-classes"
+mkdir -p "$CODEX_METADATA_CLASSES"
+"$JAVAC" -encoding UTF-8 -source 8 -target 8 -Xlint:-options \
+  -d "$CODEX_METADATA_CLASSES" \
+  "$PROJECT_ROOT/modules/core/src/main/java/de/agentcodi/core/JsonCodec.java" \
+  "$PROJECT_ROOT/scripts/java/de/agentcodi/tools/CodexPackageMetadata.java"
+"$JAVA" -Xmx64m -cp "$CODEX_METADATA_CLASSES" \
+  de.agentcodi.tools.CodexPackageMetadata \
+  "$CODEX_PACKAGE_JSON" "$CODEX_ANDROID_VERSION" "$CODEX_UPSTREAM_SOURCE_TAG"
 env -i \
   HOME="$CODEX_SCHEMA_HOME" \
   CODEX_HOME="$CODEX_SCHEMA_HOME/codex-home" \

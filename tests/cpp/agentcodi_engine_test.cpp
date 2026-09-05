@@ -441,6 +441,18 @@ int main(int argc, char* argv[]) {
         << "\",\"isAccessible\":false,\"isEnabled\":false}]}}\n";
     return 0;
   }
+  if (argc == 2 && std::string(argv[1]) == "--emit-reviewed-schema-additions") {
+    std::cout
+        << "{\"method\":\"rawResponseItem/completed\",\"params\":{"
+        << "\"threadId\":\"fixture_thread\",\"turnId\":\"fixture_turn\","
+        << "\"item\":{\"type\":\"function_call_output\",\"output\":\"fixture\"}}}\n"
+        << "{\"method\":\"rawResponseItem/completed\",\"params\":{"
+        << "\"threadId\":\"fixture_thread\",\"turnId\":\"fixture_turn\","
+        << "\"item\":{\"type\":\"function_call_output\",\"call_id\":null,\"output\":\"fixture\"}}}\n"
+        << "{\"id\":7,\"result\":{\"thread\":{\"id\":\"fixture_thread\","
+        << "\"projectId\":null,\"model\":null,\"reasoningEffort\":null,\"turns\":[]}}}\n";
+    return 0;
+  }
   if (argc == 2 && std::string(argv[1]) == "--emit-resumed-image") {
     std::cout
         << "{\"method\":\"item/completed\",\"params\":{\"item\":{"
@@ -2035,6 +2047,23 @@ int main(int argc, char* argv[]) {
             kill(grandchild, SIGKILL);
           }
         }
+      }
+
+      config.arguments = {"--emit-reviewed-schema-additions"};
+      error.clear();
+      process = agentcodi::AppServerProcess::Start(config, &error);
+      expect(process != nullptr, "spawn reviewed schema additions fixture");
+      if (process != nullptr) {
+        for (const std::string& marker : {
+                 std::string("\"output\":\"fixture\""),
+                 std::string("\"call_id\":null"),
+                 std::string("\"projectId\":null")}) {
+          std::string line;
+          expect(process->ReadLine(1024U, &line, &error) == agentcodi::LineReadStatus::kLine
+                     && line.find(marker) != std::string::npos,
+                 "preserve bounded raw call_id and Thread additions without changing framing");
+        }
+        expect(process->Stop(500) != INT_MIN, "stop reviewed schema additions fixture");
       }
 
       config.arguments = {"--emit-oversized-app-list-update"};

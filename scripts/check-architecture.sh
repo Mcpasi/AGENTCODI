@@ -1016,32 +1016,32 @@ fi
 
 if ! rg -q 'VERSION_NAME = "0\.6\.13"' "$core_root/BuildIdentity.java" \
     || ! rg -q 'VERSION_CODE = 80' "$core_root/BuildIdentity.java" \
-    || ! rg -q 'CODEX_RUNTIME_VERSION = "0\.148\.1"' "$core_root/BuildIdentity.java" \
+    || ! rg -q 'CODEX_RUNTIME_VERSION = "0\.153\.2"' "$core_root/BuildIdentity.java" \
     || ! rg -q 'android:versionName="0\.6\.13"' "$manifest" \
     || ! rg -q 'android:versionCode="80"' "$manifest" \
     || ! rg -q 'APP_VERSION="0\.6\.13"' "$apk_builder" \
     || ! rg -q 'VERSION_CODE="80"' "$apk_builder" \
-    || ! rg -q 'CODEX_ANDROID_VERSION="0\.148\.1"' "$apk_builder" \
-    || ! rg -q 'CODEX_TERMUX_SOURCE_TAG="v0\.148\.1"' "$apk_builder" \
-    || ! rg -q 'CODEX_TERMUX_SOURCE_COMMIT="9d48c76abec320ae3724164d0177299b1acd31ca"' "$apk_builder" \
-    || ! rg -q 'CODEX_UPSTREAM_SOURCE_TAG="rust-v0\.148\.0"' "$apk_builder" \
-    || ! rg -q 'CODEX_UPSTREAM_SOURCE_COMMIT="3ba0f711642a888aec92a611a3f3b2211157ff89"' "$apk_builder" \
-    || ! rg -q 'CODEX_ANDROID_SHA256="b68a6c6770752deb045db084a9637b8cf1647b996a57d454e599981b963c4092"' "$apk_builder" \
-    || ! rg -q 'CODEX_APP_SERVER_SOURCE_SHA256="35c76bc8a75fc768ea44433bcc755be931a3d73215d8324a182020b57ff1aa49"' "$apk_builder" \
-    || ! rg -q 'CODEX_CODE_MODE_HOST_SHA256="da7bc9b805dd069f9b4008cb749d0f192cfd83445ed6ba7202ffd5aa51c1f855"' "$apk_builder" \
-    || ! rg -q 'CODEX_APP_SERVER_ANDROID_SHA256="9c74afbfa027b840228278f4483405f59dc03393185e6e3a52fbc7ca64b921b9"' "$apk_builder" \
+    || ! rg -q 'CODEX_ANDROID_VERSION="0\.153\.2"' "$apk_builder" \
+    || ! rg -q 'CODEX_TERMUX_SOURCE_TAG="v0\.153\.2"' "$apk_builder" \
+    || ! rg -q 'CODEX_TERMUX_SOURCE_COMMIT="ca3f87836d45537b9cfcdca9e5f72896efb28503"' "$apk_builder" \
+    || ! rg -q 'CODEX_UPSTREAM_SOURCE_TAG="rust-v0\.153\.2"' "$apk_builder" \
+    || ! rg -q 'CODEX_UPSTREAM_SOURCE_COMMIT="657a993cbee87acf52d14b758ce49dbd46d1b8eb"' "$apk_builder" \
+    || ! rg -q 'CODEX_ANDROID_SHA256="f74470fdf6fae3f031d3fef29018001d4eef5288145b253222c9addbcce046f5"' "$apk_builder" \
+    || ! rg -q 'CODEX_APP_SERVER_SOURCE_SHA256="8ed1015e1b8c4cd43dc5b974bff1065ae81b71ef996409fd901501b01f7e21a7"' "$apk_builder" \
+    || ! rg -q 'CODEX_CODE_MODE_HOST_SHA256="01fda59ef46c52e1fbd41e93c145cf46b3841bc5542481a6cd76de876af5fe08"' "$apk_builder" \
+    || ! rg -q 'CODEX_APP_SERVER_ANDROID_SHA256="e3027c09b5361c6de7f8479dd6311a3d274dc61e9c4f29ba00e30c6d2bbef1c5"' "$apk_builder" \
     || ! rg -q 'CODEX_LICENSE_SHA256="d17f227e4df5da1600391338865ce0f3055211760a36688f816941d58232d8dc"' "$apk_builder" \
     || ! rg -q 'CODEX_NOTICE_SHA256="8228749dd4dd6026baed0442f80e911308430478449285c865b188d97e6a013c"' "$apk_builder" \
-    || ! rg -q 'CODEX_SCHEMA_BUNDLE_SHA256="819fe7b47288cc74da5190743390c8d1faef403f5401a1868b306dac195b1944"' "$apk_builder" \
-    || ! rg -q 'CODEX_V2_SCHEMA_BUNDLE_SHA256="e5a20eb7211c21540a2d4e0106479285e13778e9c53d5837cfc735a71316a51e"' "$apk_builder" \
+    || ! rg -q 'CODEX_SCHEMA_BUNDLE_SHA256="e8284c5cb8157554a3dd1e035aadbd4325aea501af56887e9c2e12eb1b9b9448"' "$apk_builder" \
+    || ! rg -q 'CODEX_V2_SCHEMA_BUNDLE_SHA256="d3eace08be5dca386bfd1f1e8df650058b4113f1e10870a284d775d75517576a"' "$apk_builder" \
     || ! rg -q 'app-server generate-json-schema' "$apk_builder" \
-    || ! rg -q '0\.148\.1' "$PROJECT_ROOT/NOTICE.md" \
-    || ! rg -q '0\.148\.1' "$PROJECT_ROOT/app/src/main/res/raw/third_party_notices.txt" \
-    || ! rg -q '9d48c76abec320ae3724164d0177299b1acd31ca' "$PROJECT_ROOT/NOTICE.md" \
-    || ! rg -q '9d48c76abec320ae3724164d0177299b1acd31ca' "$PROJECT_ROOT/app/src/main/res/raw/third_party_notices.txt" \
-    || ! rg -q '3ba0f711642a888aec92a611a3f3b2211157ff89' "$PROJECT_ROOT/NOTICE.md" \
-    || ! rg -q '3ba0f711642a888aec92a611a3f3b2211157ff89' "$PROJECT_ROOT/app/src/main/res/raw/third_party_notices.txt"; then
-  echo "The 0.6.13 / Codex 0.148.1 identity is inconsistent." >&2
+    || ! rg -q '0\.153\.2' "$PROJECT_ROOT/NOTICE.md" \
+    || ! rg -q '0\.153\.2' "$PROJECT_ROOT/app/src/main/res/raw/third_party_notices.txt" \
+    || ! rg -q 'ca3f87836d45537b9cfcdca9e5f72896efb28503' "$PROJECT_ROOT/NOTICE.md" \
+    || ! rg -q 'ca3f87836d45537b9cfcdca9e5f72896efb28503' "$PROJECT_ROOT/app/src/main/res/raw/third_party_notices.txt" \
+    || ! rg -q '657a993cbee87acf52d14b758ce49dbd46d1b8eb' "$PROJECT_ROOT/NOTICE.md" \
+    || ! rg -q '657a993cbee87acf52d14b758ce49dbd46d1b8eb' "$PROJECT_ROOT/app/src/main/res/raw/third_party_notices.txt"; then
+  echo "The 0.6.13 / Codex 0.153.2 identity is inconsistent." >&2
   exit 1
 fi
 

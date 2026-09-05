@@ -499,7 +499,7 @@
   <string name="license_material_icons_title">Material Icons</string>
   <string name="license_material_icons_summary">Round interface icons from Google’s Material Design Icons repository · pinned source paths under Apache License 2.0.</string>
   <string name="license_codex_runtime_title">Codex Android community runtime</string>
-  <string name="license_codex_runtime_summary">OpenAI Codex 0.148.1 and the Android/Termux community distribution · Apache License 2.0. This is not an official OpenAI Android APK.</string>
+  <string name="license_codex_runtime_summary">OpenAI Codex 0.153.2 and the Android/Termux community distribution · Apache License 2.0. This is not an official OpenAI Android APK.</string>
   <string name="license_node_runtime_title">Packaged Node.js toolchain</string>
   <string name="license_node_runtime_summary">Node.js LTS 24.18.0 and its pinned Android runtime dependencies · bundled in the APK and enabled only by an explicit user action or approved Codex command. Includes MIT, Unicode-3.0, Apache-2.0, zlib, and public-domain components.</string>
   <string name="license_npm_runtime_title">Packaged npm toolchain</string>

@@ -10,7 +10,7 @@
 
 ![Android](https://img.shields.io/badge/Android-10%2B-3DDC84?logo=android&logoColor=white)
 ![Architecture](https://img.shields.io/badge/Architecture-ARM64-555555)
-![Codex](https://img.shields.io/badge/Codex%20app--server-0.148.1-111111)
+![Codex](https://img.shields.io/badge/Codex%20app--server-0.153.2-111111)
 ![Source](https://img.shields.io/badge/Source-Java%20%2B%20C%2B%2B-00599C)
 ![License](https://img.shields.io/badge/License-Apache%202.0-blue)
 

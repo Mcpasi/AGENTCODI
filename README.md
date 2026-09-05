@@ -103,8 +103,8 @@ AGENTCODI keeps its workspace in private app storage and separates it from Codex
 | Device | ARM64 |
 | Connection | Internet access for Codex requests |
 | Authentication | ChatGPT sign-in or OpenAI API key |
-| Current release line | AGENTCODI 0.6.13 |
-| Packaged Codex runtime | 0.148.1 |
+| Current release line | AGENTCODI 0.7.0 |
+| Packaged Codex runtime | 0.153.2 |
 
 ---
 
@@ -141,6 +141,15 @@ Automatically increment version
 ```sh
 ./scripts/bump-version.sh
 ```
+
+To update the pinned app server, run this script.
+
+```sh
+./scripts/update-codex-runtime.sh
+```
+
+Important: Update the documents, then run ./scripts/test.sh and ./scripts/build-debug-apk.sh.
+
 ---
 
 ## License

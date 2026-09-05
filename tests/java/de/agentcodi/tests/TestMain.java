@@ -7,6 +7,7 @@ public final class TestMain {
     public static void main(String[] arguments) throws Exception {
         int passed = 0;
         passed += BuildIdentityTest.run();
+        passed += de.agentcodi.tools.CodexRuntimeUpdaterTest.run();
         passed += ChatUiIconResourcesTest.run();
         passed += de.agentcodi.app.TranscriptCardPresentationTest.run();
         passed += ExecutionModeTest.run();

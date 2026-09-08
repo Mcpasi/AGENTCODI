@@ -49,6 +49,8 @@ SHA-256: bc8f66420f8b6376a22eef13dd483d9d67de0dd5c1e77d0c192ae54d07d1da9b
 
 The release will follow shortly after extensive device testing.
 
+Update: Device tests are considered to have failed due to a missing Android backend in the codex app server's sandbox for this reason, I have written a sandbox for the codex app server; this is integrated into a separate fork (0.153.3-agentcodi.1) and is included in version 0.7.1
+
 SHA-256: 22447a04daca6622199143bd785ed62346c817d31d2d144c8b85c8214ad26349
 
 # RELEASE_APK

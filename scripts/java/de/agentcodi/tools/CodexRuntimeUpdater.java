@@ -2,6 +2,7 @@ package de.agentcodi.tools;
 
 import de.agentcodi.core.JsonCodec;
 import static de.agentcodi.tools.CodexPackageMetadata.validatePackage;
+import java.io.ByteArrayOutputStream;
 import java.io.IOException;
 import java.io.InputStream;
 import java.io.OutputStream;
@@ -48,9 +49,10 @@ public final class CodexRuntimeUpdater {
     static final String IDENTITY = "modules/core/src/main/java/de/agentcodi/core/BuildIdentity.java";
     static final String IDENTITY_TEST = "tests/java/de/agentcodi/tests/BuildIdentityTest.java";
     static final String NOTICES = "app/src/main/res/raw/third_party_notices.txt";
+    static final String NOTICE = "NOTICE.md";
     static final String[] MANAGED = {
         BUILD, ARCHITECTURE, IDENTITY, IDENTITY_TEST,
-        "app/src/main/res/values/strings.xml", "app/src/main/res/values-de/strings.xml", NOTICES
+        "app/src/main/res/values/strings.xml", "app/src/main/res/values-de/strings.xml", NOTICES, NOTICE
     };
     static final String[] PIN_KEYS = {
         "CODEX_ANDROID_VERSION", "CODEX_ANDROID_SHA256", "CODEX_TERMUX_SOURCE_TAG",
@@ -79,36 +81,20 @@ public final class CodexRuntimeUpdater {
     private final Path root;
     private final Path work;
     private final Path cache;
-    private final Fetcher fetcher;
-
-    interface Fetcher { void fetch(String url, Path destination, long limit) throws Exception; }
     interface Mover { void move(Path from, Path to) throws IOException; }
 
-    private CodexRuntimeUpdater(Path root, Path work, Path cache, Fetcher fetcher) {
+    private CodexRuntimeUpdater(Path root, Path work, Path cache) {
         this.root = root;
         this.work = work;
         this.cache = cache;
-        this.fetcher = fetcher;
     }
 
     public static void main(String[] arguments) {
         try {
             require(arguments.length >= 1, "Missing project root.");
-            boolean dryRun = false;
-            String requested = "latest";
-            boolean versionSeen = false;
-            for (int i = 1; i < arguments.length; i++) {
-                if ("--dry-run".equals(arguments[i]) && !dryRun) {
-                    dryRun = true;
-                } else {
-                    require(!versionSeen && ("latest".equals(arguments[i]) || isVersion(arguments[i])),
-                        "Usage: update-codex-runtime.sh [--dry-run] [MAJOR.MINOR.PATCH|latest]");
-                    requested = arguments[i];
-                    versionSeen = true;
-                }
-            }
             Path root = Paths.get(arguments[0]).toAbsolutePath().normalize();
             safeDirectory(root);
+            CodexLocalSource.Options options = CodexLocalSource.Options.parse(root, arguments, System.getenv());
             Path build = root.resolve(".build");
             makeDirectory(build);
             Path lockPath = build.resolve("codex-update.lock");
@@ -126,7 +112,7 @@ public final class CodexRuntimeUpdater {
                 String configuredCache = System.getenv("AGENTCODI_CACHE_DIR");
                 Path cache = configuredCache == null ? root.resolve(".cache/android")
                     : Paths.get(configuredCache).toAbsolutePath().normalize();
-                new CodexRuntimeUpdater(root, work, cache, new CurlFetcher(work)).run(requested, dryRun);
+                new CodexRuntimeUpdater(root, work, cache).run(options);
             }
         } catch (Exception failure) {
             System.err.println("Codex update aborted: " + failure.getMessage());
@@ -134,166 +120,116 @@ public final class CodexRuntimeUpdater {
         }
     }
 
-    private void run(String requested, boolean dryRun) throws Exception {
+    private void run(CodexLocalSource.Options options) throws Exception {
         Plan plan = new Plan(root, work);
         Map<String, String> old = readPins(plan.before.get(BUILD));
-        String current = old.get("CODEX_ANDROID_VERSION");
-        require(isVersion(current), "Invalid current runtime version.");
-        require("v".concat(current).equals(old.get("CODEX_TERMUX_SOURCE_TAG")), "Inconsistent source tag.");
+        plan.update(old, old);
         require(plan.before.get(BUILD).contains("CODEX_DEFAULT_HOST_NAME=\"" + ORIGINAL_HOST + "\"")
             && plan.before.get(BUILD).contains("CODEX_PACKAGED_HOST_NAME=\"" + PACKAGED_HOST + "\""),
             "The builder's host relocation contract changed.");
-        require(plan.before.get(BUILD).contains("CODEX_ANDROID_URL=\"" + archiveUrl("$CODEX_ANDROID_VERSION") + "\""),
-            "Unexpected runtime download source in the builder.");
-        plan.update(old, old);
-        if (!"latest".equals(requested)) require(compareVersions(requested, current) >= 0, "Downgrades are not supported.");
-        Map<String, Object> metadata = json(download(REGISTRY + "@mmmbuto%2Fcodex-cli-termux/" + requested,
-            "registry.json", 2 * 1024 * 1024));
-        String version = string(metadata, "version");
-        validatePackage(metadata, version);
-        require("latest".equals(requested) || requested.equals(version), "Registry returned a different version.");
-        require(compareVersions(version, current) >= 0, "Downgrades are not supported.");
-        Map<String, Object> dist = object(metadata.get("dist"));
-        require(archiveUrl(version).equals(string(dist, "tarball")), "Unexpected registry tarball URL.");
-        String integrity = string(dist, "integrity");
-        validateIntegrity(integrity);
-        System.out.println("Checking Codex " + current + " -> " + version + " (npm integrity + SHA-256)...");
-        Path candidateArchive = acquire(version, integrity, null, "candidate.tgz");
+        Path selected = options.selectArchive();
+        String archiveHash = digest(selected, "SHA-256");
+        Path archive = work.resolve("candidate.tgz");
+        copyBounded(selected, archive, ARCHIVE_LIMIT);
+        checkHash(archive, archiveHash);
         Path candidate = work.resolve("candidate");
-        unpack(candidateArchive, candidate);
-        Map<String, Object> packageJson = CodexPackageMetadata.read(candidate.resolve("package/package.json"));
-        String upstreamTag = CodexPackageMetadata.verifyAgreement(version, metadata, packageJson);
-        // Legal changes require a fresh review; do not bless new license texts by hashing them.
+        unpack(archive, candidate);
+        CodexLocalSource source = new CodexLocalSource(options, old, archiveHash, candidate);
+        source.verify();
+        // The exact previously reviewed license texts and dependency graph must
+        // still apply. A checksum alone does not approve a new dependency.
         checkHash(candidate.resolve("package/LICENSE"), old.get("CODEX_LICENSE_SHA256"));
         checkHash(candidate.resolve("package/NOTICE"), old.get("CODEX_NOTICE_SHA256"));
-
-        String forkCommit = resolveTag(FORK, "v" + version, "fork");
-        String upstreamCommit = resolveTag("openai/codex", upstreamTag, "upstream");
-        String raw = "https://raw.githubusercontent.com/" + FORK + "/" + forkCommit + "/";
-        Map<String, Object> sourcePackage = CodexPackageMetadata.read(
-            download(raw + "npm-package/package.json", "source-package.json", 2 * 1024 * 1024));
-        CodexPackageMetadata.verifyAgreement(version, metadata, packageJson, sourcePackage);
-        for (String legal : new String[] {"LICENSE", "NOTICE"}) {
-            Path source = download(raw + legal, "source-" + legal, TEXT_LIMIT);
-            require(digest(source, "SHA-256").equals(digest(candidate.resolve("package/" + legal), "SHA-256")),
-                "Published " + legal + " differs from the tagged source; review required.");
-        }
-        System.out.println("Provenance verified against registry, archive and tagged source metadata (README is informational).");
-
-        Path baselineArchive = version.equals(current) ? candidateArchive
-            : acquire(current, null, old.get("CODEX_ANDROID_SHA256"), "baseline.tgz");
-        checkHash(baselineArchive, old.get("CODEX_ANDROID_SHA256"));
-        Path baseline = work.resolve("baseline");
-        unpack(baselineArchive, baseline);
-        Map<String, String> baselinePins = inspect(baseline, old.get("CODEX_UPSTREAM_SOURCE_TAG"));
-        for (String key : baselinePins.keySet()) {
-            require(baselinePins.get(key).equals(old.get(key)), "Existing pin no longer reproduces: " + key);
-        }
         Map<String, String> next = new LinkedHashMap<String, String>(old);
-        next.putAll(inspect(candidate, upstreamTag));
-        next.put("CODEX_ANDROID_VERSION", version);
-        next.put("CODEX_ANDROID_SHA256", digest(candidateArchive, "SHA-256"));
-        next.put("CODEX_TERMUX_SOURCE_TAG", "v" + version);
-        next.put("CODEX_TERMUX_SOURCE_COMMIT", forkCommit);
-        next.put("CODEX_UPSTREAM_SOURCE_TAG", upstreamTag);
-        next.put("CODEX_UPSTREAM_SOURCE_COMMIT", upstreamCommit);
-        if (version.equals(current)) require(old.equals(next), "The pinned version was republished or its source tags moved.");
+        next.putAll(inspect(candidate, source.upstreamTag));
+        next.put("CODEX_ANDROID_VERSION", source.version);
+        next.put("CODEX_ANDROID_SHA256", archiveHash);
+        next.put("CODEX_TERMUX_SOURCE_TAG", source.tag);
+        next.put("CODEX_TERMUX_SOURCE_COMMIT", source.commit);
+        next.put("CODEX_UPSTREAM_SOURCE_TAG", source.upstreamTag);
+        next.put("CODEX_UPSTREAM_SOURCE_COMMIT", source.upstreamCommit);
+        require(comparePackageVersions(source.version, old.get("CODEX_ANDROID_VERSION")) >= 0,
+            "Downgrades are not supported.");
         StringBuilder compatibility = new StringBuilder();
-        for (String schema : SCHEMAS) {
-            List<String> reviewed = compareSchemas(json(baseline.resolve("schema/" + schema)), json(candidate.resolve("schema/" + schema)));
-            compatibility.append(schema).append(": compatible\n");
-            for (String change : reviewed) {
-                compatibility.append("  ").append(change).append('\n');
-                System.out.println("Compatible schema change: " + change);
+        for (int i = 0; i < SCHEMAS.length; i++) {
+            String key = i == 0 ? "CODEX_SCHEMA_BUNDLE_SHA256" : "CODEX_V2_SCHEMA_BUNDLE_SHA256";
+            List<String> reviewed = Collections.emptyList();
+            if (!old.get(key).equals(next.get(key))) {
+                Path baseline = cache.resolve("codex/" + old.get("CODEX_ANDROID_SHA256") + "/" + SCHEMAS[i]);
+                require(Files.exists(baseline, LinkOption.NOFOLLOW_LINKS),
+                    "The protocol changed and its verified baseline is missing. Run the updater once with the currently pinned archive before replacing it.");
+                checkHash(baseline, old.get(key));
+                reviewed = compareSchemas(json(baseline), json(candidate.resolve("schema/" + SCHEMAS[i])));
             }
+            compatibility.append(SCHEMAS[i]).append(": compatible\n");
+            for (String change : reviewed) compatibility.append("  ").append(change).append('\n');
         }
         Files.write(work.resolve("compatibility.txt"), compatibility.toString().getBytes(StandardCharsets.UTF_8),
             StandardOpenOption.CREATE_NEW);
         plan.update(old, next);
         plan.saveProposal(next);
-        System.out.println("All artifact checks passed. Proposed pins:");
+        checkHash(selected, archiveHash);
+        System.out.println("Verified local fork " + source.version + " at " + source.commit + ". Proposed pins:");
         for (String key : PIN_KEYS) System.out.println(key + "=\"" + next.get(key) + "\"");
-        if (dryRun) {
-            System.out.println("Dry run complete. Source files and build cache were not changed.");
+        if (options.dryRun) {
+            System.out.println("Dry run complete. Project files and build cache were not changed.");
             return;
+        }
+        Path cached = cache.resolve("codex/" + archiveHash);
+        installVerified(archive, cached.resolve("package.tgz"), archiveHash, ARCHIVE_LIMIT);
+        for (int i = 0; i < SCHEMAS.length; i++) {
+            String key = i == 0 ? "CODEX_SCHEMA_BUNDLE_SHA256" : "CODEX_V2_SCHEMA_BUNDLE_SHA256";
+            installVerified(candidate.resolve("schema/" + SCHEMAS[i]), cached.resolve(SCHEMAS[i]), next.get(key), TEXT_LIMIT);
         }
         if (plan.changed().isEmpty()) {
-            System.out.println("Already pinned and verified; no source changes.");
+            System.out.println("Already pinned. Verified archive and schema baseline cached for future updates.");
             return;
         }
-        // A complete, verified cache file is installed before changing any source pin.
-        installCache(candidateArchive, version, next.get("CODEX_ANDROID_SHA256"));
         plan.commit(new Mover() {
             @Override public void move(Path from, Path to) throws IOException {
                 Files.move(from, to, StandardCopyOption.ATOMIC_MOVE, StandardCopyOption.REPLACE_EXISTING);
             }
         });
-        System.out.println("Updated " + plan.changed().size() + " source/resource files. Backups: " + work.resolve("before"));
-        System.out.println("Markdown documentation was not changed. Update NOTICE.md and your local documentation");
-        System.out.println("with the pins above, then run ./scripts/test.sh and ./scripts/build-debug-apk.sh.");
-        System.out.println("No APK build or device test was performed by this updater.");
+        System.out.println("Updated " + plan.changed().size() + " project files, including NOTICE.md. Backups: " + work.resolve("before"));
+        System.out.println("Next: run ./scripts/test.sh, then ./scripts/build-debug-apk.sh.");
+        System.out.println("Pinning does not verify sandbox operation. No Cargo, test suite, APK build or device test was run.");
     }
 
-    private Path download(String url, String name, long limit) throws Exception {
-        Path destination = work.resolve(name);
-        fetcher.fetch(url, destination, limit);
-        regular(destination, limit);
-        return destination;
-    }
-
-    private Path acquire(String version, String integrity, String hash, String name) throws Exception {
-        Path cached = cache.resolve("codex-cli-termux-" + version + ".tgz");
-        Path result;
-        if (Files.exists(cached, LinkOption.NOFOLLOW_LINKS)) {
-            regular(cached, ARCHIVE_LIMIT);
-            result = work.resolve(name);
-            Files.copy(cached, result);
-        } else {
-            result = download(archiveUrl(version), name, ARCHIVE_LIMIT);
+    static void copyBounded(Path source, Path target, long limit) throws Exception {
+        regular(source, limit);
+        try (InputStream input = Files.newInputStream(source, LinkOption.NOFOLLOW_LINKS);
+             OutputStream output = Files.newOutputStream(target, StandardOpenOption.CREATE_NEW)) {
+            byte[] buffer = new byte[65536];
+            long total = 0;
+            int count;
+            while ((count = input.read(buffer)) >= 0) {
+                require((total += count) <= limit, "Archive changed beyond copy bounds.");
+                output.write(buffer, 0, count);
+            }
         }
-        if (integrity != null) checkIntegrity(result, integrity);
-        if (hash != null) checkHash(result, hash);
-        return result;
+        regular(source, limit);
     }
 
-    private void installCache(Path archive, String version, String hash) throws Exception {
-        makeDirectory(cache);
-        Path target = cache.resolve("codex-cli-termux-" + version + ".tgz");
+    static void installVerified(Path source, Path target, String hash, long limit) throws Exception {
+        makeDirectory(target.getParent());
         if (Files.exists(target, LinkOption.NOFOLLOW_LINKS)) {
             checkHash(target, hash);
             return;
         }
-        // CREATE_NEW prevents overwriting a concurrently installed cache entry.
-        try (InputStream input = Files.newInputStream(archive);
-             OutputStream output = Files.newOutputStream(target, StandardOpenOption.CREATE_NEW, StandardOpenOption.WRITE)) {
-            byte[] buffer = new byte[65536];
-            int count;
-            while ((count = input.read(buffer)) >= 0) output.write(buffer, 0, count);
-        } catch (IOException failure) {
-            // Keep an incomplete cache file visible: subsequent checksum validation fails closed.
-            throw new IOException("Could not install the cache archive; source pins were not changed.", failure);
+        Path staging = Files.createTempDirectory(target.getParent(), ".codex-cache-",
+            PosixFilePermissions.asFileAttribute(PosixFilePermissions.fromString("rwx------")));
+        Path pending = staging.resolve("data");
+        try {
+            copyBounded(source, pending, limit);
+            checkHash(pending, hash);
+            // All updater invocations hold the project lock; do not replace an
+            // unrelated pre-existing cache entry.
+            require(!Files.exists(target, LinkOption.NOFOLLOW_LINKS), "Cache entry appeared during update.");
+            Files.move(pending, target, StandardCopyOption.ATOMIC_MOVE);
+        } finally {
+            Files.deleteIfExists(pending);
+            Files.deleteIfExists(staging);
         }
-        checkHash(target, hash);
-    }
-
-    private String resolveTag(String repository, String tag, String label) throws Exception {
-        require(tag.matches("(?:v|rust-v)[0-9]+\\.[0-9]+\\.[0-9]+"), "Invalid release tag.");
-        String base = "https://api.github.com/repos/" + repository + "/git/";
-        Map<String, Object> ref = json(download(base + "ref/tags/" + tag, label + "-ref.json", 1024 * 1024));
-        require(("refs/tags/" + tag).equals(string(ref, "ref")), "GitHub returned a different tag.");
-        Map<String, Object> target = object(ref.get("object"));
-        for (int depth = 0; depth < 4; depth++) {
-            String sha = string(target, "sha");
-            require(sha.matches("[a-f0-9]{40}"), "Invalid Git commit/tag SHA.");
-            String type = string(target, "type");
-            if ("commit".equals(type)) return sha;
-            require("tag".equals(type), "Release tag does not resolve to a commit.");
-            Map<String, Object> annotated = json(download(base + "tags/" + sha,
-                label + "-tag-" + depth + ".json", 1024 * 1024));
-            require(sha.equals(string(annotated, "sha")), "Annotated tag SHA mismatch.");
-            target = object(annotated.get("object"));
-        }
-        throw new IOException("Too many nested release tags.");
     }
 
     private Map<String, String> inspect(Path directory, String upstreamTag) throws Exception {
@@ -332,11 +268,16 @@ public final class CodexRuntimeUpdater {
         Path probeHome = directory.resolve("probe-home");
         Path probeTemp = directory.resolve("probe-temp");
         makeDirectory(probeHome);
+        makeDirectory(probeHome.resolve("codex-home"));
         makeDirectory(probeTemp);
         Map<String, String> environment = new LinkedHashMap<String, String>();
         environment.put("HOME", probeHome.toString());
         environment.put("CODEX_HOME", probeHome.resolve("codex-home").toString());
         environment.put("TMPDIR", probeTemp.toString());
+        environment.put("CODEX_CODE_MODE_HOST_PATH", host.toString());
+        String version = string(CodexPackageMetadata.read(directory.resolve("package/package.json")), "version");
+        require(("codex-cli " + version).equals(capture(directory, environment, 30, binary.toString(), "--version").trim()),
+            "Executable version differs from package metadata.");
         // Executables were inspected above and only depend on Android platform libraries.
         System.out.println("Generating schemas from the verified Android ELF (" + upstreamTag + ")...");
         command(directory, environment, 90, binary.toString(), "app-server", "generate-json-schema", "--out", schema.toString());
@@ -374,6 +315,17 @@ public final class CodexRuntimeUpdater {
             if (order != 0) return order;
         }
         return 0;
+    }
+
+    static int comparePackageVersions(String left, String right) throws IOException {
+        require(CodexPackageMetadata.isPackageVersion(left) && CodexPackageMetadata.isPackageVersion(right),
+            "Expected a stable or -agentcodi.N package version.");
+        String[] a = left.split("-agentcodi\\.", -1);
+        String[] b = right.split("-agentcodi\\.", -1);
+        int base = compareVersions(a[0], b[0]);
+        if (base != 0) return base;
+        if (a.length != b.length) return a.length == 1 ? 1 : -1;
+        return a.length == 1 ? 0 : new BigInteger(a[1]).compareTo(new BigInteger(b[1]));
     }
 
     static String archiveUrl(String version) { return REGISTRY + PACKAGE + "/-/codex-cli-termux-" + version + ".tgz"; }
@@ -465,21 +417,11 @@ public final class CodexRuntimeUpdater {
     }
     static Set<String> set(String... values) { return new LinkedHashSet<String>(Arrays.asList(values)); }
 
-    static final class CurlFetcher implements Fetcher {
-        final Path directory;
-        CurlFetcher(Path directory) { this.directory = directory; }
-        @Override public void fetch(String url, Path destination, long limit) throws Exception {
-            require(url.startsWith(REGISTRY) || url.startsWith("https://api.github.com/repos/" + FORK + "/")
-                || url.startsWith("https://api.github.com/repos/openai/codex/")
-                || url.startsWith("https://raw.githubusercontent.com/" + FORK + "/"), "Unapproved download origin.");
-            command(directory, Collections.<String, String>emptyMap(), 240,
-                "curl", "-q", "--fail", "--silent", "--show-error", "--proto", "=https",
-                "--proto-redir", "=https", "--max-redirs", "0", "--connect-timeout", "15",
-                "--max-time", "220", "--max-filesize", Long.toString(limit), "--output", destination.toString(), url);
-        }
+    static void command(Path directory, Map<String, String> environment, int seconds, String... command) throws Exception {
+        capture(directory, environment, seconds, command);
     }
 
-    static void command(Path directory, Map<String, String> environment, int seconds, String... command) throws Exception {
+    static String capture(Path directory, Map<String, String> environment, int seconds, String... command) throws Exception {
         List<String> args = new ArrayList<String>(Arrays.asList("timeout", "--signal=TERM", "--kill-after=5s", seconds + "s"));
         args.addAll(Arrays.asList(command));
         ProcessBuilder builder = new ProcessBuilder(args).directory(directory.toFile()).redirectErrorStream(true);
@@ -489,6 +431,7 @@ public final class CodexRuntimeUpdater {
         builder.environment().putAll(environment);
         Process process = builder.start();
         process.getOutputStream().close();
+        ByteArrayOutputStream captured = new ByteArrayOutputStream();
         long count = 0;
         try (InputStream output = process.getInputStream()) {
             byte[] bytes = new byte[8192];
@@ -496,12 +439,14 @@ public final class CodexRuntimeUpdater {
             while ((read = output.read(bytes)) >= 0) {
                 count += read;
                 require(count <= 1024 * 1024, "Subprocess output exceeded its limit.");
+                captured.write(bytes, 0, read);
             }
             boolean exited = process.waitFor(seconds + 10L, TimeUnit.SECONDS);
             require(exited && process.exitValue() == 0,
                 "Command failed or timed out: " + Paths.get(command[0]).getFileName()
                 + (exited ? " (exit " + process.exitValue() + ")" : "")
-                + ". Requires network access and the existing Android ARM64 build host; no source pins changed yet.");
+                + ". Check the local source checkout and Android ARM64 host; no source pins changed yet.");
+            return new String(captured.toByteArray(), StandardCharsets.UTF_8);
         } finally {
             if (process.isAlive()) {
                 // SIGTERM lets timeout signal its process group before the forced fallback.
@@ -982,7 +927,36 @@ public final class CodexRuntimeUpdater {
             for (String key : new String[] {"CODEX_TERMUX_SOURCE_COMMIT", "CODEX_UPSTREAM_SOURCE_COMMIT", "CODEX_ANDROID_SHA256"}) {
                 replace(NOTICES, old.get(key), next.get(key), 1);
             }
+            updateNotice(old, next);
             require(readPins(after.get(BUILD)).equals(next), "Staged pins do not match the verified runtime.");
+        }
+        private void updateNotice(Map<String, String> old, Map<String, String> next) throws IOException {
+            String notice = after.get(NOTICE);
+            int begin = notice.indexOf(" pins the user-supplied Android ARM64 Codex CLI/app-server build ");
+            int end = notice.indexOf("\n\nThe inspected app-server", begin);
+            require(begin >= 0 && end > begin, "NOTICE.md is missing the managed Codex provenance paragraphs.");
+            String block = notice.substring(begin, end);
+            Map<String, String> replacements = new LinkedHashMap<String, String>();
+            replacements.put("mmmbuto-codex-cli-termux-" + old.get("CODEX_ANDROID_VERSION") + ".tgz",
+                "mmmbuto-codex-cli-termux-" + next.get("CODEX_ANDROID_VERSION") + ".tgz");
+            for (String key : PIN_KEYS) {
+                if (key.equals("CODEX_TERMUX_SOURCE_TAG")) {
+                    replacements.put("snapshot is " + old.get(key) + " at commit", "snapshot is " + next.get(key) + " at commit");
+                } else replacements.put("`" + old.get(key) + "`", "`" + next.get(key) + "`");
+            }
+            // One pass prevents a new value from being mistaken for another old
+            // value when two version/hash fields happen to coincide.
+            StringBuilder pattern = new StringBuilder();
+            for (String token : replacements.keySet()) {
+                require(block.contains(token), "NOTICE.md is missing a current Codex pin.");
+                if (pattern.length() > 0) pattern.append('|');
+                pattern.append(Pattern.quote(token));
+            }
+            Matcher matcher = Pattern.compile(pattern.toString()).matcher(block);
+            StringBuffer updated = new StringBuffer();
+            while (matcher.find()) matcher.appendReplacement(updated, Matcher.quoteReplacement(replacements.get(matcher.group())));
+            matcher.appendTail(updated);
+            after.put(NOTICE, notice.substring(0, begin) + updated + notice.substring(end));
         }
         List<String> changed() {
             List<String> names = new ArrayList<String>();

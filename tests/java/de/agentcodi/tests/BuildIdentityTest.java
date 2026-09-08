@@ -15,7 +15,7 @@ public final class BuildIdentityTest {
         TestSupport.assertEquals("0.7.0", BuildIdentity.VERSION_NAME, "app version");
         TestSupport.assertEquals(82, BuildIdentity.VERSION_CODE, "app version code");
         TestSupport.assertEquals(
-            "0.153.2",
+            "0.153.3-agentcodi.1",
             BuildIdentity.CODEX_RUNTIME_VERSION,
             "Codex runtime version"
         );

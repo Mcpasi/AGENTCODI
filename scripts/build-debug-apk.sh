@@ -21,23 +21,24 @@ case "$BUILD_VARIANT" in
     ;;
 esac
 
-CODEX_ANDROID_VERSION="0.153.2"
-CODEX_ANDROID_URL="https://registry.npmjs.org/@mmmbuto/codex-cli-termux/-/codex-cli-termux-$CODEX_ANDROID_VERSION.tgz"
-CODEX_ANDROID_SHA256="f74470fdf6fae3f031d3fef29018001d4eef5288145b253222c9addbcce046f5"
-CODEX_TERMUX_SOURCE_TAG="v0.153.2"
-CODEX_TERMUX_SOURCE_COMMIT="ca3f87836d45537b9cfcdca9e5f72896efb28503"
+CODEX_ANDROID_VERSION="0.153.3-agentcodi.1"
+# User-built Android sandbox fork; consume this exact local artifact without
+# registry fallback. An alternate location must contain the same pinned bytes.
+CODEX_ANDROID_SHA256="5261caefb52e07e21b25a651b900c06946aebe8d157c60d84c44142a0159b4e1"
+CODEX_TERMUX_SOURCE_TAG="untagged"
+CODEX_TERMUX_SOURCE_COMMIT="0e0d4d00624d6962221b89e81e65e7372678928e"
 CODEX_UPSTREAM_SOURCE_TAG="rust-v0.153.2"
 CODEX_UPSTREAM_SOURCE_COMMIT="657a993cbee87acf52d14b758ce49dbd46d1b8eb"
-CODEX_APP_SERVER_SOURCE_SHA256="8ed1015e1b8c4cd43dc5b974bff1065ae81b71ef996409fd901501b01f7e21a7"
-CODEX_CODE_MODE_HOST_SHA256="01fda59ef46c52e1fbd41e93c145cf46b3841bc5542481a6cd76de876af5fe08"
-CODEX_APP_SERVER_ANDROID_SHA256="e3027c09b5361c6de7f8479dd6311a3d274dc61e9c4f29ba00e30c6d2bbef1c5"
+CODEX_APP_SERVER_SOURCE_SHA256="8b5eb5bc0d26b4d6e62064edca84d681519a25fd7d31299d67351d2d586c58a8"
+CODEX_CODE_MODE_HOST_SHA256="eced18f9e6b35eb4d3a2c0652c6d41590c6c5ecbea133e78079802a91fb6ed49"
+CODEX_APP_SERVER_ANDROID_SHA256="cf1fdcd7f149e9d127f816797a10b43f65c0ea404b9fb6a622cc39b133c4e4cc"
 CODEX_LICENSE_SHA256="d17f227e4df5da1600391338865ce0f3055211760a36688f816941d58232d8dc"
 CODEX_NOTICE_SHA256="8228749dd4dd6026baed0442f80e911308430478449285c865b188d97e6a013c"
 CODEX_SCHEMA_BUNDLE_SHA256="e8284c5cb8157554a3dd1e035aadbd4325aea501af56887e9c2e12eb1b9b9448"
 CODEX_V2_SCHEMA_BUNDLE_SHA256="d3eace08be5dca386bfd1f1e8df650058b4113f1e10870a284d775d75517576a"
 CODEX_DEFAULT_HOST_NAME="codex-code-mode-host"
 CODEX_PACKAGED_HOST_NAME="libcodex-codehost.so"
-CODEX_DEFAULT_HOST_OFFSET="11052727"
+CODEX_DEFAULT_HOST_OFFSET="11071955"
 
 NODE_VERSION="24.18.0"
 NODE_URL="https://packages.termux.dev/apt/termux-main/pool/main/n/nodejs-lts/nodejs-lts_${NODE_VERSION}_aarch64.deb"
@@ -366,7 +367,10 @@ EXPAT_ARCHIVE="$CACHE_DIR/libexpat-2.8.2-aarch64.deb"
 PNG_ARCHIVE="$CACHE_DIR/libpng-1.6.58-aarch64.deb"
 ZOPFLI_ARCHIVE="$CACHE_DIR/libzopfli-1.0.3-5-aarch64.deb"
 ZLIB_ARCHIVE="$CACHE_DIR/zlib-1.3.2-aarch64.deb"
-CODEX_ANDROID_ARCHIVE="$CACHE_DIR/codex-cli-termux-$CODEX_ANDROID_VERSION.tgz"
+CODEX_ANDROID_ARCHIVE="${AGENTCODI_CODEX_ARCHIVE:-$CACHE_DIR/codex/$CODEX_ANDROID_SHA256/package.tgz}"
+if [ -z "${AGENTCODI_CODEX_ARCHIVE:-}" ] && [ ! -e "$CODEX_ANDROID_ARCHIVE" ]; then
+  CODEX_ANDROID_ARCHIVE="$PROJECT_ROOT/../codex-termux/mmmbuto-codex-cli-termux-$CODEX_ANDROID_VERSION.tgz"
+fi
 NODE_ARCHIVE="$CACHE_DIR/nodejs-lts-$NODE_VERSION-aarch64.deb"
 CARES_ARCHIVE="$CACHE_DIR/c-ares-$CARES_VERSION-aarch64.deb"
 ICU_ARCHIVE="$CACHE_DIR/libicu-$ICU_VERSION-aarch64.deb"
@@ -390,6 +394,13 @@ OPENSSL_LICENSE_FILE="$CACHE_DIR/openssl-$OPENSSL_VERSION-LICENSE"
 ZSTD_LICENSE_FILE="$CACHE_DIR/zstd-$ZSTD_VERSION-LICENSE"
 
 echo "Verifying pinned Android build inputs..."
+if [ ! -f "$CODEX_ANDROID_ARCHIVE" ] || [ -L "$CODEX_ANDROID_ARCHIVE" ]; then
+  echo "Pinned local Codex archive is missing or linked: $CODEX_ANDROID_ARCHIVE" >&2
+  echo "AGENTCODI_CODEX_ARCHIVE may select another location for the same SHA-256-pinned archive." >&2
+  exit 1
+fi
+verify_file_sha256 "$CODEX_ANDROID_ARCHIVE" "$CODEX_ANDROID_SHA256"
+
 download_verified "$PLATFORM_URL" "$PLATFORM_SHA256" "$PLATFORM_ARCHIVE"
 download_verified "$R8_URL" "$R8_SHA256" "$R8_JAR"
 download_verified "$AAPT2_URL" "$AAPT2_SHA256" "$AAPT2_ARCHIVE"
@@ -401,7 +412,6 @@ download_verified "$EXPAT_URL" "$EXPAT_SHA256" "$EXPAT_ARCHIVE"
 download_verified "$PNG_URL" "$PNG_SHA256" "$PNG_ARCHIVE"
 download_verified "$ZOPFLI_URL" "$ZOPFLI_SHA256" "$ZOPFLI_ARCHIVE"
 download_verified "$ZLIB_URL" "$ZLIB_SHA256" "$ZLIB_ARCHIVE"
-download_verified "$CODEX_ANDROID_URL" "$CODEX_ANDROID_SHA256" "$CODEX_ANDROID_ARCHIVE"
 download_verified "$NODE_URL" "$NODE_SHA256" "$NODE_ARCHIVE"
 download_verified "$CARES_URL" "$CARES_SHA256" "$CARES_ARCHIVE"
 download_verified "$ICU_URL" "$ICU_SHA256" "$ICU_ARCHIVE"
@@ -1815,7 +1825,7 @@ config_smoke_status=0
     -c 'model_providers.agentcodi-openai-http.supports_standalone_web_search=true' \
     -c 'default_permissions="agentcodi-workspace"' \
     -c 'permissions.agentcodi-workspace.description="AGENTCODI private workspace"' \
-    -c "permissions.agentcodi-workspace.filesystem={\":minimal\"=\"read\",\"$CONFIG_SMOKE_TOOL_BIN\"=\"read\",\"$CONFIG_SMOKE_TOOL_RUNTIME\"=\"read\",\":workspace_roots\"={\".\"=\"write\"}}" \
+    -c "permissions.agentcodi-workspace.filesystem={\":minimal\"=\"read\",\"$CONFIG_SMOKE_TOOL_BIN\"=\"read\",\"$CONFIG_SMOKE_TOOL_RUNTIME\"=\"read\",\"$NATIVE_DIR\"=\"read\",\":workspace_roots\"={\".\"=\"write\"}}" \
     >"$WORK_DIR/config-smoke.stdout" 2>"$WORK_DIR/config-smoke.stderr" \
     || config_smoke_status=$?
 if [ "$config_smoke_status" -ne 0 ]; then
@@ -1864,7 +1874,10 @@ printf '%s\n' \
   'enabled=true' \
   > "$BOOTSTRAP_SMOKE_CODEX_HOME/config.toml"
 chmod 600 "$BOOTSTRAP_SMOKE_CODEX_HOME/config.toml"
-if ! timeout 30s env -i \
+# Full syscall interception on Android/PRoot needs more than 30 seconds for
+# this entire sequence. Individual commands still enforce their own deadlines
+# and all protocol, toolchain and filesystem-isolation assertions must pass.
+if timeout --kill-after=5s 300s env -i \
     LD_LIBRARY_PATH="$NATIVE_DIR" \
     PATH="/system/bin:/system/xbin" \
     "$BOOTSTRAP_SMOKE_BIN" \
@@ -1883,6 +1896,12 @@ if ! timeout 30s env -i \
     "$BOOTSTRAP_SMOKE_STATE" \
     "$BOOTSTRAP_SMOKE_TEMP" \
     "$NATIVE_DIR"; then
+  :
+else
+  bootstrap_status=$?
+  if [ "$bootstrap_status" -eq 124 ] || [ "$bootstrap_status" -eq 137 ]; then
+    echo "Packaged app-server bootstrap exceeded its 300-second overall deadline." >&2
+  fi
   echo "Native supervisor failed the packaged app-server bootstrap sequence." >&2
   exit 1
 fi

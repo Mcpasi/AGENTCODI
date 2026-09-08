@@ -42,6 +42,7 @@ find \
   "$PROJECT_ROOT/modules/connector-client/src/main/java" \
   "$PROJECT_ROOT/app/src/main/java/de/agentcodi/app/TranscriptCardPresentation.java" \
   "$PROJECT_ROOT/scripts/java/de/agentcodi/tools/CodexPackageMetadata.java" \
+  "$PROJECT_ROOT/scripts/java/de/agentcodi/tools/CodexLocalSource.java" \
   "$PROJECT_ROOT/scripts/java/de/agentcodi/tools/CodexRuntimeUpdater.java" \
   "$PROJECT_ROOT/tests/java" \
   -type f -name '*.java' -print | sort > "$TEST_BUILD/java-sources.txt"
@@ -49,6 +50,11 @@ find \
 "$JAVAC" -encoding UTF-8 -source 8 -target 8 -Xlint:-options -d "$TEST_BUILD/java-classes" @"$TEST_BUILD/java-sources.txt"
 "$JAVA" -Dagentcodi.projectRoot="$PROJECT_ROOT" \
   -cp "$TEST_BUILD/java-classes" de.agentcodi.tests.TestMain
+
+"$CLANGXX" -std=c++17 -O2 -Wall -Wextra -Werror \
+  "$PROJECT_ROOT/tests/cpp/bootstrap_terminal_test.cpp" \
+  -o "$TEST_BUILD/cpp/bootstrap-terminal-test"
+"$TEST_BUILD/cpp/bootstrap-terminal-test"
 
 "$CLANGXX" -std=c++17 -O2 -Wall -Wextra -Werror -pthread \
   -I"$PROJECT_ROOT/modules/native-engine/src/main/cpp" \

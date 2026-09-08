@@ -10,23 +10,131 @@ The source paths, original SVG SHA-256 values, local resource mapping, and
 conversion rules are documented in docs/UI_ICONS.md. The complete Apache
 License 2.0 terms are available in the APK legal-notices view.
 
-Codex CLI/app-server Android ARM64 community build 0.153.2
+Codex CLI/app-server Android ARM64 community build 0.153.3-agentcodi.1
 (@mmmbuto/codex-cli-termux), Apache License 2.0.
 OpenAI Codex Copyright 2025 OpenAI.
-Android/Termux compatibility work Copyright 2026 Davide A. Guglielmi.
-This community build is not an official OpenAI Android APK.
-Distribution source: v0.153.2, commit
-ca3f87836d45537b9cfcdca9e5f72896efb28503.
+Original Android/Termux compatibility work Copyright 2026 Davide A. Guglielmi.
+The Android sandbox backend, seccomp/ptrace supervisor and their integration
+into the local Codex fork were developed by Pascal (Mc Pasi).
+Android sandbox contributions Copyright 2026 Pascal (Mc Pasi),
+licensed under the Apache License, Version 2.0.
+This local AGENTCODI fork includes the Android sandbox backend and is not an
+official OpenAI Android APK.
+Distribution source: untagged, commit
+0e0d4d00624d6962221b89e81e65e7372678928e.
 OpenAI source base: rust-v0.153.2, commit
 657a993cbee87acf52d14b758ce49dbd46d1b8eb.
 Package SHA-256:
-f74470fdf6fae3f031d3fef29018001d4eef5288145b253222c9addbcce046f5.
+5261caefb52e07e21b25a651b900c06946aebe8d157c60d84c44142a0159b4e1.
+The archive is supplied locally; there is no npm fallback for this fork.
 AGENTCODI deterministically changes one equal-length app-server data field
 from codex-code-mode-host to libcodex-codehost.so so Android Package Manager
 can install the matching, otherwise unchanged host beside the app-server.
 The complete distributor LICENSE and NOTICE are packaged verbatim at:
 assets/third-party/codex/LICENSE
 assets/third-party/codex/NOTICE
+
+Codex Android sandbox dependencies
+
+The local fork compiles the Android seccomp/ptrace sandbox supervisor into
+codex.bin. Landlock is an optional additional layer.
+The following permissive alternatives are selected from the exact locked
+crate archives. Their complete license texts follow; no crate source is
+packaged as AGENTCODI application code.
+
+landlock 0.4.4: MIT
+Crate SHA-256: 49fefd6652c57d68aaa32544a4c0e642929725bdc1fd929367cdeb673ab81088
+LICENSE-MIT SHA-256: d11fe3f1df9c3fd6fd020091899fcfccd0a949e0a32b461b4c68915f770e31a9
+
+MIT License
+
+Copyright (c) 2020 Mickaël Salaün
+
+Permission is hereby granted, free of charge, to any
+person obtaining a copy of this software and associated
+documentation files (the "Software"), to deal in the
+Software without restriction, including without
+limitation the rights to use, copy, modify, merge,
+publish, distribute, sublicense, and/or sell copies of
+the Software, and to permit persons to whom the Software
+is furnished to do so, subject to the following
+conditions:
+
+The above copyright notice and this permission notice
+shall be included in all copies or substantial portions
+of the Software.
+
+THE SOFTWARE IS PROVIDED "AS IS", WITHOUT WARRANTY OF
+ANY KIND, EXPRESS OR IMPLIED, INCLUDING BUT NOT LIMITED
+TO THE WARRANTIES OF MERCHANTABILITY, FITNESS FOR A
+PARTICULAR PURPOSE AND NONINFRINGEMENT. IN NO EVENT
+SHALL THE AUTHORS OR COPYRIGHT HOLDERS BE LIABLE FOR ANY
+CLAIM, DAMAGES OR OTHER LIABILITY, WHETHER IN AN ACTION
+OF CONTRACT, TORT OR OTHERWISE, ARISING FROM, OUT OF OR
+IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER
+DEALINGS IN THE SOFTWARE.
+
+seccompiler 0.5.0: BSD-3-Clause
+Crate SHA-256: a4ae55de56877481d112a559bbc12667635fdaf5e005712fd4e2b2fa50ffc884
+LICENSE-BSD-3-Clause SHA-256: 051a73a9b3811f17c6b6ba5659d0258cee303a47af0e79ec4b05e6566e021750
+
+Copyright 2021 Amazon.com, Inc. or its affiliates. All Rights Reserved.
+
+Redistribution and use in source and binary forms, with or without
+modification, are permitted provided that the following conditions are met:
+
+1. Redistributions of source code must retain the above copyright notice,
+this list of conditions and the following disclaimer.
+
+2. Redistributions in binary form must reproduce the above copyright notice,
+this list of conditions and the following disclaimer in the documentation
+and/or other materials provided with the distribution.
+
+3. Neither the name of the copyright holder nor the names of its contributors
+may be used to endorse or promote products derived from this software without
+specific prior written permission.
+
+THIS SOFTWARE IS PROVIDED BY THE COPYRIGHT HOLDERS AND CONTRIBUTORS "AS IS"
+AND ANY EXPRESS OR IMPLIED WARRANTIES, INCLUDING, BUT NOT LIMITED TO, THE
+IMPLIED WARRANTIES OF MERCHANTABILITY AND FITNESS FOR A PARTICULAR PURPOSE ARE
+DISCLAIMED. IN NO EVENT SHALL THE COPYRIGHT HOLDER OR CONTRIBUTORS BE LIABLE
+FOR ANY DIRECT, INDIRECT, INCIDENTAL, SPECIAL, EXEMPLARY, OR CONSEQUENTIAL
+DAMAGES (INCLUDING, BUT NOT LIMITED TO, PROCUREMENT OF SUBSTITUTE GOODS OR
+SERVICES; LOSS OF USE, DATA, OR PROFITS; OR BUSINESS INTERRUPTION) HOWEVER
+CAUSED AND ON ANY THEORY OF LIABILITY, WHETHER IN CONTRACT, STRICT LIABILITY,
+OR TORT (INCLUDING NEGLIGENCE OR OTHERWISE) ARISING IN ANY WAY OUT OF THE USE
+OF THIS SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
+
+enumflags2 0.7.12: MIT
+Crate SHA-256: 1027f7680c853e056ebcec683615fb6fbbc07dbaa13b4d5d9442b146ded4ecef
+LICENSE-MIT SHA-256: 2e3edd2716fb15616e867bd53f724f0906732242e9ae76bb1faad1d88f7eeebd
+
+Copyright (c) 2017-2023 Maik Klein, Maja Kądziołka
+
+Permission is hereby granted, free of charge, to any
+person obtaining a copy of this software and associated
+documentation files (the "Software"), to deal in the
+Software without restriction, including without
+limitation the rights to use, copy, modify, merge,
+publish, distribute, sublicense, and/or sell copies of
+the Software, and to permit persons to whom the Software
+is furnished to do so, subject to the following
+conditions:
+
+The above copyright notice and this permission notice
+shall be included in all copies or substantial portions
+of the Software.
+
+THE SOFTWARE IS PROVIDED "AS IS", WITHOUT WARRANTY OF
+ANY KIND, EXPRESS OR IMPLIED, INCLUDING BUT NOT LIMITED
+TO THE WARRANTIES OF MERCHANTABILITY, FITNESS FOR A
+PARTICULAR PURPOSE AND NONINFRINGEMENT. IN NO EVENT
+SHALL THE AUTHORS OR COPYRIGHT HOLDERS BE LIABLE FOR ANY
+CLAIM, DAMAGES OR OTHER LIABILITY, WHETHER IN AN ACTION
+OF CONTRACT, TORT OR OTHERWISE, ARISING FROM, OUT OF OR
+IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER
+DEALINGS IN THE SOFTWARE.
+
 
 Node.js LTS 24.18.0 Android ARM64 toolchain
 

@@ -1016,32 +1016,40 @@ fi
 
 if ! rg -q 'VERSION_NAME = "0\.7\.0"' "$core_root/BuildIdentity.java" \
     || ! rg -q 'VERSION_CODE = 82' "$core_root/BuildIdentity.java" \
-    || ! rg -q 'CODEX_RUNTIME_VERSION = "0\.153\.2"' "$core_root/BuildIdentity.java" \
+    || ! rg -q 'CODEX_RUNTIME_VERSION = "0\.153\.3-agentcodi\.1"' "$core_root/BuildIdentity.java" \
     || ! rg -q 'android:versionName="0\.7\.0"' "$manifest" \
     || ! rg -q 'android:versionCode="82"' "$manifest" \
     || ! rg -q 'APP_VERSION="0\.7\.0"' "$apk_builder" \
     || ! rg -q 'VERSION_CODE="82"' "$apk_builder" \
-    || ! rg -q 'CODEX_ANDROID_VERSION="0\.153\.2"' "$apk_builder" \
-    || ! rg -q 'CODEX_TERMUX_SOURCE_TAG="v0\.153\.2"' "$apk_builder" \
-    || ! rg -q 'CODEX_TERMUX_SOURCE_COMMIT="ca3f87836d45537b9cfcdca9e5f72896efb28503"' "$apk_builder" \
+    || ! rg -q 'CODEX_ANDROID_VERSION="0\.153\.3-agentcodi\.1"' "$apk_builder" \
+    || ! rg -q 'CODEX_TERMUX_SOURCE_TAG="untagged"' "$apk_builder" \
+    || ! rg -q 'CODEX_TERMUX_SOURCE_COMMIT="0e0d4d00624d6962221b89e81e65e7372678928e"' "$apk_builder" \
     || ! rg -q 'CODEX_UPSTREAM_SOURCE_TAG="rust-v0\.153\.2"' "$apk_builder" \
     || ! rg -q 'CODEX_UPSTREAM_SOURCE_COMMIT="657a993cbee87acf52d14b758ce49dbd46d1b8eb"' "$apk_builder" \
-    || ! rg -q 'CODEX_ANDROID_SHA256="f74470fdf6fae3f031d3fef29018001d4eef5288145b253222c9addbcce046f5"' "$apk_builder" \
-    || ! rg -q 'CODEX_APP_SERVER_SOURCE_SHA256="8ed1015e1b8c4cd43dc5b974bff1065ae81b71ef996409fd901501b01f7e21a7"' "$apk_builder" \
-    || ! rg -q 'CODEX_CODE_MODE_HOST_SHA256="01fda59ef46c52e1fbd41e93c145cf46b3841bc5542481a6cd76de876af5fe08"' "$apk_builder" \
-    || ! rg -q 'CODEX_APP_SERVER_ANDROID_SHA256="e3027c09b5361c6de7f8479dd6311a3d274dc61e9c4f29ba00e30c6d2bbef1c5"' "$apk_builder" \
+    || ! rg -q 'CODEX_ANDROID_SHA256="5261caefb52e07e21b25a651b900c06946aebe8d157c60d84c44142a0159b4e1"' "$apk_builder" \
+    || ! rg -q 'CODEX_APP_SERVER_SOURCE_SHA256="8b5eb5bc0d26b4d6e62064edca84d681519a25fd7d31299d67351d2d586c58a8"' "$apk_builder" \
+    || ! rg -q 'CODEX_CODE_MODE_HOST_SHA256="eced18f9e6b35eb4d3a2c0652c6d41590c6c5ecbea133e78079802a91fb6ed49"' "$apk_builder" \
+    || ! rg -q 'CODEX_APP_SERVER_ANDROID_SHA256="cf1fdcd7f149e9d127f816797a10b43f65c0ea404b9fb6a622cc39b133c4e4cc"' "$apk_builder" \
     || ! rg -q 'CODEX_LICENSE_SHA256="d17f227e4df5da1600391338865ce0f3055211760a36688f816941d58232d8dc"' "$apk_builder" \
     || ! rg -q 'CODEX_NOTICE_SHA256="8228749dd4dd6026baed0442f80e911308430478449285c865b188d97e6a013c"' "$apk_builder" \
     || ! rg -q 'CODEX_SCHEMA_BUNDLE_SHA256="e8284c5cb8157554a3dd1e035aadbd4325aea501af56887e9c2e12eb1b9b9448"' "$apk_builder" \
     || ! rg -q 'CODEX_V2_SCHEMA_BUNDLE_SHA256="d3eace08be5dca386bfd1f1e8df650058b4113f1e10870a284d775d75517576a"' "$apk_builder" \
     || ! rg -q 'app-server generate-json-schema' "$apk_builder" \
-    || ! rg -q '0\.153\.2' "$PROJECT_ROOT/NOTICE.md" \
-    || ! rg -q '0\.153\.2' "$PROJECT_ROOT/app/src/main/res/raw/third_party_notices.txt" \
-    || ! rg -q 'ca3f87836d45537b9cfcdca9e5f72896efb28503' "$PROJECT_ROOT/NOTICE.md" \
-    || ! rg -q 'ca3f87836d45537b9cfcdca9e5f72896efb28503' "$PROJECT_ROOT/app/src/main/res/raw/third_party_notices.txt" \
+    || ! rg -q '0\.153\.3-agentcodi\.1' "$PROJECT_ROOT/NOTICE.md" \
+    || ! rg -q '0\.153\.3-agentcodi\.1' "$PROJECT_ROOT/app/src/main/res/raw/third_party_notices.txt" \
+    || ! rg -q '0e0d4d00624d6962221b89e81e65e7372678928e' "$PROJECT_ROOT/NOTICE.md" \
+    || ! rg -q '0e0d4d00624d6962221b89e81e65e7372678928e' "$PROJECT_ROOT/app/src/main/res/raw/third_party_notices.txt" \
     || ! rg -q '657a993cbee87acf52d14b758ce49dbd46d1b8eb' "$PROJECT_ROOT/NOTICE.md" \
     || ! rg -q '657a993cbee87acf52d14b758ce49dbd46d1b8eb' "$PROJECT_ROOT/app/src/main/res/raw/third_party_notices.txt"; then
-  echo "The 0.7.0 / Codex 0.153.2 identity is inconsistent." >&2
+  echo "The 0.7.0 / Codex 0.153.3-agentcodi.1 identity is inconsistent." >&2
+  exit 1
+fi
+
+if ! rg -Fq 'CODEX_ANDROID_ARCHIVE="${AGENTCODI_CODEX_ARCHIVE:-$CACHE_DIR/codex/$CODEX_ANDROID_SHA256/package.tgz}"' "$apk_builder" \
+    || ! rg -Fq 'CODEX_ANDROID_ARCHIVE="$PROJECT_ROOT/../codex-termux/mmmbuto-codex-cli-termux-$CODEX_ANDROID_VERSION.tgz"' "$apk_builder" \
+    || ! rg -Fq 'verify_file_sha256 "$CODEX_ANDROID_ARCHIVE" "$CODEX_ANDROID_SHA256"' "$apk_builder" \
+    || rg -q '^CODEX_ANDROID_URL=|^download_verified .*CODEX_ANDROID_ARCHIVE' "$apk_builder"; then
+  echo "The local Codex fork must remain SHA-256-pinned without a registry fallback." >&2
   exit 1
 fi
 

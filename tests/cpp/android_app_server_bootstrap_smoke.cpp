@@ -1,10 +1,14 @@
 #include "app_server_process.h"
+#include "bootstrap_response.h"
+#include "bootstrap_terminal.h"
 
 #include <arpa/inet.h>
 #include <climits>
+#include <chrono>
 #include <cerrno>
 #include <cstdlib>
 #include <cstring>
+#include <fcntl.h>
 #include <iostream>
 #include <memory>
 #include <poll.h>
@@ -17,6 +21,21 @@
 namespace {
 
 constexpr std::size_t kMaximumLineBytes = 1024U * 1024U;
+// Android's verified full-syscall supervisor also runs under PRoot in the
+// packaging environment. Measured native-shell/file probes need 4-7 seconds
+// there, and the PTY toolchain sequence needs over 15 seconds. Keep finite
+// command deadlines with headroom; successful exits and all output/access
+// contracts remain mandatory.
+constexpr int kCommandTimeoutMs = 30'000;
+constexpr int kToolchainTimeoutMs = 60'000;
+
+bool report_rpc_failure(const std::string& line) {
+  const int request_id = agentcodi_test::BootstrapRpcErrorId(line);
+  if (request_id == 0) return false;
+  std::cerr << "Bootstrap RPC " << request_id << " failed: "
+            << agentcodi_test::BootstrapRpcErrorReason(line) << '\n';
+  return true;
+}
 
 bool write_request(
     const std::shared_ptr<agentcodi::AppServerProcess>& process,
@@ -45,8 +64,18 @@ bool read_response(
       std::cerr << "Bootstrap response failed: " << *error << '\n';
       return false;
     }
+    // A pipelined command/exec may fail before the awaited resize reply.
+    // Preserve that root failure instead of discarding it as a notification.
+    if (report_rpc_failure(line)) return false;
     if (line.find(id_marker) != std::string::npos) {
       if (line.find(required_marker) == std::string::npos) {
+        if (const char* reason = agentcodi_test::BootstrapSandboxFailureReason(line)) {
+          std::cerr << reason << '\n';
+        }
+        if (line.find("\"exitCode\":43") != std::string::npos
+            || line.find("\"exitCode\":44") != std::string::npos) {
+          std::cerr << "Protected executor allowed access to the synthetic private sibling\n";
+        }
         std::cerr << "Bootstrap response omitted its required contract marker\n";
         return false;
       }
@@ -86,16 +115,54 @@ bool read_response_with_two_markers(
       std::cerr << "Bootstrap response failed: " << *error << '\n';
       return false;
     }
+    if (report_rpc_failure(line)) return false;
     if (line.find(id_marker) != std::string::npos) {
       if (line.find(first_required_marker) == std::string::npos
           || line.find(second_required_marker) == std::string::npos) {
-        std::cerr << "Bootstrap response omitted an execution-mode profile\n";
+        if (const char* reason = agentcodi_test::BootstrapSandboxFailureReason(line)) {
+          std::cerr << reason << '\n';
+        }
+        std::cerr << "Bootstrap response omitted required contract fields\n";
         return false;
       }
       return true;
     }
   }
   std::cerr << "Bootstrap response was displaced by too many notifications\n";
+  return false;
+}
+
+bool read_command_response(
+    const std::shared_ptr<agentcodi::AppServerProcess>& process,
+    int request_id,
+    const std::string& required_stdout,
+    std::string* error) {
+  const auto started = std::chrono::steady_clock::now();
+  for (int attempt = 0; attempt < 16; ++attempt) {
+    std::string line;
+    if (process->ReadLine(kMaximumLineBytes, &line, error)
+        != agentcodi::LineReadStatus::kLine) {
+      std::cerr << "Bootstrap RPC " << request_id << " response failed: " << *error << '\n';
+      return false;
+    }
+    if (report_rpc_failure(line)) return false;
+    if (agentcodi_test::BootstrapResponse(line).id != request_id) continue;
+    std::string output;
+    if (!agentcodi_test::ReadBootstrapCommandOutput(line, &output)) {
+      std::cerr << agentcodi_test::BootstrapCommandFailure(line) << '\n';
+      return false;
+    }
+    if (output.find(required_stdout) == std::string::npos) {
+      std::cerr << "Bootstrap RPC " << request_id
+                << " exited with code 0 but omitted its required stdout marker\n";
+      return false;
+    }
+    const auto elapsed = std::chrono::duration_cast<std::chrono::milliseconds>(
+        std::chrono::steady_clock::now() - started).count();
+    std::cout << "Bootstrap RPC " << request_id << " passed (" << elapsed << " ms)" << std::endl;
+    return true;
+  }
+  std::cerr << "Bootstrap RPC " << request_id << " was displaced by too many notifications\n";
   return false;
 }
 
@@ -106,125 +173,147 @@ bool safe_json_path(const std::string& value) {
       && value.find('\r') == std::string::npos;
 }
 
-bool extract_json_string(
-    const std::string& line,
-    const std::string& field,
-    std::string* value) {
-  const std::string marker = "\"" + field + "\":\"";
-  const std::size_t begin = line.find(marker);
-  if (begin == std::string::npos) {
+bool create_private_fixture(const std::string& path, const std::string& contents) {
+  const int descriptor = open(
+      path.c_str(), O_WRONLY | O_CREAT | O_EXCL | O_NOFOLLOW | O_CLOEXEC, 0600);
+  if (descriptor < 0) {
     return false;
   }
-  const std::size_t value_begin = begin + marker.size();
-  const std::size_t end = line.find('"', value_begin);
-  if (end == std::string::npos) {
+  const ssize_t written = write(descriptor, contents.data(), contents.size());
+  const bool closed = close(descriptor) == 0;
+  return written == static_cast<ssize_t>(contents.size()) && closed;
+}
+
+bool check_protected_runtime(
+    const std::shared_ptr<agentcodi::AppServerProcess>& process,
+    const agentcodi::ProcessConfig& config,
+    std::string* error) {
+  // Listing a profile does not prove that the Android executor can enforce it.
+  // Exercise the real thread bootstrap and actual file access, using only
+  // synthetic files in the build fixture's workspace and private sibling.
+  const std::string instructions = config.working_directory + "/AGENTS.md";
+  const std::string outside = config.home_directory + "/sandbox-boundary-fixture";
+  if (!safe_json_path(outside)
+      || !create_private_fixture(instructions, "Use the workspace for this test.\n")
+      || !create_private_fixture(outside, "synthetic-private-sibling\n")) {
+    std::cerr << "Protected runtime fixtures could not be created\n";
     return false;
   }
-  *value = line.substr(value_begin, end - value_begin);
+  const auto cleanup = [&]() {
+    unlink(instructions.c_str());
+    unlink(outside.c_str());
+    unlink((config.working_directory + "/.agentcodi-sandbox-write-fixture").c_str());
+  };
+
+  const bool thread_started = write_request(
+      process,
+      "{\"method\":\"thread/start\",\"id\":25,\"params\":{"
+      "\"cwd\":\"" + config.working_directory + "\","
+      "\"runtimeWorkspaceRoots\":[\"" + config.working_directory + "\"],"
+      "\"model\":\"gpt-5.1-codex\","
+      "\"modelProvider\":\"agentcodi-openai-http\","
+      "\"approvalPolicy\":\"on-request\","
+      "\"permissions\":\"agentcodi-workspace\","
+      "\"persistExtendedHistory\":true}}",
+      error)
+      && read_response_with_two_markers(
+          process, "\"id\":25", "\"thread\":{",
+          "\"id\":\"agentcodi-workspace\"", error);
+  if (!thread_started) {
+    std::cerr << "Protected thread/start must load workspace AGENTS.md successfully\n";
+    cleanup();
+    return false;
+  }
+
+  const bool native_started = write_request(
+      process,
+      "{\"method\":\"command/exec\",\"id\":28,\"params\":{"
+      "\"command\":[\"" + config.shell_executable + "\",\"-c\","
+      "\"cat AGENTS.md >/dev/null && printf AGENTCODI-PAYLOAD-READY\"],"
+      "\"cwd\":\"" + config.working_directory + "\","
+      "\"permissionProfile\":\"agentcodi-workspace\","
+      "\"tty\":false,\"outputBytesCap\":4096,\"timeoutMs\":"
+      + std::to_string(kCommandTimeoutMs) + "}}",
+      error)
+      && read_command_response(process, 28, "AGENTCODI-PAYLOAD-READY", error);
+  if (!native_started) {
+    std::cerr << "Protected executor must start the packaged native shell and read the workspace\n";
+    cleanup();
+    return false;
+  }
+
+  for (const bool writing : {false, true}) {
+    const std::string id = writing ? "27" : "26";
+    // First prove workspace reads and writes work. Then require the same
+    // operation on the private sibling to fail. Neither blanket rejection nor
+    // a thread-start fallback to full access satisfies this regression.
+    const std::string operation = writing
+        ? "if (: >> \\\"$1\\\") 2>/dev/null; then exit 43; fi"
+        : "if cat \\\"$1\\\" >/dev/null 2>&1; then exit 44; fi";
+    const bool denied_outside = write_request(
+        process,
+        "{\"method\":\"command/exec\",\"id\":" + id + ",\"params\":{"
+        "\"command\":[\"/system/bin/sh\",\"-c\","
+        "\"cat AGENTS.md >/dev/null || exit 41; "
+        ": > .agentcodi-sandbox-write-fixture || exit 42; " + operation + "; exit 0\","
+        "\"agentcodi-sandbox-probe\",\"" + outside + "\"],"
+        "\"cwd\":\"" + config.working_directory + "\","
+        "\"permissionProfile\":\"agentcodi-workspace\","
+        "\"tty\":false,\"outputBytesCap\":4096,\"timeoutMs\":"
+        + std::to_string(kCommandTimeoutMs) + "}}",
+        error)
+        && read_command_response(process, writing ? 27 : 26, "", error);
+    if (!denied_outside) {
+      std::cerr << "Protected executor must allow workspace access and deny sibling "
+                << (writing ? "writes" : "reads") << '\n';
+      cleanup();
+      return false;
+    }
+  }
+  cleanup();
   return true;
 }
 
-int base64_value(char character) {
-  if (character >= 'A' && character <= 'Z') {
-    return character - 'A';
-  }
-  if (character >= 'a' && character <= 'z') {
-    return character - 'a' + 26;
-  }
-  if (character >= '0' && character <= '9') {
-    return character - '0' + 52;
-  }
-  if (character == '+') {
-    return 62;
-  }
-  if (character == '/') {
-    return 63;
-  }
-  return -1;
-}
-
-bool append_base64(const std::string& encoded, std::string* decoded) {
-  if (encoded.size() % 4U != 0U || encoded.size() > 88U * 1024U) {
-    return false;
-  }
-  for (std::size_t index = 0U; index < encoded.size(); index += 4U) {
-    const int first = base64_value(encoded[index]);
-    const int second = base64_value(encoded[index + 1U]);
-    const bool third_padding = encoded[index + 2U] == '=';
-    const bool fourth_padding = encoded[index + 3U] == '=';
-    const int third = third_padding ? 0 : base64_value(encoded[index + 2U]);
-    const int fourth = fourth_padding ? 0 : base64_value(encoded[index + 3U]);
-    if (first < 0 || second < 0 || third < 0 || fourth < 0
-        || (third_padding && !fourth_padding)
-        || ((third_padding || fourth_padding) && index + 4U != encoded.size())) {
-      return false;
-    }
-    decoded->push_back(static_cast<char>((first << 2) | (second >> 4)));
-    if (!third_padding) {
-      decoded->push_back(static_cast<char>((second << 4) | (third >> 2)));
-    }
-    if (!fourth_padding) {
-      decoded->push_back(static_cast<char>((third << 6) | fourth));
-    }
-    if (decoded->size() > 128U * 1024U) {
-      return false;
-    }
-  }
-  return true;
-}
+using agentcodi_test::AppendBootstrapBase64;
+using agentcodi_test::ExtractBootstrapJsonString;
 
 bool read_interactive_terminal_completion(
     const std::shared_ptr<agentcodi::AppServerProcess>& process,
     std::string* error) {
-  bool write_acknowledged = false;
-  bool command_completed = false;
-  std::string output;
-  for (int attempt = 0; attempt < 64; ++attempt) {
+  agentcodi_test::BootstrapTerminal terminal;
+  while (true) {
     std::string line;
     const agentcodi::LineReadStatus status = process->ReadLine(
         kMaximumLineBytes,
         &line,
         error);
     if (status != agentcodi::LineReadStatus::kLine) {
-      std::cerr << "Terminal protocol response failed: " << *error << '\n';
+      std::cerr << terminal.IncompleteSummary() << ": " << *error << '\n';
       return false;
     }
-    if (line.find("\"method\":\"command/exec/outputDelta\"")
-            != std::string::npos
-        && line.find("\"processId\":\"agentcodi-build-terminal\"")
-            != std::string::npos) {
-      std::string delta;
-      if (!extract_json_string(line, "deltaBase64", &delta)
-          || !append_base64(delta, &output)) {
-        std::cerr << "Terminal output notification was not bounded Base64\n";
+    switch (terminal.Consume(line)) {
+      case agentcodi_test::BootstrapTerminalEvent::kSendInput:
+        // Keep output received before resize acknowledgement in the same
+        // collector. Send input once, only after that acknowledgement.
+        if (!write_request(
+                process,
+                "{\"method\":\"command/exec/write\",\"id\":8,\"params\":{"
+                "\"processId\":\"agentcodi-build-terminal\","
+                "\"deltaBase64\":"
+                "\"cHJpbnRmIHRlcm1pbmFsLXByb3RvY29sLXNtb2tlCmFnZW50Y29kaS10b29sY2hhaW4gaW5zdGFsbCBub2RlCmFnZW50Y29kaS10b29sY2hhaW4gaW5zdGFsbCByaXBncmVwCm5vZGUgLS12ZXJzaW9uCnJnIC0tdmVyc2lvbgpleGl0Cg==\"}}",
+                error)) {
+          return false;
+        }
+        break;
+      case agentcodi_test::BootstrapTerminalEvent::kComplete:
+        return true;
+      case agentcodi_test::BootstrapTerminalEvent::kFailed:
+        std::cerr << terminal.failure() << '\n';
         return false;
-      }
-    } else if (line.find("\"id\":8") != std::string::npos) {
-      if (line.find("\"result\":{}") == std::string::npos) {
-        std::cerr << "Terminal input request failed\n";
-        return false;
-      }
-      write_acknowledged = true;
-    } else if (line.find("\"id\":6") != std::string::npos) {
-      if (line.find("\"exitCode\":0") == std::string::npos
-          || line.find("\"stdout\":\"\"") == std::string::npos
-          || line.find("\"stderr\":\"\"") == std::string::npos) {
-        std::cerr << "Terminal completion response was malformed\n";
-        return false;
-      }
-      command_completed = true;
-    }
-    if (write_acknowledged && command_completed
-        && output.find("terminal-protocol-smoke") != std::string::npos
-        && output.find("Enabled packaged Node.js 24.18.0") != std::string::npos
-        && output.find("Enabled packaged ripgrep 15.2.0") != std::string::npos
-        && output.find("v24.18.0") != std::string::npos
-        && output.find("ripgrep 15.2.0") != std::string::npos) {
-      return true;
+      case agentcodi_test::BootstrapTerminalEvent::kPending:
+        break;
     }
   }
-  std::cerr << "Interactive terminal protocol did not complete all correlated events\n";
-  return false;
 }
 
 bool read_model_shell_completion(
@@ -249,24 +338,24 @@ bool read_model_shell_completion(
         && line.find("\"processId\":\"agentcodi-build-model-shell\"")
             != std::string::npos) {
       std::string delta;
-      if (!extract_json_string(line, "deltaBase64", &delta)
-          || !append_base64(delta, &output)) {
+      if (!ExtractBootstrapJsonString(line, "deltaBase64", &delta)
+          || !AppendBootstrapBase64(delta, &output)) {
         std::cerr << "Model shell output was not bounded Base64\n";
         return false;
       }
-    } else if (line.find("\"id\":9") != std::string::npos) {
-      if (line.find("\"exitCode\":0") == std::string::npos
-          || line.find("\"stderr\":\"\"") == std::string::npos) {
-        std::cerr << "Model shell completion response was malformed\n";
+    } else if (agentcodi_test::BootstrapResponse(line).id == 9) {
+      std::string inline_output;
+      if (!agentcodi_test::ReadBootstrapCommandOutput(line, &inline_output)) {
+        std::cerr << agentcodi_test::BootstrapCommandFailure(line) << '\n';
         return false;
       }
-      if (line.find("\"stdout\":\"\"") == std::string::npos) {
-        if (line.find(expected_node_alias) == std::string::npos
-            || line.find(expected_ripgrep_alias) == std::string::npos
-            || line.find("v24.18.0") == std::string::npos
-            || line.find("node 24.18.0") == std::string::npos
-            || line.find("ripgrep 15.2.0") == std::string::npos
-            || line.find("enabled") == std::string::npos) {
+      if (!inline_output.empty()) {
+        if (inline_output.find(expected_node_alias) == std::string::npos
+            || inline_output.find(expected_ripgrep_alias) == std::string::npos
+            || inline_output.find("v24.18.0") == std::string::npos
+            || inline_output.find("node 24.18.0") == std::string::npos
+            || inline_output.find("ripgrep 15.2.0") == std::string::npos
+            || inline_output.find("enabled") == std::string::npos) {
           std::cerr << "Inline model shell output omitted the packaged Node contract\n";
           return false;
         }
@@ -308,19 +397,19 @@ bool read_import_content_completion(
         && line.find("\"processId\":\"agentcodi-build-import-read\"")
             != std::string::npos) {
       std::string delta;
-      if (!extract_json_string(line, "deltaBase64", &delta)
-          || !append_base64(delta, &output)) {
+      if (!ExtractBootstrapJsonString(line, "deltaBase64", &delta)
+          || !AppendBootstrapBase64(delta, &output)) {
         std::cerr << "Imported-content output was not bounded Base64\n";
         return false;
       }
-    } else if (line.find("\"id\":23") != std::string::npos) {
-      if (line.find("\"exitCode\":0") == std::string::npos
-          || line.find("\"stderr\":\"\"") == std::string::npos) {
-        std::cerr << "Imported-content completion response was malformed\n";
+    } else if (agentcodi_test::BootstrapResponse(line).id == 23) {
+      std::string inline_output;
+      if (!agentcodi_test::ReadBootstrapCommandOutput(line, &inline_output)) {
+        std::cerr << agentcodi_test::BootstrapCommandFailure(line) << '\n';
         return false;
       }
-      if (line.find("\"stdout\":\"\"") == std::string::npos) {
-        return line.find("agentcodi-import-content-smoke") != std::string::npos;
+      if (!inline_output.empty()) {
+        return inline_output.find("agentcodi-import-content-smoke") != std::string::npos;
       }
       command_completed = true;
     }
@@ -505,7 +594,9 @@ bool read_terminated_terminal_completion(
 }  // namespace
 
 int main(int argc, char* argv[]) {
-  if (argc != 16) {
+  const bool protected_only = argc == 17
+      && std::string(argv[16]) == "--protected-mode-only";
+  if (argc != 16 && !protected_only) {
     std::cerr << "Expected app-server, host, shell, Node, Python, ripgrep, workspace, toolchain, tool-bin, tool-runtime, Codex home, home, state, temp and library paths\n";
     return 2;
   }
@@ -558,6 +649,21 @@ int main(int argc, char* argv[]) {
     return 1;
   }
 
+  // Successful commands alone cannot establish filesystem isolation. Run the
+  // positive and negative access probes in every packaging bootstrap.
+  if (!check_protected_runtime(process, config, &error)) {
+    process->Stop(2'000);
+    return 1;
+  }
+  if (protected_only) {
+    const int exit_code = process->Stop(2'000);
+    if (exit_code == INT_MIN) {
+      return 1;
+    }
+    std::cout << "Protected runtime regression checks passed.\n";
+    return 0;
+  }
+
   const std::string permission_request =
       "{\"method\":\"permissionProfile/list\",\"id\":2,\"params\":{"
       "\"cwd\":\"" + workspace + "\",\"limit\":50}}";
@@ -598,21 +704,14 @@ int main(int argc, char* argv[]) {
       "\"processId\":\"agentcodi-build-terminal\","
       "\"permissionProfile\":\"agentcodi-workspace\","
       "\"tty\":true,\"size\":{\"rows\":24,\"cols\":80},"
-      "\"outputBytesCap\":65536,\"timeoutMs\":10000}}";
+      "\"outputBytesCap\":65536,\"timeoutMs\":"
+      + std::to_string(kToolchainTimeoutMs) + "}}";
   if (!write_request(process, terminal_request, &error)
       || !write_request(
           process,
           "{\"method\":\"command/exec/resize\",\"id\":7,\"params\":{"
           "\"processId\":\"agentcodi-build-terminal\","
           "\"size\":{\"rows\":32,\"cols\":96}}}",
-          &error)
-      || !read_response(process, "\"id\":7", "\"result\":{}", &error)
-      || !write_request(
-          process,
-          "{\"method\":\"command/exec/write\",\"id\":8,\"params\":{"
-          "\"processId\":\"agentcodi-build-terminal\","
-          "\"deltaBase64\":"
-          "\"cHJpbnRmIHRlcm1pbmFsLXByb3RvY29sLXNtb2tlCmFnZW50Y29kaS10b29sY2hhaW4gaW5zdGFsbCBub2RlCmFnZW50Y29kaS10b29sY2hhaW4gaW5zdGFsbCByaXBncmVwCm5vZGUgLS12ZXJzaW9uCnJnIC0tdmVyc2lvbgpleGl0Cg==\"}}",
           &error)
       || !read_interactive_terminal_completion(process, &error)) {
     process->Stop(2'000);
@@ -633,7 +732,8 @@ int main(int argc, char* argv[]) {
       "\"cwd\":\"" + workspace + "\","
       "\"processId\":\"agentcodi-build-model-shell\","
       "\"permissionProfile\":\"agentcodi-workspace\","
-      "\"tty\":false,\"outputBytesCap\":65536,\"timeoutMs\":10000}}";
+      "\"tty\":false,\"outputBytesCap\":65536,\"timeoutMs\":"
+      + std::to_string(kToolchainTimeoutMs) + "}}";
   if (!write_request(process, model_shell_request, &error)
       || !read_model_shell_completion(
           process,
@@ -651,9 +751,10 @@ int main(int argc, char* argv[]) {
       "rm .agentcodi-compatibility-smoke\"],"
       "\"cwd\":\"" + workspace + "\","
       "\"permissionProfile\":\":danger-full-access\","
-      "\"tty\":false,\"outputBytesCap\":65536,\"timeoutMs\":10000}}";
+      "\"tty\":false,\"outputBytesCap\":65536,\"timeoutMs\":"
+      + std::to_string(kCommandTimeoutMs) + "}}";
   if (!write_request(process, compatibility_request, &error)
-      || !read_response(process, "\"id\":24", "\"exitCode\":0", &error)) {
+      || !read_command_response(process, 24, "", &error)) {
     process->Stop(2'000);
     return 1;
   }
@@ -665,7 +766,8 @@ int main(int argc, char* argv[]) {
       "\"cwd\":\"" + workspace + "\","
       "\"processId\":\"agentcodi-build-import-read\","
       "\"permissionProfile\":\"agentcodi-workspace\","
-      "\"tty\":false,\"outputBytesCap\":65536,\"timeoutMs\":10000}}";
+      "\"tty\":false,\"outputBytesCap\":65536,\"timeoutMs\":"
+      + std::to_string(kCommandTimeoutMs) + "}}";
   if (!write_request(process, import_read_request, &error)
       || !read_import_content_completion(process, &error)) {
     process->Stop(2'000);
@@ -679,7 +781,8 @@ int main(int argc, char* argv[]) {
       "\"processId\":\"agentcodi-build-terminal-stop\","
       "\"permissionProfile\":\"agentcodi-workspace\","
       "\"tty\":true,\"size\":{\"rows\":24,\"cols\":80},"
-      "\"outputBytesCap\":65536,\"timeoutMs\":10000}}";
+      "\"outputBytesCap\":65536,\"timeoutMs\":"
+      + std::to_string(kToolchainTimeoutMs) + "}}";
   if (!write_request(process, terminated_terminal_request, &error)
       || !write_request(
           process,
@@ -878,7 +981,7 @@ int main(int argc, char* argv[]) {
     }
     if (line.find("\"id\":31") != std::string::npos
         && line.find("\"thread\":{") != std::string::npos) {
-      extract_json_string(line, "id", &probe_thread_id);
+      ExtractBootstrapJsonString(line, "id", &probe_thread_id);
     }
   }
   const std::string visible_label = "VISIBLE-LABEL-MUST-NOT-BE-MODEL-CONTEXT.bin";

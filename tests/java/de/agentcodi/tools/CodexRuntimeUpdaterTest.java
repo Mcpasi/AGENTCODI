@@ -47,7 +47,11 @@ public final class CodexRuntimeUpdaterTest {
         rollsBackFailedInstall();
         preservesConflictingEditsDuringRollback();
         boundsSubprocessExecution();
-        return 18;
+        selectsLocalForkArchives();
+        keepsDependencyReviewStrictAcrossVersionBumps();
+        cachesSameVersionRebuildsByContent();
+        bindsLocalBytesToTheirBuildCommit();
+        return 22;
     }
 
     public static void main(String[] args) throws Exception {
@@ -60,6 +64,10 @@ public final class CodexRuntimeUpdaterTest {
         }
         TestSupport.assertTrue(CodexRuntimeUpdater.compareVersions("0.150.0", "0.99.0") > 0, "numeric version order");
         TestSupport.assertTrue(CodexRuntimeUpdater.compareVersions("0.1.0", "0.2.0") < 0, "detect downgrade");
+        TestSupport.assertTrue(CodexRuntimeUpdater.comparePackageVersions("0.153.3-agentcodi.10", "0.153.3-agentcodi.2") > 0,
+            "fork revision order is numeric");
+        TestSupport.assertEquals(0, CodexRuntimeUpdater.comparePackageVersions("0.153.3-agentcodi.1", "0.153.3-agentcodi.1"),
+            "same-version rebuilds can replace their package bytes");
         Map<String, Object> metadata = JsonCodec.object(
             "name", CodexRuntimeUpdater.PACKAGE, "version", "1.2.3", "license", "Apache-2.0",
             "os", JsonCodec.array("android"), "cpu", JsonCodec.array("arm64"),
@@ -393,7 +401,7 @@ public final class CodexRuntimeUpdaterTest {
             Files.copy(project.resolve(name), target, StandardCopyOption.COPY_ATTRIBUTES);
         }
         Files.createDirectories(fixture.resolve(".build"));
-        Files.write(fixture.resolve("NOTICE.md"), "User maintained documentation\n".getBytes(StandardCharsets.UTF_8));
+        Files.write(fixture.resolve("README.md"), "User maintained documentation\n".getBytes(StandardCharsets.UTF_8));
         return fixture;
     }
 
@@ -434,7 +442,7 @@ public final class CodexRuntimeUpdaterTest {
             for (String file : CodexRuntimeUpdater.MANAGED) {
                 TestSupport.assertEquals(plan.before.get(file), CodexRuntimeUpdater.text(fixture.resolve(file)), "proposal is a dry run");
             }
-            TestSupport.assertEquals(7, plan.changed().size(), "all runtime pin consumers updated");
+            TestSupport.assertEquals(8, plan.changed().size(), "all runtime pin consumers and NOTICE updated");
             plan.commit(MOVE);
             for (String file : CodexRuntimeUpdater.MANAGED) {
                 TestSupport.assertEquals(plan.after.get(file), CodexRuntimeUpdater.text(fixture.resolve(file)), "committed proposed file");
@@ -442,7 +450,9 @@ public final class CodexRuntimeUpdaterTest {
             }
             TestSupport.assertEquals(mode, Files.getPosixFilePermissions(build), "executable mode preserved");
             TestSupport.assertContains(CodexRuntimeUpdater.text(build), "# unrelated local edit", "unrelated user edit retained");
-            TestSupport.assertEquals("User maintained documentation\n", CodexRuntimeUpdater.text(fixture.resolve("NOTICE.md")), "Markdown unchanged");
+            TestSupport.assertEquals("User maintained documentation\n", CodexRuntimeUpdater.text(fixture.resolve("README.md")), "other documentation unchanged");
+            TestSupport.assertContains(CodexRuntimeUpdater.text(fixture.resolve("NOTICE.md")), "`9.8.7`", "NOTICE version updated");
+            TestSupport.assertContains(CodexRuntimeUpdater.text(fixture.resolve("NOTICE.md")), "Pascal (Mc Pasi)", "sandbox authorship retained");
             TestSupport.assertFalse(Files.exists(fixture.resolve(".build/codex-update.pending")), "completed journal cleared");
             CodexRuntimeUpdater.Plan again = plan(fixture);
             Map<String, String> pinned = CodexRuntimeUpdater.readPins(again.before.get(CodexRuntimeUpdater.BUILD));
@@ -551,6 +561,106 @@ public final class CodexRuntimeUpdaterTest {
             });
             TestSupport.assertTrue(System.nanoTime() - start < 10_000_000_000L, "finite subprocess timeout");
         } finally { remove(work); }
+    }
+
+    private static void selectsLocalForkArchives() throws Exception {
+        Path source = Files.createTempDirectory("local fork with spaces ");
+        try {
+            Files.createDirectories(source.resolve("npm-package"));
+            Path project = Paths.get(System.getProperty("agentcodi.projectRoot")).toAbsolutePath();
+            Map<String, String> pins = CodexRuntimeUpdater.readPins(CodexRuntimeUpdater.text(project.resolve(CodexRuntimeUpdater.BUILD)));
+            String version = pins.get("CODEX_ANDROID_VERSION");
+            Map<String, Object> metadata = JsonCodec.object("name", CodexRuntimeUpdater.PACKAGE, "version", version,
+                "license", "Apache-2.0", "os", JsonCodec.array("android"), "cpu", JsonCodec.array("arm64"),
+                "repository", JsonCodec.object("url", "git+https://github.com/" + CodexRuntimeUpdater.FORK + ".git"));
+            Files.write(source.resolve("npm-package/package.json"), JsonCodec.stringify(metadata).getBytes(StandardCharsets.UTF_8));
+            CodexLocalSource.Options options = CodexLocalSource.Options.parse(project,
+                new String[] {project.toString(), "--source-dir", source.toString(), "--dry-run"}, Collections.<String, String>emptyMap());
+            TestSupport.assertTrue(options.dryRun, "dry-run is explicit");
+            rejects(new Action() { public void run() throws Exception { options.selectArchive(); } });
+            Path first = source.resolve("downloaded.tgz");
+            Files.write(first, new byte[] {1});
+            TestSupport.assertEquals(first, options.selectArchive(), "one renamed download is accepted");
+            Path second = source.resolve("another.tgz");
+            Files.write(second, new byte[] {2});
+            rejects(new Action() { public void run() throws Exception { options.selectArchive(); } });
+            Path matching = source.resolve("mmmbuto-codex-cli-termux-" + version + ".tgz");
+            Files.write(matching, new byte[] {3});
+            TestSupport.assertEquals(matching, options.selectArchive(), "source package version disambiguates older archives");
+            CodexLocalSource.Options explicit = CodexLocalSource.Options.parse(project,
+                new String[] {project.toString(), "--source-dir", source.toString(), "--archive", first.toString()},
+                Collections.<String, String>emptyMap());
+            TestSupport.assertEquals(first, explicit.selectArchive(), "explicit path overrides discovery");
+            Path link = source.resolve("linked.tgz");
+            Files.createSymbolicLink(link, first);
+            explicit.archive = link;
+            rejects(new Action() { public void run() throws Exception { explicit.selectArchive(); } });
+            rejects(new Action() { public void run() throws Exception {
+                CodexLocalSource.Options.parse(project, new String[] {project.toString(), "latest"}, Collections.<String, String>emptyMap());
+            } });
+        } finally { remove(source); }
+    }
+
+    private static void keepsDependencyReviewStrictAcrossVersionBumps() throws Exception {
+        String old = "[workspace.package]\nversion = \"0.153.3-agentcodi.1\"\n[workspace.dependencies]\nlibc = \"0.2.1\"\n";
+        String next = old.replace("0.153.3-agentcodi.1", "0.153.4-agentcodi.1");
+        TestSupport.assertEquals(CodexLocalSource.normalizeDependency("codex-rs/Cargo.toml", old),
+            CodexLocalSource.normalizeDependency("codex-rs/Cargo.toml", next), "workspace version bumps are automatic");
+        TestSupport.assertFalse(CodexLocalSource.normalizeDependency("Cargo.toml", old).equals(
+            CodexLocalSource.normalizeDependency("Cargo.toml", next.replace("0.2.1", "0.2.2"))), "external dependency changes still need review");
+        String lock = "version = 4\n[[package]]\nname = \"codex-cli\"\nversion = \"0.153.3\"\n\n"
+            + "[[package]]\nname = \"libc\"\nversion = \"0.2.1\"\nsource = \"registry+fixture\"\nchecksum = \"fixture\"\n";
+        TestSupport.assertEquals(CodexLocalSource.normalizeDependency("Cargo.lock", lock),
+            CodexLocalSource.normalizeDependency("Cargo.lock", lock.replace("0.153.3", "0.153.4")), "workspace lockfile version bumps are automatic");
+        TestSupport.assertFalse(CodexLocalSource.normalizeDependency("Cargo.lock", lock).equals(
+            CodexLocalSource.normalizeDependency("Cargo.lock", lock.replace("0.2.1", "0.2.2"))), "locked external versions stay exact");
+        TestSupport.assertTrue(CodexLocalSource.dependencyInput("codex-rs/linux-sandbox/Cargo.toml"), "sandbox dependency declarations are checked");
+        TestSupport.assertTrue(CodexLocalSource.dependencyInput("codex-rs/vendor/LICENSE-MIT"), "vendored licenses are checked");
+        TestSupport.assertFalse(CodexLocalSource.dependencyInput("codex-rs/linux-sandbox/src/android_sandbox/mem.rs"), "ordinary fork source corrections do not require repinning dependencies");
+    }
+
+    private static void cachesSameVersionRebuildsByContent() throws Exception {
+        Path work = Files.createTempDirectory("codex-cache-");
+        try {
+            Path a = work.resolve("first.tgz");
+            Path b = work.resolve("rebuilt.tgz");
+            Files.write(a, new byte[] {1, 2, 3});
+            Files.write(b, new byte[] {4, 5, 6});
+            String hashA = CodexRuntimeUpdater.digest(a, "SHA-256");
+            String hashB = CodexRuntimeUpdater.digest(b, "SHA-256");
+            Path cachedA = work.resolve("cache/" + hashA + "/package.tgz");
+            Path cachedB = work.resolve("cache/" + hashB + "/package.tgz");
+            CodexRuntimeUpdater.installVerified(a, cachedA, hashA, 1024);
+            CodexRuntimeUpdater.installVerified(b, cachedB, hashB, 1024);
+            CodexRuntimeUpdater.installVerified(a, cachedA, hashA, 1024);
+            TestSupport.assertEquals(hashA, CodexRuntimeUpdater.digest(cachedA, "SHA-256"), "old baseline remains intact");
+            TestSupport.assertEquals(hashB, CodexRuntimeUpdater.digest(cachedB, "SHA-256"), "same-version rebuild has its own cache entry");
+            rejects(new Action() { public void run() throws Exception { CodexRuntimeUpdater.installVerified(b, cachedA, hashB, 1024); } });
+            TestSupport.assertEquals(hashA, CodexRuntimeUpdater.digest(cachedA, "SHA-256"), "conflicting cache bytes are never overwritten");
+        } finally { remove(work); }
+    }
+
+    private static void bindsLocalBytesToTheirBuildCommit() throws Exception {
+        Map<String, String> old = new LinkedHashMap<String, String>();
+        old.put("CODEX_ANDROID_SHA256", repeat('a', 64));
+        old.put("CODEX_TERMUX_SOURCE_COMMIT", repeat('b', 40));
+        Map<String, Object> legacy = new LinkedHashMap<String, Object>();
+        TestSupport.assertEquals(repeat('b', 40), CodexLocalSource.sourceCommit(legacy, old, repeat('a', 64), null),
+            "known legacy bytes retain their previously verified revision");
+        rejects(new Action() { public void run() throws Exception {
+            CodexLocalSource.sourceCommit(legacy, old, repeat('c', 64), null);
+        } });
+        Map<String, Object> rebuilt = JsonCodec.object("gitHead", repeat('d', 40));
+        TestSupport.assertEquals(repeat('d', 40), CodexLocalSource.sourceCommit(rebuilt, old, repeat('c', 64), null),
+            "same-version replacement uses the build's embedded source revision");
+        rejects(new Action() { public void run() throws Exception {
+            CodexLocalSource.sourceCommit(rebuilt, old, repeat('a', 64), null);
+        } });
+        rejects(new Action() { public void run() throws Exception {
+            CodexLocalSource.sourceCommit(rebuilt, old, repeat('c', 64), repeat('e', 40));
+        } });
+        TestSupport.assertEquals(repeat('d', 40), CodexLocalSource.sourceCommit(legacy, old, repeat('c', 64), repeat('d', 40)),
+            "legacy archives may explicitly identify their actual build revision");
     }
 
     interface Action { void run() throws Exception; }

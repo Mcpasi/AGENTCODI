@@ -75,12 +75,70 @@ public final class CodexSessionControllerTest {
         rejectsIncompleteFileChangePreviews();
         handlesUserInputResolutionAndTimeout();
         rejectsUnavailableWorkspacePermissionProfile();
+        preservesProtectionAfterSandboxBootstrapFailure();
         startsTerminalThroughSandboxedCommandExec();
         streamsTerminalInputResizeAndTermination();
         terminatesTerminalWhenOutputCapIsReached();
         rejectsTerminalCredentialsAndMalformedOutput();
         usesVettedMcpConfigurationRpcs();
-        return 41;
+        return 42;
+    }
+
+    private static void preservesProtectionAfterSandboxBootstrapFailure() throws Exception {
+        final FixtureServer server = new FixtureServer(true);
+        server.threadStartError = "error creating thread: Fatal error: Failed to initialize session: "
+            + "failed to load AGENTS.md instructions for environment local: "
+            + "filesystem sandbox cannot be enforced on this executor";
+        final CodexSessionController controller = new CodexSessionController(
+            server, "/private/workspace");
+        try {
+            controller.start();
+            controller.sendMessage("Check the workspace.");
+            waitFor(new Condition() {
+                @Override public boolean isTrue() {
+                    return server.threadStartRequestCount.get() > 0
+                        && !controller.snapshot().isOperationActive();
+                }
+            }, "sandbox bootstrap failure is delivered");
+            TestSupport.assertTrue(controller.snapshot().getErrorMessage().contains(
+                "filesystem sandbox cannot be enforced on this executor"),
+                "the executor failure remains visible");
+            TestSupport.assertEquals(1, server.threadStartRequestCount.get(),
+                "a failed protected thread is not silently retried");
+            TestSupport.assertEquals(0, server.turnStartRequestCount.get(),
+                "no turn is sent after the sandbox fails");
+            TestSupport.assertTrue(controller.snapshot().isReady(),
+                "an RPC failure preserves the initialized connection");
+            TestSupport.assertFalse(controller.snapshot().isTurnActive(),
+                "the failed bootstrap does not leave an active turn");
+            TestSupport.assertEquals("", controller.snapshot().getActiveThreadId(),
+                "no failed thread is published as active");
+            TestSupport.assertEquals("agentcodi-workspace",
+                controller.snapshot().getPermissionProfileId(),
+                "the sandbox failure does not select full access");
+            assertExecutionPermissionRequest(server.lastThreadStartParams,
+                "agentcodi-workspace", "failed protected thread/start");
+            assertNoPromptOverrides(server.lastThreadStartParams, "failed protected thread/start");
+
+            // Simulate a repaired executor and an explicit user retry. The failed
+            // message must not be replayed when thread creation becomes available.
+            server.threadStartError = "";
+            controller.startNewThread();
+            waitFor(new Condition() {
+                @Override public boolean isTrue() {
+                    return "thr_new".equals(controller.snapshot().getActiveThreadId())
+                        && !controller.snapshot().isOperationActive();
+                }
+            }, "explicit protected thread retry succeeds");
+            TestSupport.assertEquals(2, server.threadStartRequestCount.get(),
+                "only the explicit retry creates another thread");
+            TestSupport.assertEquals(0, server.turnStartRequestCount.get(),
+                "the failed message is not replayed");
+            assertExecutionPermissionRequest(server.lastThreadStartParams,
+                "agentcodi-workspace", "explicit protected thread retry");
+        } finally {
+            controller.close();
+        }
     }
 
     private static void toleratesReviewedRuntimeSchemaAdditions() throws Exception {
@@ -4212,6 +4270,8 @@ public final class CodexSessionControllerTest {
         private volatile Map<String, Object> lastThreadListParams;
         private volatile Map<String, Object> lastThreadResumeParams;
         private volatile Map<String, Object> lastThreadStartParams;
+        private volatile String threadStartError = "";
+        private final AtomicInteger threadStartRequestCount = new AtomicInteger();
         private volatile Map<String, Object> lastThreadArchiveParams;
         private volatile Map<String, Object> lastThreadUnarchiveParams;
         private volatile Map<String, Object> lastThreadDeleteParams;
@@ -4476,6 +4536,7 @@ public final class CodexSessionControllerTest {
                 respond(request, JsonCodec.object());
                 notifyMessage("thread/deleted", JsonCodec.object("threadId", threadId));
             } else if ("thread/start".equals(method)) {
+                threadStartRequestCount.incrementAndGet();
                 Map<String, Object> params = JsonCodec.requireObject(request.get("params"), "params");
                 lastThreadStartParams = params;
                 String requestedPermissionProfile = JsonCodec.requireString(
@@ -4488,6 +4549,13 @@ public final class CodexSessionControllerTest {
                     "fixture thread/start"
                 );
                 assertHttpModelProvider(params, "fixture thread/start");
+                if (!threadStartError.isEmpty()) {
+                    incoming.offer(JsonCodec.stringify(JsonCodec.object(
+                        "id", request.get("id"),
+                        "error", JsonCodec.object("code", -32603, "message", threadStartError)
+                    )));
+                    return;
+                }
                 respond(request, JsonCodec.object(
                     "thread", thread("thr_new", false),
                     "model", params.get("model"),

@@ -1,5 +1,6 @@
 #include "agentcodi_engine.h"
 #include "app_server_process.h"
+#include "bootstrap_response.h"
 #include "sha256.h"
 
 #include <algorithm>
@@ -327,6 +328,32 @@ std::vector<unsigned char> png_with_private_chunk(
 }  // namespace
 
 int main(int argc, char* argv[]) {
+  {
+    const std::string rejected =
+        "{\"id\":6,\"error\":{\"code\":-32603,\"message\":\"exec failed: "
+        "read-restricted or deny-read filesystem policies\"}}";
+    expect(agentcodi_test::BootstrapRpcErrorId(rejected) == 6,
+        "bootstrap preserves command/exec failure while waiting for a later resize response");
+    expect(std::string(agentcodi_test::BootstrapRpcErrorReason(rejected)) ==
+        "The packaged Android sandbox cannot enforce the required restricted filesystem reads.",
+        "bootstrap identifies the unsupported filesystem contract");
+    expect(agentcodi_test::BootstrapRpcErrorId(
+        "{ \"error\" : {\"code\":-32600}, \"id\" : 7 }") == 7,
+        "bootstrap error inspection tolerates envelope ordering and whitespace");
+    expect(agentcodi_test::BootstrapRpcErrorId(
+        "{\"id\":3,\"result\":{\"error\":{\"message\":\"nested item failure\"}}}") == 0,
+        "nested result errors are not failed RPC envelopes");
+    expect(agentcodi_test::BootstrapRpcErrorId(
+        "{\"method\":\"event\",\"params\":{\"id\":6,\"error\":{}}}") == 0,
+        "notification payloads cannot masquerade as failed RPC envelopes");
+    expect(agentcodi_test::BootstrapRpcErrorId(
+        "{\"id\":7,\"result\":{},\"text\":\"\\\"error\\\":{}\"}") == 0,
+        "quoted output is not interpreted as an RPC error");
+    expect(std::string(agentcodi_test::BootstrapRpcErrorReason(
+        "{\"id\":6,\"error\":{\"message\":\"private runtime detail\"}}")) ==
+        "The packaged app-server rejected the bootstrap RPC.",
+        "bootstrap diagnostics never echo arbitrary runtime error contents");
+  }
   if (argc == 2 && std::string(argv[1]) == "--process-tree-probe") {
     int readiness[2] {-1, -1};
     if (pipe(readiness) != 0) {
@@ -979,6 +1006,15 @@ int main(int argc, char* argv[]) {
   expect(joined_arguments.find("\"/private/tool-runtime\"=\"read\"")
              != std::string::npos,
          "packaged runtime is read-only in the permission profile");
+  expect(joined_arguments.find("\"/private/native\"=\"read\"")
+             != std::string::npos,
+         "sandbox may read the canonical targets of packaged tool aliases");
+  expect(joined_arguments.find("\"/private\"=\"read\"") == std::string::npos
+             && joined_arguments.find("\"/private/native\"=\"write\"")
+                 == std::string::npos
+             && joined_arguments.find("\"/private/home\"=\"read\"")
+                 == std::string::npos,
+         "native payload access grants neither private siblings nor payload writes");
   expect(joined_arguments.find("NODE_REPL_HISTORY=\"/dev/null\"")
              != std::string::npos,
          "Node REPL history persistence disabled");
@@ -1607,6 +1643,19 @@ int main(int argc, char* argv[]) {
     config.state_directory = state;
     config.temporary_directory = temporary;
     config.library_directory = "/system/lib64";
+    for (const std::string& invalid_library : {
+             std::string("/"), root, workspace, codex_home, home, state, temporary,
+             tool_binary, tool_runtime}) {
+      agentcodi::ProcessConfig invalid_config = config;
+      invalid_config.library_directory = invalid_library;
+      expect(agentcodi::AppServerProcess::Start(invalid_config, &error) == nullptr
+                 && error.find("separate from private runtime data") != std::string::npos,
+             "reject native payload read grant overlapping private runtime data");
+    }
+    expect(agentcodi::AppServerProcess::Start(config, &error) == nullptr
+               && error.find("share the canonical native library directory")
+                   != std::string::npos,
+           "reject default profile whose executable is outside the payload grant");
     config.arguments = {
         "-c",
         "printf '%s|%s|%s|%s\\n' \"${AGENTCODI_PARENT_SECRET-unset}\" "

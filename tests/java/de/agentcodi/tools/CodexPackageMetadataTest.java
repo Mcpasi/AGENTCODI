@@ -16,9 +16,10 @@ public final class CodexPackageMetadataTest {
 
     public static int run() throws Exception {
         permitsStaleAndAbsentReadmeWithoutTrustingIt();
+        permitsOnlyThePinnedAgentcodiPackageVersion();
         requiresAgreementOfRegistryArchiveAndSource();
         rejectsMalformedAndLinkedMetadata();
-        return 3;
+        return 4;
     }
 
     public static void main(String[] arguments) throws Exception {
@@ -63,10 +64,14 @@ public final class CodexPackageMetadataTest {
     }
 
     private static void runBuilderGate(Path file, int expectedExit) throws Exception {
+        runBuilderGate(file, "0.150.1", "rust-v0.150.1", expectedExit);
+    }
+
+    private static void runBuilderGate(Path file, String version, String upstream, int expectedExit) throws Exception {
         Process process = new ProcessBuilder(
             Paths.get(System.getProperty("java.home"), "bin/java").toString(),
             "-Xmx64m", "-cp", System.getProperty("java.class.path"),
-            "de.agentcodi.tools.CodexPackageMetadata", file.toString(), "0.150.1", "rust-v0.150.1"
+            "de.agentcodi.tools.CodexPackageMetadata", file.toString(), version, upstream
         ).redirectErrorStream(true).start();
         process.getOutputStream().close();
         try {
@@ -75,6 +80,40 @@ public final class CodexPackageMetadataTest {
         } finally {
             if (process.isAlive()) process.destroyForcibly();
             process.getInputStream().close();
+        }
+    }
+
+    private static void permitsOnlyThePinnedAgentcodiPackageVersion() throws Exception {
+        Path directory = Files.createTempDirectory("codex local fork metadata ");
+        final Path file = directory.resolve("package.json");
+        try {
+            Map<String, Object> local = metadata();
+            local.put("version", "0.153.3-agentcodi.1");
+            local.put("description", "OpenAI Codex CLI upstream rust-v0.153.2 packaged for Android Termux");
+            Files.write(file, JsonCodec.stringify(local).getBytes(StandardCharsets.UTF_8));
+            runBuilderGate(file, "0.153.3-agentcodi.1", "rust-v0.153.2", 0);
+            runBuilderGate(file, "0.153.3", "rust-v0.153.2", 1);
+            runBuilderGate(file, "0.153.3-agentcodi.2", "rust-v0.153.2", 1);
+            runBuilderGate(file, "0.153.3-agentcodi.1", "rust-v0.153.3", 1);
+            runBuilderGate(file, "0.153.3-agentcodi.1", "rust-v0.153.2-agentcodi.1", 1);
+            TestSupport.assertFalse(CodexRuntimeUpdater.isVersion("0.153.3-agentcodi.1"),
+                "a local fork is never treated as a stable registry release by the updater");
+            for (final String version : new String[] {
+                "0.153.3-other.1", "0.153.3-agentcodi", "0.153.3-agentcodi.01",
+                "0.153.3-agentcodi.1+build", "0.153.3-agentcodi.1\n", "../0.153.3-agentcodi.1",
+                "0.153.3-agentcodi.1111111111111111111111111111111111111111"
+            }) {
+                local.put("version", version);
+                Files.write(file, JsonCodec.stringify(local).getBytes(StandardCharsets.UTF_8));
+                TestSupport.expectThrows(IOException.class, new TestSupport.ThrowingRunnable() {
+                    @Override public void run() throws Exception {
+                        CodexPackageMetadata.verifyFile(file, version, "rust-v0.153.2");
+                    }
+                }, "fork support keeps package version syntax bounded and fail-closed");
+            }
+        } finally {
+            Files.deleteIfExists(file);
+            Files.deleteIfExists(directory);
         }
     }
 

@@ -2348,6 +2348,7 @@ std::vector<std::string> CodexAppServerArguments(const ProcessConfig& config) {
       "permissions.agentcodi-workspace.filesystem={\":minimal\"=\"read\","
       + toml_string(config.tool_binary_directory) + "=\"read\","
       + toml_string(config.tool_runtime_directory) + "=\"read\","
+      + toml_string(config.library_directory) + "=\"read\","
       "\":workspace_roots\"={\".\"=\"write\"}}",
   };
 }
@@ -2544,6 +2545,30 @@ std::shared_ptr<AppServerProcess> AppServerProcess::Start(
     return nullptr;
   }
   if (config.arguments.empty()) {
+    // The sandbox resolves tool aliases to their installed ELF targets. Grant
+    // only that canonical payload directory, never an ancestor of private data.
+    for (const std::string* private_directory : {
+             &config.working_directory, &config.codex_home,
+             &config.home_directory, &config.state_directory,
+             &config.temporary_directory, &config.tool_binary_directory,
+             &config.tool_runtime_directory}) {
+      if (config.library_directory == "/"
+          || contains_path(config.library_directory, *private_directory)
+          || contains_path(*private_directory, config.library_directory)) {
+        *error = "Native library directory must remain separate from private runtime data";
+        return nullptr;
+      }
+    }
+    for (const std::string* executable : {
+             &config.executable, &config.code_mode_host_executable,
+             &config.shell_executable, &config.node_executable,
+             &config.python_executable, &config.ripgrep_executable}) {
+      if (executable->substr(0U, executable->find_last_of('/'))
+          != config.library_directory) {
+        *error = "Packaged executables must share the canonical native library directory";
+        return nullptr;
+      }
+    }
     config.arguments = CodexAppServerArguments(config);
   }
   for (const std::string& argument : config.arguments) {

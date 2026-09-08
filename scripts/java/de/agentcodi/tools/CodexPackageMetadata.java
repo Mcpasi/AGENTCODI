@@ -19,6 +19,7 @@ public final class CodexPackageMetadata {
     static final String PACKAGE = "@mmmbuto/codex-cli-termux";
     static final String FORK = "DioNanos/codex-termux";
     private static final int MAX_BYTES = 2 * 1024 * 1024;
+    private static final String RELEASE_VERSION = "(0|[1-9][0-9]*)\\.(0|[1-9][0-9]*)\\.(0|[1-9][0-9]*)";
 
     private CodexPackageMetadata() { }
 
@@ -64,7 +65,7 @@ public final class CodexPackageMetadata {
     }
 
     static void validatePackage(Map<String, Object> metadata, String version) throws IOException {
-        require(isVersion(version) && version.equals(string(metadata, "version")), "Invalid package version.");
+        require(isPackageVersion(version) && version.equals(string(metadata, "version")), "Invalid package version.");
         require(PACKAGE.equals(string(metadata, "name")), "Unexpected package name.");
         require("Apache-2.0".equals(string(metadata, "license")), "Package license changed; review required.");
         require(Collections.singletonList("android").equals(metadata.get("os"))
@@ -99,7 +100,12 @@ public final class CodexPackageMetadata {
 
     static boolean isVersion(String version) {
         return version != null && version.length() <= 32
-            && version.matches("(0|[1-9][0-9]*)\\.(0|[1-9][0-9]*)\\.(0|[1-9][0-9]*)");
+            && version.matches(RELEASE_VERSION);
+    }
+
+    static boolean isPackageVersion(String version) {
+        return isVersion(version) || (version != null && version.length() <= 48
+            && version.matches(RELEASE_VERSION + "-agentcodi\\.(0|[1-9][0-9]*)"));
     }
 
     private static String string(Map<String, Object> map, String key) throws IOException {

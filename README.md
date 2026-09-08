@@ -83,6 +83,20 @@ Gmail and GitHub sign-in is completed in the system browser. AGENTCODI does not 
 
 ---
 
+##  Android sandbox
+
+Protected mode uses the Android sandbox backend provided by AGENTCODI's packaged Codex runtime.
+
+The sandbox is implemented in AGENTCODI's custom Codex app-server fork and is activated whenever Codex commands run in Protected mode. Codex can read and modify files inside the permitted workspace while filesystem access outside the granted boundary is blocked.
+
+Enforcement happens below the agent and approval layer through a seccomp and ptrace supervisor that monitors filesystem-relevant system calls.
+
+Before a sandboxed command is allowed to run, the runtime verifies that syscall interception is actually working on the device. If the protection cannot be verified, execution is refused instead of silently falling back to unrestricted execution.
+
+Compatibility mode intentionally runs without this effective filesystem isolation and is clearly marked as a less restricted execution mode.
+
+---
+
 ## Safety and control
 
 AGENTCODI keeps its workspace in private app storage and separates it from Codex account data.
@@ -103,7 +117,7 @@ AGENTCODI keeps its workspace in private app storage and separates it from Codex
 | Device | ARM64 |
 | Connection | Internet access for Codex requests |
 | Authentication | ChatGPT sign-in or OpenAI API key |
-| Current release line | AGENTCODI 0.7.0 |
+| Current release line | AGENTCODI 0.7.1 |
 | Packaged Codex runtime | 0.153.3.agentcodi.1 |
 
 ---

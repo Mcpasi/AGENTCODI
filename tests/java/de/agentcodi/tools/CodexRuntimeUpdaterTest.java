@@ -51,7 +51,8 @@ public final class CodexRuntimeUpdaterTest {
         keepsDependencyReviewStrictAcrossVersionBumps();
         cachesSameVersionRebuildsByContent();
         bindsLocalBytesToTheirBuildCommit();
-        return 22;
+        refusesToHideReplacedBuildInputsBehindTheCache();
+        return 23;
     }
 
     public static void main(String[] args) throws Exception {
@@ -637,6 +638,57 @@ public final class CodexRuntimeUpdaterTest {
             TestSupport.assertEquals(hashB, CodexRuntimeUpdater.digest(cachedB, "SHA-256"), "same-version rebuild has its own cache entry");
             rejects(new Action() { public void run() throws Exception { CodexRuntimeUpdater.installVerified(b, cachedA, hashB, 1024); } });
             TestSupport.assertEquals(hashA, CodexRuntimeUpdater.digest(cachedA, "SHA-256"), "conflicting cache bytes are never overwritten");
+        } finally { remove(work); }
+    }
+
+    private static void refusesToHideReplacedBuildInputsBehindTheCache() throws Exception {
+        Path work = Files.createTempDirectory("codex build input with spaces ");
+        try {
+            Path source = work.resolve("fork");
+            Path cache = work.resolve("cache");
+            TestSupport.assertEquals(work.resolve(".cache/android"), CodexLocalSource.Options.cacheDirectory(work,
+                Collections.<String, String>emptyMap()), "unset cache matches the APK builder default");
+            TestSupport.assertEquals(work.resolve(".cache/android"), CodexLocalSource.Options.cacheDirectory(work,
+                Collections.singletonMap("AGENTCODI_CACHE_DIR", "")), "empty cache matches the APK builder default");
+            TestSupport.assertEquals(cache, CodexLocalSource.Options.cacheDirectory(work,
+                Collections.singletonMap("AGENTCODI_CACHE_DIR", cache.toString())), "explicit cache directory is preserved");
+            Files.createDirectories(source.resolve("npm-package"));
+            Map<String, Object> metadata = JsonCodec.object("name", CodexRuntimeUpdater.PACKAGE, "version", "1.2.3",
+                "license", "Apache-2.0", "os", JsonCodec.array("android"), "cpu", JsonCodec.array("arm64"),
+                "repository", JsonCodec.object("url", "git+https://github.com/" + CodexRuntimeUpdater.FORK + ".git"));
+            Path packageJson = source.resolve("npm-package/package.json");
+            Files.write(packageJson, JsonCodec.stringify(metadata).getBytes(StandardCharsets.UTF_8));
+            Path local = source.resolve("mmmbuto-codex-cli-termux-1.2.3.tgz");
+            Files.write(local, new byte[] {1, 2, 3});
+            String hash = CodexRuntimeUpdater.digest(local, "SHA-256");
+            Path cached = cache.resolve("codex/" + hash + "/package.tgz");
+            CodexRuntimeUpdater.installVerified(local, cached, hash, 1024);
+            CodexLocalSource.Options options = CodexLocalSource.Options.parse(work,
+                new String[] {work.toString(), "--source-dir", source.toString()}, Collections.<String, String>emptyMap());
+            TestSupport.assertEquals(local, options.selectBuildArchive(cache, hash), "local bytes take precedence over cache");
+            Files.write(local, new byte[] {4, 5, 6});
+            rejects(new Action() { public void run() throws Exception { options.selectBuildArchive(cache, hash); } });
+            TestSupport.assertEquals(hash, CodexRuntimeUpdater.digest(cached, "SHA-256"), "replacement never overwrites the old cache");
+            Files.delete(local);
+            Files.createSymbolicLink(local, cached);
+            rejects(new Action() { public void run() throws Exception { options.selectBuildArchive(cache, hash); } });
+            Files.delete(local);
+            TestSupport.assertEquals(cached, options.selectBuildArchive(cache, hash), "cache works when no local archive exists");
+            Files.write(local, new byte[] {1, 2, 3});
+            metadata.put("version", "1.2.4");
+            Files.write(packageJson, JsonCodec.stringify(metadata).getBytes(StandardCharsets.UTF_8));
+            Path next = source.resolve("mmmbuto-codex-cli-termux-1.2.4.tgz");
+            Files.write(next, new byte[] {4, 5, 6});
+            rejects(new Action() { public void run() throws Exception { options.selectBuildArchive(cache, hash); } });
+            options.archive = cached;
+            TestSupport.assertEquals(cached, options.selectBuildArchive(cache, hash), "explicit verified input overrides discovery");
+            options.archive = work.resolve("missing.tgz");
+            rejects(new Action() { public void run() throws Exception { options.selectBuildArchive(cache, hash); } });
+            options.archive = null;
+            options.source = work.resolve("absent-fork");
+            TestSupport.assertEquals(cached, options.selectBuildArchive(cache, hash), "a checkout without the fork can use verified cached bytes");
+            Files.write(cached, new byte[] {7, 8, 9});
+            rejects(new Action() { public void run() throws Exception { options.selectBuildArchive(cache, hash); } });
         } finally { remove(work); }
     }
 

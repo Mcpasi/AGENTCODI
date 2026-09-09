@@ -14,7 +14,8 @@
 ![Source](https://img.shields.io/badge/Source-Java%20%2B%20C%2B%2B-00599C)
 ![License](https://img.shields.io/badge/License-Apache%202.0-blue)
 
-  [Releases](../../releases) . [Issues](../../issues)
+  [Releases](../../releases) . [Issues](../../issues) .  [CHANGELOG.md](CHANGELOG.md)
+
 <br>
 
 **No Termux required to use AGENTCODI. No WebView shell. No separate gateway setup.**
@@ -167,6 +168,14 @@ Important: Update the documents, then run ./scripts/test.sh and ./scripts/build-
 ---
 
 ## License
+
+AGENTCODI LICENSE
+
+AGENTCODI original Java/C++ application code, tests, resources, build
+automation, and documentation:
+
+Copyright 2026 Pascal (Mc Pasi)
+
 
 AGENTCODI's original application code, tests, resources, build automation and documentation are licensed under the [Apache License 2.0](LICENSE).
 

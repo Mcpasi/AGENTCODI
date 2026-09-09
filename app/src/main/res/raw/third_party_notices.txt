@@ -21,11 +21,11 @@ licensed under the Apache License, Version 2.0.
 This local AGENTCODI fork includes the Android sandbox backend and is not an
 official OpenAI Android APK.
 Distribution source: untagged, commit
-0e0d4d00624d6962221b89e81e65e7372678928e.
+a800c309ba36473ccb2097f5b1704914131a5ce5.
 OpenAI source base: rust-v0.153.2, commit
 657a993cbee87acf52d14b758ce49dbd46d1b8eb.
 Package SHA-256:
-5261caefb52e07e21b25a651b900c06946aebe8d157c60d84c44142a0159b4e1.
+79a6683a62685aa364c1629dab7d68b65133cdf5989e974677bbca9ecd941cac.
 The archive is supplied locally; there is no npm fallback for this fork.
 AGENTCODI deterministically changes one equal-length app-server data field
 from codex-code-mode-host to libcodex-codehost.so so Android Package Manager

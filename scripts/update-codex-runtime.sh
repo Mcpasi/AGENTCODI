@@ -10,6 +10,7 @@ case ${1-} in
     cat <<'EOF'
 Usage: ./scripts/update-codex-runtime.sh [--dry-run] [--archive FILE.tgz]
                                       [--source-dir DIR] [--source-ref REF]
+       ./scripts/update-codex-runtime.sh --select-build-archive
 
 Default: inspect the local .tgz in the adjacent codex-termux checkout and pin it.
 The filename matching npm-package/package.json is preferred; otherwise exactly
@@ -30,6 +31,11 @@ the cache. Backups and proposals remain in private .build/codex-update.* folders
 Verified archives and schemas are cached by SHA-256, so replacing a .tgz with a
 same-version rebuild does not destroy the baseline. Run once with the current
 package to initialize this baseline before the next protocol-changing update.
+
+--select-build-archive is the APK builder's read-only preflight. It prints the
+verified explicit/local archive, using the pinned cache only when no local
+archive exists. Replaced local bytes require an update and cannot be hidden by
+an older cached package. This mode never changes pins or runs a runtime binary.
 
 Requires the Android ARM64 build host, Java/Javac 17, git and timeout.
 AGENTCODI_JAVA_HOME and AGENTCODI_CACHE_DIR also apply to the APK builder.

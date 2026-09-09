@@ -64,3 +64,21 @@ SHA-256: 22447a04daca6622199143bd785ed62346c817d31d2d144c8b85c8214ad26349
 231 Java and 297 C++ tests passed
 
 SHA-256: 279d86e0b418a9d7cfa611a3d45b10b85eee8e6cfe767048fa9fd400007e67c1
+
+## AGENTCODI 0.7.1 - RELEASE - 2026-09-09
+
+After testing on several devices, this artifact (version 0.7.1) passed; testing was conducted on the Samsung Galaxy 05s, Redmi Pad 2, Redmi 14c, and Redmi Note 15.
+
+I need your help here: if you are having problems with the new sandbox—for example, if you cannot access it—please open an issue and specify your model and Android version.
+
+- Added an Android sandbox backend through the custom Codex app-server fork "0.153.3-agentcodi.1", restoring effective filesystem isolation for Protected mode on Android.
+
+- Sandboxed commands are enforced through a seccomp and ptrace supervisor, allowing Codex to work inside the permitted workspace while blocking filesystem access outside the granted boundary.
+
+- Added runtime verification for syscall interception. If sandbox enforcement cannot be verified on the device, command execution is refused instead of silently falling back to unrestricted execution.
+
+- Improved sandbox compatibility across Android devices and expanded regression coverage for sandbox initialization, syscall interception, filesystem boundaries and platform-specific failure cases.
+
+265 java tests and 321 C++ tests passed
+
+SHA256: b7a5c3e1a26378510d42f360fc28b6412c6267efaa5a72ca8d9b56eb490f268e

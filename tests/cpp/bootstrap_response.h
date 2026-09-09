@@ -85,6 +85,9 @@ inline int BootstrapRpcErrorId(const std::string& line) {
 // Fixed classifications also cover a command result's stderr without copying
 // arbitrary paths, instructions or other runtime-provided text into CI logs.
 inline const char* BootstrapSandboxFailureReason(const std::string& line) {
+  if (line.find("SIGSYS") != std::string::npos) {
+    return "The Android sandbox was terminated by SIGSYS; check the device seccomp policy and the runtime's isolated capability probes.";
+  }
   if (line.find("refusing an unverifiable syscall") != std::string::npos) {
     if (line.find("Invalid argument (os error 22)") != std::string::npos) {
       return "The Android sandbox could not inspect a syscall argument (EINVAL); check arm64 tagged-pointer handling in the packaged runtime.";

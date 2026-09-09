@@ -94,6 +94,16 @@ public final class CodexRuntimeUpdater {
             require(arguments.length >= 1, "Missing project root.");
             Path root = Paths.get(arguments[0]).toAbsolutePath().normalize();
             safeDirectory(root);
+            if (arguments.length == 2 && "--select-build-archive".equals(arguments[1])) {
+                require(!Files.exists(root.resolve(".build/codex-update.pending"), LinkOption.NOFOLLOW_LINKS),
+                    "An interrupted Codex update needs recovery before building.");
+                Map<String, String> pins = readPins(text(root.resolve(BUILD)));
+                Path cache = CodexLocalSource.Options.cacheDirectory(root, System.getenv());
+                CodexLocalSource.Options buildOptions = CodexLocalSource.Options.parse(root,
+                    new String[] {root.toString()}, System.getenv());
+                System.out.println(buildOptions.selectBuildArchive(cache, pins.get("CODEX_ANDROID_SHA256")));
+                return;
+            }
             CodexLocalSource.Options options = CodexLocalSource.Options.parse(root, arguments, System.getenv());
             Path build = root.resolve(".build");
             makeDirectory(build);
@@ -109,9 +119,7 @@ public final class CodexRuntimeUpdater {
                 Path work = Files.createTempDirectory(build, "codex-update.",
                     PosixFilePermissions.asFileAttribute(PosixFilePermissions.fromString("rwx------")));
                 System.out.println("Update artifacts: " + work);
-                String configuredCache = System.getenv("AGENTCODI_CACHE_DIR");
-                Path cache = configuredCache == null ? root.resolve(".cache/android")
-                    : Paths.get(configuredCache).toAbsolutePath().normalize();
+                Path cache = CodexLocalSource.Options.cacheDirectory(root, System.getenv());
                 new CodexRuntimeUpdater(root, work, cache).run(options);
             }
         } catch (Exception failure) {

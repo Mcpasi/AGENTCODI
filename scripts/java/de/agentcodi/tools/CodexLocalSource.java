@@ -54,6 +54,10 @@ final class CodexLocalSource {
                 : Paths.get(value).toAbsolutePath().normalize();
         }
 
+        static Path cacheDirectory(Path root, Map<String, String> environment) {
+            return path(environment.get("AGENTCODI_CACHE_DIR"), root.resolve(".cache/android"));
+        }
+
         Path selectArchive() throws Exception {
             safeDirectory(source);
             if (archive != null) {
@@ -78,6 +82,25 @@ final class CodexLocalSource {
             require(candidates.size() == 1, "No unique local .tgz; place the new package in codex-termux or use --archive FILE.tgz.");
             regular(candidates.get(0), ARCHIVE_LIMIT);
             return candidates.get(0);
+        }
+
+        Path selectBuildArchive(Path cache, String pinnedHash) throws Exception {
+            require(pinnedHash != null && pinnedHash.matches("[a-f0-9]{64}"), "Invalid archive pin.");
+            Path selected = archive;
+            if (selected == null && Files.exists(source, LinkOption.NOFOLLOW_LINKS)) {
+                safeDirectory(source);
+                boolean hasArchive;
+                try (DirectoryStream<Path> entries = Files.newDirectoryStream(source, "*.tgz")) {
+                    hasArchive = entries.iterator().hasNext();
+                }
+                if (hasArchive) selected = selectArchive();
+            }
+            if (selected == null) selected = cache.resolve("codex/" + pinnedHash + "/package.tgz");
+            regular(selected, ARCHIVE_LIMIT);
+            require(pinnedHash.equals(digest(selected, "SHA-256")),
+                "Local Codex archive differs from the build pin. Run ./scripts/update-codex-runtime.sh before building. "
+                    + "The build will not substitute an older cached runtime.");
+            return selected;
         }
     }
 

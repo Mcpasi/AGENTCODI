@@ -49,6 +49,25 @@ const std::string kOutput = "terminal-protocol-smoke\nEnabled packaged Node.js 2
 int main() {
   {
     const std::string rejected = "{\"id\":25,\"error\":{\"code\":-32603,\"message\":"
+        "\"failed to load AGENTS.md instructions: fs sandbox helper failed with status "
+        "signal: 31 (SIGSYS); synthetic-private-detail\"}}";
+    const std::string reason = agentcodi_test::BootstrapRpcErrorReason(rejected);
+    expect(agentcodi_test::BootstrapRpcErrorId(rejected) == 25,
+        "SIGSYS does not change the failed thread-start correlation");
+    expect(reason == "The Android sandbox was terminated by SIGSYS; check the device "
+        "seccomp policy and the runtime's isolated capability probes.",
+        "SIGSYS identifies seccomp before the generic AGENTS failure without copying runtime text");
+    const std::string failed = "{\"id\":6,\"result\":{\"exitCode\":159,"
+        "\"stdout\":\"AGENTCODI-PAYLOAD-READY\",\"stderr\":"
+        "\"Android seccomp blocked syscall 444; execution stopped (SIGSYS)\"}}";
+    std::string standard_output;
+    expect(!agentcodi_test::ReadBootstrapCommandOutput(failed, &standard_output),
+        "SIGSYS remains fatal even after a command prints the contract marker");
+    expect(agentcodi_test::BootstrapCommandFailure(failed).find("device seccomp policy")
+        != std::string::npos, "command failures retain the seccomp diagnosis");
+  }
+  {
+    const std::string rejected = "{\"id\":25,\"error\":{\"code\":-32603,\"message\":"
         "\"failed to load AGENTS.md instructions: refusing an unverifiable syscall: "
         "Invalid argument (os error 22); synthetic-private-detail\"}}";
     const std::string reason = agentcodi_test::BootstrapRpcErrorReason(rejected);

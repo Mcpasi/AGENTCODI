@@ -84,11 +84,11 @@ Gmail and GitHub sign-in is completed in the system browser. AGENTCODI does not 
 
 ---
 
-##  Android sandbox
+## Android sandbox
 
 Protected mode uses the Android sandbox backend provided by AGENTCODI's packaged Codex runtime.
 
-The sandbox is implemented in AGENTCODI's custom Codex app-server fork and is activated whenever Codex commands run in Protected mode. Codex can read and modify files inside the permitted workspace while filesystem access outside the granted boundary is blocked.
+The sandbox is implemented in the [AGENTCODI Codex Termux fork](https://github.com/Mcpasi/codex-termux) and is activated whenever Codex commands run in Protected mode. Codex can read and modify files inside the permitted workspace while filesystem access outside the granted boundary is blocked.
 
 Enforcement happens below the agent and approval layer through a seccomp and ptrace supervisor that monitors filesystem-relevant system calls.
 

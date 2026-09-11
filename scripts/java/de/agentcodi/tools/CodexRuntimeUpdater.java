@@ -50,6 +50,8 @@ public final class CodexRuntimeUpdater {
     static final String IDENTITY_TEST = "tests/java/de/agentcodi/tests/BuildIdentityTest.java";
     static final String NOTICES = "app/src/main/res/raw/third_party_notices.txt";
     static final String NOTICE = "NOTICE.md";
+    static final String NOTICE_PINS_BEGIN = "<!-- BEGIN CURRENT CODEX RUNTIME PINS -->";
+    static final String NOTICE_PINS_END = "<!-- END CURRENT CODEX RUNTIME PINS -->";
     static final String[] MANAGED = {
         BUILD, ARCHITECTURE, IDENTITY, IDENTITY_TEST,
         "app/src/main/res/values/strings.xml", "app/src/main/res/values-de/strings.xml", NOTICES, NOTICE
@@ -939,10 +941,21 @@ public final class CodexRuntimeUpdater {
         }
         private void updateNotice(Map<String, String> old, Map<String, String> next) throws IOException {
             String notice = after.get(NOTICE);
-            int begin = notice.indexOf(" pins the user-supplied Android ARM64 Codex CLI/app-server build ");
-            int end = notice.indexOf("\n\nThe inspected app-server", begin);
-            require(begin >= 0 && end > begin, "NOTICE.md is missing the managed Codex provenance paragraphs.");
+            // Historical releases may share current pins. Never infer this scope
+            // from surrounding prose or fall back to historical pin matches.
+            int begin = notice.indexOf(NOTICE_PINS_BEGIN);
+            int end = notice.indexOf(NOTICE_PINS_END);
+            require(begin >= 0 && end > begin
+                && begin == notice.lastIndexOf(NOTICE_PINS_BEGIN)
+                && end == notice.lastIndexOf(NOTICE_PINS_END),
+                "NOTICE.md must contain exactly one ordered pair of CURRENT CODEX RUNTIME PINS markers.");
+            begin += NOTICE_PINS_BEGIN.length();
             String block = notice.substring(begin, end);
+            String[] paragraphs = block.trim().split("\\n\\s*\\n");
+            require(paragraphs.length == 2 && paragraphs[0].startsWith("AGENTCODI ")
+                && paragraphs[0].contains(" pins the user-supplied Android ARM64 Codex CLI/app-server build ")
+                && paragraphs[1].startsWith("The local package tarball is accepted only at SHA-256 "),
+                "NOTICE.md markers must enclose only the two current Codex provenance paragraphs.");
             Map<String, String> replacements = new LinkedHashMap<String, String>();
             replacements.put("mmmbuto-codex-cli-termux-" + old.get("CODEX_ANDROID_VERSION") + ".tgz",
                 "mmmbuto-codex-cli-termux-" + next.get("CODEX_ANDROID_VERSION") + ".tgz");

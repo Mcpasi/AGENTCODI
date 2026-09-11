@@ -25,6 +25,9 @@ offset, version displays, architecture checks, NOTICE.md and APK legal notices.
 Rebuilds of the same fork version are supported. Downgrades, changed licenses or
 dependencies, incompatible schemas and unsafe archives are rejected. Workspace
 version bumps do not count as dependency changes. Author credits are preserved.
+In NOTICE.md, only the two paragraphs inside the CURRENT CODEX RUNTIME PINS
+markers are managed. Historical sections stay unchanged. When recording a new
+release, keep the markers around only its current runtime pin paragraphs.
 
 --dry-run validates and saves a proposed diff without changing project files or
 the cache. Backups and proposals remain in private .build/codex-update.* folders.

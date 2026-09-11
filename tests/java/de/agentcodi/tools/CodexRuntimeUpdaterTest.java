@@ -41,6 +41,9 @@ public final class CodexRuntimeUpdaterTest {
         keepsExistingProtocolFieldsStrict();
         supportsSuccessiveSchemaUpdates();
         updatesAllPinsAndPreservesUnrelatedContent();
+        preservesHistoricalNoticeAcrossRuntimeUpdates();
+        rejectsAmbiguousNoticeBoundariesBeforeWrites();
+        rejectsMissingCurrentNoticePinsDespiteHistoricalMatches();
         rejectsUnexpectedManagedContentBeforeWrites();
         refusesConcurrentEdits();
         rejectsLinkedSourcesAndDirectories();
@@ -53,7 +56,7 @@ public final class CodexRuntimeUpdaterTest {
         bindsLocalBytesToTheirBuildCommit();
         refusesToHideReplacedBuildInputsBehindTheCache();
         acceptsOnlyReviewedForkNoticeCorrections();
-        return 24;
+        return 27;
     }
 
     public static void main(String[] args) throws Exception {
@@ -508,6 +511,105 @@ public final class CodexRuntimeUpdaterTest {
             Map<String, String> pinned = CodexRuntimeUpdater.readPins(again.before.get(CodexRuntimeUpdater.BUILD));
             again.update(pinned, pinned);
             TestSupport.assertTrue(again.changed().isEmpty(), "same-version update is idempotent");
+        } finally { remove(fixture); }
+    }
+
+    private static void preservesHistoricalNoticeAcrossRuntimeUpdates() throws Exception {
+        for (boolean sameVersion : new boolean[] {false, true}) {
+            Path fixture = fixture();
+            try {
+                Path file = fixture.resolve(CodexRuntimeUpdater.NOTICE);
+                String original = CodexRuntimeUpdater.text(file);
+                int begin = original.indexOf(CodexRuntimeUpdater.NOTICE_PINS_BEGIN) + CodexRuntimeUpdater.NOTICE_PINS_BEGIN.length();
+                int end = original.indexOf(CodexRuntimeUpdater.NOTICE_PINS_END);
+                String current = original.substring(begin, end);
+                String history = current.trim().replaceFirst("^AGENTCODI [0-9.]+ ", "AGENTCODI 0.0.1 ");
+                // Historical releases may share every runtime pin with the current release.
+                String prefix = history + "\n\n" + original.substring(0, begin);
+                String suffix = CodexRuntimeUpdater.NOTICE_PINS_END + "\n\n" + history
+                    + original.substring(end + CodexRuntimeUpdater.NOTICE_PINS_END.length());
+                String source = prefix + current + suffix;
+                Files.write(file, source.getBytes(StandardCharsets.UTF_8));
+                CodexRuntimeUpdater.Plan plan = plan(fixture);
+                Map<String, String> old = CodexRuntimeUpdater.readPins(plan.before.get(CodexRuntimeUpdater.BUILD));
+                Map<String, String> next = target(old);
+                if (sameVersion) {
+                    for (String key : new String[] {"CODEX_ANDROID_VERSION", "CODEX_TERMUX_SOURCE_TAG",
+                            "CODEX_UPSTREAM_SOURCE_TAG", "CODEX_UPSTREAM_SOURCE_COMMIT"}) next.put(key, old.get(key));
+                }
+                plan.update(old, next);
+                plan.saveProposal(next);
+                TestSupport.assertEquals(source, CodexRuntimeUpdater.text(file), "a proposal does not rewrite NOTICE");
+                String updated = plan.after.get(CodexRuntimeUpdater.NOTICE);
+                int updatedBegin = updated.indexOf(CodexRuntimeUpdater.NOTICE_PINS_BEGIN) + CodexRuntimeUpdater.NOTICE_PINS_BEGIN.length();
+                int updatedEnd = updated.indexOf(CodexRuntimeUpdater.NOTICE_PINS_END);
+                TestSupport.assertEquals(prefix, updated.substring(0, updatedBegin), "history before current pins stays byte-for-byte unchanged");
+                TestSupport.assertEquals(suffix, updated.substring(updatedEnd), "history and unrelated notices after current pins stay byte-for-byte unchanged");
+                String updatedPins = updated.substring(updatedBegin, updatedEnd);
+                TestSupport.assertFalse(current.equals(updatedPins), "version updates and same-version rebuilds both update current pins");
+                for (String key : CodexRuntimeUpdater.PIN_KEYS) {
+                    String token = "CODEX_TERMUX_SOURCE_TAG".equals(key)
+                        ? "snapshot is " + next.get(key) + " at commit" : "`" + next.get(key) + "`";
+                    TestSupport.assertContains(updatedPins, token, "current provenance includes the verified " + key);
+                }
+                TestSupport.assertContains(updatedPins, "mmmbuto-codex-cli-termux-" + next.get("CODEX_ANDROID_VERSION") + ".tgz",
+                    "the current archive filename follows its version");
+                plan.commit(MOVE);
+                TestSupport.assertEquals(updated, CodexRuntimeUpdater.text(file), "commit installs only the scoped NOTICE proposal");
+            } finally { remove(fixture); }
+        }
+    }
+
+    private static void rejectsAmbiguousNoticeBoundariesBeforeWrites() throws Exception {
+        Path fixture = fixture();
+        try {
+            Path file = fixture.resolve(CodexRuntimeUpdater.NOTICE);
+            String original = CodexRuntimeUpdater.text(file);
+            String begin = CodexRuntimeUpdater.NOTICE_PINS_BEGIN;
+            String end = CodexRuntimeUpdater.NOTICE_PINS_END;
+            int contentStart = original.indexOf(begin) + begin.length();
+            int contentEnd = original.indexOf(end);
+            String block = original.substring(contentStart, contentEnd);
+            for (String invalid : new String[] {
+                    original.replace(begin, ""), original.replace(end, ""),
+                    original.replace(begin, "").replace(end, ""),
+                    original.replace(begin, begin + "\n" + begin),
+                    original.replace(end, end + "\n" + end),
+                    original.substring(0, contentStart - begin.length()) + end + block + begin
+                        + original.substring(contentEnd + end.length()),
+                    original.substring(0, contentStart) + "\n\n" + original.substring(contentEnd),
+                    original.replace(end, block + end)}) {
+                Files.write(file, invalid.getBytes(StandardCharsets.UTF_8));
+                CodexRuntimeUpdater.Plan broken = plan(fixture);
+                rejects(new Action() { public void run() throws Exception { prepare(broken); } });
+                for (String name : CodexRuntimeUpdater.MANAGED) {
+                    TestSupport.assertEquals(broken.before.get(name), CodexRuntimeUpdater.text(fixture.resolve(name)),
+                        "ambiguous or expanded NOTICE boundaries must fail before project writes");
+                }
+            }
+        } finally { remove(fixture); }
+    }
+
+    private static void rejectsMissingCurrentNoticePinsDespiteHistoricalMatches() throws Exception {
+        Path fixture = fixture();
+        try {
+            Path file = fixture.resolve(CodexRuntimeUpdater.NOTICE);
+            String original = CodexRuntimeUpdater.text(file);
+            int begin = original.indexOf(CodexRuntimeUpdater.NOTICE_PINS_BEGIN) + CodexRuntimeUpdater.NOTICE_PINS_BEGIN.length();
+            int end = original.indexOf(CodexRuntimeUpdater.NOTICE_PINS_END);
+            String current = original.substring(begin, end);
+            Map<String, String> pins = CodexRuntimeUpdater.readPins(CodexRuntimeUpdater.text(fixture.resolve(CodexRuntimeUpdater.BUILD)));
+            String invalid = original.substring(0, begin)
+                + current.replace("`" + pins.get("CODEX_ANDROID_SHA256") + "`", "`missing-current-archive-pin`")
+                + CodexRuntimeUpdater.NOTICE_PINS_END + current
+                + original.substring(end + CodexRuntimeUpdater.NOTICE_PINS_END.length());
+            Files.write(file, invalid.getBytes(StandardCharsets.UTF_8));
+            CodexRuntimeUpdater.Plan broken = plan(fixture);
+            rejects(new Action() { public void run() throws Exception { prepare(broken); } });
+            for (String name : CodexRuntimeUpdater.MANAGED) {
+                TestSupport.assertEquals(broken.before.get(name), CodexRuntimeUpdater.text(fixture.resolve(name)),
+                    "historical pins cannot stand in for missing current pins");
+            }
         } finally { remove(fixture); }
     }
 

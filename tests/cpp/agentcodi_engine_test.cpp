@@ -947,8 +947,16 @@ int main(int argc, char* argv[]) {
   for (const std::string& value : codex_arguments) {
     joined_arguments.append(value).push_back('\n');
   }
-  expect(!codex_arguments.empty() && codex_arguments.front() == "app-server",
+  expect(codex_arguments.size() >= 3 && codex_arguments[2] == "app-server",
          "Codex app-server command");
+  expect(codex_arguments[0] == "--disable"
+             && codex_arguments[1] == "just_in_time_approvals",
+         "just-in-time permissions default off through a validated feature flag");
+  argument_config.just_in_time_approvals = true;
+  auto expected_jit_arguments = codex_arguments;
+  expected_jit_arguments[0] = "--enable";
+  expect(agentcodi::CodexAppServerArguments(argument_config) == expected_jit_arguments,
+         "just-in-time enablement preserves the complete sandbox and transport arguments");
   expect(contains_argument("--stdio"), "Codex app-server stdio transport");
   expect(contains_argument("--strict-config"), "Codex strict config validation");
   expect(joined_arguments.find("cli_auth_credentials_store=\"file\"")

@@ -12,6 +12,7 @@ public final class CodexSessionSnapshot {
     private final String permissionProfileId;
     private final boolean dangerousExecutionMode;
     private final boolean compatibilityApprovalsEnabled;
+    private final boolean justInTimeApprovalsEnabled;
     private final boolean requiresOpenaiAuth;
     private final String authMode;
     private final String accountEmail;
@@ -45,6 +46,7 @@ public final class CodexSessionSnapshot {
         String permissionProfileId,
         boolean dangerousExecutionMode,
         boolean compatibilityApprovalsEnabled,
+        boolean justInTimeApprovalsEnabled,
         boolean requiresOpenaiAuth,
         String authMode,
         String accountEmail,
@@ -76,6 +78,7 @@ public final class CodexSessionSnapshot {
         this.permissionProfileId = nonNull(permissionProfileId);
         this.dangerousExecutionMode = dangerousExecutionMode;
         this.compatibilityApprovalsEnabled = compatibilityApprovalsEnabled;
+        this.justInTimeApprovalsEnabled = justInTimeApprovalsEnabled;
         this.requiresOpenaiAuth = requiresOpenaiAuth;
         this.authMode = nonNull(authMode);
         this.accountEmail = nonNull(accountEmail);
@@ -113,6 +116,7 @@ public final class CodexSessionSnapshot {
             "Codex App-Server ist nicht gestartet.",
             CodexExecutionMode.PROTECTED_ID,
             CodexExecutionMode.PROTECTED_PERMISSION_PROFILE_ID,
+            false,
             false,
             false,
             true,
@@ -167,6 +171,10 @@ public final class CodexSessionSnapshot {
 
     public boolean isCompatibilityApprovalsEnabled() {
         return compatibilityApprovalsEnabled;
+    }
+
+    public boolean isJustInTimeApprovalsEnabled() {
+        return justInTimeApprovalsEnabled;
     }
 
     public boolean requiresOpenaiAuth() {

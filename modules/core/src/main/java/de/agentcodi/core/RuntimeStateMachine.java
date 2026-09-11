@@ -34,6 +34,16 @@ public final class RuntimeStateMachine {
         String permissionProfileId,
         boolean compatibilityApprovalsEnabled
     ) {
+        return beginStart(executionModeId, permissionProfileId,
+            compatibilityApprovalsEnabled, false);
+    }
+
+    public synchronized long beginStart(
+        String executionModeId,
+        String permissionProfileId,
+        boolean compatibilityApprovalsEnabled,
+        boolean justInTimeApprovalsEnabled
+    ) {
         RuntimePhase phase = snapshot.getPhase();
         if (phase == RuntimePhase.STARTING || phase == RuntimePhase.READY) {
             throw new IllegalStateException("Runtime cannot start from " + phase);
@@ -48,7 +58,8 @@ public final class RuntimeStateMachine {
             "",
             requiredModeValue(executionModeId, "Execution mode"),
             requiredModeValue(permissionProfileId, "Permission profile"),
-            compatibilityApprovalsEnabled
+            compatibilityApprovalsEnabled,
+            justInTimeApprovalsEnabled
         );
         return generation;
     }
@@ -74,7 +85,8 @@ public final class RuntimeStateMachine {
             workspacePath,
             snapshot.getExecutionModeId(),
             snapshot.getPermissionProfileId(),
-            snapshot.isCompatibilityApprovalsEnabled()
+            snapshot.isCompatibilityApprovalsEnabled(),
+            snapshot.isJustInTimeApprovalsEnabled()
         );
         return true;
     }
@@ -94,7 +106,8 @@ public final class RuntimeStateMachine {
             phase == RuntimePhase.READY ? snapshot.getWorkspacePath() : "",
             snapshot.getExecutionModeId(),
             snapshot.getPermissionProfileId(),
-            snapshot.isCompatibilityApprovalsEnabled()
+            snapshot.isCompatibilityApprovalsEnabled(),
+            snapshot.isJustInTimeApprovalsEnabled()
         );
         return true;
     }
@@ -109,7 +122,8 @@ public final class RuntimeStateMachine {
             snapshot.getWorkspacePath(),
             snapshot.getExecutionModeId(),
             snapshot.getPermissionProfileId(),
-            snapshot.isCompatibilityApprovalsEnabled()
+            snapshot.isCompatibilityApprovalsEnabled(),
+            snapshot.isJustInTimeApprovalsEnabled()
         );
     }
 

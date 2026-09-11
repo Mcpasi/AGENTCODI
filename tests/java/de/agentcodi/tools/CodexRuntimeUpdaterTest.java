@@ -52,11 +52,60 @@ public final class CodexRuntimeUpdaterTest {
         cachesSameVersionRebuildsByContent();
         bindsLocalBytesToTheirBuildCommit();
         refusesToHideReplacedBuildInputsBehindTheCache();
-        return 23;
+        acceptsOnlyReviewedForkNoticeCorrections();
+        return 24;
     }
 
     public static void main(String[] args) throws Exception {
         System.out.println("Codex updater tests passed: " + run());
+    }
+
+    private static void acceptsOnlyReviewedForkNoticeCorrections() throws Exception {
+        Path work = Files.createTempDirectory("codex notice review ");
+        try {
+            Path notice = work.resolve("NOTICE");
+            String previous = "Synthetic previously reviewed notice.\n";
+            Files.write(notice, previous.getBytes(StandardCharsets.UTF_8));
+            String previousHash = CodexRuntimeUpdater.digest(notice, "SHA-256");
+            TestSupport.assertEquals(previous, CodexLocalSource.verifyNotice(notice, previousHash),
+                "unchanged reviewed notices remain accepted");
+            String corrected = "OpenAI Codex\nCopyright 2025 OpenAI\nCopyright 2026 Davide A. Guglielmi\n"
+                + "Copyright 2026 Mcpasi\n\n"
+                + "Codex Termux is a porting/distribution fork of OpenAI Codex for Android ARM64\n(Termux).\n\n"
+                + "The original Android/Termux compatibility and distribution work in this fork\n"
+                + "is maintained by Davide A. Guglielmi.\n\n"
+                + "The Android seccomp/ptrace sandbox backend and its integration contained in\n"
+                + "this derivative fork are maintained by Mcpasi.\n\n"
+                + "These modifications are distributed under the Apache License, Version 2.0,\n"
+                + "together with the upstream Codex codebase.\n\n"
+                + "This project includes code derived from Ratatui\n"
+                + "(https://github.com/ratatui/ratatui), licensed under the MIT license.\n"
+                + "Copyright (c) 2016-2022 Florian Dehau\nCopyright (c) 2023-2025 The Ratatui Developers\n";
+            Files.write(notice, corrected.getBytes(StandardCharsets.UTF_8));
+            String reviewed = CodexLocalSource.verifyNotice(notice, previousHash);
+            TestSupport.assertEquals(corrected, reviewed, "the exact reviewed sandbox attribution correction is accepted");
+            for (String name : new String[] {"NOTICE", "npm-package/NOTICE"}) {
+                CodexLocalSource.verifyDependencyInput(name, previous, corrected, reviewed);
+                rejects(new Action() { public void run() throws Exception {
+                    CodexLocalSource.verifyDependencyInput(name, previous, corrected + "Unreviewed addition.\n", reviewed);
+                } });
+            }
+            for (String name : new String[] {"LICENSE", "npm-package/LICENSE", "vendor/NOTICE", "NOTICE.md", "COPYING", "Cargo.toml"}) {
+                TestSupport.assertTrue(CodexLocalSource.dependencyInput(name), "legal and dependency inputs stay subject to review");
+                rejects(new Action() { public void run() throws Exception {
+                    CodexLocalSource.verifyDependencyInput(name, previous, corrected, reviewed);
+                } });
+            }
+            for (String changed : new String[] {
+                    corrected.replace("Copyright 2025 OpenAI\n", ""),
+                    corrected.replace("Copyright 2026 Mcpasi\n", ""),
+                    corrected.replace("The Ratatui Developers", "Unknown authors"),
+                    corrected.replace("Apache License, Version 2.0", "Different license"),
+                    corrected + "Unreviewed addition.\n"}) {
+                Files.write(notice, changed.getBytes(StandardCharsets.UTF_8));
+                rejects(new Action() { public void run() throws Exception { CodexLocalSource.verifyNotice(notice, previousHash); } });
+            }
+        } finally { remove(work); }
     }
 
     private static void validatesVersionsAndMetadata() throws Exception {
@@ -615,6 +664,25 @@ public final class CodexRuntimeUpdaterTest {
             CodexLocalSource.normalizeDependency("Cargo.lock", lock.replace("0.153.3", "0.153.4")), "workspace lockfile version bumps are automatic");
         TestSupport.assertFalse(CodexLocalSource.normalizeDependency("Cargo.lock", lock).equals(
             CodexLocalSource.normalizeDependency("Cargo.lock", lock.replace("0.2.1", "0.2.2"))), "locked external versions stay exact");
+        for (String name : new String[] {"app_test_support", "core_test_support", "mcp_test_support"}) {
+            String support = "[[package]]\nname = \"" + name + "\"\nversion = \"0.153.3-agentcodi.1\"\n"
+                + "dependencies = [\"codex-core\"]\n";
+            String bumped = support.replace("0.153.3-agentcodi.1", "0.153.3-agentcodi.2");
+            CodexLocalSource.verifyDependencyInput("codex-rs/Cargo.lock", support, bumped, "unused");
+            rejects(new Action() { public void run() throws Exception {
+                CodexLocalSource.verifyDependencyInput("codex-rs/Cargo.lock", support,
+                    bumped.replace("codex-core", "unreviewed-dependency"), "unused");
+            } });
+            String registry = support + "source = \"registry+fixture\"\nchecksum = \"fixture\"\n";
+            rejects(new Action() { public void run() throws Exception {
+                CodexLocalSource.verifyDependencyInput("codex-rs/Cargo.lock", registry,
+                    registry.replace("0.153.3-agentcodi.1", "0.153.3-agentcodi.2"), "unused");
+            } });
+        }
+        String unknown = "[[package]]\nname = \"unreviewed_test_support\"\nversion = \"1.0.0\"\n";
+        rejects(new Action() { public void run() throws Exception {
+            CodexLocalSource.verifyDependencyInput("Cargo.lock", unknown, unknown.replace("1.0.0", "2.0.0"), "unused");
+        } });
         TestSupport.assertTrue(CodexLocalSource.dependencyInput("codex-rs/linux-sandbox/Cargo.toml"), "sandbox dependency declarations are checked");
         TestSupport.assertTrue(CodexLocalSource.dependencyInput("codex-rs/vendor/LICENSE-MIT"), "vendored licenses are checked");
         TestSupport.assertFalse(CodexLocalSource.dependencyInput("codex-rs/linux-sandbox/src/android_sandbox/mem.rs"), "ordinary fork source corrections do not require repinning dependencies");

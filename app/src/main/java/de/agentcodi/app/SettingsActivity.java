@@ -101,6 +101,7 @@ public final class SettingsActivity extends Activity {
     private String pendingLaunchExecutionModeId = CodexExecutionMode.PROTECTED_ID;
     private boolean pendingLaunchDangerWarningAcknowledged;
     private boolean pendingLaunchCompatibilityApprovalsEnabled;
+    private boolean pendingLaunchJustInTimeApprovalsEnabled;
     private CrashDiagnostics crashDiagnostics;
     private InteractiveRequestDialog interactiveRequestDialog;
     private boolean destroyed;
@@ -737,6 +738,7 @@ public final class SettingsActivity extends Activity {
             pendingLaunchExecutionModeId = CodexExecutionMode.PROTECTED_ID;
             pendingLaunchDangerWarningAcknowledged = false;
             pendingLaunchCompatibilityApprovalsEnabled = false;
+            pendingLaunchJustInTimeApprovalsEnabled = false;
             requestNotificationPermissionAndLaunchRuntime();
             return;
         }
@@ -746,13 +748,15 @@ public final class SettingsActivity extends Activity {
                 public void onLaunchConfirmed(
                     String executionModeId,
                     boolean dangerWarningAcknowledged,
-                    boolean compatibilityApprovalsEnabled
+                    boolean compatibilityApprovalsEnabled,
+                    boolean justInTimeApprovalsEnabled
                 ) {
                     pendingLaunchExecutionModeId = executionModeId;
                     pendingLaunchDangerWarningAcknowledged =
                         dangerWarningAcknowledged;
                     pendingLaunchCompatibilityApprovalsEnabled =
                         compatibilityApprovalsEnabled;
+                    pendingLaunchJustInTimeApprovalsEnabled = justInTimeApprovalsEnabled;
                     requestNotificationPermissionAndLaunchRuntime();
                 }
             }
@@ -794,10 +798,12 @@ public final class SettingsActivity extends Activity {
                 this,
                 pendingLaunchExecutionModeId,
                 pendingLaunchDangerWarningAcknowledged,
-                pendingLaunchCompatibilityApprovalsEnabled
+                pendingLaunchCompatibilityApprovalsEnabled,
+                pendingLaunchJustInTimeApprovalsEnabled
             );
             pendingLaunchDangerWarningAcknowledged = false;
             pendingLaunchCompatibilityApprovalsEnabled = false;
+            pendingLaunchJustInTimeApprovalsEnabled = false;
             clearCrashReport();
             if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.O) {
                 startForegroundService(runtimeIntent);
@@ -809,6 +815,7 @@ public final class SettingsActivity extends Activity {
         } catch (Throwable error) {
             pendingLaunchDangerWarningAcknowledged = false;
             pendingLaunchCompatibilityApprovalsEnabled = false;
+            pendingLaunchJustInTimeApprovalsEnabled = false;
             persistCrash("settings-start-service", error);
             showInlineFailure(error);
             Toast.makeText(

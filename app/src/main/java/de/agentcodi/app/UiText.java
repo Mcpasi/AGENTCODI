@@ -459,6 +459,7 @@ final class UiText {
         if ("Turn-Stopp wurde bestätigt.".equals(raw)) return R.string.core_turn_stop_confirmed;
         if ("Freigabeentscheidung wird übermittelt.".equals(raw)) return R.string.core_approval_sending;
         if ("Eine Freigabeentscheidung fehlt.".equals(raw)) return R.string.core_approval_missing;
+        if ("Diese Freigabe gilt nur für die aktuelle Aktion.".equals(raw)) return R.string.core_approval_once_only;
         if ("Diese Freigabe ist nicht mehr aktiv.".equals(raw)) return R.string.core_approval_expired;
         if ("Diese Anfrage erwartet eine Texteingabe.".equals(raw)) return R.string.core_request_expects_text;
         if ("Diese Eingabeanfrage ist nicht mehr aktiv.".equals(raw)) return R.string.core_input_expired;

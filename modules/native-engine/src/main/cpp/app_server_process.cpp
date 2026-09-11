@@ -2301,6 +2301,8 @@ std::vector<std::string> CodexAppServerArguments(const ProcessConfig& config) {
       + ",AGENTCODI_TOOLCHAIN_COMMAND=\"agentcodi-toolchain\""
       + ",AGENTCODI_TOOLCHAIN_PACKAGES=\"node,npm,python,ripgrep\"}}";
   return {
+      config.just_in_time_approvals ? "--enable" : "--disable",
+      "just_in_time_approvals",
       "app-server",
       "--stdio",
       "--strict-config",

@@ -144,6 +144,7 @@ public final class CodexSessionController
     private String permissionProfileId;
     private boolean dangerousExecutionMode;
     private boolean compatibilityApprovalsEnabled;
+    private final boolean justInTimeApprovalsEnabled;
     private CodexSessionSnapshot snapshot;
 
     public CodexSessionController(CodexRpcTransport transport, String workspacePath) {
@@ -218,6 +219,20 @@ public final class CodexSessionController
         CodexReviewMode reviewMode,
         boolean compatibilityApprovalsEnabled
     ) {
+        this(transport, workspacePath, connectionFailureListener, terminalShellPath,
+            executionMode, reviewMode, compatibilityApprovalsEnabled, false);
+    }
+
+    public CodexSessionController(
+        CodexRpcTransport transport,
+        String workspacePath,
+        ConnectionFailureListener connectionFailureListener,
+        String terminalShellPath,
+        CodexExecutionMode executionMode,
+        CodexReviewMode reviewMode,
+        boolean compatibilityApprovalsEnabled,
+        boolean justInTimeApprovalsEnabled
+    ) {
         if (workspacePath == null || workspacePath.trim().isEmpty()
             || !workspacePath.startsWith("/")) {
             throw new IllegalArgumentException("Workspace path must be absolute");
@@ -231,6 +246,7 @@ public final class CodexSessionController
         dangerousExecutionMode = mode.dangerous;
         this.compatibilityApprovalsEnabled = mode.dangerous
             && compatibilityApprovalsEnabled;
+        this.justInTimeApprovalsEnabled = justInTimeApprovalsEnabled;
         client = new CodexAppServerClient(transport, this);
         terminal = terminalShellPath == null
             ? null
@@ -3537,7 +3553,8 @@ public final class CodexSessionController
                 Collections.<CodexNetworkPolicyAmendment>emptyList(),
                 questions,
                 ((Boolean) blockingValue).booleanValue(),
-                now + waitMilliseconds
+                now + waitMilliseconds,
+                false
             );
         }
 
@@ -3632,7 +3649,8 @@ public final class CodexSessionController
             networkPolicies,
             Collections.<CodexUserInputQuestion>emptyList(),
             true,
-            now + MAX_INTERACTIVE_WAIT_MS
+            now + MAX_INTERACTIVE_WAIT_MS,
+            justInTimeApprovalsEnabled
         );
     }
 
@@ -3641,6 +3659,9 @@ public final class CodexSessionController
         CodexApprovalDecision decision,
         int amendmentIndex
     ) {
+        if (!request.allowsDecision(decision)) {
+            throw new IllegalArgumentException("Diese Freigabe gilt nur für die aktuelle Aktion.");
+        }
         Object wireDecision;
         switch (decision) {
             case ACCEPT:
@@ -4292,6 +4313,7 @@ public final class CodexSessionController
             permissionProfileId,
             dangerousExecutionMode,
             compatibilityApprovalsEnabled,
+            justInTimeApprovalsEnabled,
             requiresOpenaiAuth,
             authMode,
             accountEmail,
@@ -4420,7 +4442,8 @@ public final class CodexSessionController
         // The app-server protocol calls its internal UnlessTrusted policy
         // "untrusted". Unlike on-request, it still asks in an unrestricted
         // permission profile before patches and commands that are not safe reads.
-        return dangerousExecutionMode && compatibilityApprovalsEnabled
+        return !justInTimeApprovalsEnabled
+            && dangerousExecutionMode && compatibilityApprovalsEnabled
             ? APPROVAL_POLICY_UNTRUSTED
             : APPROVAL_POLICY_ON_REQUEST;
     }

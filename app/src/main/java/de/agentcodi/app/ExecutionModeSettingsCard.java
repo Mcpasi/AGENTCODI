@@ -31,7 +31,8 @@ final class ExecutionModeSettingsCard {
         void onLaunchConfirmed(
             String executionModeId,
             boolean dangerWarningAcknowledged,
-            boolean compatibilityApprovalsEnabled
+            boolean compatibilityApprovalsEnabled,
+            boolean justInTimeApprovalsEnabled
         );
     }
 
@@ -44,9 +45,12 @@ final class ExecutionModeSettingsCard {
     private final Button compatibilityButton;
     private final LinearLayout compatibilityApprovalCard;
     private final Switch compatibilityApprovalSwitch;
+    private final Switch justInTimeApprovalSwitch;
 
     private String selectedModeId = CodexExecutionMode.PROTECTED_ID;
     private boolean compatibilityApprovalsEnabled;
+    private boolean justInTimeApprovalsEnabled;
+    private boolean justInTimeEditable = true;
     private boolean runtimeReady;
     private boolean controlsEnabled = true;
     private boolean updatingApprovalSwitch;
@@ -136,6 +140,27 @@ final class ExecutionModeSettingsCard {
         approvalDescription.setLineSpacing(0.0f, 1.16f);
         theme.addWithTopMargin(compatibilityApprovalCard, approvalDescription, 6);
         theme.addWithTopMargin(card, compatibilityApprovalCard, 8);
+
+        justInTimeApprovalSwitch = new Switch(activity);
+        justInTimeApprovalSwitch.setText(R.string.just_in_time_approvals);
+        justInTimeApprovalSwitch.setTextColor(theme.primary);
+        justInTimeApprovalSwitch.setTextSize(15);
+        justInTimeApprovalSwitch.setTypeface(Typeface.DEFAULT_BOLD);
+        justInTimeApprovalSwitch.setSaveEnabled(false);
+        justInTimeApprovalSwitch.setOnCheckedChangeListener(
+            new CompoundButton.OnCheckedChangeListener() {
+                @Override
+                public void onCheckedChanged(CompoundButton buttonView, boolean isChecked) {
+                    if (!updatingApprovalSwitch && justInTimeEditable) {
+                        justInTimeApprovalsEnabled = isChecked;
+                        updatePresentation();
+                    }
+                }
+            }
+        );
+        theme.addWithTopMargin(card, justInTimeApprovalSwitch, 16);
+        theme.addWithTopMargin(card,
+            theme.body(activity.getString(R.string.just_in_time_approvals_description)), 6);
         updatePresentation();
     }
 
@@ -149,12 +174,16 @@ final class ExecutionModeSettingsCard {
             selectedModeId = session.getExecutionModeId();
             compatibilityApprovalsEnabled =
                 session.isCompatibilityApprovalsEnabled();
+            justInTimeApprovalsEnabled = session.isJustInTimeApprovalsEnabled();
         } else if (runtime.getPhase() == RuntimePhase.STARTING
             && !runtime.getExecutionModeId().isEmpty()) {
             selectedModeId = runtime.getExecutionModeId();
             compatibilityApprovalsEnabled =
                 runtime.isCompatibilityApprovalsEnabled();
+            justInTimeApprovalsEnabled = runtime.isJustInTimeApprovalsEnabled();
         }
+        justInTimeEditable = runtime.getPhase() != RuntimePhase.STARTING
+            && runtime.getPhase() != RuntimePhase.READY;
         controlsEnabled = runtime.getPhase() != RuntimePhase.STARTING
             && (!runtimeReady
                 || (!session.isOperationActive()
@@ -174,7 +203,8 @@ final class ExecutionModeSettingsCard {
         listener.onLaunchConfirmed(
             CodexExecutionMode.PROTECTED_ID,
             false,
-            false
+            false,
+            justInTimeApprovalsEnabled
         );
     }
 
@@ -216,7 +246,8 @@ final class ExecutionModeSettingsCard {
             public void onLaunchConfirmed(
                 String executionModeId,
                 boolean dangerWarningAcknowledged,
-                boolean ignoredCompatibilityApprovalsEnabled
+                boolean ignoredCompatibilityApprovalsEnabled,
+                boolean ignoredJustInTimeApprovalsEnabled
             ) {
                 activeModeListener.onActiveModeRequested(
                     executionModeId,
@@ -241,7 +272,8 @@ final class ExecutionModeSettingsCard {
                         listener.onLaunchConfirmed(
                             CodexExecutionMode.COMPATIBILITY_ID,
                             true,
-                            compatibilityApprovalsEnabled
+                            compatibilityApprovalsEnabled,
+                            justInTimeApprovalsEnabled
                         );
                     }
                 }
@@ -289,10 +321,12 @@ final class ExecutionModeSettingsCard {
         compatibilityApprovalSwitch.setChecked(
             compatibility && compatibilityApprovalsEnabled
         );
+        justInTimeApprovalSwitch.setChecked(justInTimeApprovalsEnabled);
         updatingApprovalSwitch = false;
+        theme.setEnabled(justInTimeApprovalSwitch, justInTimeEditable);
         theme.setEnabled(
             compatibilityApprovalSwitch,
-            controlsEnabled && compatibility
+            controlsEnabled && compatibility && !justInTimeApprovalsEnabled
         );
     }
 
@@ -303,7 +337,7 @@ final class ExecutionModeSettingsCard {
         boolean compatibility = CodexExecutionMode.COMPATIBILITY_ID.equals(
             selectedModeId
         );
-        if (!controlsEnabled || !compatibility) {
+        if (!controlsEnabled || !compatibility || justInTimeApprovalsEnabled) {
             updatePresentation();
             return;
         }

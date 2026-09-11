@@ -16,6 +16,11 @@ import java.util.Map;
 
 /** Local artifact selection and read-only Git provenance; never uses a registry. */
 final class CodexLocalSource {
+    // Reviewed fork authorship correction: adds Mcpasi's Android sandbox credit,
+    // retaining Apache-2.0 and the OpenAI, Termux and Ratatui attributions.
+    private static final String REVIEWED_FORK_NOTICE_SHA256 =
+        "a8b3a4393683f9e8adbdecbafff07df27e34af020e9e23fed905e9a998b81647";
+
     static final class Options {
         Path source;
         Path archive;
@@ -147,14 +152,28 @@ final class CodexLocalSource {
             require(git("show", commit + ":" + legal).equals(text(candidate.resolve("package/" + legal))),
                 "Archive " + legal + " differs from the declared source commit.");
         }
+        String reviewedNotice = verifyNotice(candidate.resolve("package/NOTICE"), old.get("CODEX_NOTICE_SHA256"));
         String changed = git("diff", "--no-ext-diff", "--no-textconv", "--name-only", "--no-renames", "-z",
             old.get("CODEX_TERMUX_SOURCE_COMMIT"), commit, "--");
         for (String name : changed.split("\u0000")) {
             if (name.isEmpty() || !dependencyInput(name)) continue;
-            require(normalizeDependency(name, git("show", old.get("CODEX_TERMUX_SOURCE_COMMIT") + ":" + name))
-                .equals(normalizeDependency(name, git("show", commit + ":" + name))),
-                "Dependency/license input changed: " + name + "; review its dependency graph and notices before accepting this package.");
+            verifyDependencyInput(name, git("show", old.get("CODEX_TERMUX_SOURCE_COMMIT") + ":" + name),
+                git("show", commit + ":" + name), reviewedNotice);
         }
+    }
+
+    static String verifyNotice(Path notice, String previousHash) throws Exception {
+        String hash = digest(notice, "SHA-256");
+        require(hash.equals(previousHash) || hash.equals(REVIEWED_FORK_NOTICE_SHA256),
+            "Unreviewed NOTICE change; review its attributions and license terms before accepting this package.");
+        return text(notice);
+    }
+
+    static void verifyDependencyInput(String path, String before, String after, String reviewedNotice) throws IOException {
+        boolean noticeCopy = "NOTICE".equals(path) || "npm-package/NOTICE".equals(path);
+        require(noticeCopy ? after.equals(reviewedNotice)
+                : normalizeDependency(path, before).equals(normalizeDependency(path, after)),
+            "Dependency/license input changed: " + path + "; review its dependency graph and notices before accepting this package.");
     }
 
     static String sourceCommit(Map<String, Object> metadata, Map<String, String> old,
@@ -209,7 +228,7 @@ final class CodexLocalSource {
             StringBuilder result = new StringBuilder();
             for (String block : contents.split("(?m)(?=^\\[\\[package\\]\\]$)")) {
                 if (block.startsWith("[[package]]") && !block.matches("(?s).*\nsource\\s*=.*")
-                    && block.matches("(?s).*\nname = \"codex-[^\"]+\"\n.*")) {
+                    && block.matches("(?s).*\nname = \"(?:codex-[^\"]+|app_test_support|core_test_support|mcp_test_support)\"\n.*")) {
                     block = block.replaceAll("(?m)^version = \"[^\"]+\"$", "version = \"WORKSPACE\"");
                 }
                 result.append(block);

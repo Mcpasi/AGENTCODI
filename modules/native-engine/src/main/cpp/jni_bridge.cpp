@@ -177,8 +177,10 @@ Java_de_agentcodi_runtime_NativeEngine_nativeStartAppServer(
     jstring home,
     jstring state_directory,
     jstring temporary_directory,
-    jstring native_library_directory) {
+    jstring native_library_directory,
+    jboolean just_in_time_approvals) {
   agentcodi::ProcessConfig config;
+  config.just_in_time_approvals = just_in_time_approvals == JNI_TRUE;
   if (!from_java_string(environment, executable, "Executable", &config.executable)
       || !from_java_string(
           environment,

@@ -34,7 +34,8 @@ public final class NativeEngine {
         String home,
         String stateDirectory,
         String temporaryDirectory,
-        String nativeLibraryDirectory
+        String nativeLibraryDirectory,
+        boolean justInTimeApprovalsEnabled
     ) throws IOException {
         return nativeStartAppServer(
             executable,
@@ -51,7 +52,8 @@ public final class NativeEngine {
             home,
             stateDirectory,
             temporaryDirectory,
-            nativeLibraryDirectory
+            nativeLibraryDirectory,
+            justInTimeApprovalsEnabled
         );
     }
 
@@ -157,7 +159,8 @@ public final class NativeEngine {
         String home,
         String stateDirectory,
         String temporaryDirectory,
-        String nativeLibraryDirectory
+        String nativeLibraryDirectory,
+        boolean justInTimeApprovalsEnabled
     ) throws IOException;
 
     private static native byte[] nativeReadAppServerLine(

@@ -30,6 +30,7 @@ struct ProcessConfig {
   std::string state_directory;
   std::string temporary_directory;
   std::string library_directory;
+  bool just_in_time_approvals = false;
   std::vector<std::string> arguments;
 };
 

@@ -12,6 +12,7 @@ public final class RuntimeSnapshot {
     private final String executionModeId;
     private final String permissionProfileId;
     private final boolean compatibilityApprovalsEnabled;
+    private final boolean justInTimeApprovalsEnabled;
 
     public RuntimeSnapshot(
         long generation,
@@ -68,6 +69,22 @@ public final class RuntimeSnapshot {
         String permissionProfileId,
         boolean compatibilityApprovalsEnabled
     ) {
+        this(generation, phase, message, engineVersion, diagnostics, workspacePath,
+            executionModeId, permissionProfileId, compatibilityApprovalsEnabled, false);
+    }
+
+    public RuntimeSnapshot(
+        long generation,
+        RuntimePhase phase,
+        String message,
+        String engineVersion,
+        String diagnostics,
+        String workspacePath,
+        String executionModeId,
+        String permissionProfileId,
+        boolean compatibilityApprovalsEnabled,
+        boolean justInTimeApprovalsEnabled
+    ) {
         this.generation = generation;
         this.phase = Objects.requireNonNull(phase, "phase");
         this.message = nonNull(message);
@@ -77,6 +94,7 @@ public final class RuntimeSnapshot {
         this.executionModeId = nonNull(executionModeId);
         this.permissionProfileId = nonNull(permissionProfileId);
         this.compatibilityApprovalsEnabled = compatibilityApprovalsEnabled;
+        this.justInTimeApprovalsEnabled = justInTimeApprovalsEnabled;
     }
 
     public long getGeneration() {
@@ -115,6 +133,10 @@ public final class RuntimeSnapshot {
         return compatibilityApprovalsEnabled;
     }
 
+    public boolean isJustInTimeApprovalsEnabled() {
+        return justInTimeApprovalsEnabled;
+    }
+
     public RuntimeSnapshot withExecutionMode(
         String updatedExecutionModeId,
         String updatedPermissionProfileId
@@ -140,7 +162,8 @@ public final class RuntimeSnapshot {
             workspacePath,
             updatedExecutionModeId,
             updatedPermissionProfileId,
-            updatedCompatibilityApprovalsEnabled
+            updatedCompatibilityApprovalsEnabled,
+            justInTimeApprovalsEnabled
         );
     }
 

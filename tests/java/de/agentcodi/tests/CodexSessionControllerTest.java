@@ -70,6 +70,7 @@ public final class CodexSessionControllerTest {
         startsCompatibilityWithApprovalsEnabled();
         carriesCompatibilityProfileIntoTerminal();
         handlesCommandAndFileApprovals();
+        justInTimeApprovalsAreOneActionInBothModes();
         acceptsFileCreationApproval();
         enrichesFileApprovalAfterReorderedPatchUpdate();
         rejectsIncompleteFileChangePreviews();
@@ -81,7 +82,89 @@ public final class CodexSessionControllerTest {
         terminatesTerminalWhenOutputCapIsReached();
         rejectsTerminalCredentialsAndMalformedOutput();
         usesVettedMcpConfigurationRpcs();
-        return 42;
+        return 43;
+    }
+
+    public static void justInTimeApprovalsAreOneActionInBothModes() throws Exception {
+        for (boolean compatibility : new boolean[] {false, true}) {
+            final FixtureServer server = new FixtureServer(true);
+            server.holdTurnOpen = true;
+            final CodexSessionController controller = new CodexSessionController(
+                server, "/private/workspace", null, null,
+                compatibility ? CompatibilityExecutionMode.afterWarningAcknowledged(true)
+                    : ProtectedExecutionMode.get(), null, false, true);
+            try {
+                controller.start();
+                controller.openThread("thr_existing");
+                awaitJitState(() -> !controller.snapshot().isOperationActive());
+                TestSupport.assertEquals("thr_existing", controller.snapshot().getActiveThreadId(),
+                    "existing chat resumed");
+                controller.sendMessage("Perform the proposed actions.");
+                awaitJitState(() -> !controller.snapshot().isOperationActive());
+                TestSupport.assertTrue(controller.snapshot().isTurnActive(), "fixture turn active");
+                TestSupport.assertTrue(controller.snapshot().isJustInTimeApprovalsEnabled(),
+                    "JIT applies after resume in either mode");
+                assertExecutionPermissionRequest(server.lastTurnStartParams,
+                    compatibility ? ":danger-full-access" : "agentcodi-workspace", "JIT turn");
+
+                for (final long id : new long[] {800L, 801L, 802L}) {
+                    boolean patch = id == 802L;
+                    String itemId = "jit_" + id;
+                    server.requestFromServer(id, patch ? "item/fileChange/requestApproval"
+                        : "item/commandExecution/requestApproval", JsonCodec.object(
+                            "threadId", "thr_existing", "turnId", "turn_fixture",
+                            "itemId", itemId, "startedAtMs", Long.valueOf(1L),
+                            "command", patch ? null : "node checks",
+                            "cwd", "/private/workspace",
+                            "availableDecisions", JsonCodec.array("accept", "decline"),
+                            "proposedExecpolicyAmendment", patch ? null : JsonCodec.array("node")
+                        ));
+                    awaitJitState(() -> controller.snapshot().hasInteractiveRequest());
+                    CodexInteractiveRequest request = controller.snapshot().getInteractiveRequests().get(0);
+                    TestSupport.assertTrue(request.isJustInTimeApproval(), "one-action dialog");
+                    TestSupport.assertEquals(null, server.responseFor(id), "no automatic response");
+                    if (patch) {
+                        controller.resolveApproval(id, CodexApprovalDecision.ACCEPT, -1);
+                        TestSupport.assertTrue(controller.snapshot().hasInteractiveRequest(),
+                            "file approval waits for visible changes");
+                        server.notifyMessage("item/fileChange/patchUpdated", JsonCodec.object(
+                            "threadId", "thr_existing", "turnId", "turn_fixture", "itemId", itemId,
+                            "changes", JsonCodec.array(
+                                fileChange("/private/workspace/index.js", "add", "", "+hello"),
+                                fileChange("/private/workspace/docs/notice.md", "add", "", "+notice")
+                            )));
+                        awaitJitState(() -> controller.snapshot().getInteractiveRequests().get(0)
+                            .getFileChanges().size() == 2);
+                        TestSupport.assertTrue(controller.snapshot().getInteractiveRequests().get(0)
+                            .isJustInTimeApproval(), "late preview preserves one-action policy");
+                    }
+                    for (CodexApprovalDecision reusable : new CodexApprovalDecision[] {
+                        CodexApprovalDecision.ACCEPT_FOR_SESSION,
+                        CodexApprovalDecision.ACCEPT_WITH_EXEC_POLICY_AMENDMENT,
+                        CodexApprovalDecision.APPLY_NETWORK_POLICY_AMENDMENT
+                    }) {
+                        controller.resolveApproval(id, reusable, 0);
+                        TestSupport.assertTrue(controller.snapshot().hasInteractiveRequest(),
+                            "reusable decision cannot dismiss the request");
+                        TestSupport.assertEquals(null, server.responseFor(id), "no reusable grant sent");
+                    }
+                    controller.resolveApproval(id, id == 801L ? CodexApprovalDecision.DECLINE
+                        : CodexApprovalDecision.ACCEPT, -1);
+                    awaitJitState(() -> server.responseFor(id) != null);
+                    TestSupport.assertEquals(JsonCodec.object("decision", id == 801L ? "decline" : "accept"),
+                        server.responseFor(id), "exact one-action wire response");
+                }
+            } finally {
+                controller.close();
+            }
+        }
+    }
+
+    private static void awaitJitState(Condition condition) throws InterruptedException {
+        // Wait for fixture progress without imposing a host-speed deadline.
+        while (!condition.isTrue()) {
+            Thread.sleep(10L);
+        }
     }
 
     private static void preservesProtectionAfterSandboxBootstrapFailure() throws Exception {

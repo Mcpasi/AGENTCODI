@@ -499,7 +499,7 @@
   <string name="license_material_icons_title">Material Icons</string>
   <string name="license_material_icons_summary">Runde Oberflächensymbole aus Googles Material-Design-Icons-Repository · gepinnte Quellpfade unter Apache License 2.0.</string>
   <string name="license_codex_runtime_title">Codex Android Community-Runtime</string>
-  <string name="license_codex_runtime_summary">OpenAI Codex 0.153.3-agentcodi.1 und der lokale AGENTCODI-Android-/Termux-Fork · Apache License 2.0. Dies ist keine offizielle OpenAI-Android-APK.</string>
+  <string name="license_codex_runtime_summary">OpenAI Codex 0.153.3-agentcodi.2 und der lokale AGENTCODI-Android-/Termux-Fork · Apache License 2.0. Dies ist keine offizielle OpenAI-Android-APK.</string>
   <string name="license_node_runtime_title">Mitgelieferte Node.js-Toolchain</string>
   <string name="license_node_runtime_summary">Node.js LTS 24.18.0 und seine gepinnten Android-Runtime-Abhängigkeiten · in der APK enthalten und nur durch eine ausdrückliche Nutzeraktion oder einen genehmigten Codex-Befehl aktiviert. Enthält Komponenten unter MIT-, Unicode-3.0-, Apache-2.0- und zlib-Lizenz sowie gemeinfreie Komponenten.</string>
   <string name="license_npm_runtime_title">Paketierte npm-Toolchain</string>
@@ -524,6 +524,12 @@
   <string name="crash_delete_failed">Crashbericht konnte nicht gelöscht werden.</string>
 
   <string name="approval_allow">Erlauben</string>
+  <string name="just_in_time_approvals">Just-in-time-Berechtigungen</string>
+  <string name="just_in_time_approvals_description">Vor jedem Agentenbefehl, jeder Dateiänderung und Terminaleingabe fragen – in beiden Ausführungsmodi. Jede Freigabe gilt einmal; ein Befehl umfasst seine internen Schreibzugriffe. Der gewählte Dateisystemschutz bleibt bestehen. Zum Umschalten die Engine stoppen und danach neu starten.</string>
+  <string name="just_in_time_approval_title">Der Agent pausiert. Du entscheidest.</string>
+  <string name="just_in_time_execute">Ausführen</string>
+  <string name="just_in_time_approval_explanation">Erlauben gibt nur diese Aktion frei. Die nächste Aktion fragt erneut. Ablehnen überspringt diese Aktion; Turn stoppen beendet den Turn.</string>
+  <string name="core_approval_once_only">Diese Freigabe gilt nur für die aktuelle Aktion.</string>
   <string name="approval_decline">Ablehnen</string>
   <string name="approval_stop_turn">Turn stoppen</string>
   <string name="approval_preview_loading_title">Änderungsvorschau wird geladen</string>

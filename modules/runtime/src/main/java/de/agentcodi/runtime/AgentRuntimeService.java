@@ -54,6 +54,8 @@ public final class AgentRuntimeService extends Service {
         "de.agentcodi.runtime.extra.DANGER_WARNING_ACKNOWLEDGED";
     private static final String EXTRA_COMPATIBILITY_APPROVALS_ENABLED =
         "de.agentcodi.runtime.extra.COMPATIBILITY_APPROVALS_ENABLED";
+    private static final String EXTRA_JUST_IN_TIME_APPROVALS_ENABLED =
+        "de.agentcodi.runtime.extra.JUST_IN_TIME_APPROVALS_ENABLED";
     private static final RuntimeStateMachine STATE = new RuntimeStateMachine();
     private static final AtomicBoolean BOOTSTRAP_ACTIVE = new AtomicBoolean(false);
     private static final CodexSessionSnapshot STOPPED_SESSION = CodexSessionSnapshot.stopped();
@@ -117,6 +119,17 @@ public final class AgentRuntimeService extends Service {
         boolean dangerWarningAcknowledged,
         boolean compatibilityApprovalsEnabled
     ) {
+        return createLaunchIntent(context, executionModeId, dangerWarningAcknowledged,
+            compatibilityApprovalsEnabled, false);
+    }
+
+    public static Intent createLaunchIntent(
+        Context context,
+        String executionModeId,
+        boolean dangerWarningAcknowledged,
+        boolean compatibilityApprovalsEnabled,
+        boolean justInTimeApprovalsEnabled
+    ) {
         if (context == null) {
             throw new IllegalArgumentException("Context is required");
         }
@@ -133,6 +146,10 @@ public final class AgentRuntimeService extends Service {
             .putExtra(
                 EXTRA_COMPATIBILITY_APPROVALS_ENABLED,
                 isCompatibilityMode(mode) && compatibilityApprovalsEnabled
+            )
+            .putExtra(
+                EXTRA_JUST_IN_TIME_APPROVALS_ENABLED,
+                justInTimeApprovalsEnabled
             );
     }
 
@@ -600,7 +617,10 @@ public final class AgentRuntimeService extends Service {
             CodexExecutionMode executionMode = executionModeFromIntent(intent);
             startRuntimeIfNeeded(
                 executionMode,
-                compatibilityApprovalsFromIntent(intent, executionMode)
+                compatibilityApprovalsFromIntent(intent, executionMode),
+                intent != null && intent.getBooleanExtra(
+                    EXTRA_JUST_IN_TIME_APPROVALS_ENABLED, false
+                )
             );
         } catch (Throwable error) {
             recordServiceFailure("service-onStartCommand", error);
@@ -659,7 +679,8 @@ public final class AgentRuntimeService extends Service {
 
     private void startRuntimeIfNeeded(
         final CodexExecutionMode executionMode,
-        final boolean compatibilityApprovalsEnabled
+        final boolean compatibilityApprovalsEnabled,
+        final boolean justInTimeApprovalsEnabled
     ) {
         RuntimePhase phase = STATE.snapshot().getPhase();
         if (phase == RuntimePhase.STARTING || phase == RuntimePhase.READY) {
@@ -674,7 +695,8 @@ public final class AgentRuntimeService extends Service {
             generation = STATE.beginStart(
                 executionMode.getId(),
                 executionMode.getPermissionProfileId(),
-                compatibilityApprovalsEnabled
+                compatibilityApprovalsEnabled,
+                justInTimeApprovalsEnabled
             );
         } catch (RuntimeException error) {
             BOOTSTRAP_ACTIVE.set(false);
@@ -756,7 +778,8 @@ public final class AgentRuntimeService extends Service {
                         layout.getHome().getAbsolutePath(),
                         layout.getState().getAbsolutePath(),
                         temporaryDirectory,
-                        nativeLibraryPath
+                        nativeLibraryPath,
+                        justInTimeApprovalsEnabled
                     );
                     startedController = new CodexSessionController(
                         transport,
@@ -777,7 +800,8 @@ public final class AgentRuntimeService extends Service {
                         shellExecutable.getAbsolutePath(),
                         executionMode,
                         CustomReviewMode.get(),
-                        compatibilityApprovalsEnabled
+                        compatibilityApprovalsEnabled,
+                        justInTimeApprovalsEnabled
                     );
                     startedController.start();
                     startedCatalogController = new McpCatalogController(

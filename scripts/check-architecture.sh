@@ -1016,32 +1016,32 @@ fi
 
 if ! rg -q 'VERSION_NAME = "0\.7\.1"' "$core_root/BuildIdentity.java" \
     || ! rg -q 'VERSION_CODE = 83' "$core_root/BuildIdentity.java" \
-    || ! rg -q 'CODEX_RUNTIME_VERSION = "0\.153\.3-agentcodi\.1"' "$core_root/BuildIdentity.java" \
+    || ! rg -q 'CODEX_RUNTIME_VERSION = "0\.153\.3-agentcodi\.2"' "$core_root/BuildIdentity.java" \
     || ! rg -q 'android:versionName="0\.7\.1"' "$manifest" \
     || ! rg -q 'android:versionCode="83"' "$manifest" \
     || ! rg -q 'APP_VERSION="0\.7\.1"' "$apk_builder" \
     || ! rg -q 'VERSION_CODE="83"' "$apk_builder" \
-    || ! rg -q 'CODEX_ANDROID_VERSION="0\.153\.3-agentcodi\.1"' "$apk_builder" \
+    || ! rg -q 'CODEX_ANDROID_VERSION="0\.153\.3-agentcodi\.2"' "$apk_builder" \
     || ! rg -q 'CODEX_TERMUX_SOURCE_TAG="untagged"' "$apk_builder" \
-    || ! rg -q 'CODEX_TERMUX_SOURCE_COMMIT="a800c309ba36473ccb2097f5b1704914131a5ce5"' "$apk_builder" \
+    || ! rg -q 'CODEX_TERMUX_SOURCE_COMMIT="f7611891bdf1eb393f179e94adcd9ab745172d6c"' "$apk_builder" \
     || ! rg -q 'CODEX_UPSTREAM_SOURCE_TAG="rust-v0\.153\.2"' "$apk_builder" \
     || ! rg -q 'CODEX_UPSTREAM_SOURCE_COMMIT="657a993cbee87acf52d14b758ce49dbd46d1b8eb"' "$apk_builder" \
-    || ! rg -q 'CODEX_ANDROID_SHA256="79a6683a62685aa364c1629dab7d68b65133cdf5989e974677bbca9ecd941cac"' "$apk_builder" \
-    || ! rg -q 'CODEX_APP_SERVER_SOURCE_SHA256="1eaa2db090a2f1fc9c23f15e84323416490f7aa855816a7ee33d77d64d1cdd4a"' "$apk_builder" \
-    || ! rg -q 'CODEX_CODE_MODE_HOST_SHA256="fc7e7330840feca2368128ab1d49ddcba11ac23fb90f4d17556d19a233247e5c"' "$apk_builder" \
-    || ! rg -q 'CODEX_APP_SERVER_ANDROID_SHA256="71f0681ca35a2d000443e84a0c141767f9f7aaf2afc198baabc8923e9cf029b1"' "$apk_builder" \
+    || ! rg -q 'CODEX_ANDROID_SHA256="ec902b4393badb57492eca50cb511575d906f0c28ecfda218c898b8de5ed9970"' "$apk_builder" \
+    || ! rg -q 'CODEX_APP_SERVER_SOURCE_SHA256="ad42885f82ba484d585e5c9c8828584ab6e56adf999bfac80e2890f76b9c5dfb"' "$apk_builder" \
+    || ! rg -q 'CODEX_CODE_MODE_HOST_SHA256="89a2aca6b728683c87ce776f80d27e8603b883b6b4d73a336a28e4ae4d0f697b"' "$apk_builder" \
+    || ! rg -q 'CODEX_APP_SERVER_ANDROID_SHA256="f7271723c6aeda6768d6e48ac7c0d2120474761e951d927b538414cc312f604d"' "$apk_builder" \
     || ! rg -q 'CODEX_LICENSE_SHA256="d17f227e4df5da1600391338865ce0f3055211760a36688f816941d58232d8dc"' "$apk_builder" \
-    || ! rg -q 'CODEX_NOTICE_SHA256="8228749dd4dd6026baed0442f80e911308430478449285c865b188d97e6a013c"' "$apk_builder" \
+    || ! rg -q 'CODEX_NOTICE_SHA256="a8b3a4393683f9e8adbdecbafff07df27e34af020e9e23fed905e9a998b81647"' "$apk_builder" \
     || ! rg -q 'CODEX_SCHEMA_BUNDLE_SHA256="e8284c5cb8157554a3dd1e035aadbd4325aea501af56887e9c2e12eb1b9b9448"' "$apk_builder" \
     || ! rg -q 'CODEX_V2_SCHEMA_BUNDLE_SHA256="d3eace08be5dca386bfd1f1e8df650058b4113f1e10870a284d775d75517576a"' "$apk_builder" \
     || ! rg -q 'app-server generate-json-schema' "$apk_builder" \
-    || ! rg -q '0\.153\.3-agentcodi\.1' "$PROJECT_ROOT/NOTICE.md" \
-    || ! rg -q '0\.153\.3-agentcodi\.1' "$PROJECT_ROOT/app/src/main/res/raw/third_party_notices.txt" \
-    || ! rg -q 'a800c309ba36473ccb2097f5b1704914131a5ce5' "$PROJECT_ROOT/NOTICE.md" \
-    || ! rg -q 'a800c309ba36473ccb2097f5b1704914131a5ce5' "$PROJECT_ROOT/app/src/main/res/raw/third_party_notices.txt" \
+    || ! rg -q '0\.153\.3-agentcodi\.2' "$PROJECT_ROOT/NOTICE.md" \
+    || ! rg -q '0\.153\.3-agentcodi\.2' "$PROJECT_ROOT/app/src/main/res/raw/third_party_notices.txt" \
+    || ! rg -q 'f7611891bdf1eb393f179e94adcd9ab745172d6c' "$PROJECT_ROOT/NOTICE.md" \
+    || ! rg -q 'f7611891bdf1eb393f179e94adcd9ab745172d6c' "$PROJECT_ROOT/app/src/main/res/raw/third_party_notices.txt" \
     || ! rg -q '657a993cbee87acf52d14b758ce49dbd46d1b8eb' "$PROJECT_ROOT/NOTICE.md" \
     || ! rg -q '657a993cbee87acf52d14b758ce49dbd46d1b8eb' "$PROJECT_ROOT/app/src/main/res/raw/third_party_notices.txt"; then
-  echo "The 0.7.1 / Codex 0.153.3-agentcodi.1 identity is inconsistent." >&2
+  echo "The 0.7.1 / Codex 0.153.3-agentcodi.2 identity is inconsistent." >&2
   exit 1
 fi
 

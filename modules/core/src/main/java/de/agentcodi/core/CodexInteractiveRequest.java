@@ -28,6 +28,7 @@ public final class CodexInteractiveRequest {
     private final List<CodexUserInputQuestion> questions;
     private final boolean blocking;
     private final long expiresAtMilliseconds;
+    private final boolean justInTimeApproval;
 
     public CodexInteractiveRequest(
         long requestId,
@@ -46,7 +47,8 @@ public final class CodexInteractiveRequest {
         List<CodexNetworkPolicyAmendment> proposedNetworkPolicyAmendments,
         List<CodexUserInputQuestion> questions,
         boolean blocking,
-        long expiresAtMilliseconds
+        long expiresAtMilliseconds,
+        boolean justInTimeApprovalsEnabled
     ) {
         if (kind == null) {
             throw new IllegalArgumentException("Interactive request kind is required");
@@ -70,6 +72,8 @@ public final class CodexInteractiveRequest {
         this.questions = immutableQuestionCopy(questions);
         this.blocking = blocking;
         this.expiresAtMilliseconds = expiresAtMilliseconds;
+        this.justInTimeApproval = justInTimeApprovalsEnabled
+            && kind != Kind.USER_INPUT && this.networkHost.isEmpty();
     }
 
     public long getRequestId() {
@@ -140,6 +144,17 @@ public final class CodexInteractiveRequest {
         return expiresAtMilliseconds;
     }
 
+    public boolean isJustInTimeApproval() {
+        return justInTimeApproval;
+    }
+
+    public boolean allowsDecision(CodexApprovalDecision decision) {
+        return decision != null && kind != Kind.USER_INPUT
+            && (!justInTimeApproval || decision == CodexApprovalDecision.ACCEPT
+                || decision == CodexApprovalDecision.DECLINE
+                || decision == CodexApprovalDecision.CANCEL);
+    }
+
     public CodexInteractiveRequest withFileChanges(List<CodexFileChangeSummary> changes) {
         return new CodexInteractiveRequest(
             requestId,
@@ -158,7 +173,8 @@ public final class CodexInteractiveRequest {
             proposedNetworkPolicyAmendments,
             questions,
             blocking,
-            expiresAtMilliseconds
+            expiresAtMilliseconds,
+            justInTimeApproval
         );
     }
 

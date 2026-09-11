@@ -499,7 +499,7 @@
   <string name="license_material_icons_title">Material Icons</string>
   <string name="license_material_icons_summary">Round interface icons from Google’s Material Design Icons repository · pinned source paths under Apache License 2.0.</string>
   <string name="license_codex_runtime_title">Codex Android community runtime</string>
-  <string name="license_codex_runtime_summary">OpenAI Codex 0.153.3-agentcodi.1 and the local AGENTCODI Android/Termux fork · Apache License 2.0. This is not an official OpenAI Android APK.</string>
+  <string name="license_codex_runtime_summary">OpenAI Codex 0.153.3-agentcodi.2 and the local AGENTCODI Android/Termux fork · Apache License 2.0. This is not an official OpenAI Android APK.</string>
   <string name="license_node_runtime_title">Packaged Node.js toolchain</string>
   <string name="license_node_runtime_summary">Node.js LTS 24.18.0 and its pinned Android runtime dependencies · bundled in the APK and enabled only by an explicit user action or approved Codex command. Includes MIT, Unicode-3.0, Apache-2.0, zlib, and public-domain components.</string>
   <string name="license_npm_runtime_title">Packaged npm toolchain</string>
@@ -524,6 +524,12 @@
   <string name="crash_delete_failed">The crash report could not be deleted.</string>
 
   <string name="approval_allow">Allow</string>
+  <string name="just_in_time_approvals">Just-in-time permissions</string>
+  <string name="just_in_time_approvals_description">Ask before every agent command, file edit and terminal input, in either execution mode. Each approval applies once; a command includes its internal file writes. Your selected filesystem protection stays in effect. Stop the engine to change this setting, then start it again.</string>
+  <string name="just_in_time_approval_title">The agent is paused. You decide.</string>
+  <string name="just_in_time_execute">Execute</string>
+  <string name="just_in_time_approval_explanation">Allow approves only this action. The next action asks again. Decline skips this action; Stop turn ends the turn.</string>
+  <string name="core_approval_once_only">This approval applies only to the current action.</string>
   <string name="approval_decline">Decline</string>
   <string name="approval_stop_turn">Stop turn</string>
   <string name="approval_preview_loading_title">Loading change preview</string>

@@ -144,10 +144,9 @@ public final class CodexRuntimeUpdater {
         unpack(archive, candidate);
         CodexLocalSource source = new CodexLocalSource(options, old, archiveHash, candidate);
         source.verify();
-        // The exact previously reviewed license texts and dependency graph must
-        // still apply. A checksum alone does not approve a new dependency.
+        // Source verification admits only reviewed NOTICE bytes. The license
+        // and dependency graph must still match their reviewed baseline.
         checkHash(candidate.resolve("package/LICENSE"), old.get("CODEX_LICENSE_SHA256"));
-        checkHash(candidate.resolve("package/NOTICE"), old.get("CODEX_NOTICE_SHA256"));
         Map<String, String> next = new LinkedHashMap<String, String>(old);
         next.putAll(inspect(candidate, source.upstreamTag));
         next.put("CODEX_ANDROID_VERSION", source.version);

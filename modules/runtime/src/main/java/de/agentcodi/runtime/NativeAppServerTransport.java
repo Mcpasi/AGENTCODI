@@ -32,7 +32,8 @@ final class NativeAppServerTransport implements CodexRpcTransport {
         String home,
         String stateDirectory,
         String temporaryDirectory,
-        String nativeLibraryDirectory
+        String nativeLibraryDirectory,
+        boolean justInTimeApprovalsEnabled
     ) throws IOException {
         if (engine == null) {
             throw new IllegalArgumentException("Native engine is required");
@@ -53,7 +54,8 @@ final class NativeAppServerTransport implements CodexRpcTransport {
             home,
             stateDirectory,
             temporaryDirectory,
-            nativeLibraryDirectory
+            nativeLibraryDirectory,
+            justInTimeApprovalsEnabled
         );
         if (startedHandle <= 0L) {
             throw new IOException("Native app-server supervisor returned an invalid handle");

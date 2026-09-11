@@ -10,7 +10,7 @@ The source paths, original SVG SHA-256 values, local resource mapping, and
 conversion rules are documented in docs/UI_ICONS.md. The complete Apache
 License 2.0 terms are available in the APK legal-notices view.
 
-Codex CLI/app-server Android ARM64 community build 0.153.3-agentcodi.1
+Codex CLI/app-server Android ARM64 community build 0.153.3-agentcodi.2
 (@mmmbuto/codex-cli-termux), Apache License 2.0.
 OpenAI Codex Copyright 2025 OpenAI.
 Original Android/Termux compatibility work Copyright 2026 Davide A. Guglielmi.
@@ -21,11 +21,11 @@ licensed under the Apache License, Version 2.0.
 This local AGENTCODI fork includes the Android sandbox backend and is not an
 official OpenAI Android APK.
 Distribution source: untagged, commit
-a800c309ba36473ccb2097f5b1704914131a5ce5.
+f7611891bdf1eb393f179e94adcd9ab745172d6c.
 OpenAI source base: rust-v0.153.2, commit
 657a993cbee87acf52d14b758ce49dbd46d1b8eb.
 Package SHA-256:
-79a6683a62685aa364c1629dab7d68b65133cdf5989e974677bbca9ecd941cac.
+ec902b4393badb57492eca50cb511575d906f0c28ecfda218c898b8de5ed9970.
 The archive is supplied locally; there is no npm fallback for this fork.
 AGENTCODI deterministically changes one equal-length app-server data field
 from codex-code-mode-host to libcodex-codehost.so so Android Package Manager

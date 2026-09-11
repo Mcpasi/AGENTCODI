@@ -536,13 +536,16 @@ final class InteractiveRequestDialog {
                 CodexApprovalDecision.ACCEPT,
                 -1
             ));
-            actions.add(new ApprovalAction(
-                activity.getString(R.string.approval_session),
-                CodexApprovalDecision.ACCEPT_FOR_SESSION,
-                -1
-            ));
+            if (request.allowsDecision(CodexApprovalDecision.ACCEPT_FOR_SESSION)) {
+                actions.add(new ApprovalAction(
+                    activity.getString(R.string.approval_session),
+                    CodexApprovalDecision.ACCEPT_FOR_SESSION,
+                    -1
+                ));
+            }
         }
         if (detailsAvailable
+            && request.allowsDecision(CodexApprovalDecision.ACCEPT_WITH_EXEC_POLICY_AMENDMENT)
             && request.getKind() == CodexInteractiveRequest.Kind.COMMAND_APPROVAL
             && !request.getProposedExecPolicyAmendment().isEmpty()) {
             actions.add(new ApprovalAction(
@@ -552,6 +555,9 @@ final class InteractiveRequestDialog {
             ));
         }
         for (int index = 0; index < request.getProposedNetworkPolicyAmendments().size(); index++) {
+            if (!request.allowsDecision(CodexApprovalDecision.APPLY_NETWORK_POLICY_AMENDMENT)) {
+                break;
+            }
             CodexNetworkPolicyAmendment amendment =
                 request.getProposedNetworkPolicyAmendments().get(index);
             actions.add(new ApprovalAction(
@@ -578,6 +584,9 @@ final class InteractiveRequestDialog {
     }
 
     private String approvalTitle(CodexInteractiveRequest request) {
+        if (request.isJustInTimeApproval()) {
+            return activity.getString(R.string.just_in_time_approval_title);
+        }
         if (ToolchainCommand.requestsPackageInstallation(request.getCommand())) {
             return activity.getString(R.string.approval_toolchain_install_title);
         }
@@ -631,7 +640,8 @@ final class InteractiveRequestDialog {
                 .append('\n');
         }
         if (!request.getCommand().isEmpty()) {
-            details.append(activity.getString(R.string.approval_command))
+            details.append(activity.getString(request.isJustInTimeApproval()
+                ? R.string.just_in_time_execute : R.string.approval_command))
                 .append(":\n").append(request.getCommand()).append('\n');
         }
         if (!request.getCwd().isEmpty()) {
@@ -661,7 +671,8 @@ final class InteractiveRequestDialog {
         if (details.length() == 0) {
             details.append(activity.getString(R.string.approval_default_detail));
         }
-        details.append("\n\n").append(activity.getString(R.string.approval_explanation));
+        details.append("\n\n").append(activity.getString(request.isJustInTimeApproval()
+            ? R.string.just_in_time_approval_explanation : R.string.approval_explanation));
         return details.toString();
     }
 

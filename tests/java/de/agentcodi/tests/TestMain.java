@@ -12,6 +12,7 @@ public final class TestMain {
         passed += ChatUiIconResourcesTest.run();
         passed += de.agentcodi.app.TranscriptCardPresentationTest.run();
         passed += ExecutionModeTest.run();
+        passed += JustInTimeApprovalsTest.run();
         passed += CustomReviewModeTest.run();
         passed += JsonCodecTest.run();
         passed += CodexAppServerClientTest.run();

@@ -57,7 +57,13 @@ SHA-256: 22447a04daca6622199143bd785ed62346c817d31d2d144c8b85c8214ad26349
 
 - Just-in-Time permissions have been added and implemented in the new app server (0.153.3-agentcodi.2); consequently, the permission profile is enforced directly within the app server.
 
+- A stop function for the runtime was added via a button.
+
 The tests and the SHA-256 will only be included in the final release.
+
+278 Java and 323 c++ tests passed
+
+SHA-256: 5d16ec3b89a3b9e89c1e95cb8d43afe83d6105e67f876bad502a5838c93ef725
 
 # RELEASE_APK
 

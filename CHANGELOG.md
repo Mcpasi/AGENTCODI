@@ -94,3 +94,15 @@ I need your help here: if you are having problems with the new sandbox—for exa
 265 java tests and 321 C++ tests passed
 
 SHA256: b7a5c3e1a26378510d42f360fc28b6412c6267efaa5a72ca8d9b56eb490f268e
+
+## AGENTCODI 0.7.2 - RELEASE - 2026-09-11
+
+This version was also tested on real devices, including the Samsung Galaxy A05s, Samsung Galaxy A07, Redmi 14c, Redmi Note 15, and the Redmi Pad 2.
+
+- Just-in-Time permissions have been added and implemented in the new app server (0.153.3-agentcodi.2) conseqently, the permission Profile is enforced directly within the app-server
+
+- A stop function for the runtime was added via a button.
+
+278 Java and 325 C++ tests passed
+
+sha256:867afc6e2f8acb39be6b71d190bfff4a4a2e3d74a4eef2bb54a3d5daf557551e

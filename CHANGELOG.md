@@ -53,6 +53,12 @@ Update: Device tests are considered to have failed due to a missing Android back
 
 SHA-256: 22447a04daca6622199143bd785ed62346c817d31d2d144c8b85c8214ad26349
 
+## AGENTCODI 0.7.2
+
+- Just-in-Time permissions have been added and implemented in the new app server (0.153.3-agentcodi.2); consequently, the permission profile is enforced directly within the app server.
+
+The tests and the SHA-256 will only be included in the final release.
+
 # RELEASE_APK
 
 ## AGENTCODI 0.6.11 - RELEASE - 2026-09-04

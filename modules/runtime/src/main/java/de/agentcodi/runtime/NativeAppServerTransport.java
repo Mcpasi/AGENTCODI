@@ -120,7 +120,7 @@ final class NativeAppServerTransport implements CodexRpcTransport {
     }
 
     @Override
-    public void close() {
+    public synchronized void close() {
         long current = handle.getAndSet(0L);
         if (current > 0L) {
             engine.stopAppServer(current, STOP_TIMEOUT_MILLISECONDS);

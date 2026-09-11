@@ -42,6 +42,7 @@ import java.io.InputStream;
 import java.util.Arrays;
 import java.util.List;
 import java.util.Map;
+import java.util.concurrent.CountDownLatch;
 import java.util.concurrent.atomic.AtomicBoolean;
 
 public final class AgentRuntimeService extends Service {
@@ -69,11 +70,14 @@ public final class AgentRuntimeService extends Service {
         ConnectorCatalogSnapshot.stopped();
     private static final Object SESSION_LOCK = new Object();
     private static volatile CodexSessionController sessionController;
+    private static volatile NativeAppServerTransport activeTransport;
     private static volatile McpCatalogController mcpCatalogController;
     private static volatile McpConfigurationController mcpConfigurationController;
     private static volatile ConnectorCatalogController connectorCatalogController;
     private static volatile WorkspaceLayout activeWorkspaceLayout;
     private static volatile AgentRuntimeService activeService;
+    private final AtomicBoolean shutdownStarted = new AtomicBoolean(false);
+    private final CountDownLatch serviceDestroyed = new CountDownLatch(1);
     private volatile Thread bootstrapThread;
     private volatile String notificationTextKey = RuntimeText.NOTIFICATION_STARTING;
 
@@ -98,6 +102,22 @@ public final class AgentRuntimeService extends Service {
             session.getPermissionProfileId(),
             session.isCompatibilityApprovalsEnabled()
         );
+    }
+
+    public static void stopRuntime() {
+        AgentRuntimeService service = activeService;
+        if (service != null) {
+            service.shutdownRuntime();
+            service.stopSelf();
+        } else {
+            synchronized (SESSION_LOCK) {
+                if (activeService == null && sessionController == null
+                    && activeTransport == null && !BOOTSTRAP_ACTIVE.get()
+                    && STATE.snapshot().getPhase() == RuntimePhase.FAILED) {
+                    STATE.stop();
+                }
+            }
+        }
     }
 
     public static Intent createLaunchIntent(
@@ -613,6 +633,10 @@ public final class AgentRuntimeService extends Service {
 
     @Override
     public int onStartCommand(Intent intent, int flags, int startId) {
+        if (shutdownStarted.get() || STATE.snapshot().getPhase() == RuntimePhase.STOPPING) {
+            stopSelf(startId);
+            return START_NOT_STICKY;
+        }
         try {
             CodexExecutionMode executionMode = executionModeFromIntent(intent);
             startRuntimeIfNeeded(
@@ -636,16 +660,46 @@ public final class AgentRuntimeService extends Service {
 
     @Override
     public void onDestroy() {
-        if (activeService == this) {
-            activeService = null;
-        }
-        CodexSessionController controller;
-        McpCatalogController catalogController;
-        McpConfigurationController configurationController;
-        ConnectorCatalogController connectorsController;
         synchronized (SESSION_LOCK) {
+            // Keep startup errors visible when Android tears down a service
+            // that never acquired a runtime. Explicit Stop already owns STOPPING.
+            if (STATE.snapshot().getPhase() == RuntimePhase.FAILED
+                && sessionController == null && activeTransport == null
+                && bootstrapThread == null) {
+                shutdownStarted.set(true);
+            }
+        }
+        shutdownRuntime();
+        synchronized (SESSION_LOCK) {
+            if (activeService == this) {
+                activeService = null;
+            }
+        }
+        stopForeground(STOP_FOREGROUND_REMOVE);
+        serviceDestroyed.countDown();
+        super.onDestroy();
+    }
+
+    private void shutdownRuntime() {
+        final CodexSessionController controller;
+        final NativeAppServerTransport transport;
+        final McpCatalogController catalogController;
+        final McpConfigurationController configurationController;
+        final ConnectorCatalogController connectorsController;
+        final Thread activeBootstrap;
+        final long generation;
+        synchronized (SESSION_LOCK) {
+            if (!shutdownStarted.compareAndSet(false, true)) {
+                return;
+            }
+            generation = STATE.snapshot().getGeneration();
+            if (!STATE.beginStop()) {
+                return;
+            }
             controller = sessionController;
             sessionController = null;
+            transport = activeTransport;
+            activeTransport = null;
             catalogController = mcpCatalogController;
             mcpCatalogController = null;
             configurationController = mcpConfigurationController;
@@ -653,28 +707,67 @@ public final class AgentRuntimeService extends Service {
             connectorsController = connectorCatalogController;
             connectorCatalogController = null;
             activeWorkspaceLayout = null;
+            activeBootstrap = bootstrapThread;
         }
-        if (catalogController != null) {
-            catalogController.close();
+        if (activeBootstrap != null) {
+            activeBootstrap.interrupt();
         }
-        if (configurationController != null) {
-            configurationController.close();
+        // Process termination and bootstrap cleanup must not block the Android UI.
+        new Thread(new Runnable() {
+            @Override
+            public void run() {
+                closeAfterStop(catalogController);
+                closeAfterStop(configurationController);
+                closeAfterStop(connectorsController);
+                closeAfterStop(controller);
+                // A concurrent connection-failure callback may already have
+                // detached the controller while native termination is in flight.
+                closeAfterStop(transport);
+                boolean interrupted = false;
+                if (activeBootstrap != null) {
+                    while (activeBootstrap.isAlive()) {
+                        try {
+                            activeBootstrap.join();
+                        } catch (InterruptedException error) {
+                            interrupted = true;
+                        }
+                    }
+                }
+                // An immediate restart must create a fresh Android service as
+                // well as wait for the old native child to be fully reaped.
+                while (true) {
+                    try {
+                        serviceDestroyed.await();
+                        break;
+                    } catch (InterruptedException error) {
+                        interrupted = true;
+                    }
+                }
+                STATE.finishStop(generation);
+                if (interrupted) {
+                    Thread.currentThread().interrupt();
+                }
+            }
+        }, "agentcodi-runtime-stop").start();
+    }
+
+    private void closeAfterStop(AutoCloseable resource) {
+        if (resource == null) {
+            return;
         }
-        if (connectorsController != null) {
-            connectorsController.close();
+        try {
+            resource.close();
+        } catch (Exception error) {
+            persistCrash("runtime-stop", error);
         }
-        if (controller != null) {
-            controller.close();
-        }
-        if (STATE.snapshot().getPhase() != RuntimePhase.FAILED) {
-            STATE.stop();
-        }
-        BOOTSTRAP_ACTIVE.set(false);
-        Thread activeThread = bootstrapThread;
-        if (activeThread != null) {
-            activeThread.interrupt();
-        }
-        super.onDestroy();
+    }
+
+    private boolean isCurrentBootstrap(long generation) {
+        RuntimeSnapshot runtime = STATE.snapshot();
+        return !shutdownStarted.get()
+            && activeService == this
+            && runtime.getGeneration() == generation
+            && runtime.getPhase() == RuntimePhase.STARTING;
     }
 
     private void startRuntimeIfNeeded(
@@ -683,7 +776,7 @@ public final class AgentRuntimeService extends Service {
         final boolean justInTimeApprovalsEnabled
     ) {
         RuntimePhase phase = STATE.snapshot().getPhase();
-        if (phase == RuntimePhase.STARTING || phase == RuntimePhase.READY) {
+        if (shutdownStarted.get() || !phase.canStart()) {
             return;
         }
         if (!BOOTSTRAP_ACTIVE.compareAndSet(false, true)) {
@@ -706,6 +799,7 @@ public final class AgentRuntimeService extends Service {
         Thread bootstrap = new Thread(new Runnable() {
             @Override
             public void run() {
+                NativeAppServerTransport startedTransport = null;
                 CodexSessionController startedController = null;
                 McpCatalogController startedCatalogController = null;
                 McpConfigurationController startedConfigurationController = null;
@@ -762,7 +856,10 @@ public final class AgentRuntimeService extends Service {
                     }
                     String temporaryDirectory = getCacheDir().getCanonicalPath();
                     String nativeLibraryPath = nativeLibraryDirectory.getCanonicalPath();
-                    NativeAppServerTransport transport = new NativeAppServerTransport(
+                    if (!isCurrentBootstrap(generation)) {
+                        return;
+                    }
+                    startedTransport = new NativeAppServerTransport(
                         engine,
                         codexExecutable.getAbsolutePath(),
                         codeModeHostExecutable.getAbsolutePath(),
@@ -782,7 +879,7 @@ public final class AgentRuntimeService extends Service {
                         justInTimeApprovalsEnabled
                     );
                     startedController = new CodexSessionController(
-                        transport,
+                        startedTransport,
                         layout.getWorkspace().getAbsolutePath(),
                         new CodexSessionController.ConnectionFailureListener() {
                             @Override
@@ -803,6 +900,9 @@ public final class AgentRuntimeService extends Service {
                         compatibilityApprovalsEnabled,
                         justInTimeApprovalsEnabled
                     );
+                    if (!isCurrentBootstrap(generation)) {
+                        return;
+                    }
                     startedController.start();
                     startedCatalogController = new McpCatalogController(
                         startedController,
@@ -815,66 +915,50 @@ public final class AgentRuntimeService extends Service {
                         startedController
                     );
                     CodexSessionController previousController;
+                    NativeAppServerTransport previousTransport;
                     McpCatalogController previousCatalogController;
                     McpConfigurationController previousConfigurationController;
                     ConnectorCatalogController previousConnectorController;
                     synchronized (SESSION_LOCK) {
+                        if (!isCurrentBootstrap(generation)
+                            || !STATE.markReady(
+                                generation,
+                                engine.version(),
+                                engine.diagnostics()
+                                    + ";codex=" + BuildIdentity.CODEX_RUNTIME_VERSION
+                                    + ";transport=stdio",
+                                layout.getWorkspace().getAbsolutePath()
+                            )) {
+                            return;
+                        }
                         previousController = sessionController;
+                        previousTransport = activeTransport;
                         previousCatalogController = mcpCatalogController;
                         previousConfigurationController = mcpConfigurationController;
                         previousConnectorController = connectorCatalogController;
                         sessionController = startedController;
+                        activeTransport = startedTransport;
                         mcpCatalogController = startedCatalogController;
                         mcpConfigurationController = startedConfigurationController;
                         connectorCatalogController = startedConnectorController;
                         activeWorkspaceLayout = layout;
                     }
-                    if (previousCatalogController != null
-                        && previousCatalogController != startedCatalogController) {
-                        previousCatalogController.close();
-                    }
-                    if (previousConfigurationController != null
-                        && previousConfigurationController != startedConfigurationController) {
-                        previousConfigurationController.close();
-                    }
-                    if (previousConnectorController != null
-                        && previousConnectorController != startedConnectorController) {
-                        previousConnectorController.close();
-                    }
-                    if (previousController != null
-                        && previousController != startedController) {
-                        previousController.close();
-                    }
-                    boolean accepted = STATE.markReady(
-                        generation,
-                        engine.version(),
-                        engine.diagnostics()
-                            + ";codex=" + BuildIdentity.CODEX_RUNTIME_VERSION
-                            + ";transport=stdio",
-                        layout.getWorkspace().getAbsolutePath()
-                    );
-                    if (accepted) {
-                        startedCatalogController.refresh();
-                        startedConfigurationController.refresh();
-                        startedConnectorController.refresh(false);
-                        startedCatalogController = null;
-                        startedConfigurationController = null;
-                        startedConnectorController = null;
-                        startedController = null;
-                        clearStoredCrashReport();
-                        updateNotificationSafely(RuntimeText.NOTIFICATION_READY);
-                        Log.i(TAG, BuildIdentity.summary() + " app-server ready");
-                    } else {
-                        synchronized (SESSION_LOCK) {
-                            if (sessionController == startedController) {
-                                sessionController = null;
-                                mcpCatalogController = null;
-                                mcpConfigurationController = null;
-                                connectorCatalogController = null;
-                                activeWorkspaceLayout = null;
-                            }
-                        }
-                    }
+                    closeAfterStop(previousCatalogController);
+                    closeAfterStop(previousConfigurationController);
+                    closeAfterStop(previousConnectorController);
+                    closeAfterStop(previousController);
+                    closeAfterStop(previousTransport);
+                    startedCatalogController.refresh();
+                    startedConfigurationController.refresh();
+                    startedConnectorController.refresh(false);
+                    startedCatalogController = null;
+                    startedConfigurationController = null;
+                    startedConnectorController = null;
+                    startedController = null;
+                    startedTransport = null;
+                    clearStoredCrashReport();
+                    updateNotificationSafely(RuntimeText.NOTIFICATION_READY);
+                    Log.i(TAG, BuildIdentity.summary() + " app-server ready");
                 } catch (Throwable error) {
                     recordServiceFailure("runtime-bootstrap", generation, error);
                 } finally {
@@ -910,6 +994,14 @@ public final class AgentRuntimeService extends Service {
                             }
                         }
                         startedController.close();
+                    }
+                    if (startedTransport != null) {
+                        startedTransport.close();
+                        synchronized (SESSION_LOCK) {
+                            if (activeTransport == startedTransport) {
+                                activeTransport = null;
+                            }
+                        }
                     }
                     BOOTSTRAP_ACTIVE.set(false);
                     if (bootstrapThread == Thread.currentThread()) {
@@ -1030,11 +1122,16 @@ public final class AgentRuntimeService extends Service {
 
     private void updateNotificationSafely(String textKey) {
         try {
-            notificationTextKey = textKey;
-            NotificationManager manager =
-                (NotificationManager) getSystemService(Context.NOTIFICATION_SERVICE);
-            if (manager != null) {
-                manager.notify(NOTIFICATION_ID, buildNotification(textKey));
+            synchronized (SESSION_LOCK) {
+                if (shutdownStarted.get() || activeService != this) {
+                    return;
+                }
+                notificationTextKey = textKey;
+                NotificationManager manager =
+                    (NotificationManager) getSystemService(Context.NOTIFICATION_SERVICE);
+                if (manager != null) {
+                    manager.notify(NOTIFICATION_ID, buildNotification(textKey));
+                }
             }
         } catch (Throwable error) {
             persistCrash("notification-update", error);
@@ -1110,6 +1207,9 @@ public final class AgentRuntimeService extends Service {
     }
 
     private void recordServiceFailure(String source, Throwable error) {
+        if (shutdownStarted.get()) {
+            return;
+        }
         RuntimeSnapshot current = STATE.snapshot();
         long generation = current.getGeneration();
         if (current.getPhase() == RuntimePhase.FAILED) {
@@ -1132,7 +1232,9 @@ public final class AgentRuntimeService extends Service {
     private void recordServiceFailure(String source, long generation, Throwable error) {
         String message = error.getClass().getSimpleName() + ": "
             + safeMessage(error.getMessage());
-        STATE.markFailed(generation, message);
+        if (!STATE.markFailed(generation, message)) {
+            return;
+        }
         persistCrash(source, error);
         updateNotificationSafely(RuntimeText.NOTIFICATION_ERROR);
         Log.e(TAG, "Runtime failure: " + error.getClass().getName());

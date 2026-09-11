@@ -62,6 +62,7 @@ public final class SettingsActivity extends Activity {
                 CodexSessionSnapshot session = AgentRuntimeService.sessionSnapshot();
                 render(runtime, session);
                 long delay = runtime.getPhase() == RuntimePhase.STARTING
+                    || runtime.getPhase() == RuntimePhase.STOPPING
                     || session.isOperationActive()
                     || session.isLoginPending()
                     || session.hasInteractiveRequest()
@@ -83,6 +84,7 @@ public final class SettingsActivity extends Activity {
     private TextView technicalView;
     private LinearLayout runtimeCard;
     private Button startRuntimeButton;
+    private Button stopRuntimeButton;
     private TextView sessionStatusView;
     private TextView accountView;
     private TextView rateLimitsView;
@@ -299,6 +301,26 @@ public final class SettingsActivity extends Activity {
             }
         });
         theme.addWithTopMargin(runtimeCard, startRuntimeButton, 16);
+        stopRuntimeButton = theme.secondaryButton(
+            getString(R.string.settings_runtime_stop)
+        );
+        stopRuntimeButton.setTextColor(theme.danger);
+        theme.setEnabled(stopRuntimeButton, false);
+        stopRuntimeButton.setOnClickListener(new View.OnClickListener() {
+            @Override
+            public void onClick(View view) {
+                launchAfterNotificationPermission = false;
+                pendingLaunchDangerWarningAcknowledged = false;
+                pendingLaunchCompatibilityApprovalsEnabled = false;
+                pendingLaunchJustInTimeApprovalsEnabled = false;
+                if (executionModeSettingsCard != null) {
+                    executionModeSettingsCard.dismiss();
+                }
+                AgentRuntimeService.stopRuntime();
+                render(AgentRuntimeService.snapshot(), AgentRuntimeService.sessionSnapshot());
+            }
+        });
+        theme.addWithTopMargin(runtimeCard, stopRuntimeButton, 8);
         Button copyDiagnosticsButton = theme.secondaryButton(
             getString(R.string.settings_copy_diagnostics)
         );
@@ -607,10 +629,10 @@ public final class SettingsActivity extends Activity {
             phaseColor(runtime.getPhase()),
             18
         ));
-        boolean runtimeCanStart = runtime.getPhase() == RuntimePhase.IDLE
-            || runtime.getPhase() == RuntimePhase.FAILED
-            || runtime.getPhase() == RuntimePhase.STOPPED;
-        theme.setEnabled(startRuntimeButton, runtimeCanStart);
+        theme.setEnabled(startRuntimeButton, runtime.getPhase().canStart());
+        theme.setEnabled(stopRuntimeButton, runtime.getPhase().canStop());
+        stopRuntimeButton.setText(runtime.getPhase() == RuntimePhase.STOPPING
+            ? R.string.settings_runtime_stopping : R.string.settings_runtime_stop);
         startRuntimeButton.setText(
             runtime.getPhase() == RuntimePhase.READY
                 ? getString(R.string.settings_runtime_running)
@@ -792,6 +814,9 @@ public final class SettingsActivity extends Activity {
     }
 
     private void launchRuntime() {
+        if (!AgentRuntimeService.snapshot().getPhase().canStart()) {
+            return;
+        }
         Intent runtimeIntent;
         try {
             runtimeIntent = AgentRuntimeService.createLaunchIntent(
@@ -984,6 +1009,7 @@ public final class SettingsActivity extends Activity {
             case FAILED:
                 return theme.danger;
             case STARTING:
+            case STOPPING:
                 return theme.dark ? 0xFFFCD34D : 0xFFB45309;
             default:
                 return theme.secondary;

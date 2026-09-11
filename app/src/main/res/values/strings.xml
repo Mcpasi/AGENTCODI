@@ -271,6 +271,8 @@
   <string name="settings_subtitle">Runtime, sign-in, language, security, and technical diagnostics.</string>
   <string name="settings_runtime_section">RUNTIME</string>
   <string name="settings_runtime_start">Start Codex runtime</string>
+  <string name="settings_runtime_stop">Stop runtime</string>
+  <string name="settings_runtime_stopping">Runtime is stopping…</string>
   <string name="settings_runtime_restart">Restart runtime</string>
   <string name="settings_runtime_starting">Runtime is starting…</string>
   <string name="settings_runtime_running">Runtime is running</string>
@@ -307,10 +309,12 @@
   <string name="runtime_phase_ready">READY</string>
   <string name="runtime_phase_failed">FAILED</string>
   <string name="runtime_phase_stopped">STOPPED</string>
+  <string name="runtime_phase_stopping">STOPPING</string>
   <string name="runtime_status_idle">Runtime is waiting to be started.</string>
   <string name="runtime_status_starting">Java/C++ runtime and Codex app-server are starting.</string>
   <string name="runtime_status_ready">Codex app-server is initialized.</string>
   <string name="runtime_status_stopped">Runtime was stopped.</string>
+  <string name="runtime_status_stopping">Runtime, active turns, and terminal are stopping.</string>
   <string name="runtime_status_unknown_failure">Unknown runtime error.</string>
   <string name="runtime_connection_failed">Codex app-server connection failed: %1$s</string>
   <string name="runtime_failure_details">Runtime error (%1$s): %2$s</string>

@@ -183,6 +183,16 @@ env LD_LIBRARY_PATH="$TERMUX_PREFIX/lib" "$TEST_BUILD/cpp/agentcodi-engine-test"
 
 "$CLANGXX" -std=c++17 -O2 -Wall -Wextra -Werror -pthread \
   -I"$PROJECT_ROOT/modules/native-engine/src/main/cpp" \
+  "$PROJECT_ROOT/modules/native-engine/src/main/cpp/app_server_process.cpp" \
+  "$PROJECT_ROOT/modules/native-engine/src/main/cpp/png_validator.cpp" \
+  "$PROJECT_ROOT/modules/native-engine/src/main/cpp/sha256.cpp" \
+  "$PROJECT_ROOT/tests/cpp/runtime_stop_test.cpp" \
+  -lz -o "$TEST_BUILD/cpp/runtime-stop-test"
+env LD_LIBRARY_PATH="$TERMUX_PREFIX/lib" "$TEST_BUILD/cpp/runtime-stop-test" \
+  "$TERMUX_PREFIX/lib"
+
+"$CLANGXX" -std=c++17 -O2 -Wall -Wextra -Werror -pthread \
+  -I"$PROJECT_ROOT/modules/native-engine/src/main/cpp" \
   "$PROJECT_ROOT/modules/native-engine/src/main/cpp/workspace_file_reader.cpp" \
   "$PROJECT_ROOT/tests/cpp/workspace_file_reader_test.cpp" \
   -o "$TEST_BUILD/cpp/workspace-file-reader-test"

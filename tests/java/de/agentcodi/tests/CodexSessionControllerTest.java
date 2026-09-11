@@ -2835,6 +2835,99 @@ public final class CodexSessionControllerTest {
         );
     }
 
+    public static void stopsRuntimeWithActiveWork() throws Exception {
+        final FixtureServer server = new FixtureServer(true);
+        server.holdTurnOpen = true;
+        final AtomicInteger failures = new AtomicInteger();
+        final CodexSessionController controller = new CodexSessionController(
+            server, "/private/workspace",
+            new CodexSessionController.ConnectionFailureListener() {
+                @Override
+                public void onConnectionFailed(CodexSessionController value, Throwable error) {
+                    failures.incrementAndGet();
+                }
+            }, "/private/lib/libagentcodi-shell.so"
+        );
+        try {
+            startHeldTurn(server, controller);
+            controller.startTerminal(24, 80);
+            waitFor(new Condition() {
+                @Override
+                public boolean isTrue() {
+                    return controller.terminalSnapshot().isRunning();
+                }
+            }, "terminal running before runtime stop");
+            server.requestFromServer(870L, "item/tool/requestUserInput",
+                singleQuestionRequest("runtime_stop_input", null, true));
+            server.requestFromServer(871L, "item/commandExecution/requestApproval", JsonCodec.object(
+                "threadId", "thr_existing", "turnId", "turn_fixture",
+                "itemId", "runtime_stop_command", "startedAtMs", Long.valueOf(1L),
+                "command", "pwd", "cwd", "/private/workspace"
+            ));
+            waitFor(new Condition() {
+                @Override
+                public boolean isTrue() {
+                    return controller.snapshot().getInteractiveRequests().size() == 2;
+                }
+            }, "pending questions visible before runtime stop");
+            controller.close();
+            controller.close();
+            TestSupport.assertTrue(server.closed, "runtime stop closes its only transport");
+            TestSupport.assertFalse(controller.snapshot().isReady(), "runtime no longer ready");
+            TestSupport.assertFalse(controller.snapshot().isTurnActive(), "runtime stop releases turn");
+            TestSupport.assertFalse(controller.snapshot().isOperationActive(), "pending work released");
+            TestSupport.assertFalse(controller.snapshot().hasInteractiveRequest(), "dialogs removed");
+            TestSupport.assertFalse(controller.terminalSnapshot().isRunning(), "terminal closed");
+            TestSupport.assertFalse(controller.sendMessage("After stop"), "sending requires restart");
+            TestSupport.assertTrue(server.responseFor(870L) == null,
+                "stop cannot invent a user-input answer");
+            TestSupport.assertTrue(server.responseFor(871L) == null,
+                "stop cannot approve pending commands");
+            TestSupport.assertEquals(Integer.valueOf(0), Integer.valueOf(failures.get()),
+                "intentional runtime stop is not reported as a transport failure");
+        } finally {
+            controller.close();
+        }
+    }
+
+    public static void stopsRuntimeDuringInitialization() throws Exception {
+        final FixtureServer server = new FixtureServer(false);
+        server.holdInitializeResponse = true;
+        final CodexSessionController controller = new CodexSessionController(server, "/private/workspace");
+        final AtomicReference<Throwable> startFailure = new AtomicReference<Throwable>();
+        Thread startup = new Thread(new Runnable() {
+            @Override
+            public void run() {
+                try {
+                    controller.start();
+                } catch (Throwable error) {
+                    startFailure.set(error);
+                } finally {
+                    controller.close();
+                }
+            }
+        }, "runtime-stop-initialize-test");
+        try {
+            startup.start();
+            waitFor(new Condition() {
+                @Override
+                public boolean isTrue() {
+                    return server.initializeParams != null;
+                }
+            }, "initialize pending before stop");
+            startup.interrupt();
+            startup.join(2_000L);
+            TestSupport.assertFalse(startup.isAlive(), "stop releases initialize without its RPC timeout");
+            TestSupport.assertTrue(startFailure.get() != null, "cancelled initialize fails pending work");
+            TestSupport.assertTrue(server.closed, "startup transport released");
+            TestSupport.assertFalse(controller.snapshot().isReady(), "cancelled startup remains stopped");
+        } finally {
+            controller.close();
+            startup.interrupt();
+            startup.join(2_000L);
+        }
+    }
+
     private static void acceptsOnlyTrustedBrowserLoginUrl() throws Exception {
         FixtureServer server = new FixtureServer(false);
         final CodexSessionController controller = new CodexSessionController(
@@ -4350,6 +4443,7 @@ public final class CodexSessionControllerTest {
         private volatile String accountType;
         private volatile boolean closed;
         private volatile Map<String, Object> initializeParams;
+        private volatile boolean holdInitializeResponse;
         private volatile Map<String, Object> lastThreadListParams;
         private volatile Map<String, Object> lastThreadResumeParams;
         private volatile Map<String, Object> lastThreadStartParams;
@@ -4451,7 +4545,9 @@ public final class CodexSessionControllerTest {
             }
             if ("initialize".equals(method)) {
                 initializeParams = JsonCodec.requireObject(request.get("params"), "initialize params");
-                respond(request, JsonCodec.object("userAgent", "fixture/1"));
+                if (!holdInitializeResponse) {
+                    respond(request, JsonCodec.object("userAgent", "fixture/1"));
+                }
             } else if ("permissionProfile/list".equals(method)) {
                 respond(request, JsonCodec.object(
                     "data", JsonCodec.array(

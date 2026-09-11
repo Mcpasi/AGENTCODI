@@ -183,8 +183,10 @@ final class ExecutionModeSettingsCard {
             justInTimeApprovalsEnabled = runtime.isJustInTimeApprovalsEnabled();
         }
         justInTimeEditable = runtime.getPhase() != RuntimePhase.STARTING
+            && runtime.getPhase() != RuntimePhase.STOPPING
             && runtime.getPhase() != RuntimePhase.READY;
         controlsEnabled = runtime.getPhase() != RuntimePhase.STARTING
+            && runtime.getPhase() != RuntimePhase.STOPPING
             && (!runtimeReady
                 || (!session.isOperationActive()
                     && !session.isTurnActive()

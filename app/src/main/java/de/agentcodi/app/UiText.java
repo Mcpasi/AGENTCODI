@@ -26,6 +26,9 @@ final class UiText {
         if (phase == RuntimePhase.STOPPED) {
             return context.getString(R.string.runtime_phase_stopped);
         }
+        if (phase == RuntimePhase.STOPPING) {
+            return context.getString(R.string.runtime_phase_stopping);
+        }
         return context.getString(R.string.runtime_phase_idle);
     }
 
@@ -41,6 +44,9 @@ final class UiText {
         }
         if (snapshot.getPhase() == RuntimePhase.STOPPED) {
             return context.getString(R.string.runtime_status_stopped);
+        }
+        if (snapshot.getPhase() == RuntimePhase.STOPPING) {
+            return context.getString(R.string.runtime_status_stopping);
         }
         String raw = snapshot.getMessage();
         if (raw.startsWith(RUNTIME_CONNECTION_FAILURE_PREFIX)) {

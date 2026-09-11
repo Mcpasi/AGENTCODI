@@ -45,7 +45,7 @@ public final class RuntimeStateMachine {
         boolean justInTimeApprovalsEnabled
     ) {
         RuntimePhase phase = snapshot.getPhase();
-        if (phase == RuntimePhase.STARTING || phase == RuntimePhase.READY) {
+        if (!phase.canStart()) {
             throw new IllegalStateException("Runtime cannot start from " + phase);
         }
         long generation = snapshot.getGeneration() + 1L;
@@ -112,11 +112,32 @@ public final class RuntimeStateMachine {
         return true;
     }
 
+    public synchronized boolean beginStop() {
+        if (!snapshot.getPhase().canStop()) {
+            return false;
+        }
+        setStopPhase(RuntimePhase.STOPPING, "Runtime wird gestoppt.");
+        return true;
+    }
+
+    public synchronized boolean finishStop(long generation) {
+        if (snapshot.getGeneration() != generation
+            || snapshot.getPhase() != RuntimePhase.STOPPING) {
+            return false;
+        }
+        stop();
+        return true;
+    }
+
     public synchronized void stop() {
+        setStopPhase(RuntimePhase.STOPPED, "Runtime wurde gestoppt.");
+    }
+
+    private void setStopPhase(RuntimePhase phase, String message) {
         snapshot = new RuntimeSnapshot(
             snapshot.getGeneration(),
-            RuntimePhase.STOPPED,
-            "Runtime wurde gestoppt.",
+            phase,
+            message,
             snapshot.getEngineVersion(),
             snapshot.getDiagnostics(),
             snapshot.getWorkspacePath(),

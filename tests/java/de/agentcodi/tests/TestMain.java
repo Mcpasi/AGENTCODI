@@ -28,6 +28,7 @@ public final class TestMain {
         passed += CrashReportFormatterTest.run();
         passed += CrashReportStoreTest.run();
         passed += RuntimeStateMachineTest.run();
+        passed += RuntimeStopTest.run();
         passed += RuntimeReportFormatterTest.run();
         passed += UiStartupStateTest.run();
         passed += UiLanguageTest.run();

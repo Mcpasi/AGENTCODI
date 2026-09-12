@@ -2,6 +2,10 @@ package de.agentcodi.app;
 
 import de.agentcodi.core.CodexTranscriptItem;
 
+import java.util.HashMap;
+import java.util.List;
+import java.util.Map;
+
 final class TranscriptCardPresentation {
     enum State {
         NONE,
@@ -13,7 +17,62 @@ final class TranscriptCardPresentation {
         OTHER
     }
 
+    // Keep choices across row rebuilds, retaining only the current thread's visible tools.
+    static final class ExpansionState {
+        private String threadId = "";
+        private Map<String, CardExpansion> cards = new HashMap<String, CardExpansion>();
+
+        void update(String activeThreadId, List<CodexTranscriptItem> items) {
+            boolean sameThread = threadId.equals(activeThreadId);
+            Map<String, CardExpansion> visibleCards = new HashMap<String, CardExpansion>();
+            for (CodexTranscriptItem item : items) {
+                if (!isCollapsible(item)) {
+                    continue;
+                }
+                CardExpansion previous = sameThread ? card(item) : null;
+                visibleCards.put(item.getId(), previous == null
+                    ? new CardExpansion(item.getProtocolType()) : previous);
+            }
+            cards = visibleCards;
+            threadId = activeThreadId;
+        }
+
+        boolean isExpanded(CodexTranscriptItem item) {
+            if (!isCollapsible(item)) {
+                return true;
+            }
+            CardExpansion value = card(item);
+            return value != null && value.expanded;
+        }
+
+        void toggle(CodexTranscriptItem item) {
+            CardExpansion value = isCollapsible(item) ? card(item) : null;
+            if (value != null) {
+                value.expanded = !value.expanded;
+            }
+        }
+
+        private CardExpansion card(CodexTranscriptItem item) {
+            CardExpansion value = cards.get(item.getId());
+            return value != null && value.protocolType.equals(item.getProtocolType())
+                ? value : null;
+        }
+    }
+
+    private static final class CardExpansion {
+        private final String protocolType;
+        private boolean expanded;
+
+        private CardExpansion(String protocolType) {
+            this.protocolType = protocolType;
+        }
+    }
+
     private TranscriptCardPresentation() {
+    }
+
+    static boolean isCollapsible(CodexTranscriptItem item) {
+        return item.getKind() == CodexTranscriptItem.Kind.TOOL;
     }
 
     static State state(CodexTranscriptItem item) {

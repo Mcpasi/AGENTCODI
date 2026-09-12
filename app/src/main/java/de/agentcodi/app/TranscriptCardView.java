@@ -6,6 +6,7 @@ import android.graphics.Typeface;
 import android.view.Gravity;
 import android.view.View;
 import android.view.ViewGroup;
+import android.widget.ImageButton;
 import android.widget.ImageView;
 import android.widget.LinearLayout;
 import android.widget.TextView;
@@ -14,17 +15,25 @@ import de.agentcodi.core.CodexTranscriptItem;
 
 final class TranscriptCardView extends LinearLayout {
     private final UiTheme theme;
+    private final TranscriptCardPresentation.ExpansionState expansionState;
     private final ImageView icon;
     private final TextView title;
     private final TextView status;
+    private final ImageButton expansionButton;
+    private final LinearLayout content;
     private final TextView summary;
     private final TextView detailLabel;
     private final TextView detail;
     private CodexTranscriptItem boundItem;
 
-    TranscriptCardView(Context context, UiTheme theme) {
+    TranscriptCardView(
+        Context context,
+        UiTheme theme,
+        TranscriptCardPresentation.ExpansionState expansionState
+    ) {
         super(context);
         this.theme = theme;
+        this.expansionState = expansionState;
         setOrientation(VERTICAL);
         setPadding(theme.dp(14), theme.dp(14), theme.dp(14), theme.dp(14));
         setSaveEnabled(false);
@@ -58,21 +67,49 @@ final class TranscriptCardView extends LinearLayout {
         );
         labelParams.setMarginStart(theme.dp(10));
         header.addView(labels, labelParams);
+        expansionButton = theme.iconButton(R.drawable.ic_transcript_expand, "");
+        expansionButton.setVisibility(GONE);
+        expansionButton.setOnClickListener(new View.OnClickListener() {
+            @Override
+            public void onClick(View view) {
+                if (boundItem != null) {
+                    expansionState.toggle(boundItem);
+                    applyExpansion();
+                }
+            }
+        });
+        LinearLayout.LayoutParams expansionParams = new LinearLayout.LayoutParams(
+            theme.dp(48), theme.dp(48)
+        );
+        expansionParams.setMarginStart(theme.dp(8));
+        header.addView(expansionButton, expansionParams);
         addView(header);
+
+        content = new LinearLayout(context);
+        content.setOrientation(VERTICAL);
+        content.setVisibility(GONE);
+        addView(content, new LinearLayout.LayoutParams(
+            ViewGroup.LayoutParams.MATCH_PARENT,
+            ViewGroup.LayoutParams.WRAP_CONTENT
+        ));
 
         summary = theme.text("", 14, theme.primary);
         summary.setTextIsSelectable(true);
         summary.setLineSpacing(0.0f, 1.2f);
-        theme.addWithTopMargin(this, summary, 12);
+        theme.addWithTopMargin(content, summary, 12);
 
         detailLabel = theme.sectionLabel(context.getString(R.string.transcript_details));
-        theme.addWithTopMargin(this, detailLabel, 12);
+        theme.addWithTopMargin(content, detailLabel, 12);
         detail = theme.text("", 13, theme.primary);
         detail.setTextIsSelectable(true);
         detail.setLineSpacing(0.0f, 1.22f);
         detail.setPadding(theme.dp(12), theme.dp(10), theme.dp(12), theme.dp(10));
         detail.setBackground(theme.background(theme.surfaceRaised, Color.TRANSPARENT, 12));
-        theme.addWithTopMargin(this, detail, 8);
+        theme.addWithTopMargin(content, detail, 8);
+    }
+
+    LinearLayout contentContainer() {
+        return content;
     }
 
     boolean bind(CodexTranscriptItem item) {
@@ -120,7 +157,25 @@ final class TranscriptCardView extends LinearLayout {
         detail.setTypeface(TranscriptCardPresentation.monospaceDetail(item)
             ? Typeface.MONOSPACE : Typeface.DEFAULT);
         detailLabel.setVisibility(detailText.isEmpty() ? GONE : VISIBLE);
+        applyExpansion();
         return true;
+    }
+
+    private void applyExpansion() {
+        boolean expanded = expansionState.isExpanded(boundItem);
+        content.setVisibility(expanded ? VISIBLE : GONE);
+        boolean collapsible = TranscriptCardPresentation.isCollapsible(boundItem);
+        expansionButton.setVisibility(collapsible ? VISIBLE : GONE);
+        if (collapsible) {
+            theme.setIcon(
+                expansionButton,
+                expanded ? R.drawable.ic_transcript_collapse : R.drawable.ic_transcript_expand,
+                getContext().getString(
+                    expanded ? R.string.transcript_collapse : R.string.transcript_expand,
+                    UiText.cardTitle(getContext(), boundItem)
+                )
+            );
+        }
     }
 
     private int kindColor(CodexTranscriptItem item) {

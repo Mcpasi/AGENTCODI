@@ -76,6 +76,8 @@ public final class MainActivity extends Activity {
     private final List<String> renderedTranscriptKeys = new ArrayList<String>();
     private final List<TranscriptRow> renderedTranscriptRows =
         new ArrayList<TranscriptRow>();
+    private final TranscriptCardPresentation.ExpansionState transcriptExpansion =
+        new TranscriptCardPresentation.ExpansionState();
     private final ExecutorService imageOperations = Executors.newSingleThreadExecutor();
     private final ExecutorService importOperations = Executors.newSingleThreadExecutor();
     private final Object preparedImportSendLock = new Object();
@@ -1747,6 +1749,7 @@ public final class MainActivity extends Activity {
     }
 
     private void renderTranscript(String threadId, List<CodexTranscriptItem> items) {
+        transcriptExpansion.update(threadId, items);
         boolean rebuild = !threadId.equals(renderedThreadId)
             || items.size() != renderedTranscriptKeys.size();
         if (!rebuild) {
@@ -1823,15 +1826,16 @@ public final class MainActivity extends Activity {
             ));
             styleTranscriptView(text, item);
         } else {
-            card = new TranscriptCardView(this, theme);
+            card = new TranscriptCardView(this, theme, transcriptExpansion);
             card.bind(item);
             root = card;
         }
 
+        LinearLayout content = card == null ? root : card.contentContainer();
         TextView imageStatus = theme.text("", 12, theme.secondary);
         imageStatus.setLineSpacing(0.0f, 1.15f);
         imageStatus.setVisibility(View.GONE);
-        theme.addWithTopMargin(root, imageStatus, 6);
+        theme.addWithTopMargin(content, imageStatus, 6);
 
         ImageButton imageAction = theme.iconButton(
             R.drawable.ic_chat_download,
@@ -1840,7 +1844,7 @@ public final class MainActivity extends Activity {
         imageAction.setVisibility(View.GONE);
         LinearLayout.LayoutParams imageActionParams = iconMarginParams(0);
         imageActionParams.topMargin = theme.dp(6);
-        root.addView(imageAction, imageActionParams);
+        content.addView(imageAction, imageActionParams);
 
         TranscriptRow row = new TranscriptRow(root, text, card, imageStatus, imageAction);
         bindImageAction(row, item);

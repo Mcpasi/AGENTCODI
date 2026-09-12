@@ -30,7 +30,6 @@
 
 
 <p align="center">
-  <img src="screenshots/agentcodi_demo_01.gif" width="50%">
   <img src="screenshots/AGENTCODI_1.jpg" width="30%">
   &nbsp;
   <img src="screenshots/AGENTCODI_2.jpg" width="30%">

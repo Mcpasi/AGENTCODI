@@ -103,6 +103,8 @@ This version was also tested on real devices, including the Samsung Galaxy A05s,
 
 - A stop function for the runtime was added via a button.
 
+Update: This version has been submitted to APKPure and is currently awaiting approval.
+
 278 Java and 325 C++ tests passed
 
 sha256:867afc6e2f8acb39be6b71d190bfff4a4a2e3d74a4eef2bb54a3d5daf557551e

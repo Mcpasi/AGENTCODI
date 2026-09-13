@@ -3,6 +3,7 @@ package de.agentcodi.tests;
 import de.agentcodi.core.CodexApprovalDecision;
 import de.agentcodi.core.CodexExecutionMode;
 import de.agentcodi.core.CodexInteractiveRequest;
+import de.agentcodi.core.RuntimeSnapshot;
 import de.agentcodi.core.RuntimeStateMachine;
 
 import java.util.ArrayList;
@@ -16,7 +17,8 @@ public final class JustInTimeApprovalsTest {
 
     public static void main(String[] arguments) throws Exception {
         run();
-        CodexSessionControllerTest.justInTimeApprovalsAreOneActionInBothModes();
+        CodexSessionControllerTest.justInTimeApprovalsAreOneActionInProtectedMode();
+        CodexSessionControllerTest.rejectsJustInTimeCompatibilityMode();
         System.out.println("Just-in-time approval tests passed.");
     }
 
@@ -39,25 +41,51 @@ public final class JustInTimeApprovalsTest {
         TestSupport.assertEquals(Collections.emptyList(), decisions(request(
             CodexInteractiveRequest.Kind.USER_INPUT, "", true)), "questions cannot grant approvals");
 
-        RuntimeStateMachine runtime = new RuntimeStateMachine();
+        final RuntimeStateMachine runtime = new RuntimeStateMachine();
         TestSupport.assertFalse(runtime.snapshot().isJustInTimeApprovalsEnabled(), "initially off");
-        for (String mode : Arrays.asList(CodexExecutionMode.PROTECTED_ID,
-            CodexExecutionMode.COMPATIBILITY_ID)) {
-            String profile = CodexExecutionMode.PROTECTED_ID.equals(mode)
-                ? "agentcodi-workspace" : ":danger-full-access";
-            long generation = runtime.beginStart(mode, profile, false, true);
-            TestSupport.assertTrue(runtime.snapshot().isJustInTimeApprovalsEnabled(), "startup selection");
-            runtime.markReady(generation, "fixture", "", "/private/workspace");
-            TestSupport.assertTrue(runtime.snapshot().withExecutionMode(
-                CodexExecutionMode.PROTECTED_ID, "agentcodi-workspace")
-                .isJustInTimeApprovalsEnabled(), "profile switching preserves JIT");
-            runtime.markFailed(generation, "fixture disconnect");
-            runtime.stop();
+        for (final String[] configuration : new String[][] {
+            {CodexExecutionMode.COMPATIBILITY_ID,
+                CodexExecutionMode.COMPATIBILITY_PERMISSION_PROFILE_ID},
+            {CodexExecutionMode.PROTECTED_ID,
+                CodexExecutionMode.COMPATIBILITY_PERMISSION_PROFILE_ID},
+            {CodexExecutionMode.COMPATIBILITY_ID,
+                CodexExecutionMode.PROTECTED_PERMISSION_PROFILE_ID},
+            {CodexExecutionMode.PROTECTED_ID, "unverified-profile"}
+        }) {
+            final RuntimeSnapshot before = runtime.snapshot();
+            TestSupport.expectThrows(IllegalArgumentException.class,
+                () -> runtime.beginStart(configuration[0], configuration[1], false, true),
+                "JIT requires the protected mode and its exact permission profile");
+            TestSupport.assertTrue(before == runtime.snapshot(),
+                "invalid JIT startup changes neither phase nor generation");
         }
+
+        long generation = runtime.beginStart(CodexExecutionMode.PROTECTED_ID,
+            CodexExecutionMode.PROTECTED_PERMISSION_PROFILE_ID, false, true);
+        TestSupport.assertTrue(runtime.snapshot().isJustInTimeApprovalsEnabled(), "startup selection");
+        runtime.markReady(generation, "fixture", "", "/private/workspace");
+        final RuntimeSnapshot ready = runtime.snapshot();
+        TestSupport.assertTrue(ready.withExecutionMode(CodexExecutionMode.PROTECTED_ID,
+            CodexExecutionMode.PROTECTED_PERMISSION_PROFILE_ID).isJustInTimeApprovalsEnabled(),
+            "protected mode preserves JIT");
+        TestSupport.expectThrows(IllegalArgumentException.class,
+            () -> ready.withExecutionMode(CodexExecutionMode.COMPATIBILITY_ID,
+                CodexExecutionMode.COMPATIBILITY_PERMISSION_PROFILE_ID),
+            "active JIT cannot be combined with a compatibility profile");
+        TestSupport.assertTrue(ready == runtime.snapshot(), "rejected mode change keeps ready state");
+        runtime.markFailed(generation, "fixture disconnect");
+        runtime.stop();
         runtime.beginStart();
         TestSupport.assertFalse(runtime.snapshot().isJustInTimeApprovalsEnabled(),
             "unconfirmed service restart returns to the default");
-        return 3;
+        runtime.stop();
+        runtime.beginStart(CodexExecutionMode.COMPATIBILITY_ID,
+            CodexExecutionMode.COMPATIBILITY_PERMISSION_PROFILE_ID, true, false);
+        TestSupport.assertFalse(runtime.snapshot().isJustInTimeApprovalsEnabled(),
+            "compatibility mode remains available without JIT");
+        TestSupport.assertTrue(runtime.snapshot().isCompatibilityApprovalsEnabled(),
+            "ordinary compatibility approvals remain independently available");
+        return 4;
     }
 
     private static List<CodexApprovalDecision> decisions(CodexInteractiveRequest request) {

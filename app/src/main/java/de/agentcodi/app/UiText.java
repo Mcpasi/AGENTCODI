@@ -404,6 +404,10 @@ final class UiText {
     }
 
     private static int coreStatusResource(String raw) {
+        if (("Just-in-time-Berechtigungen sind nur im geschützten Modus verfügbar. "
+            + "Vor dem Wechsel die Engine stoppen und Just-in-time deaktivieren.").equals(raw)) {
+            return R.string.core_just_in_time_mode_switch_blocked;
+        }
         if ("Codex App-Server startet.".equals(raw)) return R.string.core_server_starting;
         if ("Codex App-Server wird initialisiert.".equals(raw)) return R.string.core_server_initializing;
         if ("Codex App-Server ist bereit.".equals(raw)) return R.string.core_server_ready;

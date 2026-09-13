@@ -45,6 +45,7 @@ final class ExecutionModeSettingsCard {
     private final Button compatibilityButton;
     private final LinearLayout compatibilityApprovalCard;
     private final Switch compatibilityApprovalSwitch;
+    private final LinearLayout justInTimeApprovalCard;
     private final Switch justInTimeApprovalSwitch;
 
     private String selectedModeId = CodexExecutionMode.PROTECTED_ID;
@@ -141,6 +142,8 @@ final class ExecutionModeSettingsCard {
         theme.addWithTopMargin(compatibilityApprovalCard, approvalDescription, 6);
         theme.addWithTopMargin(card, compatibilityApprovalCard, 8);
 
+        justInTimeApprovalCard = new LinearLayout(activity);
+        justInTimeApprovalCard.setOrientation(LinearLayout.VERTICAL);
         justInTimeApprovalSwitch = new Switch(activity);
         justInTimeApprovalSwitch.setText(R.string.just_in_time_approvals);
         justInTimeApprovalSwitch.setTextColor(theme.primary);
@@ -151,16 +154,21 @@ final class ExecutionModeSettingsCard {
             new CompoundButton.OnCheckedChangeListener() {
                 @Override
                 public void onCheckedChanged(CompoundButton buttonView, boolean isChecked) {
-                    if (!updatingApprovalSwitch && justInTimeEditable) {
-                        justInTimeApprovalsEnabled = isChecked;
-                        updatePresentation();
+                    if (updatingApprovalSwitch) {
+                        return;
                     }
+                    if (justInTimeEditable
+                        && CodexExecutionMode.PROTECTED_ID.equals(selectedModeId)) {
+                        justInTimeApprovalsEnabled = isChecked;
+                    }
+                    updatePresentation();
                 }
             }
         );
-        theme.addWithTopMargin(card, justInTimeApprovalSwitch, 16);
-        theme.addWithTopMargin(card,
+        justInTimeApprovalCard.addView(justInTimeApprovalSwitch);
+        theme.addWithTopMargin(justInTimeApprovalCard,
             theme.body(activity.getString(R.string.just_in_time_approvals_description)), 6);
+        theme.addWithTopMargin(card, justInTimeApprovalCard, 16);
         updatePresentation();
     }
 
@@ -235,11 +243,13 @@ final class ExecutionModeSettingsCard {
 
     private void chooseCompatibility() {
         if (!controlsEnabled
+            || (!justInTimeEditable && justInTimeApprovalsEnabled)
             || CodexExecutionMode.COMPATIBILITY_ID.equals(selectedModeId)) {
             return;
         }
         if (!runtimeReady) {
             selectedModeId = CodexExecutionMode.COMPATIBILITY_ID;
+            justInTimeApprovalsEnabled = false;
             updatePresentation();
             return;
         }
@@ -275,7 +285,7 @@ final class ExecutionModeSettingsCard {
                             CodexExecutionMode.COMPATIBILITY_ID,
                             true,
                             compatibilityApprovalsEnabled,
-                            justInTimeApprovalsEnabled
+                            false
                         );
                     }
                 }
@@ -315,20 +325,24 @@ final class ExecutionModeSettingsCard {
                 : R.string.execution_mode_compatibility_option
         ));
         theme.setEnabled(protectedButton, controlsEnabled && compatibility);
-        theme.setEnabled(compatibilityButton, controlsEnabled && !compatibility);
+        theme.setEnabled(compatibilityButton, controlsEnabled && !compatibility
+            && (justInTimeEditable || !justInTimeApprovalsEnabled));
         compatibilityApprovalCard.setVisibility(
             compatibility ? View.VISIBLE : View.GONE
+        );
+        justInTimeApprovalCard.setVisibility(
+            compatibility ? View.GONE : View.VISIBLE
         );
         updatingApprovalSwitch = true;
         compatibilityApprovalSwitch.setChecked(
             compatibility && compatibilityApprovalsEnabled
         );
-        justInTimeApprovalSwitch.setChecked(justInTimeApprovalsEnabled);
+        justInTimeApprovalSwitch.setChecked(!compatibility && justInTimeApprovalsEnabled);
         updatingApprovalSwitch = false;
-        theme.setEnabled(justInTimeApprovalSwitch, justInTimeEditable);
+        theme.setEnabled(justInTimeApprovalSwitch, justInTimeEditable && !compatibility);
         theme.setEnabled(
             compatibilityApprovalSwitch,
-            controlsEnabled && compatibility && !justInTimeApprovalsEnabled
+            controlsEnabled && compatibility
         );
     }
 
@@ -339,7 +353,7 @@ final class ExecutionModeSettingsCard {
         boolean compatibility = CodexExecutionMode.COMPATIBILITY_ID.equals(
             selectedModeId
         );
-        if (!controlsEnabled || !compatibility || justInTimeApprovalsEnabled) {
+        if (!controlsEnabled || !compatibility) {
             updatePresentation();
             return;
         }

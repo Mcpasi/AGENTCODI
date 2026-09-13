@@ -531,7 +531,8 @@
 
   <string name="approval_allow">Allow</string>
   <string name="just_in_time_approvals">Just-in-time permissions</string>
-  <string name="just_in_time_approvals_description">Ask before every agent command, file edit and terminal input, in either execution mode. Each approval applies once; a command includes its internal file writes. Your selected filesystem protection stays in effect. Stop the engine to change this setting, then start it again.</string>
+  <string name="just_in_time_approvals_description">Available only in protected mode. Ask before every agent command, file edit and terminal input. Each approval applies once; a command includes its internal file writes. Stop the engine to change this setting or to switch to compatibility mode while it is enabled.</string>
+  <string name="core_just_in_time_mode_switch_blocked">Just-in-time permissions are available only in protected mode. Stop the engine and disable just-in-time permissions before switching modes.</string>
   <string name="just_in_time_approval_title">The agent is paused. You decide.</string>
   <string name="just_in_time_execute">Execute</string>
   <string name="just_in_time_approval_explanation">Allow approves only this action. The next action asks again. Decline skips this action; Stop turn ends the turn.</string>

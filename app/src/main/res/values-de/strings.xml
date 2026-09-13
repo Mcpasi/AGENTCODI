@@ -531,7 +531,8 @@
 
   <string name="approval_allow">Erlauben</string>
   <string name="just_in_time_approvals">Just-in-time-Berechtigungen</string>
-  <string name="just_in_time_approvals_description">Vor jedem Agentenbefehl, jeder Dateiänderung und Terminaleingabe fragen – in beiden Ausführungsmodi. Jede Freigabe gilt einmal; ein Befehl umfasst seine internen Schreibzugriffe. Der gewählte Dateisystemschutz bleibt bestehen. Zum Umschalten die Engine stoppen und danach neu starten.</string>
+  <string name="just_in_time_approvals_description">Nur im geschützten Modus verfügbar. Vor jedem Agentenbefehl, jeder Dateiänderung und Terminaleingabe fragen. Jede Freigabe gilt einmal; ein Befehl umfasst seine internen Schreibzugriffe. Zum Ändern dieser Einstellung die Engine stoppen. Solange sie aktiv ist, erfordert auch der Wechsel in den Kompatibilitätsmodus einen Stopp der Engine.</string>
+  <string name="core_just_in_time_mode_switch_blocked">Just-in-time-Berechtigungen sind nur im geschützten Modus verfügbar. Vor dem Wechsel die Engine stoppen und Just-in-time deaktivieren.</string>
   <string name="just_in_time_approval_title">Der Agent pausiert. Du entscheidest.</string>
   <string name="just_in_time_execute">Ausführen</string>
   <string name="just_in_time_approval_explanation">Erlauben gibt nur diese Aktion frei. Die nächste Aktion fragt erneut. Ablehnen überspringt diese Aktion; Turn stoppen beendet den Turn.</string>

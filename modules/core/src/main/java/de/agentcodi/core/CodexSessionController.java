@@ -238,6 +238,9 @@ public final class CodexSessionController
             throw new IllegalArgumentException("Workspace path must be absolute");
         }
         ExecutionModeValues mode = validatedExecutionMode(executionMode);
+        CodexExecutionMode.requireJustInTimeApprovalSupport(
+            mode.id, mode.permissionProfileId, justInTimeApprovalsEnabled
+        );
         this.workspacePath = workspacePath;
         this.connectionFailureListener = connectionFailureListener;
         this.reviewMode = reviewMode;
@@ -555,6 +558,16 @@ public final class CodexSessionController
         synchronized (this) {
             if (closed || !ready) {
                 setUserError("Codex App-Server ist nicht bereit.");
+                return false;
+            }
+            if (justInTimeApprovalsEnabled
+                && !CodexExecutionMode.supportsJustInTimeApprovals(
+                    candidate.id, candidate.permissionProfileId
+                )) {
+                setUserError(
+                    "Just-in-time-Berechtigungen sind nur im geschützten Modus verfügbar. "
+                        + "Vor dem Wechsel die Engine stoppen und Just-in-time deaktivieren."
+                );
                 return false;
             }
             if (candidate.id.equals(executionModeId)
@@ -4442,8 +4455,7 @@ public final class CodexSessionController
         // The app-server protocol calls its internal UnlessTrusted policy
         // "untrusted". Unlike on-request, it still asks in an unrestricted
         // permission profile before patches and commands that are not safe reads.
-        return !justInTimeApprovalsEnabled
-            && dangerousExecutionMode && compatibilityApprovalsEnabled
+        return dangerousExecutionMode && compatibilityApprovalsEnabled
             ? APPROVAL_POLICY_UNTRUSTED
             : APPROVAL_POLICY_ON_REQUEST;
     }

@@ -157,6 +157,9 @@ public final class AgentRuntimeService extends Service {
             executionModeId,
             dangerWarningAcknowledged
         );
+        CodexExecutionMode.requireJustInTimeApprovalSupport(
+            mode.getId(), mode.getPermissionProfileId(), justInTimeApprovalsEnabled
+        );
         return new Intent(context, AgentRuntimeService.class)
             .putExtra(EXTRA_EXECUTION_MODE, mode.getId())
             .putExtra(
@@ -779,6 +782,10 @@ public final class AgentRuntimeService extends Service {
         if (shutdownStarted.get() || !phase.canStart()) {
             return;
         }
+        CodexExecutionMode.requireJustInTimeApprovalSupport(
+            executionMode.getId(), executionMode.getPermissionProfileId(),
+            justInTimeApprovalsEnabled
+        );
         if (!BOOTSTRAP_ACTIVE.compareAndSet(false, true)) {
             return;
         }

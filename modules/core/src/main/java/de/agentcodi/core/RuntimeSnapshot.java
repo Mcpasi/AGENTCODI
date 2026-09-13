@@ -85,6 +85,9 @@ public final class RuntimeSnapshot {
         boolean compatibilityApprovalsEnabled,
         boolean justInTimeApprovalsEnabled
     ) {
+        CodexExecutionMode.requireJustInTimeApprovalSupport(
+            executionModeId, permissionProfileId, justInTimeApprovalsEnabled
+        );
         this.generation = generation;
         this.phase = Objects.requireNonNull(phase, "phase");
         this.message = nonNull(message);

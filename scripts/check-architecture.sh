@@ -1023,13 +1023,13 @@ if ! rg -q 'VERSION_NAME = "0\.7\.4"' "$core_root/BuildIdentity.java" \
     || ! rg -q 'VERSION_CODE="85"' "$apk_builder" \
     || ! rg -q 'CODEX_ANDROID_VERSION="0\.153\.3-agentcodi\.2"' "$apk_builder" \
     || ! rg -q 'CODEX_TERMUX_SOURCE_TAG="untagged"' "$apk_builder" \
-    || ! rg -q 'CODEX_TERMUX_SOURCE_COMMIT="f7611891bdf1eb393f179e94adcd9ab745172d6c"' "$apk_builder" \
+    || ! rg -q 'CODEX_TERMUX_SOURCE_COMMIT="af5fec312538b25568fd83a0090efe3c417807d1"' "$apk_builder" \
     || ! rg -q 'CODEX_UPSTREAM_SOURCE_TAG="rust-v0\.153\.2"' "$apk_builder" \
     || ! rg -q 'CODEX_UPSTREAM_SOURCE_COMMIT="657a993cbee87acf52d14b758ce49dbd46d1b8eb"' "$apk_builder" \
-    || ! rg -q 'CODEX_ANDROID_SHA256="ec902b4393badb57492eca50cb511575d906f0c28ecfda218c898b8de5ed9970"' "$apk_builder" \
-    || ! rg -q 'CODEX_APP_SERVER_SOURCE_SHA256="ad42885f82ba484d585e5c9c8828584ab6e56adf999bfac80e2890f76b9c5dfb"' "$apk_builder" \
-    || ! rg -q 'CODEX_CODE_MODE_HOST_SHA256="89a2aca6b728683c87ce776f80d27e8603b883b6b4d73a336a28e4ae4d0f697b"' "$apk_builder" \
-    || ! rg -q 'CODEX_APP_SERVER_ANDROID_SHA256="f7271723c6aeda6768d6e48ac7c0d2120474761e951d927b538414cc312f604d"' "$apk_builder" \
+    || ! rg -q 'CODEX_ANDROID_SHA256="4c8da95f209b990d253481f974497974ce445e8900749347ee15cb23c60ddbaa"' "$apk_builder" \
+    || ! rg -q 'CODEX_APP_SERVER_SOURCE_SHA256="1e4addae704bcd703df93fe45057531826382e3033bd9b078b4255c6c2fd345b"' "$apk_builder" \
+    || ! rg -q 'CODEX_CODE_MODE_HOST_SHA256="82c2ab9766db335c17debb32cb064bc6928452aff54a9d2e10460f19e25a9beb"' "$apk_builder" \
+    || ! rg -q 'CODEX_APP_SERVER_ANDROID_SHA256="b916f017f73c6974c88a2ca564e821ac8443e3711b29df1f1425f514a7d57cf4"' "$apk_builder" \
     || ! rg -q 'CODEX_LICENSE_SHA256="d17f227e4df5da1600391338865ce0f3055211760a36688f816941d58232d8dc"' "$apk_builder" \
     || ! rg -q 'CODEX_NOTICE_SHA256="a8b3a4393683f9e8adbdecbafff07df27e34af020e9e23fed905e9a998b81647"' "$apk_builder" \
     || ! rg -q 'CODEX_SCHEMA_BUNDLE_SHA256="e8284c5cb8157554a3dd1e035aadbd4325aea501af56887e9c2e12eb1b9b9448"' "$apk_builder" \
@@ -1037,8 +1037,8 @@ if ! rg -q 'VERSION_NAME = "0\.7\.4"' "$core_root/BuildIdentity.java" \
     || ! rg -q 'app-server generate-json-schema' "$apk_builder" \
     || ! rg -q '0\.153\.3-agentcodi\.2' "$PROJECT_ROOT/NOTICE.md" \
     || ! rg -q '0\.153\.3-agentcodi\.2' "$PROJECT_ROOT/app/src/main/res/raw/third_party_notices.txt" \
-    || ! rg -q 'f7611891bdf1eb393f179e94adcd9ab745172d6c' "$PROJECT_ROOT/NOTICE.md" \
-    || ! rg -q 'f7611891bdf1eb393f179e94adcd9ab745172d6c' "$PROJECT_ROOT/app/src/main/res/raw/third_party_notices.txt" \
+    || ! rg -q 'af5fec312538b25568fd83a0090efe3c417807d1' "$PROJECT_ROOT/NOTICE.md" \
+    || ! rg -q 'af5fec312538b25568fd83a0090efe3c417807d1' "$PROJECT_ROOT/app/src/main/res/raw/third_party_notices.txt" \
     || ! rg -q '657a993cbee87acf52d14b758ce49dbd46d1b8eb' "$PROJECT_ROOT/NOTICE.md" \
     || ! rg -q '657a993cbee87acf52d14b758ce49dbd46d1b8eb' "$PROJECT_ROOT/app/src/main/res/raw/third_party_notices.txt"; then
   echo "The 0.7.4 / Codex 0.153.3-agentcodi.2 identity is inconsistent." >&2

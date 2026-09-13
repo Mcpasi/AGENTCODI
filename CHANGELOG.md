@@ -65,6 +65,20 @@ The tests and the SHA-256 will only be included in the final release.
 
 SHA-256: 5d16ec3b89a3b9e89c1e95cb8d43afe83d6105e67f876bad502a5838c93ef725
 
+## AGENTCODI 0.7.4 
+
+- The command and file-change cards were designed to be collapsible.
+
+- "Just-in-Time" processing has been hardened; a security vulnerability arising from permissions—which allowed the model to access areas outside its intended scope—has now been fixed.
+
+A downside of just-in-time hardening is that the model can no longer reliably execute Node.js in sandbox mode; however, Python and ripgrep continue to work without restrictions.
+
+At this time, there are no plans to relax JIT or the sandbox for Node.js; however, experienced users can use `Danger-full-access` to gain full access to Node.js.
+
+280 java and 323 c++ tests passed 
+
+SHA-256:bf93ca5993d451af6b1ed38eb1575e64c1844edf775e00fd295159793d88a0b4
+
 # RELEASE_APK
 
 ## AGENTCODI 0.6.11 - RELEASE - 2026-09-04

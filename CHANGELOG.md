@@ -122,3 +122,19 @@ Update: This version has been submitted to APKPure and is currently awaiting app
 278 Java and 325 C++ tests passed
 
 sha256:867afc6e2f8acb39be6b71d190bfff4a4a2e3d74a4eef2bb54a3d5daf557551e
+
+## AGENTCODI 0.7.4 - RELEASE - 2026-09-14
+
+- The command and file-change cards were designed to be collapsible.
+
+- "Just-in-Time" processing has been hardened; a security vulnerability arising from permissions—which allowed the model to access areas outside its intended scope—has now been fixed.
+
+A downside of just-in-time hardening is that the model can no longer reliably execute Node.js in sandbox mode; however, Python and ripgrep continue to work without restrictions.
+
+At this time, there are no plans to relax JIT or the sandbox for Node.js; however, experienced users can use `Danger-full-access` to gain full access to Node.js.
+
+Device tests were conducted on the following devices: Samsung Galaxy A05s, Samsung Galaxy A07, Redmi C14, Redmi Note 15, and Redmi Pad 2.
+
+280 java and 323 c++ tests passed.
+
+SHA256:d47090a2d97aa2827c7eb1f38834f52e25c3260e6c89d24b8ee364e736bfff28

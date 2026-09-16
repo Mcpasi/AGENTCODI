@@ -142,7 +142,7 @@ Update: This version has been submitted to APKPure and is currently awaiting app
 
 sha256:867afc6e2f8acb39be6b71d190bfff4a4a2e3d74a4eef2bb54a3d5daf557551e
 
-## AGENTCODI 0.7.4 - RELEASE - 2026-09-14
+## AGENTCODI 0.7.4 - RELEASE - 2026-09-13
 
 - The command and file-change cards were designed to be collapsible.
 
@@ -157,3 +157,21 @@ Device tests were conducted on the following devices: Samsung Galaxy A05s, Samsu
 280 java and 323 c++ tests passed.
 
 SHA256:d47090a2d97aa2827c7eb1f38834f52e25c3260e6c89d24b8ee364e736bfff28
+
+## AGENTCODI 0.7.5 - RELEASE - 2026-09-16
+
+#### Import and export bug fix
+
+- Hardened workspace imports by validating sanitized provider names before any file data is read, preventing credential-like filenames from bypassing the import guard.
+
+- Fixed workspace archive file-limit accounting so files omitted during export no longer consume the regular-file limit.
+
+#### Supervisor bug fix
+
+- Fixed C++ app-server transport handling so a NUL byte inside a received transport chunk no longer causes valid JSON frames in the same chunk to be discarded.
+
+- Fixed handling of in-progress `imageGeneration` items. Image-generation events without a `result` field are now accepted while still enforcing full validation once a result is present.
+
+292 Java and 329 C++ tests passed
+
+SHA-256:099e43e9fdbd4c547d237b9c3b22dc63d1dfcae0f7fa0d3dd7344e52b48d2238

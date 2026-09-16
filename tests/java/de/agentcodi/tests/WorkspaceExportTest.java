@@ -48,13 +48,14 @@ public final class WorkspaceExportTest {
         rejectsArchiveFileCountAboveLimit();
         omitsUnsafePortableArchiveNameWithoutBlockingSibling();
         omitsPortableArchiveNameCollisionWithoutBlockingSibling();
+        doesNotChargeOmittedArchiveEntriesAgainstTheFileLimit();
         archivesAcrossProviderTimestampPrecision();
         rejectsWorkspaceMutationDuringArchive();
         rejectsArchiveSymlinkSwapBeforeOpen();
         archivesRegularFilesWhileOmittingSymbolicEntries();
         archivesRegularFilesWhileOmittingHardLinks();
         countsEveryEntryHiddenByAnUnsafeArchiveFolder();
-        return 28;
+        return 29;
     }
 
     private static void catalogsAllRegularFileTypes() throws Exception {
@@ -968,6 +969,67 @@ public final class WorkspaceExportTest {
             TestSupport.assertTrue(entries.containsKey("Report.bin"), "first stable name wins");
             TestSupport.assertFalse(entries.containsKey("report.bin"), "colliding name omitted");
             TestSupport.assertTrue(entries.containsKey("safe.bin"), "safe sibling remains");
+        } finally {
+            deleteRecursively(base);
+        }
+    }
+
+    /**
+     * An entry the archive omits must not consume the regular-file bound. The
+     * exact limit stays usable while the omission is still reported.
+     */
+    private static void doesNotChargeOmittedArchiveEntriesAgainstTheFileLimit()
+        throws Exception {
+        Path base = Files.createTempDirectory("agentcodi-export-omitted-count-limit-");
+        try {
+            WorkspaceLayout layout = WorkspaceLayout.create(base.toFile());
+            Files.write(layout.getWorkspace().toPath().resolve("Report.bin"), new byte[] {1});
+            Files.write(layout.getWorkspace().toPath().resolve("report.bin"), new byte[] {2});
+
+            WorkspaceArchive.Summary inspected = WorkspaceArchive.inspect(
+                layout.getWorkspace(),
+                1,
+                10L,
+                10L,
+                256,
+                8
+            );
+            TestSupport.assertEquals(
+                Integer.valueOf(1),
+                Integer.valueOf(inspected.getFileCount()),
+                "the colliding twin does not consume the exact file limit"
+            );
+            TestSupport.assertEquals(
+                Integer.valueOf(1),
+                Integer.valueOf(inspected.getOmittedEntryCount()),
+                "the omitted twin is still reported"
+            );
+
+            ByteArrayOutputStream destination = new ByteArrayOutputStream();
+            WorkspaceArchive.Summary summary = WorkspaceArchive.write(
+                layout.getWorkspace(),
+                destination,
+                1,
+                10L,
+                10L,
+                256,
+                8
+            );
+            Map<String, byte[]> entries = unzip(destination.toByteArray());
+            TestSupport.assertEquals(
+                Integer.valueOf(1),
+                Integer.valueOf(summary.getFileCount()),
+                "the ZIP holds the single exportable file"
+            );
+            TestSupport.assertEquals(
+                Integer.valueOf(1),
+                Integer.valueOf(entries.size()),
+                "the ZIP contains exactly one entry"
+            );
+            TestSupport.assertTrue(
+                java.util.Arrays.equals(new byte[] {1}, entries.get("Report.bin")),
+                "the exported entry keeps its bytes"
+            );
         } finally {
             deleteRecursively(base);
         }

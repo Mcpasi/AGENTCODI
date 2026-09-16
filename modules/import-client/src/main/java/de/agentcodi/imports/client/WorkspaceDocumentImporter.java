@@ -922,16 +922,26 @@ public final class WorkspaceDocumentImporter {
             throw new IOException("Selected document name exceeds the import limit");
         }
         String candidate = proposed == null ? "" : proposed.trim();
-        if (!candidate.isEmpty()
-            && (CredentialGuard.containsLikelyCredential(candidate)
-                || CredentialGuard.isLikelyCredentialFileName(candidate))) {
-            throw new IOException("Credential-shaped document names cannot be imported");
-        }
+        requireNonCredentialName(candidate);
         String safe = sanitizeName(
             candidate,
             WorkspaceImportLimits.MAXIMUM_DISPLAY_NAME_CHARACTERS
         );
-        return safe.isEmpty() ? "imported-file" : safe;
+        String result = safe.isEmpty() ? "imported-file" : safe;
+        // Sanitizing can turn a name the guard accepts into a credential-shaped
+        // one, for example by dropping the trailing characters of "password .".
+        // The sanitized value is what is stored and later attached to a Codex
+        // turn, so it has to clear the same guard before any byte is copied.
+        requireNonCredentialName(result);
+        return result;
+    }
+
+    private static void requireNonCredentialName(String name) throws IOException {
+        if (!name.isEmpty()
+            && (CredentialGuard.containsLikelyCredential(name)
+                || CredentialGuard.isLikelyCredentialFileName(name))) {
+            throw new IOException("Credential-shaped document names cannot be imported");
+        }
     }
 
     private static String safeStorageExtension(String displayName) {

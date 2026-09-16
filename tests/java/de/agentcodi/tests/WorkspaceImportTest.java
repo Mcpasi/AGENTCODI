@@ -40,6 +40,7 @@ public final class WorkspaceImportTest {
         createsDistinctCopiesWithoutOverwriting();
         rejectsFinalNameRaceWithoutOverwriting();
         rejectsCredentialShapedNamesBeforeCopy();
+        rejectsSanitizedCredentialShapedNamesBeforeCopy();
         enforcesDeclaredAndObservedSizeLimits();
         cleansPartialFileAfterSourceFailure();
         rejectsSymbolicImportsRoot();
@@ -47,7 +48,7 @@ public final class WorkspaceImportTest {
         keepsVerifiedHandlesOpenThroughTheSendScope();
         rejectsChangesAcrossThePreparedBatchWindow();
         validatesBoundedImmutableSelections();
-        return 13;
+        return 14;
     }
 
     private static void validatesTransientResultReadGrant() throws Exception {
@@ -352,6 +353,112 @@ public final class WorkspaceImportTest {
             );
         } finally {
             deleteRecursively(base);
+        }
+    }
+
+    /**
+     * A provider name the guard accepts can still sanitize into a
+     * credential-shaped name. The sanitized value is the stored and attached
+     * one, so it must fail closed before the document is read or installed.
+     */
+    private static void rejectsSanitizedCredentialShapedNamesBeforeCopy()
+        throws Exception {
+        final Path base = Files.createTempDirectory("agentcodi-import-sanitized-secret-");
+        try {
+            final WorkspaceLayout layout = WorkspaceLayout.create(base.toFile());
+            final boolean[] installed = new boolean[] {false};
+            final WorkspaceDocumentImporter importer = new WorkspaceDocumentImporter(
+                new WorkspaceDocumentInstaller() {
+                    @Override
+                    public void installNoReplace(
+                        File workspaceDirectory,
+                        String pendingName,
+                        String finalName,
+                        long expectedByteCount
+                    ) throws IOException {
+                        installed[0] = true;
+                        TEST_INSTALLER.installNoReplace(
+                            workspaceDirectory,
+                            pendingName,
+                            finalName,
+                            expectedByteCount
+                        );
+                    }
+                }
+            );
+            for (final String name : Arrays.asList(
+                "password .",
+                "secret .",
+                "auth.json .",
+                "credentials ."
+            )) {
+                final CountingSource source =
+                    new CountingSource(new byte[] {1, 2, 3, 4});
+                TestSupport.expectThrows(
+                    IOException.class,
+                    new TestSupport.ThrowingRunnable() {
+                        @Override
+                        public void run() throws Exception {
+                            importer.importDocument(
+                                layout.getWorkspace(),
+                                layout.getImports(),
+                                name,
+                                "application/octet-stream",
+                                4L,
+                                source
+                            );
+                        }
+                    },
+                    "sanitized credential-shaped import name must fail closed: " + name
+                );
+                TestSupport.assertEquals(
+                    Integer.valueOf(0),
+                    Integer.valueOf(source.readCount),
+                    "no document byte is read for: " + name
+                );
+                TestSupport.assertTrue(
+                    source.closed,
+                    "the rejected document source is still closed for: " + name
+                );
+            }
+            TestSupport.assertFalse(
+                installed[0],
+                "a rejected credential name never reaches the atomic installer"
+            );
+            TestSupport.assertEquals(
+                Integer.valueOf(0),
+                Integer.valueOf(importEntryCount(layout)),
+                "rejected sanitized credential names leave no workspace copy"
+            );
+        } finally {
+            deleteRecursively(base);
+        }
+    }
+
+    private static final class CountingSource extends ByteArrayInputStream {
+        private int readCount;
+        private boolean closed;
+
+        private CountingSource(byte[] bytes) {
+            super(bytes);
+        }
+
+        @Override
+        public synchronized int read() {
+            readCount++;
+            return super.read();
+        }
+
+        @Override
+        public synchronized int read(byte[] buffer, int offset, int length) {
+            readCount++;
+            return super.read(buffer, offset, length);
+        }
+
+        @Override
+        public void close() throws IOException {
+            closed = true;
+            super.close();
         }
     }
 

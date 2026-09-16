@@ -492,11 +492,6 @@ public final class WorkspaceArchive {
                         "Workspace contains a file above the archive limit"
                     );
                 }
-                if (members.size() >= maximumFiles) {
-                    throw new ArchiveBoundaryException(
-                        "Workspace regular-file count exceeds the export limit"
-                    );
-                }
                 final WorkspaceExportFile source;
                 try {
                     source = WorkspaceExportFile.inspect(
@@ -516,6 +511,14 @@ public final class WorkspaceArchive {
                 if (!portablePaths.reserveFile(archivePath)) {
                     omitEntry();
                     continue;
+                }
+                // Only an entry that really enters the ZIP may consume the
+                // regular-file bound. Charging an omitted entry against it turns
+                // an exportable workspace into a failed export.
+                if (members.size() >= maximumFiles) {
+                    throw new ArchiveBoundaryException(
+                        "Workspace regular-file count exceeds the export limit"
+                    );
                 }
                 long nextTotal = checkedAdd(totalBytes, source.getByteCount());
                 if (nextTotal > maximumTotalBytes) {

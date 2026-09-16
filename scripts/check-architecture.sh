@@ -1014,13 +1014,13 @@ if ! rg -q 'PYTHON_SOURCE_EXTENSION_COUNT="75"' "$apk_builder" \
   exit 1
 fi
 
-if ! rg -q 'VERSION_NAME = "0\.7\.4"' "$core_root/BuildIdentity.java" \
-    || ! rg -q 'VERSION_CODE = 85' "$core_root/BuildIdentity.java" \
+if ! rg -q 'VERSION_NAME = "0\.7\.5"' "$core_root/BuildIdentity.java" \
+    || ! rg -q 'VERSION_CODE = 86' "$core_root/BuildIdentity.java" \
     || ! rg -q 'CODEX_RUNTIME_VERSION = "0\.153\.3-agentcodi\.2"' "$core_root/BuildIdentity.java" \
-    || ! rg -q 'android:versionName="0\.7\.4"' "$manifest" \
-    || ! rg -q 'android:versionCode="85"' "$manifest" \
-    || ! rg -q 'APP_VERSION="0\.7\.4"' "$apk_builder" \
-    || ! rg -q 'VERSION_CODE="85"' "$apk_builder" \
+    || ! rg -q 'android:versionName="0\.7\.5"' "$manifest" \
+    || ! rg -q 'android:versionCode="86"' "$manifest" \
+    || ! rg -q 'APP_VERSION="0\.7\.5"' "$apk_builder" \
+    || ! rg -q 'VERSION_CODE="86"' "$apk_builder" \
     || ! rg -q 'CODEX_ANDROID_VERSION="0\.153\.3-agentcodi\.2"' "$apk_builder" \
     || ! rg -q 'CODEX_TERMUX_SOURCE_TAG="untagged"' "$apk_builder" \
     || ! rg -q 'CODEX_TERMUX_SOURCE_COMMIT="af5fec312538b25568fd83a0090efe3c417807d1"' "$apk_builder" \
@@ -1041,7 +1041,7 @@ if ! rg -q 'VERSION_NAME = "0\.7\.4"' "$core_root/BuildIdentity.java" \
     || ! rg -q 'af5fec312538b25568fd83a0090efe3c417807d1' "$PROJECT_ROOT/app/src/main/res/raw/third_party_notices.txt" \
     || ! rg -q '657a993cbee87acf52d14b758ce49dbd46d1b8eb' "$PROJECT_ROOT/NOTICE.md" \
     || ! rg -q '657a993cbee87acf52d14b758ce49dbd46d1b8eb' "$PROJECT_ROOT/app/src/main/res/raw/third_party_notices.txt"; then
-  echo "The 0.7.4 / Codex 0.153.3-agentcodi.2 identity is inconsistent." >&2
+  echo "The 0.7.5 / Codex 0.153.3-agentcodi.2 identity is inconsistent." >&2
   exit 1
 fi
 

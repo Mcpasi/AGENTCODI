@@ -79,6 +79,18 @@ At this time, there are no plans to relax JIT or the sandbox for Node.js; howeve
 
 SHA-256:bf93ca5993d451af6b1ed38eb1575e64c1844edf775e00fd295159793d88a0b4
 
+## AGENTCODI 0.7.5
+
+#### Import and export bug fix
+
+- Hardened workspace imports by validating sanitized provider names before any file data is read, preventing credential-like filenames from bypassing the import guard.
+
+- Fixed workspace archive file-limit accounting so files omitted during export no longer consume the regular-file limit.
+
+XXX Java and XXX C++ tests passed
+
+SHA-256: still pending
+    
 # RELEASE_APK
 
 ## AGENTCODI 0.6.11 - RELEASE - 2026-09-04

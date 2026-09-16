@@ -87,9 +87,16 @@ SHA-256:bf93ca5993d451af6b1ed38eb1575e64c1844edf775e00fd295159793d88a0b4
 
 - Fixed workspace archive file-limit accounting so files omitted during export no longer consume the regular-file limit.
 
-XXX Java and XXX C++ tests passed
+#### Supervisor bug fix
 
-SHA-256: still pending
+- Fixed C++ app-server transport handling so a NUL byte inside a received transport chunk no longer causes valid JSON frames in the same chunk to be discarded.
+
+- Fixed handling of in-progress `imageGeneration` items. Image-generation events without a `result` field are now accepted while still enforcing full validation once a result is present.
+
+
+292  Java and 329  C++ tests passed
+
+SHA-256:15e104b33759c89bd4fe00c5e58bac30823fa077ac7f7414d9f5898db064dd1f
     
 # RELEASE_APK
 

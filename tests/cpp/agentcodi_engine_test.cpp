@@ -1151,6 +1151,70 @@ int main(int argc, char* argv[]) {
           == agentcodi::InboundLineCompactionStatus::kInvalid,
       "reject unpaired surrogate hidden inside compactable image result");
 
+  // An image item announced before any bytes exist reports no result. It
+  // carries nothing to compact and must leave the line it travels in intact.
+  const std::string started_image_item =
+      "{\"method\":\"item/started\",\"params\":{\"item\":"
+      "{\"id\":\"image_fixture\",\"type\":\"imageGeneration\"}}}";
+  expect(
+      agentcodi::CompactInboundImagePayloads(
+          started_image_item,
+          java_frame_limit,
+          &compacted_image)
+          == agentcodi::InboundLineCompactionStatus::kNotApplicable,
+      "accept an image item that reports neither status nor result");
+  const std::string in_progress_image_item =
+      "{\"id\":\"image_fixture\",\"type\":\"imageGeneration\","
+      "\"status\":\"in_progress\",\"result\":null}";
+  expect(
+      agentcodi::CompactInboundImagePayloads(
+          in_progress_image_item,
+          java_frame_limit,
+          &compacted_image)
+          == agentcodi::InboundLineCompactionStatus::kNotApplicable,
+      "accept an in-progress image item whose result is still null");
+  const std::string started_raw_image_item =
+      "{\"item\":{\"type\":\"image_generation_call\","
+      "\"status\":\"in_progress\",\"result\":null}}";
+  expect(
+      agentcodi::CompactInboundImagePayloads(
+          started_raw_image_item,
+          java_frame_limit,
+          &compacted_image)
+          == agentcodi::InboundLineCompactionStatus::kNotApplicable,
+      "accept an in-progress raw image response item");
+  const std::string mixed_image_line =
+      "[" + started_image_item + ",{\"id\":\"image_fixture\","
+      "\"type\":\"imageGeneration\",\"status\":\"completed\","
+      "\"result\":\"" + image_payload + "\"}]";
+  expect(
+      agentcodi::CompactInboundImagePayloads(
+          mixed_image_line,
+          java_frame_limit,
+          &compacted_image)
+          == agentcodi::InboundLineCompactionStatus::kCompacted
+          && compacted_image.find("\"method\":\"item/started\"")
+              != std::string::npos
+          && compacted_image.find("<generated-image-data-omitted>")
+              != std::string::npos,
+      "compact completed image bytes beside an untouched started image item");
+  expect(
+      agentcodi::CompactInboundImagePayloads(
+          "{\"id\":\"image_fixture\",\"type\":\"imageGeneration\","
+          "\"status\":\"completed\",\"result\":\"\",\"result\":\"\"}",
+          java_frame_limit,
+          &compacted_image)
+          == agentcodi::InboundLineCompactionStatus::kInvalid,
+      "still reject an image item that repeats its result field");
+  expect(
+      agentcodi::CompactInboundImagePayloads(
+          "{\"type\":\"imageGeneration\",\"status\":\"completed\","
+          "\"result\":\"" + image_payload + "\"}",
+          java_frame_limit,
+          &compacted_image)
+          == agentcodi::InboundLineCompactionStatus::kInvalid,
+      "still reject image bytes that arrive without an item identifier");
+
   char temporary_template[] = "/tmp/agentcodi-process-test-XXXXXX";
   char* temporary_root = mkdtemp(temporary_template);
   expect(temporary_root != nullptr, "temporary process-test root");

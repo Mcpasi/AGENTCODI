@@ -201,6 +201,7 @@ class ImagePayloadScanner final {
     std::size_t id_count = 0U;
     std::size_t status_count = 0U;
     std::size_t result_count = 0U;
+    std::size_t result_null_count = 0U;
     std::size_t saved_path_count = 0U;
     bool saw_image_generation_type = false;
     bool saw_raw_image_generation_type = false;
@@ -259,8 +260,14 @@ class ImagePayloadScanner final {
             return false;
           }
           result_spans.push_back(span);
-        } else if (!ParseValue(depth)) {
-          return false;
+        } else {
+          const bool null_result = Peek('n');
+          if (!ParseValue(depth)) {
+            return false;
+          }
+          if (null_result) {
+            ++result_null_count;
+          }
         }
       } else if (key == "savedPath") {
         ++saved_path_count;
@@ -299,25 +306,31 @@ class ImagePayloadScanner final {
 
     if (saw_image_generation_type) {
       if (object_type != "imageGeneration" || type_count != 1U
-          || id_count != 1U || status_count != 1U
-          || result_count != 1U || result_spans.size() != 1U
-          || saved_path_count > 1U || object_id.empty()
-          || object_status.empty()
-          || result_->image_payloads.size() >= kMaximumImagesPerLine) {
+          || id_count > 1U || status_count > 1U || result_count > 1U
+          || saved_path_count > 1U) {
         return false;
       }
-      ImagePayload payload;
-      payload.id = object_id;
-      payload.status = object_status;
-      payload.result_span = result_spans.front();
-      payload.saved_path_span = saved_path_span;
-      payload.object_end = position_ - 1U;
-      payload.has_saved_path = saved_path_count == 1U;
-      result_->image_payloads.push_back(std::move(payload));
+      // An item/started or in-progress image item reports no result yet. It
+      // carries no bytes to materialize or compact, so it stays untouched
+      // rather than invalidating the app-server line that carries it.
+      if (result_count == 1U && result_null_count == 0U) {
+        if (result_spans.size() != 1U || id_count != 1U || status_count != 1U
+            || object_id.empty() || object_status.empty()
+            || result_->image_payloads.size() >= kMaximumImagesPerLine) {
+          return false;
+        }
+        ImagePayload payload;
+        payload.id = object_id;
+        payload.status = object_status;
+        payload.result_span = result_spans.front();
+        payload.saved_path_span = saved_path_span;
+        payload.object_end = position_ - 1U;
+        payload.has_saved_path = saved_path_count == 1U;
+        result_->image_payloads.push_back(std::move(payload));
+      }
     } else if (saw_raw_image_generation_type) {
       if (object_type != "image_generation_call" || type_count != 1U
-          || result_count != 1U
-          || result_spans.size() != 1U) {
+          || result_count > 1U) {
         return false;
       }
       for (const JsonStringSpan& span : result_spans) {
@@ -2849,6 +2862,11 @@ LineReadStatus AppServerProcess::ReadLine(
         close_if_open(descriptor);
         return LineReadStatus::kTooLarge;
       }
+      if (candidate.find('\0') != std::string::npos) {
+        *error = "Incoming app-server line contains a NUL byte";
+        close_if_open(descriptor);
+        return LineReadStatus::kError;
+      }
       InboundLineCompactionStatus compaction_status =
           InboundLineCompactionStatus::kNotApplicable;
       const bool may_contain_image =
@@ -2900,11 +2918,9 @@ LineReadStatus AppServerProcess::ReadLine(
     char buffer[8192];
     const ssize_t count = recv(descriptor, buffer, sizeof(buffer), 0);
     if (count > 0) {
-      if (std::memchr(buffer, '\0', static_cast<std::size_t>(count)) != nullptr) {
-        close_if_open(descriptor);
-        *error = "Incoming app-server line contains a NUL byte";
-        return LineReadStatus::kError;
-      }
+      // A transport chunk is not a frame. Buffer it unchanged and reject a NUL
+      // byte with the single line that carries it, so complete lines received
+      // in the same chunk still reach the caller.
       read_buffer_.append(buffer, static_cast<std::size_t>(count));
     } else if (count == 0) {
       close_if_open(descriptor);

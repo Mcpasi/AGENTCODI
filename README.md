@@ -6,6 +6,8 @@
 
 **Run the Codex app-server, workspace, approvals, terminal and supported development toolchains directly on your Android device.**
 
+[Visit me on my website](https://devsblog.com/)
+
 Now also available on APKPure
 [Download now on APKPure](https://apkpure.com/p/de.agentcodi.app)
 

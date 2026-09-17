@@ -7,7 +7,7 @@
 **Run the Codex app-server, workspace, approvals, terminal and supported development toolchains directly on your Android device.**
 
 Now also available on APKPure
-<a href="https://apkpure.com/p/de.agentcodi.app>https://apkpure.com/p/de.agentcodi.app</a>
+[Download now on APKPure](https://apkpure.com/p/de.agentcodi.app)
 
 Updates appear with a delay on APKPure; updates are always available on GitHub first.
 

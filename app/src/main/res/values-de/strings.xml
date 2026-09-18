@@ -566,7 +566,6 @@
   <string name="approval_command">Befehl</string>
   <string name="approval_cwd">Arbeitsverzeichnis</string>
   <string name="approval_write_scope">Angefragter Schreibbereich</string>
-  <string name="approval_change">Änderung</string>
   <string name="approval_default_detail">Codex bittet um eine explizite Entscheidung für diesen Turn.</string>
   <string name="approval_explanation">Erlauben gilt nur für diese Anfrage. Ablehnen verweigert nur diese Änderung; der Turn darf danach weiterarbeiten. Turn stoppen beendet den gesamten Turn. Freigaben werden nie automatisch erteilt.</string>
 
@@ -721,6 +720,9 @@
   <string name="card_change_delete">LÖSCHEN</string>
   <string name="card_change_update">ÄNDERN</string>
   <string name="card_no_text_diff">Kein Text-Diff vorhanden.</string>
+  <string name="card_change_stats_description">%1$d hinzugefügte Zeilen, %2$d entfernte Zeilen</string>
+  <string name="card_change_moved_to">Verschoben nach %1$s</string>
+  <string name="card_change_entry_description">%1$s: %2$s</string>
   <string name="card_content_unavailable">Inhalt konnte nicht sicher dargestellt werden.</string>
   <string name="card_field_thread">Thread</string>
   <string name="card_field_activity">Aktivität</string>

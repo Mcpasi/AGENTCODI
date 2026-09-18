@@ -71,6 +71,22 @@ final class TranscriptCardPresentation {
     private TranscriptCardPresentation() {
     }
 
+    /**
+     * Bounded message and tool-output streams end with this marker when the app-server sent
+     * more than the card keeps. It is source text, so the UI replaces it with its own label.
+     */
+    private static final String TRUNCATION_MARKER = "… Ausgabe gekürzt …";
+
+    static boolean isTruncated(String value) {
+        return value != null && value.endsWith(TRUNCATION_MARKER);
+    }
+
+    static String withoutTruncationMarker(String value) {
+        return isTruncated(value)
+            ? value.substring(0, value.length() - TRUNCATION_MARKER.length())
+            : value;
+    }
+
     static boolean isCollapsible(CodexTranscriptItem item) {
         return item.getKind() == CodexTranscriptItem.Kind.TOOL;
     }

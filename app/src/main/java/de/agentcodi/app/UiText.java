@@ -365,10 +365,18 @@ final class UiText {
         if ("Nein".equals(value)) {
             return context.getString(R.string.card_no);
         }
-        if ("… Ausgabe gekürzt …".equals(value)) {
-            return context.getString(R.string.core_output_truncated);
+        return streamText(context, value);
+    }
+
+    /** Replaces the source truncation marker of a bounded stream with the localized one. */
+    static String streamText(Context context, String value) {
+        if (value == null) {
+            return "";
         }
-        return value;
+        return TranscriptCardPresentation.isTruncated(value)
+            ? TranscriptCardPresentation.withoutTruncationMarker(value)
+                + context.getString(R.string.core_output_truncated)
+            : value;
     }
 
     private static int cardFieldResource(String label) {

@@ -24,7 +24,34 @@ public final class TranscriptCardPresentationTest {
         expansionIsScopedToTheCurrentChat();
         removedAndReplacedCardsForgetExpansion();
         imageResultsPreserveExpansion();
-        return 12;
+        truncatedStreamsExposeTheirMarkerForLocalization();
+        return 13;
+    }
+
+    private static void truncatedStreamsExposeTheirMarkerForLocalization() {
+        String truncated = "erste Zeile\n… Ausgabe gekürzt …";
+        TestSupport.assertTrue(
+            TranscriptCardPresentation.isTruncated(truncated),
+            "a bounded stream is recognised by its trailing marker"
+        );
+        TestSupport.assertEquals(
+            "erste Zeile\n",
+            TranscriptCardPresentation.withoutTruncationMarker(truncated),
+            "the marker is separated so the UI can show its own label"
+        );
+        TestSupport.assertFalse(
+            TranscriptCardPresentation.isTruncated("Ausgabe gekürzt im Fließtext"),
+            "text that only mentions truncation is left alone"
+        );
+        TestSupport.assertEquals(
+            "vollständig",
+            TranscriptCardPresentation.withoutTruncationMarker("vollständig"),
+            "untruncated output stays untouched"
+        );
+        TestSupport.assertFalse(
+            TranscriptCardPresentation.isTruncated(null),
+            "a missing value is never reported as truncated"
+        );
     }
 
     private static void terminalStatesTakePrecedenceOverStreaming() {

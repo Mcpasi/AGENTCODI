@@ -566,7 +566,6 @@
   <string name="approval_command">Command</string>
   <string name="approval_cwd">Working directory</string>
   <string name="approval_write_scope">Requested write scope</string>
-  <string name="approval_change">Change</string>
   <string name="approval_default_detail">Codex requests an explicit decision for this turn.</string>
   <string name="approval_explanation">Allow applies only to this request. Decline rejects only this change and lets the turn continue. Stop turn ends the entire turn. Approvals are never granted automatically.</string>
 
@@ -721,6 +720,9 @@
   <string name="card_change_delete">DELETE</string>
   <string name="card_change_update">UPDATE</string>
   <string name="card_no_text_diff">No text diff available.</string>
+  <string name="card_change_stats_description">%1$d added lines, %2$d removed lines</string>
+  <string name="card_change_moved_to">Moved to %1$s</string>
+  <string name="card_change_entry_description">%1$s: %2$s</string>
   <string name="card_content_unavailable">The content could not be displayed safely.</string>
   <string name="card_field_thread">Thread</string>
   <string name="card_field_activity">Activity</string>

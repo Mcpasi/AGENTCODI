@@ -98,7 +98,7 @@ SHA-256:bf93ca5993d451af6b1ed38eb1575e64c1844edf775e00fd295159793d88a0b4
 
 SHA-256:15e104b33759c89bd4fe00c5e58bac30823fa077ac7f7414d9f5898db064dd1f
     
- ## AGENTCODI 0.7.6-preview.1
+## AGENTCODI 0.7.6-preview.1
 
 #### File change UI
 
@@ -141,6 +141,8 @@ SHA-256:15e104b33759c89bd4fe00c5e58bac30823fa077ac7f7414d9f5898db064dd1f
 `./scripts/check-architecture.sh` passed.
 
 The app and modules were successfully type-checked against Android API 35.   
+
+SHA-256: 62b91245fd8ed0aa38598b8f755695d93648307d69fd861c26549ba624b0cebd
     
     
 # RELEASE_APK

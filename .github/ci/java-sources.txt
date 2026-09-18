@@ -1,0 +1,22 @@
+# Java source roots and individual files compiled for the CI test run.
+# This list mirrors the 'find' block in scripts/test.sh; run-java-tests.sh
+# fails when the two drift apart, so update both together.
+modules/core/src/main/java
+modules/review-mode/src/main/java
+modules/protected-mode/src/main/java
+modules/compatibility-mode/src/main/java
+modules/storage/src/main/java
+modules/file-browser-contracts/src/main/java
+modules/file-browser-client/src/main/java
+modules/import-contracts/src/main/java
+modules/import-client/src/main/java
+modules/mcp-contracts/src/main/java
+modules/mcp-client/src/main/java
+modules/connector-contracts/src/main/java
+modules/connector-client/src/main/java
+app/src/main/java/de/agentcodi/app/TranscriptCardPresentation.java
+app/src/main/java/de/agentcodi/app/FileChangeDetail.java
+scripts/java/de/agentcodi/tools/CodexPackageMetadata.java
+scripts/java/de/agentcodi/tools/CodexLocalSource.java
+scripts/java/de/agentcodi/tools/CodexRuntimeUpdater.java
+tests/java

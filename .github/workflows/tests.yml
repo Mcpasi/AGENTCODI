@@ -1,0 +1,81 @@
+# Hosted test workflow for AGENTCODI.
+#
+# The local runners (scripts/test.sh, scripts/build-debug-apk.sh) need the
+# Termux Android toolchain and stay untouched. This workflow rebuilds the
+# portable part of the same test sources with stock Ubuntu tooling instead.
+# The drivers live in .github/ci/ and can be run locally as well.
+name: Tests
+
+on:
+  push:
+    branches: ['**']
+  pull_request:
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: tests-${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  architecture:
+    name: Architecture contracts
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    steps:
+      - name: Check out the repository
+        uses: actions/checkout@v4
+
+      - name: Install ripgrep
+        run: |
+          if ! command -v rg >/dev/null 2>&1; then
+            sudo apt-get update
+            sudo apt-get install -y ripgrep
+          fi
+
+      # scripts/check-architecture.sh is pure ripgrep and find, so unlike the
+      # build and test scripts it runs unchanged on a hosted runner.
+      - name: Check architecture contracts
+        run: ./scripts/check-architecture.sh
+
+  java:
+    name: Java host tests
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    steps:
+      - name: Check out the repository
+        uses: actions/checkout@v4
+
+      - name: Set up JDK 17
+        uses: actions/setup-java@v4
+        with:
+          distribution: temurin
+          java-version: '17'
+
+      - name: Run Java host tests
+        run: .github/ci/run-java-tests.sh
+
+  cpp:
+    name: C++ host tests
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+    steps:
+      - name: Check out the repository
+        uses: actions/checkout@v4
+
+      - name: Install zlib development headers
+        run: |
+          if [ ! -e /usr/include/zlib.h ]; then
+            sudo apt-get update
+            sudo apt-get install -y zlib1g-dev
+          fi
+
+      # The supervisor tests spawn and canonicalize /system/bin/sh and use
+      # /system/lib64 as the native payload read grant.
+      - name: Create the /system shim
+        run: .github/ci/setup-system-shim.sh
+
+      - name: Run C++ host tests
+        run: .github/ci/run-cpp-tests.sh

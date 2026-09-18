@@ -98,6 +98,51 @@ SHA-256:bf93ca5993d451af6b1ed38eb1575e64c1844edf775e00fd295159793d88a0b4
 
 SHA-256:15e104b33759c89bd4fe00c5e58bac30823fa077ac7f7414d9f5898db064dd1f
     
+ ## AGENTCODI 0.7.6-preview.1
+
+#### File change UI
+
+- Redesigned file-change details so each changed file is displayed in its own card with a dedicated ADD, DELETE, or UPDATE badge, filename, directory, and line-change counters.
+
+- Improved diff readability with line-by-line highlighting for additions and deletions, clearer hunk headers, and better handling of wrapped diff lines.
+
+- Added per-file change summaries and improved handling of renamed files.
+
+- Empty file changes now display a localized "No text diff available." message instead of appearing as empty diff content.
+
+- The approval dialog now uses the same file-change cards as the regular tool output, with commands displayed separately from the diff.
+
+#### Interface improvements
+
+- Redesigned tool cards with collapsible headers and compact previews for collapsed cards.
+
+- Improved message presentation with clearer visual separation between user messages, system warnings, and Codex output.
+
+- Updated the runtime status area with clearer state indicators for ready, working, waiting, and error states.
+
+- Redesigned the composer with a rounded input field and a dedicated model and reasoning selector.
+
+- Updated shared UI roles for cards, warnings, code blocks, status indicators, and other interface elements.
+
+- Redesigned workspace browser entries as cards.
+
+#### Localization and file-change parsing fixes
+
+- Fixed file-change parsing when section headers produced by the controller contain a trailing colon, which could previously become part of the parsed filename.
+
+- Added regression coverage using the actual file-change detail format produced by the controller.
+
+- Improved localization of file-change headings and approval-dialog content.
+
+- Fixed localization of truncated streamed output so the appended truncation marker is correctly translated in the German interface.
+
+304 Java tests passed
+
+`./scripts/check-architecture.sh` passed.
+
+The app and modules were successfully type-checked against Android API 35.   
+    
+    
 # RELEASE_APK
 
 ## AGENTCODI 0.6.11 - RELEASE - 2026-09-04

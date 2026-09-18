@@ -6,11 +6,25 @@ PROJECT_ROOT=$(CDPATH= cd -P -- "$SCRIPT_DIR/.." && pwd -P)
 
 usage() {
   cat <<'EOF'
-Usage: ./scripts/bump-version.sh [MAJOR.MINOR.PATCH]
+Usage: ./scripts/bump-version.sh [MAJOR.MINOR.PATCH[-LABEL[.COUNTER]]]
 
-Without an argument, increment the current patch version. An explicit version
-must be greater than the current version. The Android versionCode is always
-incremented by one. Documentation is intentionally not changed.
+Without an argument, continue the current line: the pre-release counter of a
+pre-release version (0.8.0-preview.1 -> 0.8.0-preview.2), otherwise the patch
+component (0.7.5 -> 0.7.6).
+
+An explicit version must be greater than the current one. Ordering follows
+semantic versioning, so a pre-release ranks below its own release:
+
+  ./scripts/bump-version.sh 0.8.0-preview.1   open a pre-release line
+  ./scripts/bump-version.sh 0.8.0-preview.2   stay on the 0.8.0 line
+  ./scripts/bump-version.sh 0.8.0-stable      close that line as plain 0.8.0
+  ./scripts/bump-version.sh 0.8.1-preview.1   open the next line
+
+A label is lowercase alphanumeric and starts with a letter; -stable is a marker
+only and is never written out, it resolves to the plain MAJOR.MINOR.PATCH
+version. The Android versionCode is always incremented by one, whether or not
+the MAJOR.MINOR.PATCH line itself changes. Documentation is intentionally not
+changed.
 EOF
 }
 
@@ -67,55 +81,160 @@ current_version_code=$(awk -F '"' '
 
 is_version() {
   printf '%s\n' "$1" \
-    | grep -Eq '^(0|[1-9][0-9]*)\.(0|[1-9][0-9]*)\.(0|[1-9][0-9]*)$'
+    | grep -Eq '^(0|[1-9][0-9]*)\.(0|[1-9][0-9]*)\.(0|[1-9][0-9]*)(-[a-z][a-z0-9]*(\.(0|[1-9][0-9]*))?)?$'
+}
+
+# Splits a validated version into version_major, version_minor, version_patch,
+# version_label and version_counter. The last two are empty for a release.
+parse_version() {
+  parse_input=$1
+  case $parse_input in
+    *-*)
+      parse_base=${parse_input%%-*}
+      parse_pre=${parse_input#*-}
+      ;;
+    *)
+      parse_base=$parse_input
+      parse_pre=
+      ;;
+  esac
+
+  parse_saved_ifs=$IFS
+  IFS=.
+  set -- $parse_base
+  IFS=$parse_saved_ifs
+  version_major=$1
+  version_minor=$2
+  version_patch=$3
+
+  version_label=
+  version_counter=
+  case $parse_pre in
+    '') ;;
+    *.*)
+      version_label=${parse_pre%%.*}
+      version_counter=${parse_pre#*.}
+      ;;
+    *)
+      version_label=$parse_pre
+      ;;
+  esac
+
+  for version_component in \
+      "$version_major" "$version_minor" "$version_patch" \
+      ${version_counter:+"$version_counter"}; do
+    [ "$version_component" -le 2147483647 ] \
+      || fail "Version components must not exceed 2147483647: $parse_input"
+  done
+}
+
+# Prints -1, 0 or 1 for the precedence of the first version against the second.
+version_order() {
+  AGENTCODI_VERSION_LEFT=$1 \
+  AGENTCODI_VERSION_RIGHT=$2 \
+    awk '
+      function parse(text, out,   dash, base, pre, dot, numbers) {
+        dash = index(text, "-")
+        if (dash == 0) {
+          base = text
+          pre = ""
+        } else {
+          base = substr(text, 1, dash - 1)
+          pre = substr(text, dash + 1)
+        }
+        split(base, numbers, ".")
+        out["major"] = numbers[1] + 0
+        out["minor"] = numbers[2] + 0
+        out["patch"] = numbers[3] + 0
+        out["release"] = (pre == "") ? 1 : 0
+        out["label"] = ""
+        out["counter"] = -1
+        if (pre != "") {
+          dot = index(pre, ".")
+          if (dot == 0) {
+            out["label"] = pre
+          } else {
+            out["label"] = substr(pre, 1, dot - 1)
+            out["counter"] = substr(pre, dot + 1) + 0
+          }
+        }
+      }
+      function rank(left_value, right_value) {
+        if (left_value == right_value) {
+          return 0
+        }
+        return (left_value < right_value) ? -1 : 1
+      }
+      BEGIN {
+        parse(ENVIRON["AGENTCODI_VERSION_LEFT"], left)
+        parse(ENVIRON["AGENTCODI_VERSION_RIGHT"], right)
+        order = rank(left["major"], right["major"])
+        if (order == 0) {
+          order = rank(left["minor"], right["minor"])
+        }
+        if (order == 0) {
+          order = rank(left["patch"], right["patch"])
+        }
+        if (order == 0) {
+          order = rank(left["release"], right["release"])
+        }
+        if (order == 0) {
+          order = rank(left["label"], right["label"])
+        }
+        if (order == 0) {
+          order = rank(left["counter"], right["counter"])
+        }
+        print order
+      }
+    '
 }
 
 is_version "$current_version" \
-  || fail "Current APP_VERSION is not a plain MAJOR.MINOR.PATCH version: $current_version"
+  || fail "Current APP_VERSION is not a supported version: $current_version"
 
-saved_ifs=$IFS
-IFS=.
-set -- $current_version
-IFS=$saved_ifs
-current_major=$1
-current_minor=$2
-current_patch=$3
-
-for version_component in "$current_major" "$current_minor" "$current_patch"; do
-  [ "$version_component" -le 2147483647 ] \
-    || fail "Version components must not exceed 2147483647."
-done
+parse_version "$current_version"
+current_major=$version_major
+current_minor=$version_minor
+current_patch=$version_patch
+current_label=$version_label
+current_counter=$version_counter
 
 if [ -z "$requested_version" ]; then
-  [ "$current_patch" -lt 2147483647 ] \
-    || fail "The patch component cannot be incremented further."
-  target_version="$current_major.$current_minor.$((current_patch + 1))"
+  if [ -n "$current_label" ]; then
+    [ -n "$current_counter" ] || fail \
+      "The pre-release line $current_version carries no counter to increment. Pass an explicit target version."
+    [ "$current_counter" -lt 2147483647 ] \
+      || fail "The pre-release counter cannot be incremented further."
+    target_version="$current_major.$current_minor.$current_patch-$current_label.$((current_counter + 1))"
+  else
+    [ "$current_patch" -lt 2147483647 ] \
+      || fail "The patch component cannot be incremented further."
+    target_version="$current_major.$current_minor.$((current_patch + 1))"
+  fi
 else
+  case $requested_version in
+    *-stable.*)
+      fail "The -stable marker does not take a counter: $requested_version"
+      ;;
+    *-stable)
+      requested_version=${requested_version%-stable}
+      ;;
+  esac
   is_version "$requested_version" \
-    || fail "Target version must use plain MAJOR.MINOR.PATCH form: $requested_version"
+    || fail "Target version must use MAJOR.MINOR.PATCH[-LABEL[.COUNTER]] form: $requested_version"
   target_version=$requested_version
 fi
 
-IFS=.
-set -- $target_version
-IFS=$saved_ifs
-target_major=$1
-target_minor=$2
-target_patch=$3
+parse_version "$target_version"
+target_major=$version_major
+target_minor=$version_minor
+target_patch=$version_patch
 
-for version_component in "$target_major" "$target_minor" "$target_patch"; do
-  [ "$version_component" -le 2147483647 ] \
-    || fail "Version components must not exceed 2147483647."
-done
+current_line="$current_major.$current_minor.$current_patch"
+target_line="$target_major.$target_minor.$target_patch"
 
-if [ "$target_major" -lt "$current_major" ] \
-    || { [ "$target_major" -eq "$current_major" ] \
-      && [ "$target_minor" -lt "$current_minor" ]; } \
-    || { [ "$target_major" -eq "$current_major" ] \
-      && [ "$target_minor" -eq "$current_minor" ] \
-      && [ "$target_patch" -le "$current_patch" ]; }; then
-  fail "Target version must be greater than $current_version: $target_version"
-fi
+[ "$(version_order "$target_version" "$current_version")" -gt 0 ] \
+  || fail "Target version must be greater than $current_version: $target_version"
 
 case $current_version_code in
   ''|0|*[!0-9]*|0*)
@@ -336,4 +455,9 @@ done
 
 printf 'AGENTCODI version: %s -> %s\n' "$current_version" "$target_version"
 printf 'Android versionCode: %s -> %s\n' "$current_version_code" "$target_version_code"
+if [ "$current_line" = "$target_line" ]; then
+  printf 'Version line: %s (unchanged, versionCode only)\n' "$target_line"
+else
+  printf 'Version line: %s -> %s\n' "$current_line" "$target_line"
+fi
 printf '%s\n' 'Documentation was not changed.'

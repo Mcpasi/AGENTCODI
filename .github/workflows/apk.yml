@@ -1,0 +1,96 @@
+# Debug APK build inside a Termux container.
+#
+# scripts/build-debug-apk.sh needs an Android ARM64 Termux userland: it runs
+# aapt2, patchelf, the packaged Python and the packaged Codex app-server, all of
+# which are bionic binaries. A stock runner cannot execute them, so the build
+# runs inside termux/termux-docker, which ships a Termux bootstrap together with
+# the Android linker and bionic libraries. On an arm64 runner that container
+# runs natively, without qemu.
+#
+# The build script itself is unmodified; everything is steered through the
+# AGENTCODI_* environment variables it already supports.
+#
+# This workflow is manual. The first runs are expected to fail on missing
+# container packages — the preflight step names them precisely, so each failure
+# identifies exactly what to add to the package list below.
+name: APK
+
+on:
+  workflow_dispatch:
+    inputs:
+      preflight_only:
+        description: 'Only check the container, do not build'
+        type: boolean
+        default: true
+
+permissions:
+  contents: read
+
+jobs:
+  apk:
+    name: Debug APK (Termux container)
+    runs-on: ubuntu-24.04-arm
+    timeout-minutes: 120
+    env:
+      IMAGE: termux/termux-docker:aarch64
+      CONTAINER: agentcodi-build
+      PREFIX: /data/data/com.termux/files/usr
+    steps:
+      - name: Check out the repository
+        uses: actions/checkout@v4
+
+      # The mirror is a private backup, so this needs a token with read access
+      # to it; the default workflow token cannot reach another repository.
+      # Inputs that are still available upstream are fetched without it.
+      - name: Restore the pinned build inputs
+        env:
+          GH_TOKEN: ${{ secrets.AGENTCODI_INPUTS_TOKEN }}
+        run: .github/ci/fetch-build-inputs.sh
+
+      - name: Verify the build inputs
+        run: .github/ci/verify-build-inputs.sh
+
+      - name: Start the Termux container
+        run: |
+          docker pull "$IMAGE"
+          docker run -d --name "$CONTAINER" --user root \
+            -v "$GITHUB_WORKSPACE":/workspace -w /workspace \
+            "$IMAGE" sleep infinity
+          docker exec "$CONTAINER" uname -m
+
+      # First guess at the package set. The preflight step below reports what is
+      # still missing; add it here rather than guessing twice.
+      - name: Install the pinned toolchain and build tools
+        run: |
+          docker exec "$CONTAINER" pkg update -y
+          docker exec "$CONTAINER" pkg install -y \
+            clang lld llvm binutils openjdk-17 \
+            apksigner dpkg file ripgrep util-linux coreutils \
+            tar unzip zip curl diffutils grep sed gawk
+
+      - name: Check the container against the build requirements
+        run: |
+          docker exec \
+            -e AGENTCODI_JAVA_HOME="$PREFIX/opt/openjdk" \
+            "$CONTAINER" .github/ci/container-preflight.sh
+
+      - name: Build the debug APK
+        if: ${{ !inputs.preflight_only }}
+        run: |
+          docker exec \
+            -e AGENTCODI_JAVA_HOME="$PREFIX/opt/openjdk" \
+            -e AGENTCODI_CACHE_DIR=/workspace/.cache/android \
+            -e AGENTCODI_OUTPUT_DIR=/workspace/output/apk \
+            "$CONTAINER" ./scripts/build-debug-apk.sh
+
+      - name: Collect the APK
+        if: ${{ !inputs.preflight_only }}
+        uses: actions/upload-artifact@v4
+        with:
+          name: agentcodi-debug-apk
+          path: output/apk/*.apk
+          if-no-files-found: error
+
+      - name: Stop the container
+        if: always()
+        run: docker rm -f "$CONTAINER" || true

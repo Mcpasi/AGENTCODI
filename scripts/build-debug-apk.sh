@@ -134,6 +134,12 @@ RIPGREP_GUARD_SHA256="6f38c49ad156e456248330bfddec2dc3f934f94884cd64d1fd751c08fe
 NODE_ATTESTOR_SHA256="241c3c157251f94d682da6bad6082079786198d241f63be76a456c8c64f16dfa"
 PYTHON_ATTESTOR_SHA256="7e275cc1b169871b100a15f82af1395f384b507234549241ad14c98a94cb762c"
 RIPGREP_ATTESTOR_SHA256="206e3f43a6dd1cfa1b81cc901e86be00d19c1584866f864da9ff94e6defcba99"
+# The LLVM toolchain compiles the guard libraries and the ELF attestor payload
+# that are injected into the packaged tools, so its code generation is covered
+# by the derived *_RUNTIME_SHA256 pins below. Pin it like every other build
+# input; a silent toolchain upgrade would otherwise surface much later as an
+# unexplained runtime hash mismatch.
+CLANG_TOOLCHAIN_VERSION="21.1.8"
 PATCHELF_VERSION="0.19.1"
 PATCHELF_URL="https://packages.termux.dev/apt/termux-main/pool/main/p/patchelf/patchelf_${PATCHELF_VERSION}_aarch64.deb"
 PATCHELF_SHA256="a08bea49b3c9c3bf449ee0c7b7ee9c97a9f3ab84ae06ace08a564d0903a23c3f"
@@ -192,6 +198,18 @@ for executable in \
     "$LD_LLD" "$LLVM_OBJCOPY"; do
   if [ ! -x "$executable" ]; then
     echo "Missing required executable: $executable" >&2
+    exit 1
+  fi
+done
+
+for toolchain_executable in \
+    "$CLANGXX" "$LLVM_STRIP" "$LD_LLD" "$LLVM_OBJCOPY"; do
+  toolchain_version="$("$toolchain_executable" --version 2>/dev/null \
+    | grep -oE '[0-9]+\.[0-9]+\.[0-9]+' | head -1)"
+  if [ "$toolchain_version" != "$CLANG_TOOLCHAIN_VERSION" ]; then
+    echo "Pinned LLVM toolchain mismatch: $toolchain_executable" >&2
+    echo "Expected $CLANG_TOOLCHAIN_VERSION, found ${toolchain_version:-none}." >&2
+    echo "The derived runtime hashes cover this toolchain's generated code." >&2
     exit 1
   fi
 done

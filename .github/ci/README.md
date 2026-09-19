@@ -76,3 +76,108 @@ script must stay untouched, the list is duplicated rather than shared, so
 and fails with a diff if the two drift apart. When a module or app file is
 added to `scripts/test.sh`, add it to `java-sources.txt` as well.
 Set `AGENTCODI_CI_SKIP_SOURCE_SYNC=1` to skip that comparison.
+
+## Pinned build inputs
+
+`scripts/build-debug-apk.sh` verifies every third-party artifact against a
+SHA-256 pin before using it. Those artifacts are not in the repository: they
+live in the cache directory (`AGENTCODI_CACHE_DIR`, by default
+`.cache/android`). Any build host must be handed the identical bytes.
+
+| File | Purpose |
+| --- | --- |
+| `build-inputs.tsv` | The 35 pinned inputs: path, SHA-256, origin, source URL. |
+| `generate-build-inputs.sh` | Regenerates the manifest from the build script. |
+| `verify-build-inputs.sh` | Checks a directory against the manifest. |
+| `fetch-build-inputs.sh` | Restores the inputs from the mirror, or upstream. |
+| `container-preflight.sh` | Checks an environment against the build's requirements. |
+
+```sh
+.github/ci/verify-build-inputs.sh                 # checks your cache
+.github/ci/verify-build-inputs.sh --check-urls    # also probes upstream
+.github/ci/fetch-build-inputs.sh                  # restores what is missing
+.github/ci/generate-build-inputs.sh > .github/ci/build-inputs.tsv
+```
+
+The manifest is derived from the build script — the 32 `download_verified`
+calls plus the three content-addressed Codex files — so it is regenerated,
+never hand-edited. `verify-build-inputs.sh` regenerates it on every run and
+fails with a diff when the two drift apart.
+
+The build script also pins the LLVM toolchain through `CLANG_TOOLCHAIN_VERSION`
+and refuses to build when clang, lld, llvm-objcopy or llvm-strip report a
+different version. That toolchain compiles the guard libraries and the ELF
+attestor payload, so its generated code is covered by the derived
+`*_RUNTIME_SHA256` pins; without the check a silent `pkg upgrade` would surface
+much later as an unexplained hash mismatch.
+
+### Why this matters beyond CI
+
+The Codex runtime (`codex/<sha>/package.tgz`, ~108 MB) is a locally built fork
+with no registry fallback — the build script says so explicitly: *consume this
+exact local artifact without registry fallback*. And the Termux package pool
+deletes superseded revisions, so pinned URLs die: six already return 404
+(`nodejs-lts`, `npm`, `aapt2`, `libexpat`, `libffi`, `liblzma`). Those bytes
+exist only in the cache and its mirror. Run `--check-urls` for the current
+picture.
+
+### The mirror
+
+The inputs are mirrored to the **private** repository
+`Mcpasi/agentcodi-build-inputs`, one release per pin set, tagged with the APK
+version from the build script. Assets use their cache basenames, which are
+unique across the manifest; the layout and hashes come from `build-inputs.tsv`.
+
+`fetch-build-inputs.sh` takes each missing file from the mirror first and from
+its pinned upstream URL otherwise, verifying the manifest hash either way, so
+the source never matters for trust. Files already present with a matching hash
+are kept.
+
+#### Why the mirror is private
+
+Keeping it private is what allows it to be complete. Two inputs cannot lawfully
+be redistributed:
+
+* `platform-35_r02.zip` — Android SDK Licence Agreement, section 3.4: *"you may
+  not copy (except for backup purposes), modify, adapt, redistribute,
+  decompile, reverse engineer, disassemble, or create derivative works of the
+  SDK or any part of the SDK."* A private backup falls under the stated backup
+  exception; publishing it would not.
+* `patchelf-0.19.1` — the package links its licence to `GPL-3.0.txt`, so
+  redistribution would add a corresponding-source obligation.
+
+Further Termux packages carry copyleft notices (`zstd` links `GPL-2.0.txt`,
+`termux-licenses` links `GPL-3.0.txt`, `liblzma` ships `COPYING.GPLv2`), and
+`aapt2`, `libexpat` and `libffi` ship no licence file at all, so their terms
+cannot be established from the artifact. None of that matters for a private
+backup; all of it would need clearing before publishing.
+
+Reading the mirror therefore needs an authenticated `gh` — in CI a token secret
+with read access, because the default workflow token cannot reach another
+repository. The upstream fallback needs no credentials.
+
+When a pin changes, publish a new release for the new pin set instead of
+editing the existing one, so old APKs stay reproducible.
+
+## Building the APK on a hosted runner
+
+`.github/workflows/apk.yml` builds the debug APK inside
+`termux/termux-docker:aarch64` on an `ubuntu-24.04-arm` runner, where that
+container runs natively without qemu. The build needs a Termux userland because
+it executes bionic binaries: `aapt2`, `patchelf`, the packaged Python during
+`compileall`, and the packaged Codex app-server in the bootstrap smoke test.
+The image supplies one — a Termux bootstrap plus the Android linker and bionic
+libraries, with `/system` linked into the prefix.
+
+`scripts/build-debug-apk.sh` is used unmodified; everything is steered through
+the `AGENTCODI_*` variables it already supports.
+
+The workflow is manual and defaults to a preflight-only run.
+`container-preflight.sh` reads the required command list and the pinned
+toolchain version out of the build script — so they cannot drift — and reports
+everything the container is missing in one pass, instead of surfacing it one
+failing build at a time. Add what it names to the package list in the workflow
+and run again; switch the input off once the environment is satisfied.
+
+It needs a repository secret `AGENTCODI_INPUTS_TOKEN` with read access to the
+mirror.

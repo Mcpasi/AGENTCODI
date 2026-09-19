@@ -33,12 +33,18 @@ jobs:
       # The packaged app-server runs under the project's seccomp/ptrace
       # supervisor, which verifies real syscall interception before executing a
       # command and refuses when it cannot. Docker's default seccomp and
-      # AppArmor profiles restrict exactly that, so the container is given the
-      # room the sandbox needs. On the device it already runs nested inside the
-      # Android app sandbox's own seccomp filter.
+      # AppArmor profiles restrict exactly that, so the container gets the room
+      # the sandbox needs — on the device it already runs nested inside the
+      # Android app sandbox's own seccomp filter, with no capabilities at all.
+      #
+      # The profile is not simply unconfined: it allows everything except the
+      # Landlock syscalls, which it reports as ENOSYS. The build host has no
+      # Landlock, so the sandbox always takes its seccomp/ptrace path there,
+      # while a runner kernel does offer it and would send the sandbox down a
+      # path the device never exercises.
       SANDBOX_OPTS: >-
         --cap-add=SYS_PTRACE
-        --security-opt seccomp=unconfined
+        --security-opt seccomp=.github/ci/seccomp-no-landlock.json
         --security-opt apparmor=unconfined
     steps:
       - name: Check out the repository

@@ -1,0 +1,15 @@
+{
+  "_comment": "Everything Docker's default profile would allow, except Landlock. The build host has no Landlock at all (the syscall returns ENOSYS), so the packaged sandbox always takes its seccomp/ptrace path there. A runner kernel does offer Landlock, which would send the sandbox down a path the device never exercises. Reporting ENOSYS here makes the container match the device.",
+  "defaultAction": "SCMP_ACT_ALLOW",
+  "syscalls": [
+    {
+      "names": [
+        "landlock_create_ruleset",
+        "landlock_add_rule",
+        "landlock_restrict_self"
+      ],
+      "action": "SCMP_ACT_ERRNO",
+      "errnoRet": 38
+    }
+  ]
+}

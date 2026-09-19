@@ -150,6 +150,60 @@ printf '  lsm profile  %s\n' "$(tr -d '\000' < /proc/self/attr/current 2>/dev/nu
 printf '  capabilities %s\n' "$(grep -i '^CapEff' /proc/self/status 2>/dev/null || echo '?')"
 
 echo
+echo "== Landlock =="
+# The build host has no Landlock: the syscall returns ENOSYS, so the packaged
+# sandbox always takes its seccomp/ptrace path there. A runner kernel does offer
+# Landlock, which would send the sandbox down a path the device never exercises,
+# so make the state visible rather than assume it.
+landlock_probe_dir="$(mktemp -d)"
+cat > "$landlock_probe_dir/probe.c" <<'PROBE'
+#include <errno.h>
+#include <stdio.h>
+#include <string.h>
+#include <sys/syscall.h>
+#include <unistd.h>
+#ifndef __NR_landlock_create_ruleset
+#define __NR_landlock_create_ruleset 444
+#endif
+#ifndef LANDLOCK_CREATE_RULESET_VERSION
+#define LANDLOCK_CREATE_RULESET_VERSION (1U << 0)
+#endif
+int main(void) {
+  long abi = syscall(__NR_landlock_create_ruleset, NULL, 0,
+                     LANDLOCK_CREATE_RULESET_VERSION);
+  if (abi < 0) {
+    printf("unavailable (%s)\n", strerror(errno));
+    return 1;
+  }
+  printf("available, ABI %ld\n", abi);
+  return 0;
+}
+PROBE
+landlock_compiler=""
+for candidate in cc gcc clang; do
+  if command -v "$candidate" >/dev/null 2>&1; then landlock_compiler="$candidate"; break; fi
+done
+if [ -z "$landlock_compiler" ]; then
+  printf '  note    no C compiler available to probe Landlock\n'
+elif ! "$landlock_compiler" -O1 -o "$landlock_probe_dir/probe" \
+    "$landlock_probe_dir/probe.c" 2>/dev/null; then
+  printf '  note    the Landlock probe did not compile\n'
+else
+  landlock_state="$("$landlock_probe_dir/probe")"
+  printf '  state   %s\n' "$landlock_state"
+  case "$landlock_state" in
+    unavailable*)
+      printf '  ok      matches the build host, which has no Landlock\n'
+      ;;
+    *)
+      printf '  DIFFERS the build host has no Landlock, so the sandbox takes a\n'
+      printf '          path here that the device never exercises\n'
+      ;;
+  esac
+fi
+rm -rf -- "$landlock_probe_dir"
+
+echo
 echo "== Environment =="
 printf '  arch    %s\n' "$(uname -m)"
 # The supervisor canonicalizes the code-mode host with realpath and compares the

@@ -19,19 +19,34 @@ ARG TERMUX_IMAGE=termux/termux-docker:aarch64
 ARG UBUNTU_IMAGE=ubuntu:26.04
 
 FROM ${TERMUX_IMAGE} AS termux
-# Must not run as root: Termux disables its package manager for root. The
-# image's own user is used, and apt is called by absolute path so the stage
-# does not depend on the entrypoint having set PATH.
+# The image sets no USER, so RUN executes as root — and Termux refuses to run
+# its package manager as root. Privileges are dropped by the image's own
+# entrypoint, which switches to the `system` user and execs its arguments, so
+# the install goes through it. That is also the invocation the image documents
+# for non-interactive use. The entrypoint forwards only a fixed set of
+# variables, so the pinned version is substituted into the command by Docker
+# rather than passed as an environment variable.
 ARG CLANG_VERSION=21.1.8-3
-RUN /data/data/com.termux/files/usr/bin/apt-get update -q \
- && /data/data/com.termux/files/usr/bin/apt-get install -y --no-install-recommends \
-      "clang=${CLANG_VERSION}" "lld=${CLANG_VERSION}" "llvm=${CLANG_VERSION}"
+RUN /entrypoint.sh bash -c "apt-get update -q \
+ && apt-get install -y --no-install-recommends \
+      clang=${CLANG_VERSION} lld=${CLANG_VERSION} llvm=${CLANG_VERSION} \
+ && clang++ --version && ld.lld --version && llvm-objcopy --version"
 
 FROM ${UBUNTU_IMAGE}
 COPY --from=termux /data/data/com.termux /data/data/com.termux
-# In the Termux image /system is a symlink into the prefix; recreate it so the
-# packaged bionic executables find /system/bin/linker64.
-RUN ln -s /data/data/com.termux/files/usr/opt/aosp /system
+# The Termux image keeps the Android linker in an aosp-libs directory that /system
+# links to. Locate it instead of assuming the path, and fail here with a clear
+# message rather than leaving a dangling symlink that only breaks mid-build.
+RUN set -eux; \
+    linker="$(find /data/data/com.termux -name linker64 -print -quit)"; \
+    if [ -z "$linker" ]; then \
+      echo "No Android linker64 found in the Termux prefix." >&2; \
+      exit 1; \
+    fi; \
+    aosp="$(dirname "$(dirname "$linker")")"; \
+    echo "Android system directory: $aosp"; \
+    ln -s "$aosp" /system; \
+    test -x /system/bin/linker64
 RUN apt-get update \
  && apt-get install -y --no-install-recommends \
       openjdk-17-jdk-headless zipalign apksigner ripgrep file binutils dpkg \

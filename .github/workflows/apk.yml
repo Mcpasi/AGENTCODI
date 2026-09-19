@@ -45,8 +45,13 @@ jobs:
       - name: Verify the build inputs
         run: .github/ci/verify-build-inputs.sh
 
+      - name: Report the Docker environment
+        run: |
+          docker version
+          df -h /var/lib/docker / | tail -2
+
       - name: Build the container image
-        run: docker build -t "$IMAGE" -f .github/ci/Dockerfile .github/ci
+        run: docker build --progress=plain -t "$IMAGE" -f .github/ci/Dockerfile .github/ci
 
       - name: Check the container against the build requirements
         run: |

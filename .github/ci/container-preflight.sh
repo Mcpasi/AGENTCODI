@@ -141,7 +141,19 @@ fi
 echo
 echo "== Environment =="
 printf '  arch    %s\n' "$(uname -m)"
-printf '  shell   %s\n' "$([ -x /system/bin/sh ] && echo '/system/bin/sh present' || echo '/system/bin/sh MISSING')"
+# The supervisor canonicalizes the code-mode host with realpath and compares the
+# result against the literal /system/bin/sh, so /system must be a real directory
+# rather than a symlink into a prefix.
+if [ ! -x /system/bin/sh ]; then
+  printf '  MISSING /system/bin/sh\n'
+  missing=$((missing + 1))
+elif [ "$(readlink -f /system/bin/sh)" != "/system/bin/sh" ]; then
+  printf '  WRONG   /system/bin/sh resolves to %s\n' "$(readlink -f /system/bin/sh)"
+  printf '          it must resolve to itself; /system may not be a symlink\n'
+  missing=$((missing + 1))
+else
+  printf '  ok      /system/bin/sh is canonical\n'
+fi
 printf '  linker  %s\n' "$([ -e /system/bin/linker64 ] && echo 'present' || echo 'MISSING')"
 
 echo

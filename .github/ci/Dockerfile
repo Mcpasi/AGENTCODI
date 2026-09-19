@@ -34,9 +34,15 @@ RUN /entrypoint.sh bash -c "apt-get update -q \
 
 FROM ${UBUNTU_IMAGE}
 COPY --from=termux /data/data/com.termux /data/data/com.termux
-# The Termux image keeps the Android linker in an aosp-libs directory that /system
-# links to. Locate it instead of assuming the path, and fail here with a clear
-# message rather than leaving a dangling symlink that only breaks mid-build.
+# The Termux image keeps the Android linker in an aosp-libs directory that
+# /system links to. Locate it instead of assuming the path, and fail here with a
+# clear message rather than leaving a dangling symlink that only breaks later.
+#
+# /system must end up a real directory, not a symlink: the supervisor
+# canonicalizes the code-mode host with realpath and compares the result against
+# the literal /system/bin/sh, so a symlinked /system resolves into the prefix
+# and fails that check. Move the tree there and leave a link behind for anything
+# that still refers to the prefix path.
 RUN set -eux; \
     linker="$(find /data/data/com.termux -name linker64 -print -quit)"; \
     if [ -z "$linker" ]; then \
@@ -45,8 +51,11 @@ RUN set -eux; \
     fi; \
     aosp="$(dirname "$(dirname "$linker")")"; \
     echo "Android system directory: $aosp"; \
-    ln -s "$aosp" /system; \
-    test -x /system/bin/linker64
+    mv "$aosp" /system; \
+    ln -s /system "$aosp"; \
+    test -x /system/bin/linker64; \
+    test -x /system/bin/sh; \
+    test "$(readlink -f /system/bin/sh)" = /system/bin/sh
 RUN apt-get update \
  && apt-get install -y --no-install-recommends \
       openjdk-17-jdk-headless zipalign apksigner ripgrep file binutils dpkg \

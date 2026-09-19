@@ -150,6 +150,11 @@ bool read_command_response(
     std::string output;
     if (!agentcodi_test::ReadBootstrapCommandOutput(line, &output)) {
       std::cerr << agentcodi_test::BootstrapCommandFailure(line) << '\n';
+      // TEMPORARY DIAGNOSTIC — remove again. The failing command's captured
+      // output is in this envelope and is otherwise discarded, which leaves a
+      // failure like RPC 28 indistinguishable between a denied read and a
+      // missing file.
+      std::cerr << "  response: " << line << '\n';
       return false;
     }
     if (output.find(required_stdout) == std::string::npos) {

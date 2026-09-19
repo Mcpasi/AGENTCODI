@@ -186,8 +186,9 @@ done
 if [ -z "$landlock_compiler" ]; then
   printf '  note    no C compiler available to probe Landlock\n'
 elif ! "$landlock_compiler" -O1 -o "$landlock_probe_dir/probe" \
-    "$landlock_probe_dir/probe.c" 2>/dev/null; then
-  printf '  note    the Landlock probe did not compile\n'
+    "$landlock_probe_dir/probe.c" 2>"$landlock_probe_dir/build.log"; then
+  printf '  note    the Landlock probe did not compile with %s\n' "$landlock_compiler"
+  sed 's/^/          /' "$landlock_probe_dir/build.log" | head -5
 else
   landlock_state="$("$landlock_probe_dir/probe")"
   printf '  state   %s\n' "$landlock_state"

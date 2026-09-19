@@ -30,6 +30,16 @@ jobs:
     timeout-minutes: 120
     env:
       IMAGE: agentcodi-build
+      # The packaged app-server runs under the project's seccomp/ptrace
+      # supervisor, which verifies real syscall interception before executing a
+      # command and refuses when it cannot. Docker's default seccomp and
+      # AppArmor profiles restrict exactly that, so the container is given the
+      # room the sandbox needs. On the device it already runs nested inside the
+      # Android app sandbox's own seccomp filter.
+      SANDBOX_OPTS: >-
+        --cap-add=SYS_PTRACE
+        --security-opt seccomp=unconfined
+        --security-opt apparmor=unconfined
     steps:
       - name: Check out the repository
         uses: actions/checkout@v4
@@ -55,13 +65,15 @@ jobs:
 
       - name: Check the container against the build requirements
         run: |
-          docker run --rm -v "$GITHUB_WORKSPACE":/workspace -w /workspace \
+          docker run --rm $SANDBOX_OPTS \
+            -v "$GITHUB_WORKSPACE":/workspace -w /workspace \
             "$IMAGE" .github/ci/container-preflight.sh
 
       - name: Build the debug APK
         if: ${{ !inputs.preflight_only }}
         run: |
-          docker run --rm -v "$GITHUB_WORKSPACE":/workspace -w /workspace \
+          docker run --rm $SANDBOX_OPTS \
+            -v "$GITHUB_WORKSPACE":/workspace -w /workspace \
             -e AGENTCODI_CACHE_DIR=/workspace/.cache/android \
             -e AGENTCODI_OUTPUT_DIR=/workspace/output/apk \
             -e AGENTCODI_SKIP_DEVICE_LINKER_TESTS=1 \

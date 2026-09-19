@@ -139,6 +139,17 @@ else
 fi
 
 echo
+echo "== Process confinement =="
+# The packaged app-server runs under a seccomp/ptrace supervisor that verifies
+# real syscall interception before executing anything and refuses when it
+# cannot. Docker's default profiles restrict that, so report the state rather
+# than discover it through a failing bootstrap. Informational.
+printf '  ptrace_scope %s\n' "$(cat /proc/sys/kernel/yama/ptrace_scope 2>/dev/null || echo 'n/a')"
+printf '  seccomp      %s\n' "$(grep -i '^Seccomp' /proc/self/status 2>/dev/null | tr '\n\t' '  ' || echo '?')"
+printf '  lsm profile  %s\n' "$(tr -d '\000' < /proc/self/attr/current 2>/dev/null || echo 'none')"
+printf '  capabilities %s\n' "$(grep -i '^CapEff' /proc/self/status 2>/dev/null || echo '?')"
+
+echo
 echo "== Environment =="
 printf '  arch    %s\n' "$(uname -m)"
 # The supervisor canonicalizes the code-mode host with realpath and compares the

@@ -221,6 +221,24 @@ else
   printf '  ok      /system/bin/sh is canonical\n'
 fi
 printf '  linker  %s\n' "$([ -e /system/bin/linker64 ] && echo 'present' || echo 'MISSING')"
+# Binaries built by the pinned toolchain carry a DT_RUNPATH into the Termux
+# prefix and resolve libc++_shared.so there.
+if [ -f "$prefix/lib/libc++_shared.so" ]; then
+  printf '  libc++  present in the Termux prefix\n'
+else
+  printf '  MISSING %s/lib/libc++_shared.so\n' "$prefix"
+  missing=$((missing + 1))
+fi
+# bionic reads its namespace configuration here; the sandbox grants /linkerconfig
+# as a platform default, and the build host has it bound in.
+if [ -f /linkerconfig/ld.config.txt ]; then
+  printf '  linkercfg ld.config.txt present (%s bytes)\n' \
+    "$(wc -c < /linkerconfig/ld.config.txt)"
+else
+  printf '  MISSING /linkerconfig/ld.config.txt — bionic falls back to a built-in\n'
+  printf '          namespace configuration whose permitted paths may exclude the\n'
+  printf '          native library directory\n'
+fi
 
 echo
 echo "-----"

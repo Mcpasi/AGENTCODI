@@ -27,13 +27,26 @@ FROM ${TERMUX_IMAGE} AS termux
 # variables, so the pinned version is substituted into the command by Docker
 # rather than passed as an environment variable.
 ARG CLANG_VERSION=21.1.8-3
+# libc++ is installed explicitly: binaries built by this toolchain carry a
+# DT_RUNPATH into the Termux prefix and need libc++_shared.so there, exactly as
+# on the build host.
 RUN /entrypoint.sh bash -c "apt-get update -q \
  && apt-get install -y --no-install-recommends \
-      clang=${CLANG_VERSION} lld=${CLANG_VERSION} llvm=${CLANG_VERSION} \
- && clang++ --version && ld.lld --version && llvm-objcopy --version"
+      clang=${CLANG_VERSION} lld=${CLANG_VERSION} llvm=${CLANG_VERSION} libc++ \
+ && clang++ --version && ld.lld --version && llvm-objcopy --version \
+ && test -f /data/data/com.termux/files/usr/lib/libc++_shared.so"
+
+# The build host has /linkerconfig bound in, and the sandbox lists it among its
+# platform defaults for a reason: bionic reads its namespace configuration,
+# whose permitted paths govern where a library may be loaded from at all.
+# Stage whatever the Termux image has so the next stage can take it.
+RUN mkdir -p /export \
+ && if [ -d /linkerconfig ]; then cp -a /linkerconfig /export/linkerconfig; \
+    else mkdir -p /export/linkerconfig; fi
 
 FROM ${UBUNTU_IMAGE}
 COPY --from=termux /data/data/com.termux /data/data/com.termux
+COPY --from=termux /export/linkerconfig /linkerconfig
 # The Termux image keeps the Android linker in an aosp-libs directory that
 # /system links to. Locate it instead of assuming the path, and fail here with a
 # clear message rather than leaving a dangling symlink that only breaks later.

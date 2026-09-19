@@ -64,6 +64,7 @@ jobs:
           docker run --rm -v "$GITHUB_WORKSPACE":/workspace -w /workspace \
             -e AGENTCODI_CACHE_DIR=/workspace/.cache/android \
             -e AGENTCODI_OUTPUT_DIR=/workspace/output/apk \
+            -e AGENTCODI_SKIP_DEVICE_LINKER_TESTS=1 \
             "$IMAGE" ./scripts/build-debug-apk.sh
 
       # The container runs as root, so anything it wrote is root-owned.

@@ -19,6 +19,7 @@ if [ ! -r "$BUILD_SCRIPT" ]; then
 fi
 
 missing=0
+prefix="${AGENTCODI_TERMUX_PREFIX:-/data/data/com.termux/files/usr}"
 
 echo "== Required commands =="
 required="$(sed -n 's/^for command_name in \(.*\); do$/\1/p' "$BUILD_SCRIPT" | head -1)"
@@ -77,7 +78,6 @@ if [ -z "$expected" ]; then
   echo "  note    the build script does not pin a toolchain version"
 else
   printf '  pinned  %s\n' "$expected"
-  prefix="${AGENTCODI_TERMUX_PREFIX:-/data/data/com.termux/files/usr}"
   for tool_name in clang++ llvm-strip ld.lld llvm-objcopy; do
     tool_path="$prefix/bin/$tool_name"
     case "$tool_name" in
@@ -99,6 +99,43 @@ else
       missing=$((missing + 1))
     fi
   done
+fi
+
+echo
+echo "== Android linker =="
+# tests/cpp/toolchain_elf_guard_test.cpp asserts that invoking a guarded tool
+# manually through the dynamic linker cannot bypass the guard. That guard reads
+# /proc/self/exe and compares its basename against the expected tool name, so
+# the assertion only holds when a manual linker invocation leaves /proc/self/exe
+# pointing at the linker. This is a property of the specific Android linker, so
+# report what this environment actually does rather than assume it matches a
+# device. Informational: it does not fail the preflight.
+linker="/system/bin/linker64"
+if [ ! -e "$linker" ]; then
+  printf '  note    %s is absent\n' "$linker"
+else
+  printf '  path    %s -> %s\n' "$linker" "$(readlink -f "$linker" 2>/dev/null || echo '?')"
+  probe=""
+  for candidate in "$prefix/bin/readlink" /usr/bin/readlink; do
+    if [ -x "$candidate" ]; then probe="$candidate"; break; fi
+  done
+  if [ -z "$probe" ]; then
+    printf '  note    no readlink available to probe the linker\n'
+  else
+    observed="$("$linker" "$probe" /proc/self/exe 2>&1)"
+    status=$?
+    printf '  probe   %s %s /proc/self/exe -> exit %s\n' "$linker" "$probe" "$status"
+    printf '  result  %s\n' "${observed:-<no output>}"
+    case "$observed" in
+      */linker64)
+        printf '  ok      a manual invocation is visible as the linker; the guard can reject it\n'
+        ;;
+      *)
+        printf '  DIFFERS this environment does not expose a manual invocation as the linker,\n'
+        printf '          so the guard test expectation cannot hold here\n'
+        ;;
+    esac
+  fi
 fi
 
 echo

@@ -191,3 +191,20 @@ reference the container has to match.
 
 It needs a repository secret `AGENTCODI_INPUTS_TOKEN` with read access to the
 mirror.
+
+### The device linker checks
+
+Two checks assert that invoking a guarded tool manually through the Android
+dynamic linker cannot bypass its ELF guard — one in `scripts/test.sh` (the
+whole `toolchain_elf_guard_test` suite) and one in `scripts/build-debug-apk.sh`
+(the packaged ripgrep). Both rest on a property of the device's linker: under a
+manual invocation `/proc/self/exe` resolves to the linker itself, so the guard
+sees a non-canonical entry point and refuses.
+
+A container ships a different AOSP linker and cannot be relied on to reproduce
+that. `AGENTCODI_SKIP_DEVICE_LINKER_TESTS=1` therefore opts out of both, and the
+APK workflow sets it. Unset — on a device — nothing changes, so the local runs
+keep the full contract.
+
+`container-preflight.sh` probes and reports the property, so the container's
+actual behaviour is visible rather than assumed.

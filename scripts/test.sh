@@ -74,6 +74,15 @@ cp /system/bin/sh "$TEST_BUILD/cpp/libripgrep.so"
   -o "$TEST_BUILD/cpp/ripgrep-bridge-policy-test"
 "$TEST_BUILD/cpp/ripgrep-bridge-policy-test"
 
+# The ELF guard test asserts that a manual dynamic-linker invocation cannot
+# bypass the guard. That holds for the Android linker on a device, where
+# /proc/self/exe resolves to the linker itself, so the guard sees a
+# non-canonical entry point. A hosted container ships a different AOSP linker
+# and cannot be relied on to reproduce that semantic, so the check is opt-out
+# there. Unset — on a device — nothing changes.
+if [ "${AGENTCODI_SKIP_DEVICE_LINKER_TESTS:-0}" = "1" ]; then
+  echo "Skipping the toolchain ELF guard test: it depends on device linker semantics."
+else
 mkdir -p "$TEST_BUILD/cpp/guard-fixtures" "$TEST_BUILD/cpp/fake-guards"
 "$CLANGXX" -std=c++17 -O2 -Wall -Wextra -Werror \
   -I"$PROJECT_ROOT/modules/native-engine/src/main/cpp" \
@@ -176,6 +185,7 @@ env LD_LIBRARY_PATH="$TEST_BUILD/cpp/guard-fixtures:$TERMUX_PREFIX/lib" \
   "$TEST_BUILD/cpp/guard-fixtures/libpython-bin.so" \
   "$TEST_BUILD/cpp/guard-fixtures/libripgrep.so" \
   "$TEST_BUILD/cpp/fake-guards"
+fi
 
 "$CLANGXX" -std=c++17 -O2 -Wall -Wextra -Werror -pthread -I"$PROJECT_ROOT/modules/native-engine/src/main/cpp" "$PROJECT_ROOT/modules/native-engine/src/main/cpp/agentcodi_engine.cpp" "$PROJECT_ROOT/modules/native-engine/src/main/cpp/app_server_process.cpp" "$PROJECT_ROOT/modules/native-engine/src/main/cpp/png_validator.cpp" "$PROJECT_ROOT/modules/native-engine/src/main/cpp/sha256.cpp" "$PROJECT_ROOT/tests/cpp/agentcodi_engine_test.cpp" -lz -o "$TEST_BUILD/cpp/agentcodi-engine-test"
 

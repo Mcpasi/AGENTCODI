@@ -1,18 +1,15 @@
-# Debug APK build inside a Termux container.
+# Debug APK build on a hosted arm64 runner.
 #
-# scripts/build-debug-apk.sh needs an Android ARM64 Termux userland: it runs
-# aapt2, patchelf, the packaged Python and the packaged Codex app-server, all of
-# which are bionic binaries. A stock runner cannot execute them, so the build
-# runs inside termux/termux-docker, which ships a Termux bootstrap together with
-# the Android linker and bionic libraries. On an arm64 runner that container
-# runs natively, without qemu.
+# scripts/build-debug-apk.sh runs unmodified inside a container that reproduces
+# the build host: Ubuntu arm64 for every required command, the Termux prefix
+# for the pinned LLVM toolchain, and the Android linker so the packaged bionic
+# binaries (aapt2, patchelf, Python, the Codex app-server) can execute.
+# See .github/ci/Dockerfile.
 #
-# The build script itself is unmodified; everything is steered through the
-# AGENTCODI_* environment variables it already supports.
-#
-# This workflow is manual. The first runs are expected to fail on missing
-# container packages — the preflight step names them precisely, so each failure
-# identifies exactly what to add to the package list below.
+# The workflow is manual and defaults to a preflight-only run, because the
+# container is assembled here rather than on a device. container-preflight.sh
+# reports everything the environment is still missing in one pass, reading the
+# requirements out of the build script so they cannot drift.
 name: APK
 
 on:
@@ -28,13 +25,11 @@ permissions:
 
 jobs:
   apk:
-    name: Debug APK (Termux container)
+    name: Debug APK
     runs-on: ubuntu-24.04-arm
     timeout-minutes: 120
     env:
-      IMAGE: termux/termux-docker:aarch64
-      CONTAINER: agentcodi-build
-      PREFIX: /data/data/com.termux/files/usr
+      IMAGE: agentcodi-build
     steps:
       - name: Check out the repository
         uses: actions/checkout@v4
@@ -50,38 +45,26 @@ jobs:
       - name: Verify the build inputs
         run: .github/ci/verify-build-inputs.sh
 
-      - name: Start the Termux container
-        run: |
-          docker pull "$IMAGE"
-          docker run -d --name "$CONTAINER" --user root \
-            -v "$GITHUB_WORKSPACE":/workspace -w /workspace \
-            "$IMAGE" sleep infinity
-          docker exec "$CONTAINER" uname -m
-
-      # First guess at the package set. The preflight step below reports what is
-      # still missing; add it here rather than guessing twice.
-      - name: Install the pinned toolchain and build tools
-        run: |
-          docker exec "$CONTAINER" pkg update -y
-          docker exec "$CONTAINER" pkg install -y \
-            clang lld llvm binutils openjdk-17 \
-            apksigner dpkg file ripgrep util-linux coreutils \
-            tar unzip zip curl diffutils grep sed gawk
+      - name: Build the container image
+        run: docker build -t "$IMAGE" -f .github/ci/Dockerfile .github/ci
 
       - name: Check the container against the build requirements
         run: |
-          docker exec \
-            -e AGENTCODI_JAVA_HOME="$PREFIX/opt/openjdk" \
-            "$CONTAINER" .github/ci/container-preflight.sh
+          docker run --rm -v "$GITHUB_WORKSPACE":/workspace -w /workspace \
+            "$IMAGE" .github/ci/container-preflight.sh
 
       - name: Build the debug APK
         if: ${{ !inputs.preflight_only }}
         run: |
-          docker exec \
-            -e AGENTCODI_JAVA_HOME="$PREFIX/opt/openjdk" \
+          docker run --rm -v "$GITHUB_WORKSPACE":/workspace -w /workspace \
             -e AGENTCODI_CACHE_DIR=/workspace/.cache/android \
             -e AGENTCODI_OUTPUT_DIR=/workspace/output/apk \
-            "$CONTAINER" ./scripts/build-debug-apk.sh
+            "$IMAGE" ./scripts/build-debug-apk.sh
+
+      # The container runs as root, so anything it wrote is root-owned.
+      - name: Hand the outputs back to the runner
+        if: always()
+        run: sudo chown -R "$(id -u):$(id -g)" "$GITHUB_WORKSPACE" || true
 
       - name: Collect the APK
         if: ${{ !inputs.preflight_only }}
@@ -90,7 +73,3 @@ jobs:
           name: agentcodi-debug-apk
           path: output/apk/*.apk
           if-no-files-found: error
-
-      - name: Stop the container
-        if: always()
-        run: docker rm -f "$CONTAINER" || true

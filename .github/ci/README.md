@@ -161,23 +161,33 @@ editing the existing one, so old APKs stay reproducible.
 
 ## Building the APK on a hosted runner
 
-`.github/workflows/apk.yml` builds the debug APK inside
-`termux/termux-docker:aarch64` on an `ubuntu-24.04-arm` runner, where that
-container runs natively without qemu. The build needs a Termux userland because
-it executes bionic binaries: `aapt2`, `patchelf`, the packaged Python during
-`compileall`, and the packaged Codex app-server in the bootstrap smoke test.
-The image supplies one — a Termux bootstrap plus the Android linker and bionic
-libraries, with `/system` linked into the prefix.
-
+`.github/workflows/apk.yml` builds the debug APK on an `ubuntu-24.04-arm`
+runner, inside the image defined by `.github/ci/Dockerfile`.
 `scripts/build-debug-apk.sh` is used unmodified; everything is steered through
 the `AGENTCODI_*` variables it already supports.
+
+The image reproduces the build host, which is a hybrid rather than a Termux
+system. Resolving every command in the build script's own `require_command`
+list back to its owning package on the host gives 25 Ubuntu packages and no
+Termux ones — `zipalign`, `apksigner` and `java` all come from `/usr/bin`. So
+the image is:
+
+* **Ubuntu arm64** for the required commands. Termux does not package
+  `zipalign` at all, so a pure Termux image cannot complete a build.
+* **The Termux prefix** for the pinned LLVM toolchain, installed at the version
+  the build script pins and checked again by the build itself.
+* **The Android linker and bionic libraries**, copied from
+  `termux/termux-docker:aarch64`, which ships them as aosp-libs. Without them
+  the packaged `aapt2`, `patchelf`, Python and Codex app-server cannot run —
+  they are bionic binaries. On an arm64 runner all of this runs natively,
+  without qemu.
 
 The workflow is manual and defaults to a preflight-only run.
 `container-preflight.sh` reads the required command list and the pinned
 toolchain version out of the build script — so they cannot drift — and reports
-everything the container is missing in one pass, instead of surfacing it one
-failing build at a time. Add what it names to the package list in the workflow
-and run again; switch the input off once the environment is satisfied.
+everything the environment is missing in one pass, instead of surfacing it one
+failing build at a time. It is green on the build host, which makes it the
+reference the container has to match.
 
 It needs a repository secret `AGENTCODI_INPUTS_TOKEN` with read access to the
 mirror.

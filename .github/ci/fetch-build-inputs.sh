@@ -79,21 +79,70 @@ staged_matches() {
   return 0
 }
 
+# Both sources are retried: a single flaky download must not fail a run when
+# the mirror is the only place an artifact still exists. The reason for a
+# failure is kept rather than discarded, so the log names it.
+MIRROR_ERROR="$staging/.mirror-error"
+UPSTREAM_ERROR="$staging/.upstream-error"
+ATTEMPTS="${AGENTCODI_FETCH_ATTEMPTS:-3}"
+
 try_mirror() {
   local asset="$1" expected="$2" staged="$3"
   [ "$mirror_available" -eq 1 ] || return 1
-  rm -f -- "$staged"
-  gh release download "$AGENTCODI_INPUTS_TAG" --repo "$MIRROR_REPO" \
-    --pattern "$asset" --dir "$staging" >/dev/null 2>&1 || return 1
-  staged_matches "$staged" "$expected"
+  local attempt=1
+  while [ "$attempt" -le "$ATTEMPTS" ]; do
+    rm -f -- "$staged"
+    if gh release download "$AGENTCODI_INPUTS_TAG" --repo "$MIRROR_REPO" \
+        --pattern "$asset" --dir "$staging" >/dev/null 2>"$MIRROR_ERROR"; then
+      if staged_matches "$staged" "$expected"; then
+        return 0
+      fi
+      printf 'downloaded bytes do not match the pinned hash\n' > "$MIRROR_ERROR"
+    fi
+    attempt=$((attempt + 1))
+    if [ "$attempt" -le "$ATTEMPTS" ]; then
+      sleep $(( (attempt - 1) * 3 ))
+    fi
+  done
+  return 1
 }
 
 try_upstream() {
   local source_url="$1" expected="$2" staged="$3"
-  rm -f -- "$staged"
-  curl --fail --location --silent --show-error \
-    --retry 3 --retry-delay 2 --output "$staged" "$source_url" 2>/dev/null || return 1
-  staged_matches "$staged" "$expected"
+  local attempt=1
+  while [ "$attempt" -le "$ATTEMPTS" ]; do
+    rm -f -- "$staged"
+    if curl --fail --location --silent --show-error \
+        --retry 3 --retry-delay 2 --output "$staged" "$source_url" \
+        2>"$UPSTREAM_ERROR"; then
+      if staged_matches "$staged" "$expected"; then
+        return 0
+      fi
+      printf 'downloaded bytes do not match the pinned hash\n' > "$UPSTREAM_ERROR"
+    fi
+    attempt=$((attempt + 1))
+    if [ "$attempt" -le "$ATTEMPTS" ]; then
+      sleep $(( (attempt - 1) * 3 ))
+    fi
+  done
+  return 1
+}
+
+report_failure() {
+  local path="$1" origin="$2" url="$3"
+  printf 'FAILED    %s\n' "$path" >&2
+  if [ -s "$MIRROR_ERROR" ]; then
+    sed 's/^/            mirror:   /' "$MIRROR_ERROR" >&2
+  else
+    printf '            mirror:   not attempted\n' >&2
+  fi
+  if [ "$origin" = "download" ] && [ "$url" != "-" ]; then
+    if [ -s "$UPSTREAM_ERROR" ]; then
+      sed 's/^/            upstream: /' "$UPSTREAM_ERROR" >&2
+    fi
+  else
+    printf '            upstream: none — this artifact exists only in the mirror\n' >&2
+  fi
 }
 
 while IFS=$'\t' read -r path sha origin url; do
@@ -108,6 +157,8 @@ while IFS=$'\t' read -r path sha origin url; do
   asset="${path##*/}"
   staged="$staging/$asset"
   source_label=""
+  : > "$MIRROR_ERROR"
+  : > "$UPSTREAM_ERROR"
   if try_mirror "$asset" "$sha" "$staged"; then
     source_label="mirror"
     from_mirror=$((from_mirror + 1))
@@ -116,7 +167,7 @@ while IFS=$'\t' read -r path sha origin url; do
     source_label="upstream"
     from_upstream=$((from_upstream + 1))
   else
-    printf 'FAILED    %s (no source produced the pinned bytes)\n' "$path" >&2
+    report_failure "$path" "$origin" "$url"
     failed=$((failed + 1))
     continue
   fi

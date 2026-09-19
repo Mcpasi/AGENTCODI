@@ -13,6 +13,10 @@
 name: APK
 
 on:
+  push:
+    branches:
+      - CI-TEST-02
+
   workflow_dispatch:
     inputs:
       preflight_only:

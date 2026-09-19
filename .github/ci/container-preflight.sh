@@ -51,6 +51,26 @@ if [ -x "$java_home/bin/javac" ]; then
 fi
 
 echo
+echo "== Text encoding =="
+printf '  LANG=%s LC_ALL=%s\n' "${LANG:-<unset>}" "${LC_ALL:-<unset>}"
+if [ -x "$java_home/bin/java" ]; then
+  jnu="$("$java_home/bin/java" -XshowSettings:properties -version 2>&1 \
+    | sed -n 's/.*sun\.jnu\.encoding = //p' | head -1)"
+  case "$jnu" in
+    UTF-8|utf-8|UTF8)
+      printf '  ok      sun.jnu.encoding %s\n' "$jnu"
+      ;;
+    *)
+      # The workspace browser tests create a file whose name holds an emoji.
+      # Without a UTF-8 locale the JVM cannot encode that path at all.
+      printf '  WRONG   sun.jnu.encoding %s (need UTF-8; set LANG/LC_ALL to C.UTF-8)\n' \
+        "${jnu:-unknown}"
+      missing=$((missing + 1))
+      ;;
+  esac
+fi
+
+echo
 echo "== Pinned LLVM toolchain =="
 expected="$(sed -n 's/^CLANG_TOOLCHAIN_VERSION="\(.*\)"$/\1/p' "$BUILD_SCRIPT" | head -1)"
 if [ -z "$expected" ]; then

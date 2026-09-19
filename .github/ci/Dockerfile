@@ -53,5 +53,11 @@ RUN apt-get update \
       coreutils bsdutils findutils mawk diffutils grep sed tar \
       curl ca-certificates unzip zip \
  && rm -rf /var/lib/apt/lists/*
+# The build host runs under C.UTF-8. Without it the JVM derives
+# sun.jnu.encoding from the POSIX locale and resolves to ANSI_X3.4-1968, so any
+# path holding a non-ASCII character — the workspace browser tests create one —
+# fails with InvalidPathException before the test itself can run.
+ENV LANG=C.UTF-8
+ENV LC_ALL=C.UTF-8
 ENV AGENTCODI_JAVA_HOME=/usr/lib/jvm/java-17-openjdk-arm64
 WORKDIR /workspace

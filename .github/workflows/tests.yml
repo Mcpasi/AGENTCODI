@@ -15,6 +15,13 @@ on:
 permissions:
   contents: read
 
+# The Java suite creates a file whose name holds an emoji. Under a POSIX locale
+# the JVM resolves sun.jnu.encoding to ANSI_X3.4-1968 and cannot encode that
+# path at all, so the encoding is pinned rather than inherited.
+env:
+  LANG: C.UTF-8
+  LC_ALL: C.UTF-8
+
 concurrency:
   group: tests-${{ github.workflow }}-${{ github.ref }}
   cancel-in-progress: true

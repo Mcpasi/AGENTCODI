@@ -90,9 +90,21 @@ std::string executable_name(const char* value) {
 }
 
 bool canonical_packaged_bridge(std::string* bridge, std::string* error) {
+  // Read the kernel's executable link before canonicalizing its target.
+  // Bionic realpath("/proc/self/exe") also probes /proc's metadata, which
+  // a read-narrowed sandbox intentionally does not grant to the command.
+  char executable[PATH_MAX];
+  const ssize_t length = readlink(
+      "/proc/self/exe", executable, sizeof(executable) - 1U);
+  if (length <= 0
+      || static_cast<std::size_t>(length) >= sizeof(executable) - 1U) {
+    *error = "Packaged shell bridge failed canonical self-validation";
+    return false;
+  }
+  executable[length] = '\0';
   char resolved[PATH_MAX];
   struct stat metadata {};
-  if (realpath("/proc/self/exe", resolved) == nullptr
+  if (realpath(executable, resolved) == nullptr
       || lstat(resolved, &metadata) != 0
       || !S_ISREG(metadata.st_mode)
       || metadata.st_nlink != 1

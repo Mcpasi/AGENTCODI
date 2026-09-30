@@ -163,7 +163,7 @@ editing the existing one, so old APKs stay reproducible.
 
 `.github/workflows/apk.yml` builds the debug APK on an `ubuntu-24.04-arm`
 runner, inside the image defined by `.github/ci/Dockerfile`.
-`scripts/build-debug-apk.sh` is used unmodified; everything is steered through
+`scripts/build-debug-apk.sh` is used directly; everything is steered through
 the `AGENTCODI_*` variables it already supports.
 
 The image reproduces the build host, which is a hybrid rather than a Termux
@@ -182,7 +182,8 @@ the image is:
   they are bionic binaries. On an arm64 runner all of this runs natively,
   without qemu.
 
-The workflow is manual and defaults to a preflight-only run.
+The workflow builds on pushes to `Mcpasi/fixed` and `CI-TEST*` branches.
+Manual runs default to a preflight-only run.
 `container-preflight.sh` reads the required command list and the pinned
 toolchain version out of the build script — so they cannot drift — and reports
 everything the environment is missing in one pass, instead of surfacing it one
@@ -208,3 +209,22 @@ keep the full contract.
 
 `container-preflight.sh` probes and reports the property, so the container's
 actual behaviour is visible rather than assumed.
+
+### The protected bootstrap fixture layout
+
+The APK workflow sets `AGENTCODI_BOOTSTRAP_LAYOUT=flat`. The container's Bionic
+`realpath()` probes every ancestor with `newfstatat`; the read-narrowed Android
+sandbox grants the native payload and workspace directories, not `/workspace`
+or `/data`. A nested payload therefore fails to resolve `libc++_shared.so` even
+when that pinned library is present next to the executable.
+
+The flat layout creates separate, private fixture directories directly under
+`/` in the disposable build container and copies the verified native payload
+and tool runtime into them. It runs the same complete bootstrap against those
+copies, including workspace reads/writes, denial of private sibling access,
+terminal sessions, Node/npm/Python/ripgrep, and the app-server protocol probes.
+The sandbox policy and packaged bytes are unchanged. All fixture directories
+are removed by the build's exit trap, including on failure.
+
+This layout requires write access to `/` and is intended for the root-owned
+build container. Local builds retain the default `nested` layout.

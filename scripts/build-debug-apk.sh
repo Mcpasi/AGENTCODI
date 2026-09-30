@@ -22,6 +22,11 @@ case "$BOOTSTRAP_LAYOUT" in
     ;;
 esac
 
+if [ "$BOOTSTRAP_LAYOUT" = flat ] && [ ! -w / ]; then
+  echo "Flat bootstrap fixtures require a disposable container with a writable /." >&2
+  exit 1
+fi
+
 case "$BUILD_VARIANT" in
   debug|release) ;;
   *)

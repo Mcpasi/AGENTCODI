@@ -235,8 +235,14 @@ The flat layout creates separate, private fixture directories directly under
 and tool runtime into them. It runs the same complete bootstrap against those
 copies, including workspace reads/writes, denial of private sibling access,
 terminal sessions, Node/npm/Python/ripgrep, and the app-server protocol probes.
-The sandbox policy and packaged bytes are unchanged. All fixture directories
-are removed by the build's exit trap, including on failure.
+The layout copies the compiled payload without changing its bytes or the
+sandbox policy. All fixture directories are removed by the build's exit trap,
+including on failure.
+
+The shell bridge also reads `/proc/self/exe` with `readlink()` before resolving
+the returned executable path. This retains its canonical-file, executable,
+basename and single-link checks while avoiding Bionic's metadata probes of the
+ungranted `/proc` ancestor. The ELF guards already use the direct link read.
 
 This layout requires write access to `/` and is intended for the root-owned
 build container. Local builds retain the default `nested` layout.

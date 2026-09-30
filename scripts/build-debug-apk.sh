@@ -378,6 +378,8 @@ verify_file_sha256() {
   local expected="$2"
   if ! printf '%s  %s\n' "$expected" "$file" | sha256sum --check --status; then
     echo "Derived runtime hash mismatch: $file" >&2
+    echo "Expected SHA-256: $expected" >&2
+    echo "Actual SHA-256: $(sha256sum "$file" | awk '{print $1}')" >&2
     exit 1
   fi
 }

@@ -197,6 +197,14 @@ reference the container has to match.
 It needs a repository secret `AGENTCODI_INPUTS_TOKEN` with read access to the
 mirror.
 
+The rolling Termux pool no longer supplies `ndk-sysroot` 29-3.
+`restore-ndk-sysroot.sh` reconstructs its headers and link inputs from the
+SHA-256-pinned Android NDK r29 archive and the matching upstream Termux recipe
+at `e23be59f0cdcb00674821347881182e68a548135`. `ndk-29-inputs.tsv` pins the
+20 patches and compatibility headers separately. The reconstructed package is
+installed in the pinned Termux stage before compilation. The existing derived
+guard/runtime hash checks remain authoritative and reject differing output.
+
 ### The device linker checks
 
 Two checks assert that invoking a guarded tool manually through the Android

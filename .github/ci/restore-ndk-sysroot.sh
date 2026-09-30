@@ -44,7 +44,7 @@ unzip -q "$WORK_DIR/ndk.zip" \
       -e 's%@TERMUX_CACHE_DIR@%/data/data/com.termux/cache%g' \
       -e 's%@TERMUX_HOME@%/data/data/com.termux/files/home%g' \
       -e "s%@TERMUX_PREFIX@%$PREFIX%g" "$patch_file" \
-      | patch --batch --fuzz=0 -p1
+      | patch --batch -p1
   done
   grep -lrw usr/include/c++/v1 -e 'include <version>' \
     | xargs -r sed -i 's/include <version>/include "version"/g'

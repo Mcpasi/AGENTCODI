@@ -12,6 +12,20 @@ MIN_SDK="29"
 TARGET_SDK="35"
 ABI="arm64-v8a"
 BUILD_VARIANT="${AGENTCODI_BUILD_VARIANT:-debug}"
+BOOTSTRAP_LAYOUT="${AGENTCODI_BOOTSTRAP_LAYOUT:-nested}"
+
+case "$BOOTSTRAP_LAYOUT" in
+  nested|flat) ;;
+  *)
+    echo "Unsupported AGENTCODI bootstrap layout: $BOOTSTRAP_LAYOUT" >&2
+    exit 1
+    ;;
+esac
+
+if [ "$BOOTSTRAP_LAYOUT" = flat ] && [ ! -w / ]; then
+  echo "Flat bootstrap fixtures require a disposable container with a writable /." >&2
+  exit 1
+fi
 
 case "$BUILD_VARIANT" in
   debug|release) ;;
@@ -369,6 +383,8 @@ verify_file_sha256() {
   local expected="$2"
   if ! printf '%s  %s\n' "$expected" "$file" | sha256sum --check --status; then
     echo "Derived runtime hash mismatch: $file" >&2
+    echo "Expected SHA-256: $expected" >&2
+    echo "Actual SHA-256: $(sha256sum "$file" | awk '{print $1}')" >&2
     exit 1
   fi
 }
@@ -473,7 +489,15 @@ echo "Running Java, C++, and architecture tests..."
 "$SCRIPT_DIR/test.sh"
 
 WORK_DIR="$(mktemp -d "$BUILD_ROOT/apk.work.XXXXXX")"
+BOOTSTRAP_FLAT_DIRS=()
 cleanup() {
+  local directory
+  for directory in "${BOOTSTRAP_FLAT_DIRS[@]}"; do
+    case "$directory" in
+      /agentcodi-bootstrap-*.??????) rm -rf -- "$directory" ;;
+      *) echo "Refusing unsafe bootstrap cleanup: $directory" >&2 ;;
+    esac
+  done
   case "$WORK_DIR" in
     "$BUILD_ROOT"/apk.work.*) rm -rf -- "$WORK_DIR" ;;
     *) echo "Refusing unsafe build cleanup: $WORK_DIR" >&2 ;;
@@ -1886,16 +1910,48 @@ BOOTSTRAP_SMOKE_CODEX_HOME="$BOOTSTRAP_SMOKE_ROOT/codex-home"
 BOOTSTRAP_SMOKE_HOME="$BOOTSTRAP_SMOKE_ROOT/home"
 BOOTSTRAP_SMOKE_STATE="$BOOTSTRAP_SMOKE_ROOT/state"
 BOOTSTRAP_SMOKE_TEMP="$BOOTSTRAP_SMOKE_ROOT/temp"
+BOOTSTRAP_SMOKE_NATIVE="$NATIVE_DIR"
+if [ "$BOOTSTRAP_LAYOUT" = flat ]; then
+  # The container's bionic realpath() stats every ancestor. A read-narrowed
+  # Android policy grants the payload/workspace roots, not their parents, so
+  # resolving /workspace/.build/... fails before libc++ can be loaded. Keep
+  # every granted fixture root directly under / instead. Copy the verified
+  # payload bytes; do not grant ancestor reads or weaken the sandbox probes.
+  # This opt-in layout needs a disposable container with a writable /.
+  bootstrap_flat_directory() {
+    local variable="$1"
+    local label="$2"
+    local directory
+    directory="$(mktemp -d "/agentcodi-bootstrap-$label.XXXXXX")"
+    BOOTSTRAP_FLAT_DIRS+=("$directory")
+    printf -v "$variable" '%s' "$directory"
+  }
+  bootstrap_flat_directory BOOTSTRAP_SMOKE_WORKSPACE workspace
+  bootstrap_flat_directory BOOTSTRAP_SMOKE_TOOL_BIN tool-bin
+  bootstrap_flat_directory BOOTSTRAP_SMOKE_TOOL_RUNTIME tool-runtime
+  bootstrap_flat_directory BOOTSTRAP_SMOKE_NATIVE native
+  bootstrap_flat_directory BOOTSTRAP_SMOKE_CODEX_HOME codex-home
+  bootstrap_flat_directory BOOTSTRAP_SMOKE_HOME home
+  bootstrap_flat_directory BOOTSTRAP_SMOKE_STATE state
+  bootstrap_flat_directory BOOTSTRAP_SMOKE_TEMP temp
+  BOOTSTRAP_SMOKE_ROOT="$BOOTSTRAP_SMOKE_WORKSPACE"
+  BOOTSTRAP_SMOKE_IMPORTS="$BOOTSTRAP_SMOKE_WORKSPACE/imports"
+  BOOTSTRAP_SMOKE_TOOLCHAIN="$BOOTSTRAP_SMOKE_WORKSPACE/toolchain"
+  cp -a "$NATIVE_DIR/." "$BOOTSTRAP_SMOKE_NATIVE/"
+  cp -a "$TOOL_RUNTIME_STAGE/." "$BOOTSTRAP_SMOKE_TOOL_RUNTIME/"
+  chmod 700 "$BOOTSTRAP_SMOKE_NATIVE" "$BOOTSTRAP_SMOKE_TOOL_RUNTIME"
+  echo "Using flat bootstrap fixture roots for the container's Android linker."
+fi
 mkdir -p "$BOOTSTRAP_SMOKE_WORKSPACE" "$BOOTSTRAP_SMOKE_IMPORTS" "$BOOTSTRAP_SMOKE_TOOLCHAIN" "$BOOTSTRAP_SMOKE_TOOL_BIN" "$BOOTSTRAP_SMOKE_CODEX_HOME" "$BOOTSTRAP_SMOKE_HOME" "$BOOTSTRAP_SMOKE_STATE" "$BOOTSTRAP_SMOKE_TEMP"
 chmod 700 "$BOOTSTRAP_SMOKE_ROOT" "$BOOTSTRAP_SMOKE_WORKSPACE" "$BOOTSTRAP_SMOKE_IMPORTS" "$BOOTSTRAP_SMOKE_TOOLCHAIN" "$BOOTSTRAP_SMOKE_TOOL_BIN" "$BOOTSTRAP_SMOKE_CODEX_HOME" "$BOOTSTRAP_SMOKE_HOME" "$BOOTSTRAP_SMOKE_STATE" "$BOOTSTRAP_SMOKE_TEMP"
 printf '%s\n' 'agentcodi-import-content-smoke' > "$BOOTSTRAP_SMOKE_IMPORTS/0123456789abcdef0123456789abcdef.bin"
 chmod 600 "$BOOTSTRAP_SMOKE_IMPORTS/0123456789abcdef0123456789abcdef.bin"
-ln -s "$NATIVE_DIR/$TERMINAL_SHELL_NAME" "$BOOTSTRAP_SMOKE_TOOL_BIN/node"
-ln -s "$NATIVE_DIR/$TERMINAL_SHELL_NAME" "$BOOTSTRAP_SMOKE_TOOL_BIN/npm"
-ln -s "$NATIVE_DIR/$TERMINAL_SHELL_NAME" "$BOOTSTRAP_SMOKE_TOOL_BIN/python"
-ln -s "$NATIVE_DIR/$TERMINAL_SHELL_NAME" "$BOOTSTRAP_SMOKE_TOOL_BIN/python3"
-ln -s "$NATIVE_DIR/$TERMINAL_SHELL_NAME" "$BOOTSTRAP_SMOKE_TOOL_BIN/rg"
-ln -s "$NATIVE_DIR/$TERMINAL_SHELL_NAME" "$BOOTSTRAP_SMOKE_TOOL_BIN/agentcodi-toolchain"
+ln -s "$BOOTSTRAP_SMOKE_NATIVE/$TERMINAL_SHELL_NAME" "$BOOTSTRAP_SMOKE_TOOL_BIN/node"
+ln -s "$BOOTSTRAP_SMOKE_NATIVE/$TERMINAL_SHELL_NAME" "$BOOTSTRAP_SMOKE_TOOL_BIN/npm"
+ln -s "$BOOTSTRAP_SMOKE_NATIVE/$TERMINAL_SHELL_NAME" "$BOOTSTRAP_SMOKE_TOOL_BIN/python"
+ln -s "$BOOTSTRAP_SMOKE_NATIVE/$TERMINAL_SHELL_NAME" "$BOOTSTRAP_SMOKE_TOOL_BIN/python3"
+ln -s "$BOOTSTRAP_SMOKE_NATIVE/$TERMINAL_SHELL_NAME" "$BOOTSTRAP_SMOKE_TOOL_BIN/rg"
+ln -s "$BOOTSTRAP_SMOKE_NATIVE/$TERMINAL_SHELL_NAME" "$BOOTSTRAP_SMOKE_TOOL_BIN/agentcodi-toolchain"
 printf '%s\n' \
   'approval_policy="never"' \
   'shell_environment_policy={inherit="all"}' \
@@ -1907,15 +1963,15 @@ chmod 600 "$BOOTSTRAP_SMOKE_CODEX_HOME/config.toml"
 # this entire sequence. Individual commands still enforce their own deadlines
 # and all protocol, toolchain and filesystem-isolation assertions must pass.
 if timeout --kill-after=5s 300s env -i \
-    LD_LIBRARY_PATH="$NATIVE_DIR" \
+    LD_LIBRARY_PATH="$BOOTSTRAP_SMOKE_NATIVE" \
     PATH="/system/bin:/system/xbin" \
     "$BOOTSTRAP_SMOKE_BIN" \
-    "$NATIVE_DIR/libcodex.so" \
-    "$NATIVE_DIR/$CODEX_PACKAGED_HOST_NAME" \
-    "$NATIVE_DIR/$TERMINAL_SHELL_NAME" \
-    "$NATIVE_DIR/$NODE_LIBRARY_NAME" \
-    "$NATIVE_DIR/$PYTHON_LIBRARY_NAME" \
-    "$NATIVE_DIR/$RIPGREP_LIBRARY_NAME" \
+    "$BOOTSTRAP_SMOKE_NATIVE/libcodex.so" \
+    "$BOOTSTRAP_SMOKE_NATIVE/$CODEX_PACKAGED_HOST_NAME" \
+    "$BOOTSTRAP_SMOKE_NATIVE/$TERMINAL_SHELL_NAME" \
+    "$BOOTSTRAP_SMOKE_NATIVE/$NODE_LIBRARY_NAME" \
+    "$BOOTSTRAP_SMOKE_NATIVE/$PYTHON_LIBRARY_NAME" \
+    "$BOOTSTRAP_SMOKE_NATIVE/$RIPGREP_LIBRARY_NAME" \
     "$BOOTSTRAP_SMOKE_WORKSPACE" \
     "$BOOTSTRAP_SMOKE_TOOLCHAIN" \
     "$BOOTSTRAP_SMOKE_TOOL_BIN" \
@@ -1924,7 +1980,7 @@ if timeout --kill-after=5s 300s env -i \
     "$BOOTSTRAP_SMOKE_HOME" \
     "$BOOTSTRAP_SMOKE_STATE" \
     "$BOOTSTRAP_SMOKE_TEMP" \
-    "$NATIVE_DIR"; then
+    "$BOOTSTRAP_SMOKE_NATIVE"; then
   :
 else
   bootstrap_status=$?

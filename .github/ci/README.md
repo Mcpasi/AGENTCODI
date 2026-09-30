@@ -3,10 +3,11 @@
 These scripts exist so GitHub Actions can run the project's tests on a stock
 Ubuntu runner. They are additional entry points only:
 
-* `scripts/test.sh`, `scripts/build-debug-apk.sh` and the rest of the build
-  system are **not** used or modified here. They depend on the Termux Android
-  toolchain (`/data/data/com.termux/files/usr/bin/clang++`, `ld.lld`,
-  `llvm-objcopy`, `/system/bin/sh`) and remain the authoritative local runners.
+* The host-test drivers do not invoke `scripts/test.sh` or
+  `scripts/build-debug-apk.sh`. These depend on the Termux Android toolchain
+  (`/data/data/com.termux/files/usr/bin/clang++`, `ld.lld`, `llvm-objcopy`,
+  `/system/bin/sh`) and remain the authoritative local runners. The APK job
+  invokes the build script in the Android-enabled container described below.
 * The test sources under `tests/java` and `tests/cpp` are used **unmodified**.
   Nothing here changes how the local suites behave.
 * Nothing is written into the working tree. Build output goes to `$RUNNER_TEMP`
@@ -163,7 +164,7 @@ editing the existing one, so old APKs stay reproducible.
 
 `.github/workflows/apk.yml` builds the debug APK on an `ubuntu-24.04-arm`
 runner, inside the image defined by `.github/ci/Dockerfile`.
-`scripts/build-debug-apk.sh` is used unmodified; everything is steered through
+`scripts/build-debug-apk.sh` is used directly; everything is steered through
 the `AGENTCODI_*` variables it already supports.
 
 The image reproduces the build host, which is a hybrid rather than a Termux
@@ -175,14 +176,18 @@ the image is:
 * **Ubuntu arm64** for the required commands. Termux does not package
   `zipalign` at all, so a pure Termux image cannot complete a build.
 * **The Termux prefix** for the pinned LLVM toolchain, installed at the version
-  the build script pins and checked again by the build itself.
+  the build script pins and checked again by the build itself. The Termux base
+  image is pinned by digest; `ndk-sysroot` 29-3 and `libc++` 29 are pinned with
+  LLVM's 21.1.8-3 packages, because upgrading the headers/CRT also changes the
+  derived guard hashes even when the Clang version is unchanged.
 * **The Android linker and bionic libraries**, copied from
   `termux/termux-docker:aarch64`, which ships them as aosp-libs. Without them
   the packaged `aapt2`, `patchelf`, Python and Codex app-server cannot run —
   they are bionic binaries. On an arm64 runner all of this runs natively,
   without qemu.
 
-The workflow is manual and defaults to a preflight-only run.
+The workflow builds on pushes to `Mcpasi/fixed` and `CI-TEST*` branches.
+Manual runs default to a preflight-only run.
 `container-preflight.sh` reads the required command list and the pinned
 toolchain version out of the build script — so they cannot drift — and reports
 everything the environment is missing in one pass, instead of surfacing it one
@@ -191,6 +196,14 @@ reference the container has to match.
 
 It needs a repository secret `AGENTCODI_INPUTS_TOKEN` with read access to the
 mirror.
+
+The rolling Termux pool no longer supplies `ndk-sysroot` 29-3.
+`restore-ndk-sysroot.sh` reconstructs its headers and link inputs from the
+SHA-256-pinned Android NDK r29 archive and the matching upstream Termux recipe
+at `e23be59f0cdcb00674821347881182e68a548135`. `ndk-29-inputs.tsv` pins the
+20 patches and compatibility headers separately. The reconstructed package is
+installed in the pinned Termux stage before compilation. The existing derived
+guard/runtime hash checks remain authoritative and reject differing output.
 
 ### The device linker checks
 
@@ -208,3 +221,28 @@ keep the full contract.
 
 `container-preflight.sh` probes and reports the property, so the container's
 actual behaviour is visible rather than assumed.
+
+### The protected bootstrap fixture layout
+
+The APK workflow sets `AGENTCODI_BOOTSTRAP_LAYOUT=flat`. The container's Bionic
+`realpath()` probes every ancestor with `newfstatat`; the read-narrowed Android
+sandbox grants the native payload and workspace directories, not `/workspace`
+or `/data`. A nested payload therefore fails to resolve `libc++_shared.so` even
+when that pinned library is present next to the executable.
+
+The flat layout creates separate, private fixture directories directly under
+`/` in the disposable build container and copies the verified native payload
+and tool runtime into them. It runs the same complete bootstrap against those
+copies, including workspace reads/writes, denial of private sibling access,
+terminal sessions, Node/npm/Python/ripgrep, and the app-server protocol probes.
+The layout copies the compiled payload without changing its bytes or the
+sandbox policy. All fixture directories are removed by the build's exit trap,
+including on failure.
+
+The shell bridge also reads `/proc/self/exe` with `readlink()` before resolving
+the returned executable path. This retains its canonical-file, executable,
+basename and single-link checks while avoiding Bionic's metadata probes of the
+ungranted `/proc` ancestor. The ELF guards already use the direct link read.
+
+This layout requires write access to `/` and is intended for the root-owned
+build container. Local builds retain the default `nested` layout.

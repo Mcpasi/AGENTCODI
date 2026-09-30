@@ -15,10 +15,18 @@
 #     ships them as aosp-libs. Without them the build cannot execute the
 #     packaged aapt2, patchelf, Python or Codex app-server, all of which are
 #     bionic binaries.
-ARG TERMUX_IMAGE=termux/termux-docker:aarch64
+ARG TERMUX_IMAGE=termux/termux-docker:aarch64@sha256:e19ea56dd687563849826cbda57da714ae23277ee463e21f39917dbc0a59bab4
 ARG UBUNTU_IMAGE=ubuntu:26.04
 
+FROM ${UBUNTU_IMAGE} AS ndk
+RUN apt-get update \
+ && apt-get install -y --no-install-recommends curl ca-certificates unzip patch \
+ && rm -rf /var/lib/apt/lists/*
+COPY restore-ndk-sysroot.sh ndk-29-inputs.tsv /ci/
+RUN bash /ci/restore-ndk-sysroot.sh /output
+
 FROM ${TERMUX_IMAGE} AS termux
+COPY --from=ndk --chown=1000:1000 /output/ndk-sysroot_29-3_aarch64.deb /data/data/com.termux/files/usr/tmp/
 # The image sets no USER, so RUN executes as root — and Termux refuses to run
 # its package manager as root. Privileges are dropped by the image's own
 # entrypoint, which switches to the `system` user and execs its arguments, so
@@ -27,13 +35,21 @@ FROM ${TERMUX_IMAGE} AS termux
 # variables, so the pinned version is substituted into the command by Docker
 # rather than passed as an environment variable.
 ARG CLANG_VERSION=21.1.8-3
+ARG NDK_SYSROOT_VERSION=29-3
+ARG LIBCXX_VERSION=29
+# The NDK headers/CRT and libc++ must match the original build as well as LLVM.
+# A newer sysroot changes the guard bytes even with the same clang --version.
 # libc++ is installed explicitly: binaries built by this toolchain carry a
 # DT_RUNPATH into the Termux prefix and need libc++_shared.so there, exactly as
 # on the build host.
 RUN /entrypoint.sh bash -c "apt-get update -q \
  && apt-get install -y --no-install-recommends \
-      clang=${CLANG_VERSION} lld=${CLANG_VERSION} llvm=${CLANG_VERSION} libc++ \
+      clang=${CLANG_VERSION} lld=${CLANG_VERSION} llvm=${CLANG_VERSION} \
+      libllvm=${CLANG_VERSION} libcompiler-rt=${CLANG_VERSION} \
+      /data/data/com.termux/files/usr/tmp/ndk-sysroot_${NDK_SYSROOT_VERSION}_aarch64.deb \
+      libc++=${LIBCXX_VERSION} \
  && clang++ --version && ld.lld --version && llvm-objcopy --version \
+ && dpkg-query -W clang lld llvm libllvm libcompiler-rt ndk-sysroot libc++ \
  && test -f /data/data/com.termux/files/usr/lib/libc++_shared.so"
 
 # The build host has /linkerconfig bound in, and the sandbox lists it among its

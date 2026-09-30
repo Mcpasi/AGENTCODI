@@ -15,7 +15,7 @@ name: APK
 on:
   push:
     branches:
-      - Mcpasi/fixed
+      - main
       - 'CI-TEST*'
   workflow_dispatch:
     inputs:

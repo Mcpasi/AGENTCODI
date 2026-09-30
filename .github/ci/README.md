@@ -186,7 +186,7 @@ the image is:
   they are bionic binaries. On an arm64 runner all of this runs natively,
   without qemu.
 
-The workflow builds on pushes to `Mcpasi/fixed` and `CI-TEST*` branches.
+The workflow builds on pushes to `main` and `CI-TEST*` branches.
 Manual runs default to a preflight-only run.
 `container-preflight.sh` reads the required command list and the pinned
 toolchain version out of the build script — so they cannot drift — and reports

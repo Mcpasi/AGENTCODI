@@ -148,34 +148,47 @@ AGENTCODI is under active development. Reproducible bug reports are welcome thro
 
 ## Build from source
 
-The application and its tests are written in Java and C++. Run the host tests before building an APK:
+### GitHub Actions
+
+GitHub Actions runs the Java and C++ tests and architecture checks automatically on pushes and pull requests. Updates to `main` also build a signed ARM64 debug APK and check the packaged runtime, including Protected mode.
+
+You can build through GitHub without setting up Termux or Ubuntu on your device. GitHub prepares the build environment and verifies the required dependencies.
+
+To try the latest development build:
+
+1. Open the [APK workflow](https://github.com/Mcpasi/AGENTCODI/actions/workflows/apk.yml).
+2. Select a successful run for `main`.
+3. Download `agentcodi-debug-apk` from **Artifacts**, extract the ZIP and install the APK on a supported Android device.
+
+GitHub requires you to sign in to download build artifacts. These APKs use debug signing and are intended for development and testing. Published versions are available from [Releases](../../releases).
+
+To start a build manually, open the APK workflow, select **Run workflow** and choose `main`. Clear **Only check the container, do not build** to produce an APK; leaving it selected checks the build environment only.
+
+### Local builds
+
+Local APK builds use the project's Android build environment. Run the tests before building:
 
 ```sh
 ./scripts/test.sh
 ./scripts/build-debug-apk.sh
 ```
 
-The debug APK uses local test signing. Production builds use the separate release script and externally supplied signing credentials:
+Production builds use the separate release script and externally supplied signing credentials:
 
 ```sh
 ./scripts/build-release-apk.sh
 ```
 
-Device installation and behavior must be validated separately on physical Android hardware.
+For build environment and CI setup details, see the [build documentation](.github/ci/README.md). Device installation and behavior should also be validated on physical Android hardware.
 
-Automatically increment version
+To increment the app version or update the pinned Codex runtime:
 
 ```sh
 ./scripts/bump-version.sh
-```
-
-To update the pinned app server, run this script.
-
-```sh
 ./scripts/update-codex-runtime.sh
 ```
 
-Important: Update the documents, then run ./scripts/test.sh and ./scripts/build-debug-apk.sh.
+Update the related documentation and run the tests and APK build after changing the version or runtime.
 
 ---
 

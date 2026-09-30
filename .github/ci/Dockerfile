@@ -1,0 +1,102 @@
+# Build environment for scripts/build-debug-apk.sh on a hosted arm64 runner.
+#
+# The build host is a hybrid, and this image reproduces it:
+#
+#   * Ubuntu arm64 supplies every command the build requires. The package list
+#     below was derived from the build host by resolving each command in the
+#     build script's own require_command list back to its owning package:
+#     apksigner, zipalign, ripgrep, binutils (readelf/strings), bsdutils
+#     (script), dpkg (dpkg-deb), findutils, mawk and coreutils. Termux does not
+#     package zipalign at all, so a pure Termux image cannot work.
+#   * The Termux prefix supplies the pinned LLVM toolchain. Its generated code
+#     is covered by the build's derived *_RUNTIME_SHA256 pins, so the version
+#     is pinned here and checked again by the build script itself.
+#   * The Android linker and bionic libraries come from the Termux image, which
+#     ships them as aosp-libs. Without them the build cannot execute the
+#     packaged aapt2, patchelf, Python or Codex app-server, all of which are
+#     bionic binaries.
+ARG TERMUX_IMAGE=termux/termux-docker:aarch64@sha256:e19ea56dd687563849826cbda57da714ae23277ee463e21f39917dbc0a59bab4
+ARG UBUNTU_IMAGE=ubuntu:26.04
+
+FROM ${UBUNTU_IMAGE} AS ndk
+RUN apt-get update \
+ && apt-get install -y --no-install-recommends curl ca-certificates unzip patch \
+ && rm -rf /var/lib/apt/lists/*
+COPY restore-ndk-sysroot.sh ndk-29-inputs.tsv /ci/
+RUN bash /ci/restore-ndk-sysroot.sh /output
+
+FROM ${TERMUX_IMAGE} AS termux
+COPY --from=ndk --chown=1000:1000 /output/ndk-sysroot_29-3_aarch64.deb /data/data/com.termux/files/usr/tmp/
+# The image sets no USER, so RUN executes as root — and Termux refuses to run
+# its package manager as root. Privileges are dropped by the image's own
+# entrypoint, which switches to the `system` user and execs its arguments, so
+# the install goes through it. That is also the invocation the image documents
+# for non-interactive use. The entrypoint forwards only a fixed set of
+# variables, so the pinned version is substituted into the command by Docker
+# rather than passed as an environment variable.
+ARG CLANG_VERSION=21.1.8-3
+ARG NDK_SYSROOT_VERSION=29-3
+ARG LIBCXX_VERSION=29
+# The NDK headers/CRT and libc++ must match the original build as well as LLVM.
+# A newer sysroot changes the guard bytes even with the same clang --version.
+# libc++ is installed explicitly: binaries built by this toolchain carry a
+# DT_RUNPATH into the Termux prefix and need libc++_shared.so there, exactly as
+# on the build host.
+RUN /entrypoint.sh bash -c "apt-get update -q \
+ && apt-get install -y --no-install-recommends \
+      clang=${CLANG_VERSION} lld=${CLANG_VERSION} llvm=${CLANG_VERSION} \
+      libllvm=${CLANG_VERSION} libcompiler-rt=${CLANG_VERSION} \
+      /data/data/com.termux/files/usr/tmp/ndk-sysroot_${NDK_SYSROOT_VERSION}_aarch64.deb \
+      libc++=${LIBCXX_VERSION} \
+ && clang++ --version && ld.lld --version && llvm-objcopy --version \
+ && dpkg-query -W clang lld llvm libllvm libcompiler-rt ndk-sysroot libc++ \
+ && test -f /data/data/com.termux/files/usr/lib/libc++_shared.so"
+
+# The build host has /linkerconfig bound in, and the sandbox lists it among its
+# platform defaults for a reason: bionic reads its namespace configuration,
+# whose permitted paths govern where a library may be loaded from at all.
+# Stage whatever the Termux image has so the next stage can take it.
+RUN mkdir -p /export \
+ && if [ -d /linkerconfig ]; then cp -a /linkerconfig /export/linkerconfig; \
+    else mkdir -p /export/linkerconfig; fi
+
+FROM ${UBUNTU_IMAGE}
+COPY --from=termux /data/data/com.termux /data/data/com.termux
+COPY --from=termux /export/linkerconfig /linkerconfig
+# The Termux image keeps the Android linker in an aosp-libs directory that
+# /system links to. Locate it instead of assuming the path, and fail here with a
+# clear message rather than leaving a dangling symlink that only breaks later.
+#
+# /system must end up a real directory, not a symlink: the supervisor
+# canonicalizes the code-mode host with realpath and compares the result against
+# the literal /system/bin/sh, so a symlinked /system resolves into the prefix
+# and fails that check. Move the tree there and leave a link behind for anything
+# that still refers to the prefix path.
+RUN set -eux; \
+    linker="$(find /data/data/com.termux -name linker64 -print -quit)"; \
+    if [ -z "$linker" ]; then \
+      echo "No Android linker64 found in the Termux prefix." >&2; \
+      exit 1; \
+    fi; \
+    aosp="$(dirname "$(dirname "$linker")")"; \
+    echo "Android system directory: $aosp"; \
+    mv "$aosp" /system; \
+    ln -s /system "$aosp"; \
+    test -x /system/bin/linker64; \
+    test -x /system/bin/sh; \
+    test "$(readlink -f /system/bin/sh)" = /system/bin/sh
+RUN apt-get update \
+ && apt-get install -y --no-install-recommends \
+      openjdk-17-jdk-headless zipalign apksigner ripgrep file binutils dpkg \
+      coreutils bsdutils findutils mawk diffutils grep sed tar \
+      gcc libc6-dev \
+      curl ca-certificates unzip zip \
+ && rm -rf /var/lib/apt/lists/*
+# The build host runs under C.UTF-8. Without it the JVM derives
+# sun.jnu.encoding from the POSIX locale and resolves to ANSI_X3.4-1968, so any
+# path holding a non-ASCII character — the workspace browser tests create one —
+# fails with InvalidPathException before the test itself can run.
+ENV LANG=C.UTF-8
+ENV LC_ALL=C.UTF-8
+ENV AGENTCODI_JAVA_HOME=/usr/lib/jvm/java-17-openjdk-arm64
+WORKDIR /workspace

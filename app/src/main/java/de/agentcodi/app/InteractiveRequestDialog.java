@@ -196,20 +196,50 @@ final class InteractiveRequestDialog {
             content.addView(toolchainWarning);
         }
 
-        TextView details = theme.text(approvalDetails(request), 14, theme.primary);
-        details.setTextIsSelectable(true);
-        details.setLineSpacing(0.0f, 1.15f);
-        if (!request.getCommand().isEmpty() || !request.getFileChanges().isEmpty()) {
-            details.setTypeface(Typeface.MONOSPACE);
+        String summary = approvalDetails(request);
+        if (!summary.isEmpty()) {
+            TextView details = theme.text(summary, 14, theme.primary);
+            details.setTextIsSelectable(true);
+            details.setLineSpacing(0.0f, 1.15f);
+            LinearLayout.LayoutParams detailParams = new LinearLayout.LayoutParams(
+                ViewGroup.LayoutParams.MATCH_PARENT,
+                ViewGroup.LayoutParams.WRAP_CONTENT
+            );
+            if (!requestedPackage.isEmpty()) {
+                detailParams.topMargin = theme.dp(14);
+            }
+            content.addView(details, detailParams);
         }
-        LinearLayout.LayoutParams detailParams = new LinearLayout.LayoutParams(
-            ViewGroup.LayoutParams.MATCH_PARENT,
-            ViewGroup.LayoutParams.WRAP_CONTENT
+
+        if (!request.getCommand().isEmpty()) {
+            theme.addWithTopMargin(content, theme.sectionLabel(activity.getString(
+                request.isJustInTimeApproval()
+                    ? R.string.just_in_time_execute : R.string.approval_command
+            )), 14);
+            TextView command = theme.codeBlock(request.getCommand(), 13);
+            command.setTextIsSelectable(true);
+            theme.addWithTopMargin(content, command, 8);
+        }
+
+        for (CodexFileChangeSummary change : request.getFileChanges()) {
+            FileChangeView changeView = new FileChangeView(activity, theme);
+            changeView.bind(FileChangeDetail.of(
+                change.getKind(),
+                change.getPath(),
+                change.getMovePath(),
+                change.getDiff()
+            ));
+            theme.addWithTopMargin(content, changeView, 12);
+        }
+
+        TextView explanation = theme.text(
+            activity.getString(request.isJustInTimeApproval()
+                ? R.string.just_in_time_approval_explanation : R.string.approval_explanation),
+            12,
+            theme.secondary
         );
-        if (!requestedPackage.isEmpty()) {
-            detailParams.topMargin = theme.dp(14);
-        }
-        content.addView(details, detailParams);
+        explanation.setLineSpacing(0.0f, 1.2f);
+        theme.addWithTopMargin(content, explanation, 16);
 
         boolean headingAdded = false;
         for (ApprovalAction action : actions) {
@@ -627,10 +657,11 @@ final class InteractiveRequestDialog {
         return "";
     }
 
+    /** The textual part of an approval; commands and file changes get their own views. */
     private String approvalDetails(CodexInteractiveRequest request) {
         StringBuilder details = new StringBuilder();
         if (!request.getReason().isEmpty()) {
-            details.append(request.getReason()).append("\n\n");
+            details.append(request.getReason()).append('\n');
         }
         if (!request.getNetworkHost().isEmpty()) {
             details.append(activity.getString(R.string.approval_target)).append(": ")
@@ -638,11 +669,6 @@ final class InteractiveRequestDialog {
                 .append("://")
                 .append(request.getNetworkHost())
                 .append('\n');
-        }
-        if (!request.getCommand().isEmpty()) {
-            details.append(activity.getString(request.isJustInTimeApproval()
-                ? R.string.just_in_time_execute : R.string.approval_command))
-                .append(":\n").append(request.getCommand()).append('\n');
         }
         if (!request.getCwd().isEmpty()) {
             details.append(activity.getString(R.string.approval_cwd))
@@ -653,40 +679,12 @@ final class InteractiveRequestDialog {
                 .append(request.getGrantRoot())
                 .append('\n');
         }
-        for (CodexFileChangeSummary change : request.getFileChanges()) {
-            details.append('\n')
-                .append(change.getKind().isEmpty()
-                    ? activity.getString(R.string.approval_change)
-                    : localizedFileChangeKind(change.getKind()))
-                .append(" · ")
-                .append(change.getPath());
-            if (!change.getMovePath().isEmpty()) {
-                details.append(" → ").append(change.getMovePath());
-            }
-            details.append('\n');
-            if (!change.getDiff().isEmpty()) {
-                details.append(change.getDiff()).append('\n');
-            }
-        }
-        if (details.length() == 0) {
+        if (details.length() == 0
+            && request.getCommand().isEmpty()
+            && request.getFileChanges().isEmpty()) {
             details.append(activity.getString(R.string.approval_default_detail));
         }
-        details.append("\n\n").append(activity.getString(request.isJustInTimeApproval()
-            ? R.string.just_in_time_approval_explanation : R.string.approval_explanation));
-        return details.toString();
-    }
-
-    private String localizedFileChangeKind(String kind) {
-        if ("add".equalsIgnoreCase(kind)) {
-            return activity.getString(R.string.card_change_add);
-        }
-        if ("delete".equalsIgnoreCase(kind)) {
-            return activity.getString(R.string.card_change_delete);
-        }
-        if ("update".equalsIgnoreCase(kind)) {
-            return activity.getString(R.string.card_change_update);
-        }
-        return kind;
+        return details.toString().trim();
     }
 
     private static String optionLabel(CodexUserInputOption option) {

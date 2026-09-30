@@ -113,6 +113,7 @@ public final class MainActivity extends Activity {
 
     private UiTheme theme;
     private LinearLayout statusBanner;
+    private View statusIndicator;
     private TextView statusText;
     private ImageButton statusSettingsButton;
     private ImageButton backToThreadsButton;
@@ -377,6 +378,12 @@ public final class MainActivity extends Activity {
         statusBanner.setGravity(Gravity.CENTER_VERTICAL);
         statusBanner.setPadding(theme.dp(14), theme.dp(12), theme.dp(12), theme.dp(12));
         statusBanner.setBackground(theme.background(theme.surfaceRaised, theme.border, 16));
+        statusIndicator = theme.statusDot(theme.accent);
+        LinearLayout.LayoutParams indicatorParams = new LinearLayout.LayoutParams(
+            theme.dp(8), theme.dp(8)
+        );
+        indicatorParams.rightMargin = theme.dp(10);
+        statusBanner.addView(statusIndicator, indicatorParams);
         statusText = theme.text(getString(R.string.chat_runtime_checking), 13, theme.primary);
         statusText.setLineSpacing(0.0f, 1.15f);
         statusBanner.addView(statusText, new LinearLayout.LayoutParams(
@@ -575,7 +582,8 @@ public final class MainActivity extends Activity {
         TextView modelLabel = theme.sectionLabel(getString(R.string.model_section));
         modelColumn.addView(modelLabel);
         modelSpinner = new Spinner(this);
-        modelColumn.addView(modelSpinner);
+        styleSpinner(modelSpinner);
+        theme.addWithTopMargin(modelColumn, modelSpinner, 6);
         selectorRow.addView(modelColumn, new LinearLayout.LayoutParams(
             0,
             ViewGroup.LayoutParams.WRAP_CONTENT,
@@ -587,7 +595,8 @@ public final class MainActivity extends Activity {
         effortColumn.setPadding(theme.dp(10), 0, 0, 0);
         effortColumn.addView(theme.sectionLabel(getString(R.string.reasoning_effort_section)));
         effortSpinner = new Spinner(this);
-        effortColumn.addView(effortSpinner);
+        styleSpinner(effortSpinner);
+        theme.addWithTopMargin(effortColumn, effortSpinner, 6);
         selectorRow.addView(effortColumn, new LinearLayout.LayoutParams(
             0,
             ViewGroup.LayoutParams.WRAP_CONTENT,
@@ -750,6 +759,10 @@ public final class MainActivity extends Activity {
         composerInput.setHint(R.string.composer_hint);
         composerInput.setHintTextColor(theme.secondary);
         composerInput.setTextColor(theme.primary);
+        composerInput.setTextSize(15);
+        composerInput.setBackground(theme.background(theme.surfaceRaised, theme.border, 14));
+        composerInput.setPadding(theme.dp(12), theme.dp(10), theme.dp(12), theme.dp(10));
+        composerInput.setGravity(Gravity.TOP | Gravity.START);
         composerInput.setMinLines(2);
         composerInput.setMaxLines(7);
         composerInput.setInputType(
@@ -815,6 +828,11 @@ public final class MainActivity extends Activity {
         theme.addWithTopMargin(composer, composerRow, 6);
         page.addView(composer);
         return page;
+    }
+
+    private void styleSpinner(Spinner spinner) {
+        spinner.setBackground(theme.background(theme.surfaceRaised, theme.border, 12));
+        spinner.setPadding(theme.dp(10), theme.dp(8), theme.dp(6), theme.dp(8));
     }
 
     private LinearLayout.LayoutParams iconMarginParams(int leftMarginDp) {
@@ -1682,12 +1700,36 @@ public final class MainActivity extends Activity {
         }
         statusBanner.setVisibility(message.isEmpty() ? View.GONE : View.VISIBLE);
         statusText.setText(message);
-        statusText.setTextColor(
-            !session.getErrorMessage().isEmpty() || session.isDangerousExecutionMode()
-                ? theme.danger
-                : theme.primary
-        );
+        boolean alerting = !session.getErrorMessage().isEmpty()
+            || session.isDangerousExecutionMode();
+        statusText.setTextColor(alerting ? theme.danger : theme.primary);
+        int indicator = statusIndicatorColor(runtime, session, alerting);
+        statusIndicator.setBackground(theme.dotShape(indicator));
+        statusBanner.setBackground(theme.background(
+            theme.tintedSurface(indicator, theme.dark ? 0.12f : 0.07f),
+            theme.tintedSurface(indicator, 0.35f),
+            16
+        ));
         statusSettingsButton.setVisibility(settingsAction ? View.VISIBLE : View.GONE);
+    }
+
+    private int statusIndicatorColor(
+        RuntimeSnapshot runtime,
+        CodexSessionSnapshot session,
+        boolean alerting
+    ) {
+        if (alerting || runtime.getPhase() == RuntimePhase.FAILED) {
+            return theme.danger;
+        }
+        if (runtime.getPhase() != RuntimePhase.READY || !session.isReady()) {
+            return theme.warning;
+        }
+        if (session.hasInteractiveRequest()) {
+            return theme.warning;
+        }
+        return session.isTurnActive() || session.isOperationActive()
+            ? theme.info
+            : theme.accent;
     }
 
     private void bindSelectors(CodexSessionSnapshot session, boolean enabled) {
@@ -1795,10 +1837,13 @@ public final class MainActivity extends Activity {
             if (row.card != null) {
                 changed |= row.card.bind(item);
             } else {
-                String value = messageText(item.getMessage());
-                if (!value.contentEquals(row.text.getText())) {
+                String value = messageBody(item.getMessage());
+                String label = messageRole(item.getMessage());
+                if (!value.contentEquals(row.text.getText())
+                    || !label.contentEquals(row.role.getText())) {
                     row.text.setText(value);
-                    styleTranscriptView(row.text, item);
+                    row.role.setText(label);
+                    styleTranscriptRow(row, item);
                     changed = true;
                 }
             }
@@ -1811,27 +1856,41 @@ public final class MainActivity extends Activity {
 
     private TranscriptRow createTranscriptRow(CodexTranscriptItem item) {
         LinearLayout root;
+        LinearLayout content;
+        LinearLayout bubble = null;
+        TextView role = null;
         TextView text = null;
         TranscriptCardView card = null;
         if (item.isMessage()) {
             root = new LinearLayout(this);
             root.setOrientation(LinearLayout.VERTICAL);
-            text = theme.text(messageText(item.getMessage()), 14, theme.primary);
+            bubble = new LinearLayout(this);
+            bubble.setOrientation(LinearLayout.VERTICAL);
+            bubble.setPadding(theme.dp(14), theme.dp(12), theme.dp(14), theme.dp(12));
+            role = theme.text(messageRole(item.getMessage()), 11, theme.secondary);
+            role.setTypeface(Typeface.DEFAULT_BOLD);
+            role.setLetterSpacing(0.08f);
+            bubble.addView(role);
+            text = theme.text(messageBody(item.getMessage()), 14, theme.primary);
             text.setTextIsSelectable(true);
             text.setLineSpacing(0.0f, 1.2f);
-            text.setPadding(theme.dp(14), theme.dp(12), theme.dp(14), theme.dp(12));
-            root.addView(text, new LinearLayout.LayoutParams(
+            theme.addWithTopMargin(bubble, text, 6);
+            LinearLayout.LayoutParams bubbleParams = new LinearLayout.LayoutParams(
                 ViewGroup.LayoutParams.MATCH_PARENT,
                 ViewGroup.LayoutParams.WRAP_CONTENT
-            ));
-            styleTranscriptView(text, item);
+            );
+            if (item.getMessage().getRole() == ChatMessage.Role.USER) {
+                bubbleParams.setMarginStart(theme.dp(28));
+            }
+            root.addView(bubble, bubbleParams);
+            content = bubble;
         } else {
             card = new TranscriptCardView(this, theme, transcriptExpansion);
             card.bind(item);
             root = card;
+            content = card.contentContainer();
         }
 
-        LinearLayout content = card == null ? root : card.contentContainer();
         TextView imageStatus = theme.text("", 12, theme.secondary);
         imageStatus.setLineSpacing(0.0f, 1.15f);
         imageStatus.setVisibility(View.GONE);
@@ -1846,22 +1905,39 @@ public final class MainActivity extends Activity {
         imageActionParams.topMargin = theme.dp(6);
         content.addView(imageAction, imageActionParams);
 
-        TranscriptRow row = new TranscriptRow(root, text, card, imageStatus, imageAction);
+        TranscriptRow row = new TranscriptRow(
+            root, bubble, role, text, card, imageStatus, imageAction
+        );
+        if (card == null) {
+            styleTranscriptRow(row, item);
+        }
         bindImageAction(row, item);
         return row;
     }
 
-    private void styleTranscriptView(TextView view, CodexTranscriptItem item) {
+    private void styleTranscriptRow(TranscriptRow row, CodexTranscriptItem item) {
+        ChatMessage.Role speaker = item.getMessage().getRole();
+        int accent;
         int fill;
-        if (item.getMessage().getRole() == ChatMessage.Role.USER) {
-            fill = theme.dark ? 0xFF123B3A : 0xFFE7FAF6;
-        } else if (item.getMessage().getRole() == ChatMessage.Role.SYSTEM) {
-            fill = theme.dark ? 0xFF3A2420 : 0xFFFFF4E5;
+        if (speaker == ChatMessage.Role.USER) {
+            accent = theme.accent;
+            fill = theme.tintedSurface(theme.accent, theme.dark ? 0.16f : 0.08f);
+        } else if (speaker == ChatMessage.Role.SYSTEM) {
+            accent = theme.warning;
+            fill = theme.tintedSurface(theme.warning, theme.dark ? 0.14f : 0.08f);
         } else {
-            fill = theme.surfaceRaised;
+            accent = theme.secondary;
+            fill = theme.surface;
         }
-        view.setBackground(theme.background(fill, theme.border, 16));
-        view.setTextColor(theme.primary);
+        row.bubble.setBackground(theme.background(
+            fill,
+            speaker == ChatMessage.Role.ASSISTANT
+                ? theme.border
+                : theme.tintedSurface(accent, 0.3f),
+            18
+        ));
+        row.role.setTextColor(accent);
+        row.text.setTextColor(theme.primary);
     }
 
     private void bindImageAction(TranscriptRow row, CodexTranscriptItem item) {
@@ -2357,21 +2433,21 @@ public final class MainActivity extends Activity {
         return effort;
     }
 
-    private String messageText(ChatMessage message) {
+    private String messageRole(ChatMessage message) {
         String role = message.getRole() == ChatMessage.Role.USER
             ? getString(R.string.transcript_role_you)
             : message.getRole() == ChatMessage.Role.ASSISTANT
                 ? getString(R.string.transcript_role_codex)
                 : getString(R.string.transcript_role_system);
-        String body = message.getRole() == ChatMessage.Role.SYSTEM
+        return role + (message.isStreaming()
+            ? " · " + getString(R.string.transcript_stream)
+            : "");
+    }
+
+    private String messageBody(ChatMessage message) {
+        return message.getRole() == ChatMessage.Role.SYSTEM
             ? UiText.coreStatus(this, message.getText())
-            : message.getText();
-        return role
-            + (message.isStreaming()
-                ? " · " + getString(R.string.transcript_stream)
-                : "")
-            + "\n"
-            + body;
+            : UiText.streamText(this, message.getText());
     }
 
     private static String transcriptKey(CodexTranscriptItem item) {
@@ -2555,6 +2631,8 @@ public final class MainActivity extends Activity {
 
     private static final class TranscriptRow {
         private final LinearLayout root;
+        private final LinearLayout bubble;
+        private final TextView role;
         private final TextView text;
         private final TranscriptCardView card;
         private final TextView imageStatus;
@@ -2567,12 +2645,16 @@ public final class MainActivity extends Activity {
 
         private TranscriptRow(
             LinearLayout root,
+            LinearLayout bubble,
+            TextView role,
             TextView text,
             TranscriptCardView card,
             TextView imageStatus,
             ImageButton imageAction
         ) {
             this.root = root;
+            this.bubble = bubble;
+            this.role = role;
             this.text = text;
             this.card = card;
             this.imageStatus = imageStatus;

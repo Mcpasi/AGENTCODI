@@ -5,6 +5,7 @@ import android.content.Context;
 import android.content.Intent;
 import android.graphics.Bitmap;
 import android.graphics.BitmapFactory;
+import android.graphics.Color;
 import android.graphics.Typeface;
 import android.graphics.drawable.ColorDrawable;
 import android.net.Uri;
@@ -230,8 +231,12 @@ public final class WorkspaceBrowserActivity extends Activity {
         entryAdapter = new EntryAdapter();
         entryList = new ListView(this);
         entryList.setAdapter(entryAdapter);
-        entryList.setDivider(new ColorDrawable(theme.border));
-        entryList.setDividerHeight(theme.dp(1));
+        entryList.setDivider(new ColorDrawable(Color.TRANSPARENT));
+        entryList.setDividerHeight(theme.dp(8));
+        entryList.setSelector(theme.touchBackground(Color.TRANSPARENT, Color.TRANSPARENT, 14));
+        entryList.setDrawSelectorOnTop(true);
+        entryList.setClipToPadding(false);
+        entryList.setPadding(0, theme.dp(2), 0, theme.dp(2));
         entryList.setEmptyView(null);
         entryList.setOnItemClickListener(new AdapterView.OnItemClickListener() {
             @Override
@@ -1050,11 +1055,12 @@ public final class WorkspaceBrowserActivity extends Activity {
                 LinearLayout container = new LinearLayout(WorkspaceBrowserActivity.this);
                 container.setOrientation(LinearLayout.VERTICAL);
                 container.setPadding(
-                    theme.dp(12),
-                    theme.dp(11),
-                    theme.dp(12),
-                    theme.dp(11)
+                    theme.dp(14),
+                    theme.dp(13),
+                    theme.dp(14),
+                    theme.dp(13)
                 );
+                container.setBackground(theme.background(theme.surface, theme.border, 14));
                 TextView name = theme.text("", 16, theme.primary);
                 name.setTypeface(Typeface.DEFAULT_BOLD);
                 name.setSingleLine(true);

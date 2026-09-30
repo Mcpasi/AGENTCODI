@@ -13,15 +13,21 @@ import android.widget.TextView;
 
 import de.agentcodi.core.CodexTranscriptItem;
 
+import java.util.List;
+
 final class TranscriptCardView extends LinearLayout {
     private final UiTheme theme;
     private final TranscriptCardPresentation.ExpansionState expansionState;
     private final ImageView icon;
     private final TextView title;
     private final TextView status;
+    private final TextView preview;
+    private final TextView headerStats;
     private final ImageButton expansionButton;
+    private final LinearLayout header;
     private final LinearLayout content;
     private final TextView summary;
+    private final LinearLayout changes;
     private final TextView detailLabel;
     private final TextView detail;
     private CodexTranscriptItem boundItem;
@@ -39,7 +45,7 @@ final class TranscriptCardView extends LinearLayout {
         setSaveEnabled(false);
         setSaveFromParentEnabled(false);
 
-        LinearLayout header = new LinearLayout(context);
+        header = new LinearLayout(context);
         header.setOrientation(HORIZONTAL);
         header.setGravity(Gravity.CENTER_VERTICAL);
         icon = new ImageView(context);
@@ -51,22 +57,45 @@ final class TranscriptCardView extends LinearLayout {
         labels.setOrientation(VERTICAL);
         title = theme.text("", 14, theme.primary);
         title.setTypeface(Typeface.DEFAULT_BOLD);
-        title.setTextIsSelectable(true);
         labels.addView(title);
+        LinearLayout meta = new LinearLayout(context);
+        meta.setOrientation(HORIZONTAL);
+        meta.setGravity(Gravity.CENTER_VERTICAL);
         status = theme.text("", 11, theme.secondary);
         status.setTypeface(Typeface.DEFAULT_BOLD);
         status.setPadding(theme.dp(7), theme.dp(2), theme.dp(7), theme.dp(2));
-        LinearLayout.LayoutParams statusParams = new LinearLayout.LayoutParams(
+        meta.addView(status, new LinearLayout.LayoutParams(
             ViewGroup.LayoutParams.WRAP_CONTENT,
             ViewGroup.LayoutParams.WRAP_CONTENT
+        ));
+        preview = theme.text("", 12, theme.secondary);
+        preview.setSingleLine(true);
+        preview.setEllipsize(android.text.TextUtils.TruncateAt.END);
+        preview.setVisibility(GONE);
+        meta.addView(preview, new LinearLayout.LayoutParams(
+            0, ViewGroup.LayoutParams.WRAP_CONTENT, 1.0f
+        ));
+        LinearLayout.LayoutParams metaParams = new LinearLayout.LayoutParams(
+            ViewGroup.LayoutParams.MATCH_PARENT,
+            ViewGroup.LayoutParams.WRAP_CONTENT
         );
-        statusParams.topMargin = theme.dp(4);
-        labels.addView(status, statusParams);
+        metaParams.topMargin = theme.dp(4);
+        labels.addView(meta, metaParams);
         LinearLayout.LayoutParams labelParams = new LinearLayout.LayoutParams(
             0, ViewGroup.LayoutParams.WRAP_CONTENT, 1.0f
         );
         labelParams.setMarginStart(theme.dp(10));
         header.addView(labels, labelParams);
+        headerStats = theme.text("", 12, theme.secondary);
+        headerStats.setTypeface(Typeface.MONOSPACE);
+        headerStats.setIncludeFontPadding(false);
+        headerStats.setVisibility(GONE);
+        LinearLayout.LayoutParams headerStatsParams = new LinearLayout.LayoutParams(
+            ViewGroup.LayoutParams.WRAP_CONTENT,
+            ViewGroup.LayoutParams.WRAP_CONTENT
+        );
+        headerStatsParams.setMarginStart(theme.dp(8));
+        header.addView(headerStats, headerStatsParams);
         expansionButton = theme.iconButton(R.drawable.ic_transcript_expand, "");
         expansionButton.setVisibility(GONE);
         expansionButton.setOnClickListener(new View.OnClickListener() {
@@ -83,6 +112,15 @@ final class TranscriptCardView extends LinearLayout {
         );
         expansionParams.setMarginStart(theme.dp(8));
         header.addView(expansionButton, expansionParams);
+        // The whole header toggles the card; the button stays the labelled control.
+        header.setImportantForAccessibility(View.IMPORTANT_FOR_ACCESSIBILITY_NO);
+        header.setBackground(theme.touchBackground(Color.TRANSPARENT, Color.TRANSPARENT, 12));
+        header.setOnClickListener(new View.OnClickListener() {
+            @Override
+            public void onClick(View view) {
+                expansionButton.performClick();
+            }
+        });
         addView(header);
 
         content = new LinearLayout(context);
@@ -97,6 +135,11 @@ final class TranscriptCardView extends LinearLayout {
         summary.setTextIsSelectable(true);
         summary.setLineSpacing(0.0f, 1.2f);
         theme.addWithTopMargin(content, summary, 12);
+
+        changes = new LinearLayout(context);
+        changes.setOrientation(VERTICAL);
+        changes.setVisibility(GONE);
+        theme.addWithTopMargin(content, changes, 12);
 
         detailLabel = theme.sectionLabel(context.getString(R.string.transcript_details));
         theme.addWithTopMargin(content, detailLabel, 12);
@@ -141,31 +184,109 @@ final class TranscriptCardView extends LinearLayout {
         ));
         status.setVisibility(state == TranscriptCardPresentation.State.NONE ? GONE : VISIBLE);
 
+        FileChangeDetail.Projection projection = FileChangeDetail.parse(
+            "fileChange".equals(item.getProtocolType()) ? item.getDetail() : ""
+        );
+        bindChanges(projection.getChanges());
+        bindHeaderStats(projection);
         String summaryText = UiText.cardSummary(getContext(), item);
-        String detailText = UiText.cardDetail(getContext(), item.getDetail());
-        if (summaryText.isEmpty() && detailText.isEmpty()
+        String detailText = UiText.cardDetail(
+            getContext(),
+            projection.hasChanges() ? projection.getRemainder() : item.getDetail()
+        );
+        if (summaryText.isEmpty() && detailText.isEmpty() && !projection.hasChanges()
             && state == TranscriptCardPresentation.State.RUNNING) {
             summaryText = getContext().getString(R.string.transcript_receiving);
         }
         summary.setText(summaryText);
         summary.setVisibility(summaryText.isEmpty() ? GONE : VISIBLE);
-        summary.setTypeface(TranscriptCardPresentation.monospaceSummary(item)
-            ? Typeface.MONOSPACE : Typeface.DEFAULT);
-        summary.setTextSize(TranscriptCardPresentation.monospaceSummary(item) ? 13 : 14);
+        boolean monospaceSummary = TranscriptCardPresentation.monospaceSummary(item);
+        preview.setText(firstLine(summaryText.isEmpty() ? detailText : summaryText));
+        preview.setTypeface(monospaceSummary ? Typeface.MONOSPACE : Typeface.DEFAULT);
+        summary.setTypeface(monospaceSummary ? Typeface.MONOSPACE : Typeface.DEFAULT);
+        summary.setTextSize(monospaceSummary ? 13 : 14);
+        summary.setTextColor(monospaceSummary ? theme.codeText : theme.primary);
+        summary.setPadding(
+            monospaceSummary ? theme.dp(12) : 0,
+            monospaceSummary ? theme.dp(10) : 0,
+            monospaceSummary ? theme.dp(12) : 0,
+            monospaceSummary ? theme.dp(10) : 0
+        );
+        summary.setBackground(monospaceSummary
+            ? theme.background(theme.code, theme.blend(theme.code, theme.border, 0.6f), 12)
+            : null);
+        boolean monospaceDetail = TranscriptCardPresentation.monospaceDetail(item);
         detail.setText(detailText);
         detail.setVisibility(detailText.isEmpty() ? GONE : VISIBLE);
-        detail.setTypeface(TranscriptCardPresentation.monospaceDetail(item)
-            ? Typeface.MONOSPACE : Typeface.DEFAULT);
+        detail.setTypeface(monospaceDetail ? Typeface.MONOSPACE : Typeface.DEFAULT);
+        detail.setTextColor(monospaceDetail ? theme.codeText : theme.primary);
+        detail.setBackground(theme.background(
+            monospaceDetail ? theme.code : theme.surfaceRaised,
+            monospaceDetail ? theme.blend(theme.code, theme.border, 0.6f) : Color.TRANSPARENT,
+            12
+        ));
         detailLabel.setVisibility(detailText.isEmpty() ? GONE : VISIBLE);
         applyExpansion();
         return true;
+    }
+
+    private void bindChanges(List<FileChangeDetail.FileChange> values) {
+        while (changes.getChildCount() > values.size()) {
+            changes.removeViewAt(changes.getChildCount() - 1);
+        }
+        for (int index = 0; index < values.size(); index++) {
+            FileChangeView view;
+            if (index < changes.getChildCount()) {
+                view = (FileChangeView) changes.getChildAt(index);
+            } else {
+                view = new FileChangeView(getContext(), theme);
+                LinearLayout.LayoutParams params = new LinearLayout.LayoutParams(
+                    ViewGroup.LayoutParams.MATCH_PARENT,
+                    ViewGroup.LayoutParams.WRAP_CONTENT
+                );
+                params.topMargin = index == 0 ? 0 : theme.dp(8);
+                changes.addView(view, params);
+            }
+            view.bind(values.get(index));
+        }
+        changes.setVisibility(values.isEmpty() ? GONE : VISIBLE);
+    }
+
+    private void bindHeaderStats(FileChangeDetail.Projection projection) {
+        boolean counted = projection.hasChanges()
+            && (projection.getAddedLines() > 0 || projection.getRemovedLines() > 0);
+        headerStats.setText(counted
+            ? FileChangeView.statsText(
+                theme,
+                projection.getAddedLines(),
+                projection.getRemovedLines()
+            )
+            : "");
+        headerStats.setContentDescription(counted
+            ? getContext().getString(
+                R.string.card_change_stats_description,
+                Integer.valueOf(projection.getAddedLines()),
+                Integer.valueOf(projection.getRemovedLines())
+            )
+            : "");
+        headerStats.setVisibility(counted ? VISIBLE : GONE);
     }
 
     private void applyExpansion() {
         boolean expanded = expansionState.isExpanded(boundItem);
         content.setVisibility(expanded ? VISIBLE : GONE);
         boolean collapsible = TranscriptCardPresentation.isCollapsible(boundItem);
+        boolean previewVisible = collapsible && !expanded
+            && preview.getText().length() != 0;
+        preview.setVisibility(previewVisible ? VISIBLE : GONE);
+        if (previewVisible) {
+            LinearLayout.LayoutParams previewParams =
+                (LinearLayout.LayoutParams) preview.getLayoutParams();
+            previewParams.setMarginStart(status.getVisibility() == VISIBLE ? theme.dp(8) : 0);
+            preview.setLayoutParams(previewParams);
+        }
         expansionButton.setVisibility(collapsible ? VISIBLE : GONE);
+        header.setClickable(collapsible);
         if (collapsible) {
             theme.setIcon(
                 expansionButton,
@@ -178,12 +299,22 @@ final class TranscriptCardView extends LinearLayout {
         }
     }
 
+    /** Keeps the collapsed preview to one readable line of the reported summary. */
+    private static String firstLine(String value) {
+        String trimmed = value.trim();
+        int newline = trimmed.indexOf('\n');
+        return newline < 0 ? trimmed : trimmed.substring(0, newline);
+    }
+
     private int kindColor(CodexTranscriptItem item) {
         if (item.getKind() == CodexTranscriptItem.Kind.REASONING) {
             return theme.dark ? 0xFFC4B5FD : 0xFF6D28D9;
         }
         if (item.getKind() == CodexTranscriptItem.Kind.PLAN) {
-            return theme.dark ? 0xFF93C5FD : 0xFF1D4ED8;
+            return theme.info;
+        }
+        if ("fileChange".equals(item.getProtocolType())) {
+            return theme.dark ? 0xFFFDBA74 : 0xFFC2410C;
         }
         return theme.accent;
     }
@@ -194,9 +325,9 @@ final class TranscriptCardView extends LinearLayout {
                 return theme.danger;
             case DECLINED:
             case INTERRUPTED:
-                return theme.dark ? 0xFFFCD34D : 0xFF92400E;
+                return theme.warning;
             case RUNNING:
-                return theme.dark ? 0xFF93C5FD : 0xFF1D4ED8;
+                return theme.info;
             case COMPLETED:
                 return theme.accent;
             default:

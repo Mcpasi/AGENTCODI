@@ -150,6 +150,11 @@ bool read_command_response(
     std::string output;
     if (!agentcodi_test::ReadBootstrapCommandOutput(line, &output)) {
       std::cerr << agentcodi_test::BootstrapCommandFailure(line) << '\n';
+      // TEMPORARY DIAGNOSTIC — remove again. The failing command's captured
+      // output is in this envelope and is otherwise discarded, which leaves a
+      // failure like RPC 28 indistinguishable between a denied read and a
+      // missing file.
+      std::cerr << "  response: " << line << '\n';
       return false;
     }
     if (output.find(required_stdout) == std::string::npos) {
@@ -638,7 +643,7 @@ int main(int argc, char* argv[]) {
   const std::string initialize =
       "{\"method\":\"initialize\",\"id\":1,\"params\":{"
       "\"clientInfo\":{\"name\":\"agentcodi_android\","
-      "\"title\":\"AGENTCODI\",\"version\":\"0.7.5\"},"
+      "\"title\":\"AGENTCODI\",\"version\":\"0.7.6-preview.1\"},"
       "\"capabilities\":{\"experimentalApi\":true,"
       "\"optOutNotificationMethods\":[\"rawResponseItem/completed\","
       "\"rawResponse/completed\",\"app/list/updated\"]}}}";
@@ -954,7 +959,7 @@ int main(int argc, char* argv[]) {
   const std::string probe_initialize =
       "{\"method\":\"initialize\",\"id\":30,\"params\":{"
       "\"clientInfo\":{\"name\":\"agentcodi_import_probe\","
-      "\"title\":\"AGENTCODI import probe\",\"version\":\"0.7.5\"},"
+      "\"title\":\"AGENTCODI import probe\",\"version\":\"0.7.6-preview.1\"},"
       "\"capabilities\":{\"experimentalApi\":true}}}";
   if (!write_request(probe, probe_initialize, &error)
       || !read_response(probe, "\"id\":30", "\"codexHome\":", &error)

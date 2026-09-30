@@ -11,6 +11,7 @@ public final class TestMain {
         passed += de.agentcodi.tools.CodexRuntimeUpdaterTest.run();
         passed += ChatUiIconResourcesTest.run();
         passed += de.agentcodi.app.TranscriptCardPresentationTest.run();
+        passed += de.agentcodi.app.FileChangeDetailTest.run();
         passed += ExecutionModeTest.run();
         passed += JustInTimeApprovalsTest.run();
         passed += CustomReviewModeTest.run();

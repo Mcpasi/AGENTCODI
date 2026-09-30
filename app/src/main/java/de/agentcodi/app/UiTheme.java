@@ -24,6 +24,15 @@ final class UiTheme {
     final int accent;
     final int border;
     final int danger;
+    final int warning;
+    final int info;
+    final int code;
+    final int codeText;
+    final int diffAdded;
+    final int diffAddedFill;
+    final int diffRemoved;
+    final int diffRemovedFill;
+    final int diffMeta;
     final boolean dark;
 
     private final Context context;
@@ -42,6 +51,15 @@ final class UiTheme {
             accent = 0xFF2DD4BF;
             border = 0xFF2C3A50;
             danger = 0xFFFCA5A5;
+            warning = 0xFFFCD34D;
+            info = 0xFF93C5FD;
+            code = 0xFF0C1322;
+            codeText = 0xFFDCE4F0;
+            diffAdded = 0xFF86EFAC;
+            diffAddedFill = 0xFF10301F;
+            diffRemoved = 0xFFFCA5A5;
+            diffRemovedFill = 0xFF351A1E;
+            diffMeta = 0xFF7F8CA3;
         } else {
             page = 0xFFF4F6F9;
             surface = Color.WHITE;
@@ -51,6 +69,15 @@ final class UiTheme {
             accent = 0xFF0F766E;
             border = 0xFFDCE2EA;
             danger = 0xFFB91C1C;
+            warning = 0xFF92400E;
+            info = 0xFF1D4ED8;
+            code = 0xFFF6F8FB;
+            codeText = 0xFF1F2937;
+            diffAdded = 0xFF15803D;
+            diffAddedFill = 0xFFE6F7EC;
+            diffRemoved = 0xFFB91C1C;
+            diffRemovedFill = 0xFFFDECEC;
+            diffMeta = 0xFF7A879B;
         }
     }
 
@@ -73,6 +100,14 @@ final class UiTheme {
             Math.round(Color.red(surface) + (Color.red(color) - Color.red(surface)) * amount),
             Math.round(Color.green(surface) + (Color.green(color) - Color.green(surface)) * amount),
             Math.round(Color.blue(surface) + (Color.blue(color) - Color.blue(surface)) * amount)
+        );
+    }
+
+    int blend(int base, int overlay, float amount) {
+        return Color.rgb(
+            Math.round(Color.red(base) + (Color.red(overlay) - Color.red(base)) * amount),
+            Math.round(Color.green(base) + (Color.green(overlay) - Color.green(base)) * amount),
+            Math.round(Color.blue(base) + (Color.blue(overlay) - Color.blue(base)) * amount)
         );
     }
 
@@ -119,6 +154,43 @@ final class UiTheme {
         TextView body = text(value, 15, primary);
         body.setLineSpacing(0.0f, 1.22f);
         return body;
+    }
+
+    /** Small uppercase pill used for card states, change kinds and counters. */
+    TextView badge(String value, int color) {
+        TextView badge = text(value, 11, color);
+        badge.setTypeface(Typeface.DEFAULT_BOLD);
+        badge.setLetterSpacing(0.06f);
+        badge.setIncludeFontPadding(false);
+        badge.setPadding(dp(8), dp(4), dp(8), dp(4));
+        badge.setBackground(background(
+            tintedSurface(color, dark ? 0.16f : 0.1f), Color.TRANSPARENT, 8
+        ));
+        return badge;
+    }
+
+    /** Monospaced block used for commands, output and diffs. */
+    TextView codeBlock(String value, int sizeSp) {
+        TextView block = text(value, sizeSp, codeText);
+        block.setTypeface(Typeface.MONOSPACE);
+        block.setLineSpacing(0.0f, 1.18f);
+        block.setPadding(dp(12), dp(10), dp(12), dp(10));
+        block.setBackground(background(code, blend(code, border, 0.6f), 12));
+        return block;
+    }
+
+    GradientDrawable dotShape(int color) {
+        GradientDrawable shape = new GradientDrawable();
+        shape.setShape(GradientDrawable.OVAL);
+        shape.setColor(color);
+        return shape;
+    }
+
+    View statusDot(int color) {
+        View indicator = new View(context);
+        indicator.setBackground(dotShape(color));
+        indicator.setImportantForAccessibility(View.IMPORTANT_FOR_ACCESSIBILITY_NO);
+        return indicator;
     }
 
     LinearLayout card() {

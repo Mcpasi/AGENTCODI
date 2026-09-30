@@ -176,7 +176,10 @@ the image is:
 * **Ubuntu arm64** for the required commands. Termux does not package
   `zipalign` at all, so a pure Termux image cannot complete a build.
 * **The Termux prefix** for the pinned LLVM toolchain, installed at the version
-  the build script pins and checked again by the build itself.
+  the build script pins and checked again by the build itself. The Termux base
+  image is pinned by digest; `ndk-sysroot` 29-3 and `libc++` 29 are pinned with
+  LLVM's 21.1.8-3 packages, because upgrading the headers/CRT also changes the
+  derived guard hashes even when the Clang version is unchanged.
 * **The Android linker and bionic libraries**, copied from
   `termux/termux-docker:aarch64`, which ships them as aosp-libs. Without them
   the packaged `aapt2`, `patchelf`, Python and Codex app-server cannot run —

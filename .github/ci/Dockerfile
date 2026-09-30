@@ -15,7 +15,7 @@
 #     ships them as aosp-libs. Without them the build cannot execute the
 #     packaged aapt2, patchelf, Python or Codex app-server, all of which are
 #     bionic binaries.
-ARG TERMUX_IMAGE=termux/termux-docker:aarch64
+ARG TERMUX_IMAGE=termux/termux-docker:aarch64@sha256:e19ea56dd687563849826cbda57da714ae23277ee463e21f39917dbc0a59bab4
 ARG UBUNTU_IMAGE=ubuntu:26.04
 
 FROM ${TERMUX_IMAGE} AS termux
@@ -27,13 +27,20 @@ FROM ${TERMUX_IMAGE} AS termux
 # variables, so the pinned version is substituted into the command by Docker
 # rather than passed as an environment variable.
 ARG CLANG_VERSION=21.1.8-3
+ARG NDK_SYSROOT_VERSION=29-3
+ARG LIBCXX_VERSION=29
+# The NDK headers/CRT and libc++ must match the original build as well as LLVM.
+# A newer sysroot changes the guard bytes even with the same clang --version.
 # libc++ is installed explicitly: binaries built by this toolchain carry a
 # DT_RUNPATH into the Termux prefix and need libc++_shared.so there, exactly as
 # on the build host.
 RUN /entrypoint.sh bash -c "apt-get update -q \
  && apt-get install -y --no-install-recommends \
-      clang=${CLANG_VERSION} lld=${CLANG_VERSION} llvm=${CLANG_VERSION} libc++ \
+      clang=${CLANG_VERSION} lld=${CLANG_VERSION} llvm=${CLANG_VERSION} \
+      libllvm=${CLANG_VERSION} libcompiler-rt=${CLANG_VERSION} \
+      ndk-sysroot=${NDK_SYSROOT_VERSION} libc++=${LIBCXX_VERSION} \
  && clang++ --version && ld.lld --version && llvm-objcopy --version \
+ && dpkg-query -W clang lld llvm libllvm libcompiler-rt ndk-sysroot libc++ \
  && test -f /data/data/com.termux/files/usr/lib/libc++_shared.so"
 
 # The build host has /linkerconfig bound in, and the sandbox lists it among its

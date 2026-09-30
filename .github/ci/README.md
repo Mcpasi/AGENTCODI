@@ -3,10 +3,11 @@
 These scripts exist so GitHub Actions can run the project's tests on a stock
 Ubuntu runner. They are additional entry points only:
 
-* `scripts/test.sh`, `scripts/build-debug-apk.sh` and the rest of the build
-  system are **not** used or modified here. They depend on the Termux Android
-  toolchain (`/data/data/com.termux/files/usr/bin/clang++`, `ld.lld`,
-  `llvm-objcopy`, `/system/bin/sh`) and remain the authoritative local runners.
+* The host-test drivers do not invoke `scripts/test.sh` or
+  `scripts/build-debug-apk.sh`. These depend on the Termux Android toolchain
+  (`/data/data/com.termux/files/usr/bin/clang++`, `ld.lld`, `llvm-objcopy`,
+  `/system/bin/sh`) and remain the authoritative local runners. The APK job
+  invokes the build script in the Android-enabled container described below.
 * The test sources under `tests/java` and `tests/cpp` are used **unmodified**.
   Nothing here changes how the local suites behave.
 * Nothing is written into the working tree. Build output goes to `$RUNNER_TEMP`

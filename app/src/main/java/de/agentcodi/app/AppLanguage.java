@@ -88,12 +88,19 @@ final class AppLanguage {
             if (locales.isEmpty()) {
                 return UiLanguage.SYSTEM;
             }
-            String language = locales.get(0).getLanguage();
+            Locale locale = locales.get(0);
+            String language = locale.getLanguage();
             if ("de".equalsIgnoreCase(language)) {
                 return UiLanguage.GERMAN;
             }
             if ("en".equalsIgnoreCase(language)) {
                 return UiLanguage.ENGLISH;
+            }
+            if ("zh".equalsIgnoreCase(language)
+                && "zh-CN".equalsIgnoreCase(
+                    UiLanguage.effectiveLanguageTag(UiLanguage.SYSTEM, locale.toLanguageTag())
+                )) {
+                return UiLanguage.SIMPLIFIED_CHINESE;
             }
             return UiLanguage.SYSTEM;
         }

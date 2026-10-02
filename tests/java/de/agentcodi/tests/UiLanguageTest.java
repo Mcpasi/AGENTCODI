@@ -43,6 +43,16 @@ public final class UiLanguageTest {
             "English device language"
         );
         TestSupport.assertEquals(
+            "zh-CN",
+            UiLanguage.effectiveLanguageTag(UiLanguage.SYSTEM, "zh-CN"),
+            "Simplified Chinese device language"
+        );
+        TestSupport.assertEquals(
+            "zh-CN",
+            UiLanguage.effectiveLanguageTag(UiLanguage.SYSTEM, "zh-Hans-CN"),
+            "Simplified Chinese script device language"
+        );
+        TestSupport.assertEquals(
             "en",
             UiLanguage.effectiveLanguageTag(UiLanguage.SYSTEM, "fr-FR"),
             "unsupported device language falls back to English"
@@ -59,6 +69,16 @@ public final class UiLanguageTest {
             "de",
             UiLanguage.effectiveLanguageTag(UiLanguage.GERMAN, "en-US"),
             "explicit German"
+        );
+        TestSupport.assertEquals(
+            "zh-CN",
+            UiLanguage.effectiveLanguageTag(UiLanguage.SIMPLIFIED_CHINESE, "en-US"),
+            "explicit Simplified Chinese"
+        );
+        TestSupport.assertEquals(
+            UiLanguage.SIMPLIFIED_CHINESE,
+            UiLanguage.fromPreference("simplified_chinese"),
+            "Simplified Chinese preference"
         );
     }
 }

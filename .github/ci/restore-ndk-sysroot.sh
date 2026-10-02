@@ -14,8 +14,13 @@ trap 'rm -rf -- "$WORK_DIR"' EXIT
 download_verified() {
   local url="$1" sha="$2" destination="$3"
   mkdir -p "$(dirname -- "$destination")"
-  curl --fail --location --retry 3 --retry-delay 2 \
-    --connect-timeout 15 --max-time 600 --output "$destination" "$url"
+  # Large Google/Termux downloads occasionally reset HTTP/2 streams on hosted
+  # runners. Prefer HTTP/1.1 and resume the partial file across retries while
+  # keeping the pinned SHA-256 as the final authority over accepted bytes.
+  curl --fail --location --http1.1 \
+    --retry 8 --retry-all-errors --retry-delay 3 \
+    --connect-timeout 30 --max-time 1800 --continue-at - \
+    --output "$destination" "$url"
   printf '%s  %s\n' "$sha" "$destination" | sha256sum --check
 }
 

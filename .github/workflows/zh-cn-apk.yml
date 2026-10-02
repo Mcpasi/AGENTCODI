@@ -95,6 +95,11 @@ jobs:
           text2, count = re.subn(r'CODEX_ANDROID_SHA256="[0-9a-f]{64}"', f'CODEX_ANDROID_SHA256="{sha}"', text, count=1)
           if count != 1:
               raise SystemExit('could not patch reconstructed Codex archive pin')
+          old = 'https://repo1.maven.org/maven2/'
+          new = 'https://repo.maven.apache.org/maven2/'
+          if old not in text2:
+              raise SystemExit('expected Maven Central mirror URL was not found')
+          text2 = text2.replace(old, new)
           path.write_text(text2)
           PY
           echo "AGENTCODI_CODEX_ARCHIVE=/workspace/.cache/android/codex-reconstructed.tgz" >> "$GITHUB_ENV"

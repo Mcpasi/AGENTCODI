@@ -97,7 +97,7 @@ jobs:
               raise SystemExit('could not patch reconstructed Codex archive pin')
 
           primary = 'https://packages.termux.dev/apt/termux-main/'
-          mirror = 'https://grimler.se/termux/termux-main/'
+          mirror = 'https://packages-cf.termux.dev/apt/termux-main/'
           if primary not in text:
               raise SystemExit('expected Termux repository base URL was not found')
           text = text.replace(primary, mirror)
@@ -105,6 +105,16 @@ jobs:
           PY
           echo "AGENTCODI_CODEX_ARCHIVE=/workspace/.cache/android/codex-reconstructed.tgz" >> "$GITHUB_ENV"
           echo "Reconstructed archive SHA-256: $archive_sha"
+
+      - name: Prefetch and verify the pinned AAPT2 package
+        shell: bash
+        run: |
+          set -Eeuo pipefail
+          mkdir -p .cache/android
+          aapt2='.cache/android/aapt2-16.0.0.4-1-aarch64.deb'
+          url='https://packages-cf.termux.dev/apt/termux-main/pool/main/a/aapt2/aapt2_16.0.0.4-1_aarch64.deb'
+          curl --fail --location --retry 3 --retry-delay 2 --output "$aapt2" "$url"
+          echo 'd35298f13ec26eee362d4e84f534b29b8e5f288b86c89d803ba4fb8ccb9784aa  .cache/android/aapt2-16.0.0.4-1-aarch64.deb' | sha256sum -c -
 
       - name: Build the container image
         run: docker build --progress=plain -t "$IMAGE" -f .github/ci/Dockerfile .github/ci

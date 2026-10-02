@@ -5,7 +5,8 @@ import java.util.Locale;
 public enum UiLanguage {
     SYSTEM("system", ""),
     ENGLISH("english", "en"),
-    GERMAN("german", "de");
+    GERMAN("german", "de"),
+    SIMPLIFIED_CHINESE("simplified_chinese", "zh-CN");
 
     public static final String PREFERENCE_FILE = "agentcodi-ui";
     public static final String PREFERENCE_KEY = "language";
@@ -48,10 +49,15 @@ public enum UiLanguage {
         }
         String normalized = deviceLanguageTag == null
             ? ""
-            : deviceLanguageTag.trim().toLowerCase(Locale.ROOT);
-        return normalized.equals("de") || normalized.startsWith("de-")
-            || normalized.startsWith("de_")
-            ? GERMAN.languageTag
-            : ENGLISH.languageTag;
+            : deviceLanguageTag.trim().toLowerCase(Locale.ROOT).replace('_', '-');
+        if (normalized.equals("de") || normalized.startsWith("de-")) {
+            return GERMAN.languageTag;
+        }
+        if (normalized.equals("zh-cn")
+            || normalized.equals("zh-sg")
+            || normalized.startsWith("zh-hans")) {
+            return SIMPLIFIED_CHINESE.languageTag;
+        }
+        return ENGLISH.languageTag;
     }
 }

@@ -5,6 +5,7 @@ on:
     branches: [main]
     paths:
       - '.github/workflows/zh-cn-apk.yml'
+      - '.github/ci/restore-ndk-sysroot.sh'
   workflow_dispatch:
 
 permissions:

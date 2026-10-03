@@ -39,47 +39,17 @@ jobs:
           recover 8746673348 npm_11.19.0_all.deb 385a051111f66c56d0564e6809244f1740427805a78d2e5a5dc470fb420832f8
           recover 8126700666 patchelf_0.19.1_aarch64.deb a08bea49b3c9c3bf449ee0c7b7ee9c97a9f3ab84ae06ace08a564d0903a23c3f
 
-      - name: Inspect the public libc++ 29 archive
+      - name: Verify libc++ from the official public preview APK
         shell: bash
         run: |
           set -Eeuo pipefail
-          curl --fail --location --silent --show-error --retry 2 \
-            -o /tmp/libc-archive.json https://archive.org/metadata/termux_pkgs_archive_libc
-          python3 - <<'PY'
-          import json
-          with open('/tmp/libc-archive.json') as stream:
-              data = json.load(stream)
-          print('Archive servers:', data.get('d1'), data.get('d2'))
-          for item in data.get('files', []):
-              name = item.get('name', '')
-              if '29' in name and ('libc++' in name or 'libc%2B' in name or 'libcxx' in name):
-                  print('ARCHIVE FILE', name, item.get('sha256'), item.get('size'))
-          PY
-          for url in \
-            'https://archive.org/download/termux_pkgs_archive_libc/libc++/libc++_29_aarch64.deb' \
-            'https://archive.org/download/termux_pkgs_archive_libc/libc%2B%2B/libc%2B%2B_29_aarch64.deb'; do
-            if curl --fail --location --silent --show-error --max-time 90 \
-                -o recovered/libc++_29_aarch64.deb "$url"; then
-              if echo 'bb9f12113c137aa0e8513bb51cc49fe77a5ce3ca39ab9e92c57d228ecdf00222  recovered/libc++_29_aarch64.deb' | sha256sum --check; then
-                echo "LIBCXX SOURCE $url"
-                break
-              fi
-            fi
-            rm -f recovered/libc++_29_aarch64.deb
-          done
-
-      - name: Verify libc++ from the pinned NDK r29
-        shell: bash
-        run: |
-          set -Eeuo pipefail
-          curl --fail --location --http1.1 --retry 8 --retry-all-errors \
-            --retry-delay 3 --connect-timeout 30 --max-time 1800 --continue-at - \
-            -o /tmp/ndk-r29.zip https://dl.google.com/android/repository/android-ndk-r29-linux.zip
-          echo '4abbbcdc842f3d4879206e9695d52709603e52dd68d3c1fff04b3b5e7a308ecf  /tmp/ndk-r29.zip' | sha256sum --check
-          unzip -p /tmp/ndk-r29.zip \
-            android-ndk-r29/toolchains/llvm/prebuilt/linux-x86_64/sysroot/usr/lib/aarch64-linux-android/libc++_shared.so \
-            > recovered/libc++-ndk29-aarch64.so
-          sha256sum recovered/libc++-ndk29-aarch64.so
+          curl --fail --location --retry 3 --retry-delay 2 \
+            -o /tmp/official.apk \
+            https://github.com/Mcpasi/AGENTCODI/releases/download/preview-0.7.6/AGENTCODI-0.7.6-preview.1-arm64-v8a-release.apk
+          echo '62b91245fd8ed0aa38598b8f755695d93648307d69fd861c26549ba624b0cebd  /tmp/official.apk' | sha256sum --check
+          unzip -p /tmp/official.apk lib/arm64-v8a/libc++_shared.so \
+            > recovered/libc++_shared.so
+          sha256sum recovered/libc++_shared.so
 
       - name: Retain verified packages without printing binary data
         uses: actions/upload-artifact@v4

@@ -36,10 +36,11 @@ def digest(path):
 
 
 def github_json(endpoint):
-    request = urllib.request.Request(
-        "https://api.github.com/repos/" + endpoint,
-        headers={"Accept": "application/vnd.github+json", "User-Agent": "AGENTCODI-package-audit"},
-    )
+    headers = {"Accept": "application/vnd.github+json", "User-Agent": "AGENTCODI-package-audit"}
+    # Auth applies only to api.github.com metadata, never asset redirects.
+    if os.environ.get("GH_TOKEN"):
+        headers["Authorization"] = "Bearer " + os.environ["GH_TOKEN"]
+    request = urllib.request.Request("https://api.github.com/repos/" + endpoint, headers=headers)
     with urllib.request.urlopen(request, timeout=60) as response:
         return json.load(response)
 
@@ -220,6 +221,21 @@ def inspect(archive, pin, directory, provenance):
     for name, metadata in native.items():
         summary.append("| " + name + " | " + ", ".join(metadata["needed"]) + " | "
                        + ", ".join(metadata["runpath"]) + " | " + ", ".join(metadata["interpreter"]) + " |")
+    summary.extend(["", "### Native file checksums", ""])
+    for entry in inventory:
+        if entry["path"] in native:
+            summary.append("- `" + entry["path"] + "`: `" + entry["sha256"] + "`")
+    summary.extend([
+        "", "- Node engine declared by npm launchers: `" + json.dumps(package.get("engines", {})) + "`",
+        "- npm lifecycle scripts (recorded, never run): `" + json.dumps(package.get("scripts", {})) + "`",
+        "- Packaged LICENSE declares Apache-2.0; full license and notice texts are in the report.",
+        "", "### Launcher prefix and interpreter references", "",
+    ])
+    for launcher in launchers:
+        summary.append("- `" + launcher["path"] + "`: `" + launcher["shebang"] + "`")
+        for line in launcher["environment_and_prefix_lines"]:
+            if "/data/data/" in line or "execPath" in line or "Interpreter" in line:
+                summary.append("  - `" + line.strip() + "`")
     summary.extend(["", "### Remaining integration checks", ""] + [
         "- " + item for item in report["follow_up"]
     ])

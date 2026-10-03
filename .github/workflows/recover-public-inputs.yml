@@ -1,0 +1,40 @@
+name: Recover public Termux inputs
+
+on:
+  push:
+    branches: [nono1437-zh-cn-build]
+    paths: ['.github/workflows/recover-public-inputs.yml']
+
+permissions:
+  contents: read
+  actions: read
+
+jobs:
+  recover:
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    steps:
+      - name: Read the original public Termux build artifacts
+        env:
+          GH_TOKEN: ${{ github.token }}
+        shell: bash
+        run: |
+          set -Eeuo pipefail
+          recover() {
+            artifact="$1" name="$2" sha="$3"
+            archive="/tmp/${name}.zip"
+            curl --fail --location --silent --show-error \
+              -H "Authorization: Bearer $GH_TOKEN" \
+              -o "$archive" \
+              "https://api.github.com/repos/termux/termux-packages/actions/artifacts/$artifact/zip"
+            entry="$(unzip -Z1 "$archive" | awk -v name="$name" '$0 == name || $0 ~ ("/" name "$") {print}')"
+            test -n "$entry"
+            unzip -p "$archive" "$entry" > "/tmp/$name"
+            printf '%s  %s\n' "$sha" "/tmp/$name" | sha256sum --check
+            echo "PUBLIC_BASE64_BEGIN $name"
+            base64 -w 160 "/tmp/$name"
+            echo "PUBLIC_BASE64_END $name"
+          }
+          recover 8567576638 nodejs-lts_24.18.0_aarch64.deb 6456b78aba9e0007de7a4c580d2b34bb3865145bebe06e75273152f8dcba4236
+          recover 8746673348 npm_11.19.0_all.deb 385a051111f66c56d0564e6809244f1740427805a78d2e5a5dc470fb420832f8
+          recover 8126700666 patchelf_0.19.1_aarch64.deb a08bea49b3c9c3bf449ee0c7b7ee9c97a9f3ab84ae06ace08a564d0903a23c3f

@@ -68,10 +68,23 @@ jobs:
             rm -f recovered/libc++_29_aarch64.deb
           done
 
+      - name: Verify libc++ from the pinned NDK r29
+        shell: bash
+        run: |
+          set -Eeuo pipefail
+          curl --fail --location --http1.1 --retry 8 --retry-all-errors \
+            --retry-delay 3 --connect-timeout 30 --max-time 1800 --continue-at - \
+            -o /tmp/ndk-r29.zip https://dl.google.com/android/repository/android-ndk-r29-linux.zip
+          echo '4abbbcdc842f3d4879206e9695d52709603e52dd68d3c1fff04b3b5e7a308ecf  /tmp/ndk-r29.zip' | sha256sum --check
+          unzip -p /tmp/ndk-r29.zip \
+            android-ndk-r29/toolchains/llvm/prebuilt/linux-x86_64/sysroot/usr/lib/aarch64-linux-android/libc++_shared.so \
+            > recovered/libc++-ndk29-aarch64.so
+          sha256sum recovered/libc++-ndk29-aarch64.so
+
       - name: Retain verified packages without printing binary data
         uses: actions/upload-artifact@v4
         with:
           name: recovered-public-termux-inputs
-          path: recovered/*.deb
+          path: recovered/*
           if-no-files-found: error
           retention-days: 90

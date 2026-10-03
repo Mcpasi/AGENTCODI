@@ -164,7 +164,7 @@ def inspect(archive, pin, directory, provenance):
         require(relative in native, "Missing native executable: " + name)
         require(native[relative]["interpreter"] == ["/system/bin/linker64"],
                 "Unexpected Android interpreter: " + name)
-        require(native[relative]["runpath"] == ["$ORIGIN"], "Unexpected native search path: " + name)
+        require(native[relative]["runpath"] == ["$ORIGIN"], "Unexpected native search path: " + name + ": " + repr(native[relative]["runpath"]))
         mode = next(entry["archive_mode"] for entry in inventory if entry["path"] == relative)
         require(int(mode, 8) & 0o111, "Native executable lacks execute permission: " + name)
     licenses = []

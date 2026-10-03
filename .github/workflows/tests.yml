@@ -119,6 +119,8 @@ jobs:
           python3 .github/ci/test-community-codex-inspection.py
 
       - name: Download, verify and inspect the pinned Community release
+        env:
+          GH_TOKEN: ${{ github.token }}
         run: |
           python3 .github/ci/inspect-community-codex.py \
             --output "$RUNNER_TEMP/community-codex-${{ github.run_id }}-${{ github.run_attempt }}"

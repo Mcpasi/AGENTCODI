@@ -3,7 +3,6 @@
 # fails when the two drift apart, so update both together.
 modules/core/src/main/java
 modules/review-mode/src/main/java
-modules/protected-mode/src/main/java
 modules/compatibility-mode/src/main/java
 modules/storage/src/main/java
 modules/file-browser-contracts/src/main/java

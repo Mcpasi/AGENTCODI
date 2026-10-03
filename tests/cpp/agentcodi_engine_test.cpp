@@ -947,16 +947,12 @@ int main(int argc, char* argv[]) {
   for (const std::string& value : codex_arguments) {
     joined_arguments.append(value).push_back('\n');
   }
-  expect(codex_arguments.size() >= 3 && codex_arguments[2] == "app-server",
+  expect(!codex_arguments.empty() && codex_arguments[0] == "app-server",
          "Codex app-server command");
-  expect(codex_arguments[0] == "--disable"
-             && codex_arguments[1] == "just_in_time_approvals",
-         "just-in-time permissions default off through a validated feature flag");
-  argument_config.just_in_time_approvals = true;
-  auto expected_jit_arguments = codex_arguments;
-  expected_jit_arguments[0] = "--enable";
-  expect(agentcodi::CodexAppServerArguments(argument_config) == expected_jit_arguments,
-         "just-in-time enablement preserves the complete sandbox and transport arguments");
+  expect(!contains_argument("just_in_time_approvals"),
+         "Package Edition sends no fork-only JIT feature flag");
+  expect(joined_arguments.find("agentcodi-workspace") == std::string::npos,
+         "Package Edition defines no unused workspace sandbox profile");
   expect(contains_argument("--stdio"), "Codex app-server stdio transport");
   expect(contains_argument("--strict-config"), "Codex strict config validation");
   expect(joined_arguments.find("cli_auth_credentials_store=\"file\"")
@@ -1014,21 +1010,6 @@ int main(int argc, char* argv[]) {
   expect(joined_arguments.find("AGENTCODI_SHELL_PATH") == std::string::npos
              && joined_arguments.find("AGENTCODI_NODE_PATH") == std::string::npos,
          "mutable executable path overrides are excluded from tool commands");
-  expect(joined_arguments.find("\"/private/tool-bin\"=\"read\"")
-             != std::string::npos,
-         "packaged tool aliases are read-only in the permission profile");
-  expect(joined_arguments.find("\"/private/tool-runtime\"=\"read\"")
-             != std::string::npos,
-         "packaged runtime is read-only in the permission profile");
-  expect(joined_arguments.find("\"/private/native\"=\"read\"")
-             != std::string::npos,
-         "sandbox may read the canonical targets of packaged tool aliases");
-  expect(joined_arguments.find("\"/private\"=\"read\"") == std::string::npos
-             && joined_arguments.find("\"/private/native\"=\"write\"")
-                 == std::string::npos
-             && joined_arguments.find("\"/private/home\"=\"read\"")
-                 == std::string::npos,
-         "native payload access grants neither private siblings nor payload writes");
   expect(joined_arguments.find("NODE_REPL_HISTORY=\"/dev/null\"")
              != std::string::npos,
          "Node REPL history persistence disabled");
@@ -1060,8 +1041,8 @@ int main(int argc, char* argv[]) {
              "model_providers.agentcodi-openai-http.supports_standalone_web_search=true")
              != std::string::npos,
          "Codex HTTPS provider preserves standalone web search");
-  expect(joined_arguments.find(":workspace_roots") != std::string::npos,
-         "Codex workspace-root filesystem permission");
+  expect(joined_arguments.find(":workspace_roots") == std::string::npos,
+         "no protected filesystem profile in Package Edition");
   expect(joined_arguments.find("sandbox_mode") == std::string::npos,
          "legacy sandbox config excluded");
 

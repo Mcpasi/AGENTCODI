@@ -170,8 +170,8 @@ public final class RuntimeStateMachineTest {
             "failed state retains transient compatibility approval choice"
         );
         RuntimeSnapshot projected = machine.snapshot().withExecutionMode(
-            "protected",
-            "agentcodi-workspace",
+            "compatibility",
+            ":danger-full-access",
             false
         );
         TestSupport.assertEquals(
@@ -180,7 +180,7 @@ public final class RuntimeStateMachineTest {
             "mode projection preserves runtime phase"
         );
         TestSupport.assertEquals(
-            "agentcodi-workspace",
+            ":danger-full-access",
             projected.getPermissionProfileId(),
             "mode projection can reflect a live session switch"
         );
@@ -191,13 +191,13 @@ public final class RuntimeStateMachineTest {
         );
         TestSupport.assertFalse(
             projected.isCompatibilityApprovalsEnabled(),
-            "protected projection clears compatibility approval choice"
+            "Full access projection clears compatibility approval choice"
         );
         machine.beginStart();
         TestSupport.assertEquals(
-            "protected",
+            "compatibility",
             machine.snapshot().getExecutionModeId(),
-            "unconfirmed restart returns to protected mode"
+            "unconfirmed restart returns to Full access"
         );
         TestSupport.assertFalse(
             machine.snapshot().isCompatibilityApprovalsEnabled(),

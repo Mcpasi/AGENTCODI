@@ -85,10 +85,12 @@ public final class CodexRuntimeUpdaterTest {
                 + "(https://github.com/ratatui/ratatui), licensed under the MIT license.\n"
                 + "Copyright (c) 2016-2022 Florian Dehau\nCopyright (c) 2023-2025 The Ratatui Developers\n";
             Files.write(notice, corrected.getBytes(StandardCharsets.UTF_8));
-            String reviewed = CodexLocalSource.verifyNotice(notice, previousHash);
-            TestSupport.assertEquals(corrected, reviewed, "the exact reviewed sandbox attribution correction is accepted");
+            rejects(new Action() { public void run() throws Exception {
+                CodexLocalSource.verifyNotice(notice, previousHash);
+            } });
+            String reviewed = previous; // A sandbox-fork notice is never accepted by the edition updater.
             for (String name : new String[] {"NOTICE", "npm-package/NOTICE"}) {
-                CodexLocalSource.verifyDependencyInput(name, previous, corrected, reviewed);
+                CodexLocalSource.verifyDependencyInput(name, previous, previous, reviewed);
                 rejects(new Action() { public void run() throws Exception {
                     CodexLocalSource.verifyDependencyInput(name, previous, corrected + "Unreviewed addition.\n", reviewed);
                 } });
@@ -117,9 +119,9 @@ public final class CodexRuntimeUpdaterTest {
         }
         TestSupport.assertTrue(CodexRuntimeUpdater.compareVersions("0.150.0", "0.99.0") > 0, "numeric version order");
         TestSupport.assertTrue(CodexRuntimeUpdater.compareVersions("0.1.0", "0.2.0") < 0, "detect downgrade");
-        TestSupport.assertTrue(CodexRuntimeUpdater.comparePackageVersions("0.153.3-agentcodi.10", "0.153.3-agentcodi.2") > 0,
+        TestSupport.assertTrue(CodexRuntimeUpdater.comparePackageVersions("0.153.3-termux.10", "0.153.3-termux.2") > 0,
             "fork revision order is numeric");
-        TestSupport.assertEquals(0, CodexRuntimeUpdater.comparePackageVersions("0.153.3-agentcodi.1", "0.153.3-agentcodi.1"),
+        TestSupport.assertEquals(0, CodexRuntimeUpdater.comparePackageVersions("0.153.3-termux.1", "0.153.3-termux.1"),
             "same-version rebuilds can replace their package bytes");
         Map<String, Object> metadata = JsonCodec.object(
             "name", CodexRuntimeUpdater.PACKAGE, "version", "1.2.3", "license", "Apache-2.0",
@@ -495,7 +497,7 @@ public final class CodexRuntimeUpdaterTest {
             for (String file : CodexRuntimeUpdater.MANAGED) {
                 TestSupport.assertEquals(plan.before.get(file), CodexRuntimeUpdater.text(fixture.resolve(file)), "proposal is a dry run");
             }
-            TestSupport.assertEquals(8, plan.changed().size(), "all runtime pin consumers and NOTICE updated");
+            TestSupport.assertEquals(9, plan.changed().size(), "all runtime pin consumers and NOTICE updated");
             plan.commit(MOVE);
             for (String file : CodexRuntimeUpdater.MANAGED) {
                 TestSupport.assertEquals(plan.after.get(file), CodexRuntimeUpdater.text(fixture.resolve(file)), "committed proposed file");
@@ -754,8 +756,8 @@ public final class CodexRuntimeUpdaterTest {
     }
 
     private static void keepsDependencyReviewStrictAcrossVersionBumps() throws Exception {
-        String old = "[workspace.package]\nversion = \"0.153.3-agentcodi.1\"\n[workspace.dependencies]\nlibc = \"0.2.1\"\n";
-        String next = old.replace("0.153.3-agentcodi.1", "0.153.4-agentcodi.1");
+        String old = "[workspace.package]\nversion = \"0.153.3-termux.1\"\n[workspace.dependencies]\nlibc = \"0.2.1\"\n";
+        String next = old.replace("0.153.3-termux.1", "0.153.4-termux.1");
         TestSupport.assertEquals(CodexLocalSource.normalizeDependency("codex-rs/Cargo.toml", old),
             CodexLocalSource.normalizeDependency("codex-rs/Cargo.toml", next), "workspace version bumps are automatic");
         TestSupport.assertFalse(CodexLocalSource.normalizeDependency("Cargo.toml", old).equals(
@@ -767,9 +769,9 @@ public final class CodexRuntimeUpdaterTest {
         TestSupport.assertFalse(CodexLocalSource.normalizeDependency("Cargo.lock", lock).equals(
             CodexLocalSource.normalizeDependency("Cargo.lock", lock.replace("0.2.1", "0.2.2"))), "locked external versions stay exact");
         for (String name : new String[] {"app_test_support", "core_test_support", "mcp_test_support"}) {
-            String support = "[[package]]\nname = \"" + name + "\"\nversion = \"0.153.3-agentcodi.1\"\n"
+            String support = "[[package]]\nname = \"" + name + "\"\nversion = \"0.153.3-termux.1\"\n"
                 + "dependencies = [\"codex-core\"]\n";
-            String bumped = support.replace("0.153.3-agentcodi.1", "0.153.3-agentcodi.2");
+            String bumped = support.replace("0.153.3-termux.1", "0.153.3-termux.2");
             CodexLocalSource.verifyDependencyInput("codex-rs/Cargo.lock", support, bumped, "unused");
             rejects(new Action() { public void run() throws Exception {
                 CodexLocalSource.verifyDependencyInput("codex-rs/Cargo.lock", support,
@@ -778,7 +780,7 @@ public final class CodexRuntimeUpdaterTest {
             String registry = support + "source = \"registry+fixture\"\nchecksum = \"fixture\"\n";
             rejects(new Action() { public void run() throws Exception {
                 CodexLocalSource.verifyDependencyInput("codex-rs/Cargo.lock", registry,
-                    registry.replace("0.153.3-agentcodi.1", "0.153.3-agentcodi.2"), "unused");
+                    registry.replace("0.153.3-termux.1", "0.153.3-termux.2"), "unused");
             } });
         }
         String unknown = "[[package]]\nname = \"unreviewed_test_support\"\nversion = \"1.0.0\"\n";

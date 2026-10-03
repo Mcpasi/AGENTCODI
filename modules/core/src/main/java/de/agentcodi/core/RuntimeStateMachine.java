@@ -16,8 +16,8 @@ public final class RuntimeStateMachine {
 
     public synchronized long beginStart() {
         return beginStart(
-            CodexExecutionMode.PROTECTED_ID,
-            CodexExecutionMode.PROTECTED_PERMISSION_PROFILE_ID,
+            CodexExecutionMode.COMPATIBILITY_ID,
+            CodexExecutionMode.COMPATIBILITY_PERMISSION_PROFILE_ID,
             false
         );
     }

@@ -140,7 +140,6 @@ fi
 
 echo
 echo "== Process confinement =="
-# The packaged app-server runs under a seccomp/ptrace supervisor that verifies
 # real syscall interception before executing anything and refuses when it
 # cannot. Docker's default profiles restrict that, so report the state rather
 # than discover it through a failing bootstrap. Informational.
@@ -151,9 +150,6 @@ printf '  capabilities %s\n' "$(grep -i '^CapEff' /proc/self/status 2>/dev/null 
 
 echo
 echo "== Landlock =="
-# The build host has no Landlock: the syscall returns ENOSYS, so the packaged
-# sandbox always takes its seccomp/ptrace path there. A runner kernel does offer
-# Landlock, which would send the sandbox down a path the device never exercises,
 # so make the state visible rather than assume it.
 landlock_probe_dir="$(mktemp -d)"
 cat > "$landlock_probe_dir/probe.c" <<'PROBE'

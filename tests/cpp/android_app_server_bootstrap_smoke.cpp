@@ -74,7 +74,7 @@ bool read_response(
         }
         if (line.find("\"exitCode\":43") != std::string::npos
             || line.find("\"exitCode\":44") != std::string::npos) {
-          std::cerr << "Protected executor allowed access to the synthetic private sibling\n";
+          std::cerr << "Full-access executor allowed access to the synthetic private sibling\n";
         }
         std::cerr << "Bootstrap response omitted its required contract marker\n";
         return false;
@@ -189,25 +189,23 @@ bool create_private_fixture(const std::string& path, const std::string& contents
   return written == static_cast<ssize_t>(contents.size()) && closed;
 }
 
-bool check_protected_runtime(
+bool check_full_access_runtime(
     const std::shared_ptr<agentcodi::AppServerProcess>& process,
     const agentcodi::ProcessConfig& config,
     std::string* error) {
-  // Listing a profile does not prove that the Android executor can enforce it.
-  // Exercise the real thread bootstrap and actual file access, using only
-  // synthetic files in the build fixture's workspace and private sibling.
+  // Exercise the real runtime with synthetic workspace and private sibling files.
   const std::string instructions = config.working_directory + "/AGENTS.md";
-  const std::string outside = config.home_directory + "/sandbox-boundary-fixture";
+  const std::string outside = config.home_directory + "/full-access-sibling-fixture";
   if (!safe_json_path(outside)
       || !create_private_fixture(instructions, "Use the workspace for this test.\n")
       || !create_private_fixture(outside, "synthetic-private-sibling\n")) {
-    std::cerr << "Protected runtime fixtures could not be created\n";
+    std::cerr << "Full-access runtime fixtures could not be created\n";
     return false;
   }
   const auto cleanup = [&]() {
     unlink(instructions.c_str());
     unlink(outside.c_str());
-    unlink((config.working_directory + "/.agentcodi-sandbox-write-fixture").c_str());
+    unlink((config.working_directory + "/.agentcodi-full-access-write-fixture").c_str());
   };
 
   const bool thread_started = write_request(
@@ -218,14 +216,14 @@ bool check_protected_runtime(
       "\"model\":\"gpt-5.1-codex\","
       "\"modelProvider\":\"agentcodi-openai-http\","
       "\"approvalPolicy\":\"on-request\","
-      "\"permissions\":\"agentcodi-workspace\","
+      "\"permissions\":\":danger-full-access\","
       "\"persistExtendedHistory\":true}}",
       error)
       && read_response_with_two_markers(
           process, "\"id\":25", "\"thread\":{",
-          "\"id\":\"agentcodi-workspace\"", error);
+          "\"id\":\":danger-full-access\"", error);
   if (!thread_started) {
-    std::cerr << "Protected thread/start must load workspace AGENTS.md successfully\n";
+    std::cerr << "Full-access thread/start must load workspace AGENTS.md successfully\n";
     cleanup();
     return false;
   }
@@ -236,40 +234,37 @@ bool check_protected_runtime(
       "\"command\":[\"" + config.shell_executable + "\",\"-c\","
       "\"cat AGENTS.md >/dev/null && printf AGENTCODI-PAYLOAD-READY\"],"
       "\"cwd\":\"" + config.working_directory + "\","
-      "\"permissionProfile\":\"agentcodi-workspace\","
+      "\"permissionProfile\":\":danger-full-access\","
       "\"tty\":false,\"outputBytesCap\":4096,\"timeoutMs\":"
       + std::to_string(kCommandTimeoutMs) + "}}",
       error)
       && read_command_response(process, 28, "AGENTCODI-PAYLOAD-READY", error);
   if (!native_started) {
-    std::cerr << "Protected executor must start the packaged native shell and read the workspace\n";
+    std::cerr << "Full-access executor must start the packaged native shell and read the workspace\n";
     cleanup();
     return false;
   }
 
   for (const bool writing : {false, true}) {
     const std::string id = writing ? "27" : "26";
-    // First prove workspace reads and writes work. Then require the same
-    // operation on the private sibling to fail. Neither blanket rejection nor
-    // a thread-start fallback to full access satisfies this regression.
     const std::string operation = writing
-        ? "if (: >> \\\"$1\\\") 2>/dev/null; then exit 43; fi"
-        : "if cat \\\"$1\\\" >/dev/null 2>&1; then exit 44; fi";
-    const bool denied_outside = write_request(
+        ? ": >> \\\"$1\\\" || exit 43"
+        : "cat \\\"$1\\\" >/dev/null || exit 44";
+    const bool accessed_outside = write_request(
         process,
         "{\"method\":\"command/exec\",\"id\":" + id + ",\"params\":{"
         "\"command\":[\"/system/bin/sh\",\"-c\","
         "\"cat AGENTS.md >/dev/null || exit 41; "
-        ": > .agentcodi-sandbox-write-fixture || exit 42; " + operation + "; exit 0\","
-        "\"agentcodi-sandbox-probe\",\"" + outside + "\"],"
+        ": > .agentcodi-full-access-write-fixture || exit 42; " + operation + "; exit 0\","
+        "\"agentcodi-full-access-probe\",\"" + outside + "\"],"
         "\"cwd\":\"" + config.working_directory + "\","
-        "\"permissionProfile\":\"agentcodi-workspace\","
+        "\"permissionProfile\":\":danger-full-access\","
         "\"tty\":false,\"outputBytesCap\":4096,\"timeoutMs\":"
         + std::to_string(kCommandTimeoutMs) + "}}",
         error)
         && read_command_response(process, writing ? 27 : 26, "", error);
-    if (!denied_outside) {
-      std::cerr << "Protected executor must allow workspace access and deny sibling "
+    if (!accessed_outside) {
+      std::cerr << "Full-access executor must allow workspace access and sibling "
                 << (writing ? "writes" : "reads") << '\n';
       cleanup();
       return false;
@@ -599,9 +594,7 @@ bool read_terminated_terminal_completion(
 }  // namespace
 
 int main(int argc, char* argv[]) {
-  const bool protected_only = argc == 17
-      && std::string(argv[16]) == "--protected-mode-only";
-  if (argc != 16 && !protected_only) {
+  if (argc != 16) {
     std::cerr << "Expected app-server, host, shell, Node, Python, ripgrep, workspace, toolchain, tool-bin, tool-runtime, Codex home, home, state, temp and library paths\n";
     return 2;
   }
@@ -654,19 +647,10 @@ int main(int argc, char* argv[]) {
     return 1;
   }
 
-  // Successful commands alone cannot establish filesystem isolation. Run the
-  // positive and negative access probes in every packaging bootstrap.
-  if (!check_protected_runtime(process, config, &error)) {
+  // Full access must execute the packaged shell and read/write private siblings.
+  if (!check_full_access_runtime(process, config, &error)) {
     process->Stop(2'000);
     return 1;
-  }
-  if (protected_only) {
-    const int exit_code = process->Stop(2'000);
-    if (exit_code == INT_MIN) {
-      return 1;
-    }
-    std::cout << "Protected runtime regression checks passed.\n";
-    return 0;
   }
 
   const std::string permission_request =
@@ -676,7 +660,7 @@ int main(int argc, char* argv[]) {
       || !read_response_with_two_markers(
           process,
           "\"id\":2",
-          "\"id\":\"agentcodi-workspace\"",
+          "\"id\":\":danger-full-access\"",
           "\"id\":\":danger-full-access\"",
           &error)
       || !write_request(
@@ -707,7 +691,7 @@ int main(int argc, char* argv[]) {
       "\"command\":[\"" + shell + "\",\"--interactive\"],"
       "\"cwd\":\"" + workspace + "\","
       "\"processId\":\"agentcodi-build-terminal\","
-      "\"permissionProfile\":\"agentcodi-workspace\","
+      "\"permissionProfile\":\":danger-full-access\","
       "\"tty\":true,\"size\":{\"rows\":24,\"cols\":80},"
       "\"outputBytesCap\":65536,\"timeoutMs\":"
       + std::to_string(kToolchainTimeoutMs) + "}}";
@@ -736,7 +720,7 @@ int main(int argc, char* argv[]) {
       "node --version && rg --version && agentcodi-toolchain status\"],"
       "\"cwd\":\"" + workspace + "\","
       "\"processId\":\"agentcodi-build-model-shell\","
-      "\"permissionProfile\":\"agentcodi-workspace\","
+      "\"permissionProfile\":\":danger-full-access\","
       "\"tty\":false,\"outputBytesCap\":65536,\"timeoutMs\":"
       + std::to_string(kToolchainTimeoutMs) + "}}";
   if (!write_request(process, model_shell_request, &error)
@@ -770,7 +754,7 @@ int main(int argc, char* argv[]) {
       "\"agentcodi-import-smoke\",\"" + imported_file + "\"],"
       "\"cwd\":\"" + workspace + "\","
       "\"processId\":\"agentcodi-build-import-read\","
-      "\"permissionProfile\":\"agentcodi-workspace\","
+      "\"permissionProfile\":\":danger-full-access\","
       "\"tty\":false,\"outputBytesCap\":65536,\"timeoutMs\":"
       + std::to_string(kCommandTimeoutMs) + "}}";
   if (!write_request(process, import_read_request, &error)
@@ -784,7 +768,7 @@ int main(int argc, char* argv[]) {
       "\"command\":[\"" + shell + "\",\"--interactive\"],"
       "\"cwd\":\"" + workspace + "\","
       "\"processId\":\"agentcodi-build-terminal-stop\","
-      "\"permissionProfile\":\"agentcodi-workspace\","
+      "\"permissionProfile\":\":danger-full-access\","
       "\"tty\":true,\"size\":{\"rows\":24,\"cols\":80},"
       "\"outputBytesCap\":65536,\"timeoutMs\":"
       + std::to_string(kToolchainTimeoutMs) + "}}";
@@ -970,7 +954,7 @@ int main(int argc, char* argv[]) {
           "\"cwd\":\"" + workspace + "\","
           "\"model\":\"gpt-5.1-codex\","
           "\"modelProvider\":\"agentcodi-import-probe\","
-          "\"approvalPolicy\":\"never\",\"sandbox\":\"workspace-write\","
+          "\"approvalPolicy\":\"never\",\"permissions\":\":danger-full-access\","
           "\"runtimeWorkspaceRoots\":[\"" + workspace + "\"]}}",
           &error)) {
     probe->Stop(2'000);
@@ -1006,9 +990,7 @@ int main(int argc, char* argv[]) {
           "\"additionalContext\":{\"agentcodi-import-1\":{"
           "\"kind\":\"application\",\"value\":\"" + context_value + "\"}},"
           "\"cwd\":\"" + workspace + "\",\"model\":\"gpt-5.1-codex\","
-          "\"approvalPolicy\":\"never\",\"sandboxPolicy\":{"
-          "\"type\":\"workspaceWrite\",\"writableRoots\":[\""
-          + workspace + "\"],\"networkAccess\":false}}}",
+          "\"approvalPolicy\":\"never\",\"permissionProfile\":\":danger-full-access\"}}",
           &error)
       || !read_response(probe, "\"id\":32", "\"status\":\"inProgress\"", &error)) {
     probe->Stop(2'000);

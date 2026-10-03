@@ -63,11 +63,4 @@ grep -E '^download_verified "' "$BUILD_SCRIPT" | while read -r _ url_ref sha_ref
   printf '%s\t%s\tdownload\t%s\n' "${dest#"$CACHE_DIR"/}" "$sha" "$url"
 done
 
-# The Codex runtime is a locally built fork with no registry fallback. Its
-# cache layout is content addressed: the directory name is the archive hash.
-codex_dir="codex/$CODEX_ANDROID_SHA256"
-printf '%s/package.tgz\t%s\tlocal\t-\n' "$codex_dir" "$CODEX_ANDROID_SHA256"
-printf '%s/codex_app_server_protocol.schemas.json\t%s\tlocal\t-\n' \
-  "$codex_dir" "$CODEX_SCHEMA_BUNDLE_SHA256"
-printf '%s/codex_app_server_protocol.v2.schemas.json\t%s\tlocal\t-\n' \
-  "$codex_dir" "$CODEX_V2_SCHEMA_BUNDLE_SHA256"
+# Codex is a downloaded Community release; schemas are regenerated and checked by the builder.

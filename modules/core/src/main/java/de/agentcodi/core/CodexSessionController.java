@@ -59,7 +59,7 @@ public final class CodexSessionController
     private static final int MAX_POLICY_AMENDMENT_PARTS = 32;
     private static final long MAX_INTERACTIVE_WAIT_MS = 10L * 60L * 1000L;
     private static final String WORKSPACE_PERMISSION_PROFILE =
-        CodexExecutionMode.PROTECTED_PERMISSION_PROFILE_ID;
+        CodexExecutionMode.COMPATIBILITY_PERMISSION_PROFILE_ID;
     private static final String APPROVAL_POLICY_ON_REQUEST = "on-request";
     private static final String APPROVAL_POLICY_UNTRUSTED = "untrusted";
     private static final String OPENAI_HTTP_MODEL_PROVIDER = "agentcodi-openai-http";
@@ -560,16 +560,6 @@ public final class CodexSessionController
                 setUserError("Codex App-Server ist nicht bereit.");
                 return false;
             }
-            if (justInTimeApprovalsEnabled
-                && !CodexExecutionMode.supportsJustInTimeApprovals(
-                    candidate.id, candidate.permissionProfileId
-                )) {
-                setUserError(
-                    "Just-in-time-Berechtigungen sind nur im geschützten Modus verfügbar. "
-                        + "Vor dem Wechsel die Engine stoppen und Just-in-time deaktivieren."
-                );
-                return false;
-            }
             if (candidate.id.equals(executionModeId)
                 && candidate.permissionProfileId.equals(permissionProfileId)
                 && candidateApprovalsEnabled == compatibilityApprovalsEnabled) {
@@ -610,9 +600,7 @@ public final class CodexSessionController
                     permissionProfileId = candidate.permissionProfileId;
                     dangerousExecutionMode = candidate.dangerous;
                     compatibilityApprovalsEnabled = candidateApprovalsEnabled;
-                    operationMessage = candidate.dangerous
-                        ? "Kompatibilitätsmodus ist aktiv."
-                        : "Geschützter Modus ist aktiv.";
+                    operationMessage = "Kompatibilitätsmodus ist aktiv.";
                     errorMessage = "";
                     publishLocked();
                 }
@@ -4465,23 +4453,20 @@ public final class CodexSessionController
     ) {
         if (executionMode == null) {
             return new ExecutionModeValues(
-                CodexExecutionMode.PROTECTED_ID,
-                WORKSPACE_PERMISSION_PROFILE,
-                false
+                CodexExecutionMode.COMPATIBILITY_ID,
+                CodexExecutionMode.COMPATIBILITY_PERMISSION_PROFILE_ID,
+                true
             );
         }
         String id = executionMode.getId();
         String permissionProfile = executionMode.getPermissionProfileId();
         boolean dangerous = executionMode.isDangerous();
-        boolean protectedMode = CodexExecutionMode.PROTECTED_ID.equals(id)
-            && WORKSPACE_PERMISSION_PROFILE.equals(permissionProfile)
-            && !dangerous;
         boolean compatibilityMode = CodexExecutionMode.COMPATIBILITY_ID.equals(id)
             && CodexExecutionMode.COMPATIBILITY_PERMISSION_PROFILE_ID.equals(
                 permissionProfile
             )
             && dangerous;
-        if (!protectedMode && !compatibilityMode) {
+        if (!compatibilityMode) {
             throw new IllegalArgumentException("Unsupported Codex execution mode");
         }
         return new ExecutionModeValues(id, permissionProfile, dangerous);

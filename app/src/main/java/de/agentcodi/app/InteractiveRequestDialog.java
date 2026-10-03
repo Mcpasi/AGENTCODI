@@ -213,8 +213,7 @@ final class InteractiveRequestDialog {
 
         if (!request.getCommand().isEmpty()) {
             theme.addWithTopMargin(content, theme.sectionLabel(activity.getString(
-                request.isJustInTimeApproval()
-                    ? R.string.just_in_time_execute : R.string.approval_command
+                R.string.approval_command
             )), 14);
             TextView command = theme.codeBlock(request.getCommand(), 13);
             command.setTextIsSelectable(true);
@@ -233,8 +232,7 @@ final class InteractiveRequestDialog {
         }
 
         TextView explanation = theme.text(
-            activity.getString(request.isJustInTimeApproval()
-                ? R.string.just_in_time_approval_explanation : R.string.approval_explanation),
+            activity.getString(R.string.approval_explanation),
             12,
             theme.secondary
         );
@@ -614,9 +612,6 @@ final class InteractiveRequestDialog {
     }
 
     private String approvalTitle(CodexInteractiveRequest request) {
-        if (request.isJustInTimeApproval()) {
-            return activity.getString(R.string.just_in_time_approval_title);
-        }
         if (ToolchainCommand.requestsPackageInstallation(request.getCommand())) {
             return activity.getString(R.string.approval_toolchain_install_title);
         }

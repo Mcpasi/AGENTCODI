@@ -1,6 +1,6 @@
-> **Package Edition — nur für Power User und erfahrene Nutzer.** Diese Version bietet ausschließlich **Full access**. Codex und selbst installierte Programme können alle für die App erreichbaren Dateien lesen, verändern oder löschen, einschließlich Codex-Kontodaten. Androids App-Isolation gegenüber anderen Apps bleibt bestehen; innerhalb dieser App gibt es keine Workspace-Sandbox.
+> **Package Edition — for power users and experienced users only.** This edition offers **Full access** exclusively. Codex and user-installed programs can read, change, or delete every file reachable by the app, including Codex account data. Android's isolation from other apps remains in place; there is no workspace sandbox within this app.
 >
-> **Entwicklungsstand:** Der Paketpräfix und Full access sind eingerichtet. Die Umstellung auf den Community-App-Server, ein Paketmanager und der schlankere APK-Build stehen noch aus. Siehe [Roadmap](ROADMAP-package-edition.md). Diese Entwicklungslinie wird nicht in `main` gemergt.
+> **Development status:** The writable package prefix, Full access, and Community app-server integration are implemented. A package manager and a smaller APK remain on the [roadmap](ROADMAP-package-edition.md). This development branch is not merged into `main`.
 
 <div align="center">
 
@@ -17,36 +17,36 @@
 
 </div>
 
-## Diese Entwicklungslinie
+## This development branch
 
-Alle Änderungen dieser zweiten Version liegen ausschließlich in `Mcpasi/package-edition`. Die reguläre AGENTCODI-Version wird weiterhin in `main` gepflegt.
+All changes for this second edition are made exclusively on `Mcpasi/package-edition`. The regular AGENTCODI version continues to be maintained on `main`.
 
-AGENTCODI bietet native Codex-Chats, Workspace-Import und Export, Dateivorschau, ein interaktives Terminal und MCP-Verwaltung. Der App-Server läuft lokal; Modellanfragen benötigen weiterhin Internetzugang und OpenAI-Authentifizierung. Die Oberfläche ist auf Deutsch und Englisch verfügbar.
+AGENTCODI provides native Codex chats, workspace import and export, file previews, an interactive terminal, and MCP management. The app-server runs locally; model requests still require internet access and OpenAI authentication. The interface is available in German and English.
 
-Die Package Edition setzt bewusst `targetSdk 28` ein, um die Android-Beschränkung für die Ausführung von Dateien in beschreibbarem App-Speicher bei Apps mit Target SDK ab 29 zu vermeiden. Das Mindestniveau bleibt Android 10 / API 29. Ein niedrigeres Target SDK ersetzt keine passende ARM64/Bionic-Laufzeit und macht Termux-Pakete nicht automatisch mit einem anderen Installationspfad kompatibel.
+The Package Edition deliberately uses `targetSdk 28` to avoid Android's restriction on executing files from writable app storage for apps targeting SDK 29 or later. The minimum remains Android 10 / API 29. A lower target SDK does not replace a compatible ARM64/Bionic runtime or automatically make Termux packages compatible with another installation prefix.
 
 ## Full access
 
-Full access ist der einzige App-Modus — auch nach einem Neustart des Runtime-Dienstes. Der geschützte Modus und seine Just-in-time-Berechtigungseinstellung werden in dieser Edition nicht angeboten. Der Chat zeigt Full access dauerhaft an.
+Full access is the only app mode, including after a runtime-service restart. Protected mode and its just-in-time permission setting are unavailable in this edition. The chat always displays Full access.
 
-Optional können Befehle und Dateiänderungen mit der Codex-Richtlinie `untrusted` bestätigt werden. Diese Bestätigungen sind keine Dateisystem-Isolation. Ein installiertes Programm läuft mit den Rechten der App.
+Commands and file changes can optionally require approval using Codex's `untrusted` policy. These approvals do not provide filesystem isolation. An installed program runs with the app's permissions.
 
-Workspace, Benutzer-Home und `CODEX_HOME` bleiben als Verzeichnisse getrennt. Diese organisatorische Trennung schützt Kontodaten nicht vor Programmen im selben App-Prozess. Import, Vorschau und Export verwenden weiterhin ihre eigenen Dateiprüfungen.
+The workspace, user home, and `CODEX_HOME` remain separate directories. This organizational separation does not protect account data from programs running with the same app permissions. Import, preview, and export continue to apply their own file checks.
 
-## Eigene Programme
+## User-installed programs
 
-Der beschreibbare Installationspräfix ist `$PREFIX = $HOME/.local`. Beim Start legt AGENTCODI `bin`, `lib`, `include`, `share`, `etc` und `tmp` an; vorhandene Installationen bleiben erhalten.
+The current writable installation prefix is `$PREFIX = $HOME/.local`. At startup, AGENTCODI creates `bin`, `lib`, `include`, `share`, `etc`, and `tmp`; existing installations are preserved.
 
-Codex-Kommandos und das Terminal erhalten dieselbe Suchreihenfolge:
+Codex commands and the terminal use the same search order:
 
 ```text
-PATH=$PREFIX/bin:<bisherige APK-Tool-Aliase>:/system/bin:/system/xbin
-LD_LIBRARY_PATH=$PREFIX/lib:<native APK-Bibliotheken>
+PATH=$PREFIX/bin:<existing APK tool aliases>:/system/bin:/system/xbin
+LD_LIBRARY_PATH=$PREFIX/lib:<native APK libraries>
 ```
 
-Eigene Programme haben damit Vorrang vor den bisherigen Tools. Die Terminal-Shell definiert keine festen Funktionen mehr für `node`, `npm`, `python` oder `rg`, die diesen Vorrang überschreiben könnten.
+User-installed programs take precedence over the bundled tools. The terminal shell no longer defines fixed functions for `node`, `npm`, `python`, or `rg` that could override this order.
 
-Für einen ersten Gerätetest kann ein eigenes Shell-Programm installiert werden:
+For an initial device test, install a small shell program:
 
 ```sh
 printf '#!/system/bin/sh\nprintf "package-edition-ok\\n"\n' > "$PREFIX/bin/package-check"
@@ -54,37 +54,37 @@ chmod 700 "$PREFIX/bin/package-check"
 package-check
 ```
 
-Anschließend kann Codex `package-check` als normalen Befehl ausführen. Das ist ein Funktionstest des Installationspfads; ein `pkg`-/APT-Paketmanager ist noch nicht enthalten.
+Codex can then run `package-check` as a normal command. This checks the installation path; a `pkg`/APT package manager is not yet included.
 
-Native Pakete müssen für Android ARM64/Bionic gebaut sein und den tatsächlichen Präfix unterstützen. Bestehende Termux-DEBs enthalten häufig feste Pfade wie `/data/data/com.termux/files/usr`. Einfaches Entpacken nach `$PREFIX` reicht dann nicht aus. Paketquellen und Bootstrap werden im nächsten Bauabschnitt festgelegt.
+Native packages must be built for Android ARM64/Bionic and support the actual prefix. Existing Termux DEBs often contain fixed paths such as `/data/data/com.termux/files/usr`. Extracting them into `$PREFIX` is insufficient. The chosen architecture uses Termux package recipes rebuilt for this edition, a minimal bootstrap, and a dedicated signed repository; implementation is tracked in the roadmap.
 
-Die bisherigen mitgelieferten Node.js-, npm-, Python- und ripgrep-Laufzeiten bleiben vorerst als Übergang erhalten. Ihre Aktivierungs- und Laufzeitprüfungen gelten weiterhin; insbesondere sind die alten npm-/Python-Wrapper noch keine allgemeine Paketverwaltung.
+The bundled Node.js, npm, Python, and ripgrep runtimes remain during the transition. Their activation and runtime checks still apply; the existing npm/Python wrappers do not provide general package management.
 
-## Runtime und Build
+## Runtime and build
 
-Der aktive Build verwendet vorläufig weiterhin den gepinnten Mcpasi-Fork `0.153.3-agentcodi.2`. Als Migrationsziel wurde der Community-Ursprung [DioNanos/codex-termux](https://github.com/DioNanos/codex-termux) mit Release [v0.156.1-termux.1](https://github.com/DioNanos/codex-termux/releases/tag/v0.156.1-termux.1) geprüft. Der Austausch erfordert neue Artefakt- und Schema-Pins sowie App-Server-Kompatibilitätstests; er ist noch nicht umgesetzt.
+The active runtime is the pinned [DioNanos/codex-termux](https://github.com/DioNanos/codex-termux) Community release [v0.156.1-termux.1](https://github.com/DioNanos/codex-termux/releases/tag/v0.156.1-termux.1), based on OpenAI Codex `rust-v0.156.1`. The executable reports `codex-cli 0.156.1`. Release, source, archive, binary, relocation, and generated-schema pins are verified in CI. The updater rejects the former `-agentcodi` sandbox channel and requires the DioNanos source remote and matching release tag.
 
-Die bestehenden GitHub-Tests laufen bei jedem Branch-Push. Der APK-Workflow kann manuell für `Mcpasi/package-edition` ausgeführt werden. Die komplette Runtime-/Build-Migration ist vor Veröffentlichung eines Package-Edition-APKs zu erledigen.
+GitHub tests run on every branch push. The Package Edition APK workflow also runs on pushes to `Mcpasi/package-edition`; manual runs can select preflight only. ARM64/Bionic runtime checks run on hosted GitHub runners. Device-specific linker and installation tests remain separate.
 
 ```sh
 ./scripts/test.sh
 ./scripts/build-debug-apk.sh
 ```
 
-Die Build-Umgebung ist in [.github/ci/README.md](.github/ci/README.md) dokumentiert. Dort beschriebene Prüfungen für den bisherigen Fork und geschützten Modus sind derzeit noch Teil des Übergangsbuilds.
+The build environment is documented in [.github/ci/README.md](.github/ci/README.md). The Community ELF files run directly; npm launchers and their Termux-specific shebangs are not installed or executed. The code-mode host is packaged as `libcodex-codehost.so`; its matching name substitution is verified against the new binary. Full-access runtime checks replace the old seccomp/ptrace and workspace-sandbox probes.
 
-Die Package Edition verwendet die separate Application-ID `de.agentcodi.pkg` und beginnt bei `0.1.0-package.1` mit eigenem Android-`versionCode 1`. Sie kann neben der regulären Version (`de.agentcodi.app`) installiert werden. Beide Apps haben getrennte private Dateien, Einstellungen und Anmeldungen. Die Java-Klassen und generierten Ressourcen bleiben unter `de.agentcodi.app`; das ist unabhängig von der Installationsidentität.
+The Package Edition uses the separate application ID `de.agentcodi.pkg` and starts at `0.1.0-package.1` with its own Android `versionCode 1`. It can be installed alongside the regular version (`de.agentcodi.app`). The two apps have separate private files, settings, and sign-ins. Java classes and generated resources remain under `de.agentcodi.app`, independently of installation identity.
 
-APK-Dateien heißen `AGENTCODI-Package-<Version>-arm64-v8a-debug.apk` beziehungsweise `AGENTCODI-Package-<Version>-arm64-v8a-release.apk`. Die unversionierten Kopien heißen `AGENTCODI-Package-debug.apk` und `AGENTCODI-Package-release.apk`; der APK-Workflow verwendet das Artefakt `agentcodi-package-debug-apk`. `scripts/bump-version.sh` erhöht die eigene Versionslinie und den eigenen Versionscode.
+APK files are named `AGENTCODI-Package-<Version>-arm64-v8a-debug.apk` or `AGENTCODI-Package-<Version>-arm64-v8a-release.apk`. Unversioned copies are `AGENTCODI-Package-debug.apk` and `AGENTCODI-Package-release.apk`; the APK workflow uses the artifact `agentcodi-package-debug-apk`. `scripts/bump-version.sh` increments this edition's version line and version code.
 
-Frühere Package-Edition-Builds mit der gemeinsamen ID bleiben in der bisherigen Installation. Deren Dateien werden nicht automatisch in die neue App übernommen; benötigte Workspace-Dateien vor dem Wechsel exportieren und in die neue App importieren. Der spätere verwaltete Paketpräfix ist damit auf `/data/data/de.agentcodi.pkg/files/usr` festgelegt; aktuell gilt weiterhin `$HOME/.local`. Neuere Android-Versionen können beim Installieren auf das niedrige Target SDK hinweisen.
+Earlier Package Edition builds with the shared ID remain in the previous installation. Their files are not automatically transferred to the new app; export required workspace files before switching, then import them into the new app. The future managed package prefix is `/data/data/de.agentcodi.pkg/files/usr`; the current prefix remains `$HOME/.local`. Newer Android versions may show a warning about the low target SDK during installation.
 
-## Lizenz
+## License
 
-Originaler Java-/C++-App-Code, Tests, Ressourcen, Build-Automation und Dokumentation:
+Original Java/C++ app code, tests, resources, build automation, and documentation:
 
 Copyright 2026 Pascal (Mc Pasi). [Apache License 2.0](LICENSE).
 
-Lizenzen und Hinweise zu weiterhin enthaltenen Drittanbieterkomponenten stehen in [NOTICE.md](NOTICE.md) und in der App.
+Licenses and notices for included third-party components are available in [NOTICE.md](NOTICE.md) and in the app.
 
-AGENTCODI ist ein unabhängiges Open-Source-Projekt und weder mit OpenAI verbunden noch von OpenAI unterstützt.
+AGENTCODI is an independent open-source project and is neither affiliated with nor endorsed by OpenAI.

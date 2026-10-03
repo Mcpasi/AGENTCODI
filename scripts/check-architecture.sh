@@ -4,7 +4,7 @@ set -Eeuo pipefail
 SCRIPT_DIR="$(cd -- "$(dirname -- "$0")" && pwd -P)"
 PROJECT_ROOT="$(cd -- "$SCRIPT_DIR/.." && pwd -P)"
 
-unexpected_source="$(find "$PROJECT_ROOT/app/src/main/java" "$PROJECT_ROOT/modules/core/src/main/java" "$PROJECT_ROOT/modules/review-mode/src/main/java" "$PROJECT_ROOT/modules/protected-mode/src/main/java" "$PROJECT_ROOT/modules/compatibility-mode/src/main/java" "$PROJECT_ROOT/modules/storage/src/main/java" "$PROJECT_ROOT/modules/file-browser-contracts/src/main/java" "$PROJECT_ROOT/modules/file-browser-client/src/main/java" "$PROJECT_ROOT/modules/import-contracts/src/main/java" "$PROJECT_ROOT/modules/import-client/src/main/java" "$PROJECT_ROOT/modules/mcp-contracts/src/main/java" "$PROJECT_ROOT/modules/mcp-client/src/main/java" "$PROJECT_ROOT/modules/connector-contracts/src/main/java" "$PROJECT_ROOT/modules/connector-client/src/main/java" "$PROJECT_ROOT/modules/runtime/src/main/java" "$PROJECT_ROOT/modules/native-engine/src/main/cpp" "$PROJECT_ROOT/tests/java" "$PROJECT_ROOT/tests/cpp" -type f ! -name '*.java' ! -name '*.cpp' ! -name '*.h' -print)"
+unexpected_source="$(find "$PROJECT_ROOT/app/src/main/java" "$PROJECT_ROOT/modules/core/src/main/java" "$PROJECT_ROOT/modules/review-mode/src/main/java" "$PROJECT_ROOT/modules/compatibility-mode/src/main/java" "$PROJECT_ROOT/modules/storage/src/main/java" "$PROJECT_ROOT/modules/file-browser-contracts/src/main/java" "$PROJECT_ROOT/modules/file-browser-client/src/main/java" "$PROJECT_ROOT/modules/import-contracts/src/main/java" "$PROJECT_ROOT/modules/import-client/src/main/java" "$PROJECT_ROOT/modules/mcp-contracts/src/main/java" "$PROJECT_ROOT/modules/mcp-client/src/main/java" "$PROJECT_ROOT/modules/connector-contracts/src/main/java" "$PROJECT_ROOT/modules/connector-client/src/main/java" "$PROJECT_ROOT/modules/runtime/src/main/java" "$PROJECT_ROOT/modules/native-engine/src/main/cpp" "$PROJECT_ROOT/tests/java" "$PROJECT_ROOT/tests/cpp" -type f ! -name '*.java' ! -name '*.cpp' ! -name '*.h' -print)"
 if [ -n "$unexpected_source" ]; then
   echo "Only Java and C++ source files are accepted in source roots." >&2
   printf '%s\n' "$unexpected_source" >&2
@@ -16,17 +16,16 @@ if find "$PROJECT_ROOT/app" "$PROJECT_ROOT/modules" "$PROJECT_ROOT/tests" -type 
   exit 1
 fi
 
-if rg -n '^import android\.' "$PROJECT_ROOT/modules/core/src/main/java" "$PROJECT_ROOT/modules/review-mode/src/main/java" "$PROJECT_ROOT/modules/protected-mode/src/main/java" "$PROJECT_ROOT/modules/compatibility-mode/src/main/java" "$PROJECT_ROOT/modules/storage/src/main/java" "$PROJECT_ROOT/modules/file-browser-contracts/src/main/java" "$PROJECT_ROOT/modules/file-browser-client/src/main/java" "$PROJECT_ROOT/modules/import-contracts/src/main/java" "$PROJECT_ROOT/modules/import-client/src/main/java" "$PROJECT_ROOT/modules/mcp-contracts/src/main/java" "$PROJECT_ROOT/modules/mcp-client/src/main/java" "$PROJECT_ROOT/modules/connector-contracts/src/main/java" "$PROJECT_ROOT/modules/connector-client/src/main/java"; then
+if rg -n '^import android\.' "$PROJECT_ROOT/modules/core/src/main/java" "$PROJECT_ROOT/modules/review-mode/src/main/java" "$PROJECT_ROOT/modules/compatibility-mode/src/main/java" "$PROJECT_ROOT/modules/storage/src/main/java" "$PROJECT_ROOT/modules/file-browser-contracts/src/main/java" "$PROJECT_ROOT/modules/file-browser-client/src/main/java" "$PROJECT_ROOT/modules/import-contracts/src/main/java" "$PROJECT_ROOT/modules/import-client/src/main/java" "$PROJECT_ROOT/modules/mcp-contracts/src/main/java" "$PROJECT_ROOT/modules/mcp-client/src/main/java" "$PROJECT_ROOT/modules/connector-contracts/src/main/java" "$PROJECT_ROOT/modules/connector-client/src/main/java"; then
   echo "Pure Java modules must not import Android APIs." >&2
   exit 1
 fi
 
-protected_mode="$PROJECT_ROOT/modules/protected-mode/src/main/java"
 compatibility_mode="$PROJECT_ROOT/modules/compatibility-mode/src/main/java"
 execution_mode_contract="$PROJECT_ROOT/modules/core/src/main/java/de/agentcodi/core/CodexExecutionMode.java"
 execution_mode_card="$PROJECT_ROOT/app/src/main/java/de/agentcodi/app/ExecutionModeSettingsCard.java"
 if rg -n '^import de\.agentcodi\.(app|runtime|storage|imports|mcp|mode)\.' \
-      "$protected_mode" "$compatibility_mode" \
+      "$compatibility_mode" \
     || rg -n '^import de\.agentcodi\.mode\.' "$PROJECT_ROOT/modules/core/src/main/java" \
     || ! rg -q 'COMPATIBILITY_PERMISSION_PROFILE_ID = ":danger-full-access"' \
       "$execution_mode_contract" \
@@ -1023,32 +1022,32 @@ fi
 
 if ! rg -q 'VERSION_NAME = "0\.1\.0-package\.1"' "$core_root/BuildIdentity.java" \
     || ! rg -q 'VERSION_CODE = 1' "$core_root/BuildIdentity.java" \
-    || ! rg -q 'CODEX_RUNTIME_VERSION = "0\.153\.3-agentcodi\.2"' "$core_root/BuildIdentity.java" \
+    || ! rg -q 'CODEX_RUNTIME_VERSION = "0\.156\.1-termux\.1"' "$core_root/BuildIdentity.java" \
     || ! rg -q 'android:versionName="0\.1\.0-package\.1"' "$manifest" \
     || ! rg -q 'android:versionCode="1"' "$manifest" \
     || ! rg -q 'APP_VERSION="0\.1\.0-package\.1"' "$apk_builder" \
     || ! rg -q 'VERSION_CODE="1"' "$apk_builder" \
-    || ! rg -q 'CODEX_ANDROID_VERSION="0\.153\.3-agentcodi\.2"' "$apk_builder" \
-    || ! rg -q 'CODEX_TERMUX_SOURCE_TAG="untagged"' "$apk_builder" \
-    || ! rg -q 'CODEX_TERMUX_SOURCE_COMMIT="af5fec312538b25568fd83a0090efe3c417807d1"' "$apk_builder" \
-    || ! rg -q 'CODEX_UPSTREAM_SOURCE_TAG="rust-v0\.153\.2"' "$apk_builder" \
-    || ! rg -q 'CODEX_UPSTREAM_SOURCE_COMMIT="657a993cbee87acf52d14b758ce49dbd46d1b8eb"' "$apk_builder" \
-    || ! rg -q 'CODEX_ANDROID_SHA256="4c8da95f209b990d253481f974497974ce445e8900749347ee15cb23c60ddbaa"' "$apk_builder" \
-    || ! rg -q 'CODEX_APP_SERVER_SOURCE_SHA256="1e4addae704bcd703df93fe45057531826382e3033bd9b078b4255c6c2fd345b"' "$apk_builder" \
-    || ! rg -q 'CODEX_CODE_MODE_HOST_SHA256="82c2ab9766db335c17debb32cb064bc6928452aff54a9d2e10460f19e25a9beb"' "$apk_builder" \
-    || ! rg -q 'CODEX_APP_SERVER_ANDROID_SHA256="b916f017f73c6974c88a2ca564e821ac8443e3711b29df1f1425f514a7d57cf4"' "$apk_builder" \
+    || ! rg -q 'CODEX_ANDROID_VERSION="0\.156\.1-termux\.1"' "$apk_builder" \
+    || ! rg -q 'CODEX_TERMUX_SOURCE_TAG="v0\.156\.1-termux\.1"' "$apk_builder" \
+    || ! rg -q 'CODEX_TERMUX_SOURCE_COMMIT="ea762071ec4acbf1531fcc7daf47524836f70a09"' "$apk_builder" \
+    || ! rg -q 'CODEX_UPSTREAM_SOURCE_TAG="rust-v0\.156\.1"' "$apk_builder" \
+    || ! rg -q 'CODEX_UPSTREAM_SOURCE_COMMIT="b412ff32c417f855c2b2d1581b77058eed87c84b"' "$apk_builder" \
+    || ! rg -q 'CODEX_ANDROID_SHA256="44cee2f3a4a110fd79d4f7d61378d46fd72406f45cffb3163e809d63e86d946a"' "$apk_builder" \
+    || ! rg -q 'CODEX_APP_SERVER_SOURCE_SHA256="6cbfa7f1660095e9cf2df7de242014579a0fb0d42545652fb0e22d1b6c8571a5"' "$apk_builder" \
+    || ! rg -q 'CODEX_CODE_MODE_HOST_SHA256="8afb196579c3fd8ecac558dbebfcba5467f91389b3754e485728ce6904e6ceaf"' "$apk_builder" \
+    || ! rg -q 'CODEX_APP_SERVER_ANDROID_SHA256="cf1b406252928b0d68cb0f8f81adde6a02bf357a7fffb762d10cb503a235be06"' "$apk_builder" \
     || ! rg -q 'CODEX_LICENSE_SHA256="d17f227e4df5da1600391338865ce0f3055211760a36688f816941d58232d8dc"' "$apk_builder" \
-    || ! rg -q 'CODEX_NOTICE_SHA256="a8b3a4393683f9e8adbdecbafff07df27e34af020e9e23fed905e9a998b81647"' "$apk_builder" \
-    || ! rg -q 'CODEX_SCHEMA_BUNDLE_SHA256="e8284c5cb8157554a3dd1e035aadbd4325aea501af56887e9c2e12eb1b9b9448"' "$apk_builder" \
-    || ! rg -q 'CODEX_V2_SCHEMA_BUNDLE_SHA256="d3eace08be5dca386bfd1f1e8df650058b4113f1e10870a284d775d75517576a"' "$apk_builder" \
+    || ! rg -q 'CODEX_NOTICE_SHA256="8228749dd4dd6026baed0442f80e911308430478449285c865b188d97e6a013c"' "$apk_builder" \
+    || ! rg -q 'CODEX_SCHEMA_BUNDLE_SHA256="eb1ba91bd0fab656523092f6ed7de3ea7aef278921a650f14dc871ae7dcfaf84"' "$apk_builder" \
+    || ! rg -q 'CODEX_V2_SCHEMA_BUNDLE_SHA256="995fc3b8f8c469f6787e8fc5be4038c4f31359025edd8480b862e83355f3bf3b"' "$apk_builder" \
     || ! rg -q 'app-server generate-json-schema' "$apk_builder" \
-    || ! rg -q '0\.153\.3-agentcodi\.2' "$PROJECT_ROOT/NOTICE.md" \
-    || ! rg -q '0\.153\.3-agentcodi\.2' "$PROJECT_ROOT/app/src/main/res/raw/third_party_notices.txt" \
-    || ! rg -q 'af5fec312538b25568fd83a0090efe3c417807d1' "$PROJECT_ROOT/NOTICE.md" \
-    || ! rg -q 'af5fec312538b25568fd83a0090efe3c417807d1' "$PROJECT_ROOT/app/src/main/res/raw/third_party_notices.txt" \
-    || ! rg -q '657a993cbee87acf52d14b758ce49dbd46d1b8eb' "$PROJECT_ROOT/NOTICE.md" \
-    || ! rg -q '657a993cbee87acf52d14b758ce49dbd46d1b8eb' "$PROJECT_ROOT/app/src/main/res/raw/third_party_notices.txt"; then
-  echo "The 0.1.0-package.1 / Codex 0.153.3-agentcodi.2 identity is inconsistent." >&2
+    || ! rg -q '0\.156\.1-termux\.1' "$PROJECT_ROOT/NOTICE.md" \
+    || ! rg -q '0\.156\.1-termux\.1' "$PROJECT_ROOT/app/src/main/res/raw/third_party_notices.txt" \
+    || ! rg -q 'ea762071ec4acbf1531fcc7daf47524836f70a09' "$PROJECT_ROOT/NOTICE.md" \
+    || ! rg -q 'ea762071ec4acbf1531fcc7daf47524836f70a09' "$PROJECT_ROOT/app/src/main/res/raw/third_party_notices.txt" \
+    || ! rg -q 'b412ff32c417f855c2b2d1581b77058eed87c84b' "$PROJECT_ROOT/NOTICE.md" \
+    || ! rg -q 'b412ff32c417f855c2b2d1581b77058eed87c84b' "$PROJECT_ROOT/app/src/main/res/raw/third_party_notices.txt"; then
+  echo "The 0.1.0-package.1 / Codex 0.156.1-termux.1 identity is inconsistent." >&2
   exit 1
 fi
 
@@ -1060,8 +1059,9 @@ if ! rg -Fq 'CODEX_ANDROID_ARCHIVE="$("$PROJECT_ROOT/scripts/update-codex-runtim
     || ! rg -q 'refusesToHideReplacedBuildInputsBehindTheCache' \
       "$PROJECT_ROOT/tests/java/de/agentcodi/tools/CodexRuntimeUpdaterTest.java" \
     || ! rg -Fq 'verify_file_sha256 "$CODEX_ANDROID_ARCHIVE" "$CODEX_ANDROID_SHA256"' "$apk_builder" \
-    || rg -q '^CODEX_ANDROID_URL=|^download_verified .*CODEX_ANDROID_ARCHIVE' "$apk_builder"; then
-  echo "The local Codex fork must remain SHA-256-pinned without a registry fallback." >&2
+    || ! rg -Fq 'https://github.com/DioNanos/codex-termux/releases/download/v' "$apk_builder"
+    || rg -q 'Mcpasi/codex-termux|-agentcodi' "$PROJECT_ROOT/scripts/java/de/agentcodi/tools/CodexPackageMetadata.java"; then
+  echo "Community Codex must remain SHA-256-pinned and reject the previous sandbox channel." >&2
   exit 1
 fi
 

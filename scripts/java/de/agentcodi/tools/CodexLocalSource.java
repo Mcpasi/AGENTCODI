@@ -16,11 +16,6 @@ import java.util.Map;
 
 /** Local artifact selection and read-only Git provenance; never uses a registry. */
 final class CodexLocalSource {
-    // Reviewed fork authorship correction: adds Mcpasi's Android sandbox credit,
-    // retaining Apache-2.0 and the OpenAI, Termux and Ratatui attributions.
-    private static final String REVIEWED_FORK_NOTICE_SHA256 =
-        "a8b3a4393683f9e8adbdecbafff07df27e34af020e9e23fed905e9a998b81647";
-
     static final class Options {
         Path source;
         Path archive;
@@ -29,7 +24,7 @@ final class CodexLocalSource {
 
         static Options parse(Path root, String[] args, Map<String, String> environment) throws IOException {
             Options options = new Options();
-            options.source = path(environment.get("AGENTCODI_CODEX_SOURCE_DIR"), root.resolve("../codex-termux"));
+            options.source = path(environment.get("AGENTCODI_CODEX_SOURCE_DIR"), root.resolve("../codex-termux-community"));
             options.archive = path(environment.get("AGENTCODI_CODEX_ARCHIVE"), null);
             boolean archiveSeen = false;
             boolean sourceSeen = false;
@@ -128,12 +123,17 @@ final class CodexLocalSource {
 
     void verify() throws Exception {
         safeDirectory(options.source);
+        String remote = git("remote", "get-url", "origin").trim();
+        require(remote.equals("https://github.com/" + FORK + ".git")
+            || remote.equals("https://github.com/" + FORK)
+            || remote.equals("git@github.com:" + FORK + ".git"),
+            "Source checkout must use the DioNanos Community remote.");
         Map<String, Object> metadata = CodexPackageMetadata.read(candidate.resolve("package/package.json"));
         version = string(metadata, "version");
         CodexPackageMetadata.validatePackage(metadata, version);
         boolean sameArchive = archiveHash.equals(old.get("CODEX_ANDROID_SHA256"));
         commit = resolve(sourceCommit(metadata, old, archiveHash,
-            options.sourceRef == null ? null : resolve(options.sourceRef)));
+            options.sourceRef == null ? resolve("v" + version) : resolve(options.sourceRef)));
         Map<String, Object> sourcePackage = JsonCodec.parseObject(git("show", commit + ":npm-package/package.json"));
         upstreamTag = CodexPackageMetadata.verifyAgreement(version, metadata, sourcePackage);
         if (metadata.containsKey("agentcodiUpstreamCommit")) {
@@ -147,7 +147,8 @@ final class CodexLocalSource {
             ? resolve(old.get("CODEX_UPSTREAM_SOURCE_COMMIT")) : resolve(upstreamTag);
         git("merge-base", "--is-ancestor", upstreamCommit, commit);
         git("merge-base", "--is-ancestor", old.get("CODEX_TERMUX_SOURCE_COMMIT"), commit);
-        tag = sameArchive ? old.get("CODEX_TERMUX_SOURCE_TAG") : "untagged";
+        tag = "v" + version;
+        require(resolve(tag).equals(commit), "Community release tag differs from source commit.");
         for (String legal : new String[] {"LICENSE", "NOTICE"}) {
             require(git("show", commit + ":" + legal).equals(text(candidate.resolve("package/" + legal))),
                 "Archive " + legal + " differs from the declared source commit.");
@@ -164,7 +165,7 @@ final class CodexLocalSource {
 
     static String verifyNotice(Path notice, String previousHash) throws Exception {
         String hash = digest(notice, "SHA-256");
-        require(hash.equals(previousHash) || hash.equals(REVIEWED_FORK_NOTICE_SHA256),
+        require(hash.equals(previousHash),
             "Unreviewed NOTICE change; review its attributions and license terms before accepting this package.");
         return text(notice);
     }
@@ -241,7 +242,7 @@ final class CodexLocalSource {
             for (String line : contents.split("\n", -1)) {
                 if (line.startsWith("[")) section = line.trim();
                 if (("[workspace.package]".equals(section) || "[package]".equals(section))
-                    && line.matches("version = \"[0-9]+\\.[0-9]+\\.[0-9]+(?:-agentcodi\\.[0-9]+)?\"")) {
+                    && line.matches("version = \"[0-9]+\\.[0-9]+\\.[0-9]+(?:-termux\\.[0-9]+)?\"")) {
                     line = "version = \"WORKSPACE\"";
                 }
                 result.append(line).append('\n');

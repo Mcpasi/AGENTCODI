@@ -2316,8 +2316,6 @@ std::vector<std::string> CodexAppServerArguments(const ProcessConfig& config) {
       + ",AGENTCODI_TOOLCHAIN_COMMAND=\"agentcodi-toolchain\""
       + ",AGENTCODI_TOOLCHAIN_PACKAGES=\"node,npm,python,ripgrep\"}}";
   return {
-      config.just_in_time_approvals ? "--enable" : "--disable",
-      "just_in_time_approvals",
       "app-server",
       "--stdio",
       "--strict-config",
@@ -2359,14 +2357,6 @@ std::vector<std::string> CodexAppServerArguments(const ProcessConfig& config) {
       "model_providers.agentcodi-openai-http.supports_standalone_web_search=true",
       "-c",
       "default_permissions=\":danger-full-access\"",
-      "-c",
-      "permissions.agentcodi-workspace.description=\"AGENTCODI private workspace\"",
-      "-c",
-      "permissions.agentcodi-workspace.filesystem={\":minimal\"=\"read\","
-      + toml_string(config.tool_binary_directory) + "=\"read\","
-      + toml_string(config.tool_runtime_directory) + "=\"read\","
-      + toml_string(config.library_directory) + "=\"read\","
-      "\":workspace_roots\"={\".\"=\"write\"}}",
   };
 }
 
@@ -2378,6 +2368,10 @@ std::shared_ptr<AppServerProcess> AppServerProcess::Start(
   }
   error->clear();
 
+  if (requested_config.just_in_time_approvals) {
+    *error = "Package Edition does not support just-in-time permissions";
+    return nullptr;
+  }
   ProcessConfig config = requested_config;
   if (!canonical_regular_executable(
           requested_config.executable,
@@ -2562,8 +2556,7 @@ std::shared_ptr<AppServerProcess> AppServerProcess::Start(
     return nullptr;
   }
   if (config.arguments.empty()) {
-    // The sandbox resolves tool aliases to their installed ELF targets. Grant
-    // only that canonical payload directory, never an ancestor of private data.
+    // Keep managed APK payloads separate from mutable runtime data.
     for (const std::string* private_directory : {
              &config.working_directory, &config.codex_home,
              &config.home_directory, &config.state_directory,

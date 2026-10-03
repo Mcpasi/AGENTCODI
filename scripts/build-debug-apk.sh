@@ -37,24 +37,24 @@ case "$BUILD_VARIANT" in
     ;;
 esac
 
-CODEX_ANDROID_VERSION="0.153.3-agentcodi.2"
-# User-built Android sandbox fork; consume this exact local artifact without
-# registry fallback. An alternate location must contain the same pinned bytes.
-CODEX_ANDROID_SHA256="4c8da95f209b990d253481f974497974ce445e8900749347ee15cb23c60ddbaa"
-CODEX_TERMUX_SOURCE_TAG="untagged"
-CODEX_TERMUX_SOURCE_COMMIT="af5fec312538b25568fd83a0090efe3c417807d1"
-CODEX_UPSTREAM_SOURCE_TAG="rust-v0.153.2"
-CODEX_UPSTREAM_SOURCE_COMMIT="657a993cbee87acf52d14b758ce49dbd46d1b8eb"
-CODEX_APP_SERVER_SOURCE_SHA256="1e4addae704bcd703df93fe45057531826382e3033bd9b078b4255c6c2fd345b"
-CODEX_CODE_MODE_HOST_SHA256="82c2ab9766db335c17debb32cb064bc6928452aff54a9d2e10460f19e25a9beb"
-CODEX_APP_SERVER_ANDROID_SHA256="b916f017f73c6974c88a2ca564e821ac8443e3711b29df1f1425f514a7d57cf4"
+CODEX_ANDROID_VERSION="0.156.1-termux.1"
+# Community Android ARM64 release, with verified downloadable or local bytes.
+CODEX_ANDROID_URL="https://github.com/DioNanos/codex-termux/releases/download/v${CODEX_ANDROID_VERSION}/mmmbuto-codex-cli-termux-${CODEX_ANDROID_VERSION}.tgz"
+CODEX_ANDROID_SHA256="44cee2f3a4a110fd79d4f7d61378d46fd72406f45cffb3163e809d63e86d946a"
+CODEX_TERMUX_SOURCE_TAG="v0.156.1-termux.1"
+CODEX_TERMUX_SOURCE_COMMIT="ea762071ec4acbf1531fcc7daf47524836f70a09"
+CODEX_UPSTREAM_SOURCE_TAG="rust-v0.156.1"
+CODEX_UPSTREAM_SOURCE_COMMIT="b412ff32c417f855c2b2d1581b77058eed87c84b"
+CODEX_APP_SERVER_SOURCE_SHA256="6cbfa7f1660095e9cf2df7de242014579a0fb0d42545652fb0e22d1b6c8571a5"
+CODEX_CODE_MODE_HOST_SHA256="8afb196579c3fd8ecac558dbebfcba5467f91389b3754e485728ce6904e6ceaf"
+CODEX_APP_SERVER_ANDROID_SHA256="cf1b406252928b0d68cb0f8f81adde6a02bf357a7fffb762d10cb503a235be06"
 CODEX_LICENSE_SHA256="d17f227e4df5da1600391338865ce0f3055211760a36688f816941d58232d8dc"
-CODEX_NOTICE_SHA256="a8b3a4393683f9e8adbdecbafff07df27e34af020e9e23fed905e9a998b81647"
-CODEX_SCHEMA_BUNDLE_SHA256="e8284c5cb8157554a3dd1e035aadbd4325aea501af56887e9c2e12eb1b9b9448"
-CODEX_V2_SCHEMA_BUNDLE_SHA256="d3eace08be5dca386bfd1f1e8df650058b4113f1e10870a284d775d75517576a"
+CODEX_NOTICE_SHA256="8228749dd4dd6026baed0442f80e911308430478449285c865b188d97e6a013c"
+CODEX_SCHEMA_BUNDLE_SHA256="eb1ba91bd0fab656523092f6ed7de3ea7aef278921a650f14dc871ae7dcfaf84"
+CODEX_V2_SCHEMA_BUNDLE_SHA256="995fc3b8f8c469f6787e8fc5be4038c4f31359025edd8480b862e83355f3bf3b"
 CODEX_DEFAULT_HOST_NAME="codex-code-mode-host"
 CODEX_PACKAGED_HOST_NAME="libcodex-codehost.so"
-CODEX_DEFAULT_HOST_OFFSET="11073755"
+CODEX_DEFAULT_HOST_OFFSET="10568364"
 
 NODE_VERSION="24.18.0"
 NODE_URL="https://packages.termux.dev/apt/termux-main/pool/main/n/nodejs-lts/nodejs-lts_${NODE_VERSION}_aarch64.deb"
@@ -405,6 +405,8 @@ ZOPFLI_ARCHIVE="$CACHE_DIR/libzopfli-1.0.3-5-aarch64.deb"
 ZLIB_ARCHIVE="$CACHE_DIR/zlib-1.3.2-aarch64.deb"
 # Prefer the supplied/local fork package. A replaced .tgz must never be hidden
 # by the old content-addressed cache; the updater handles deliberate repinning.
+CODEX_CACHED_ARCHIVE="$CACHE_DIR/codex/$CODEX_ANDROID_SHA256/package.tgz"
+download_verified "$CODEX_ANDROID_URL" "$CODEX_ANDROID_SHA256" "$CODEX_CACHED_ARCHIVE"
 CODEX_ANDROID_ARCHIVE="$("$PROJECT_ROOT/scripts/update-codex-runtime.sh" --select-build-archive)"
 NODE_ARCHIVE="$CACHE_DIR/nodejs-lts-$NODE_VERSION-aarch64.deb"
 CARES_ARCHIVE="$CACHE_DIR/c-ares-$CARES_VERSION-aarch64.deb"
@@ -754,7 +756,6 @@ env LD_LIBRARY_PATH="$AAPT2_LIBRARY_PATH" "$AAPT2_BIN" link -o "$UNSIGNED_APK" -
 echo "Compiling isolated Java modules..."
 CORE_CLASSES="$CLASSES_ROOT/core"
 REVIEW_MODE_CLASSES="$CLASSES_ROOT/review-mode"
-PROTECTED_MODE_CLASSES="$CLASSES_ROOT/protected-mode"
 COMPATIBILITY_MODE_CLASSES="$CLASSES_ROOT/compatibility-mode"
 STORAGE_CLASSES="$CLASSES_ROOT/storage"
 FILE_BROWSER_CONTRACTS_CLASSES="$CLASSES_ROOT/file-browser-contracts"
@@ -770,7 +771,6 @@ APP_CLASSES="$CLASSES_ROOT/app"
 mkdir -p \
   "$CORE_CLASSES" \
   "$REVIEW_MODE_CLASSES" \
-  "$PROTECTED_MODE_CLASSES" \
   "$COMPATIBILITY_MODE_CLASSES" \
   "$STORAGE_CLASSES" \
   "$FILE_BROWSER_CONTRACTS_CLASSES" \
@@ -794,10 +794,6 @@ find "$PROJECT_ROOT/modules/review-mode/src/main/java" -type f -name '*.java' -p
 REVIEW_MODE_JAR="$JARS_ROOT/review-mode.jar"
 "$JAR" cf "$REVIEW_MODE_JAR" -C "$REVIEW_MODE_CLASSES" .
 
-find "$PROJECT_ROOT/modules/protected-mode/src/main/java" -type f -name '*.java' -print | sort > "$WORK_DIR/protected-mode-sources.txt"
-"$JAVAC" -encoding UTF-8 -source 8 -target 8 -Xlint:-options -bootclasspath "$ANDROID_JAR" -classpath "$CORE_JAR" -d "$PROTECTED_MODE_CLASSES" @"$WORK_DIR/protected-mode-sources.txt"
-PROTECTED_MODE_JAR="$JARS_ROOT/protected-mode.jar"
-"$JAR" cf "$PROTECTED_MODE_JAR" -C "$PROTECTED_MODE_CLASSES" .
 
 find "$PROJECT_ROOT/modules/compatibility-mode/src/main/java" -type f -name '*.java' -print | sort > "$WORK_DIR/compatibility-mode-sources.txt"
 "$JAVAC" -encoding UTF-8 -source 8 -target 8 -Xlint:-options -bootclasspath "$ANDROID_JAR" -classpath "$CORE_JAR" -d "$COMPATIBILITY_MODE_CLASSES" @"$WORK_DIR/compatibility-mode-sources.txt"
@@ -850,12 +846,12 @@ CONNECTOR_CLIENT_JAR="$JARS_ROOT/connector-client.jar"
 "$JAR" cf "$CONNECTOR_CLIENT_JAR" -C "$CONNECTOR_CLIENT_CLASSES" .
 
 find "$PROJECT_ROOT/modules/runtime/src/main/java" -type f -name '*.java' -print | sort > "$WORK_DIR/runtime-sources.txt"
-"$JAVAC" -encoding UTF-8 -source 8 -target 8 -Xlint:-options -bootclasspath "$ANDROID_JAR" -classpath "$CORE_JAR:$REVIEW_MODE_JAR:$PROTECTED_MODE_JAR:$COMPATIBILITY_MODE_JAR:$STORAGE_JAR:$FILE_BROWSER_CONTRACTS_JAR:$FILE_BROWSER_CLIENT_JAR:$IMPORT_CONTRACTS_JAR:$IMPORT_CLIENT_JAR:$MCP_CONTRACTS_JAR:$MCP_CLIENT_JAR:$CONNECTOR_CONTRACTS_JAR:$CONNECTOR_CLIENT_JAR" -d "$RUNTIME_CLASSES" @"$WORK_DIR/runtime-sources.txt"
+"$JAVAC" -encoding UTF-8 -source 8 -target 8 -Xlint:-options -bootclasspath "$ANDROID_JAR" -classpath "$CORE_JAR:$REVIEW_MODE_JAR:$COMPATIBILITY_MODE_JAR:$STORAGE_JAR:$FILE_BROWSER_CONTRACTS_JAR:$FILE_BROWSER_CLIENT_JAR:$IMPORT_CONTRACTS_JAR:$IMPORT_CLIENT_JAR:$MCP_CONTRACTS_JAR:$MCP_CLIENT_JAR:$CONNECTOR_CONTRACTS_JAR:$CONNECTOR_CLIENT_JAR" -d "$RUNTIME_CLASSES" @"$WORK_DIR/runtime-sources.txt"
 RUNTIME_JAR="$JARS_ROOT/runtime.jar"
 "$JAR" cf "$RUNTIME_JAR" -C "$RUNTIME_CLASSES" .
 
 find "$PROJECT_ROOT/app/src/main/java" "$GENERATED_JAVA" -type f -name '*.java' -print | sort > "$WORK_DIR/app-sources.txt"
-"$JAVAC" -encoding UTF-8 -source 8 -target 8 -Xlint:-options -bootclasspath "$ANDROID_JAR" -classpath "$CORE_JAR:$REVIEW_MODE_JAR:$PROTECTED_MODE_JAR:$COMPATIBILITY_MODE_JAR:$STORAGE_JAR:$FILE_BROWSER_CONTRACTS_JAR:$IMPORT_CONTRACTS_JAR:$MCP_CONTRACTS_JAR:$MCP_CLIENT_JAR:$CONNECTOR_CONTRACTS_JAR:$CONNECTOR_CLIENT_JAR:$RUNTIME_JAR" -d "$APP_CLASSES" @"$WORK_DIR/app-sources.txt"
+"$JAVAC" -encoding UTF-8 -source 8 -target 8 -Xlint:-options -bootclasspath "$ANDROID_JAR" -classpath "$CORE_JAR:$REVIEW_MODE_JAR:$COMPATIBILITY_MODE_JAR:$STORAGE_JAR:$FILE_BROWSER_CONTRACTS_JAR:$IMPORT_CONTRACTS_JAR:$MCP_CONTRACTS_JAR:$MCP_CLIENT_JAR:$CONNECTOR_CONTRACTS_JAR:$CONNECTOR_CLIENT_JAR:$RUNTIME_JAR" -d "$APP_CLASSES" @"$WORK_DIR/app-sources.txt"
 APP_JAR="$JARS_ROOT/app.jar"
 "$JAR" cf "$APP_JAR" -C "$APP_CLASSES" .
 
@@ -1878,9 +1874,7 @@ config_smoke_status=0
     -c 'model_providers.agentcodi-openai-http.requires_openai_auth=true' \
     -c 'model_providers.agentcodi-openai-http.supports_websockets=false' \
     -c 'model_providers.agentcodi-openai-http.supports_standalone_web_search=true' \
-    -c 'default_permissions="agentcodi-workspace"' \
-    -c 'permissions.agentcodi-workspace.description="AGENTCODI private workspace"' \
-    -c "permissions.agentcodi-workspace.filesystem={\":minimal\"=\"read\",\"$CONFIG_SMOKE_TOOL_BIN\"=\"read\",\"$CONFIG_SMOKE_TOOL_RUNTIME\"=\"read\",\"$NATIVE_DIR\"=\"read\",\":workspace_roots\"={\".\"=\"write\"}}" \
+    -c 'default_permissions=":danger-full-access"' \
     >"$WORK_DIR/config-smoke.stdout" 2>"$WORK_DIR/config-smoke.stderr" \
     || config_smoke_status=$?
 if [ "$config_smoke_status" -ne 0 ]; then
@@ -1961,9 +1955,8 @@ printf '%s\n' \
   'enabled=true' \
   > "$BOOTSTRAP_SMOKE_CODEX_HOME/config.toml"
 chmod 600 "$BOOTSTRAP_SMOKE_CODEX_HOME/config.toml"
-# Full syscall interception on Android/PRoot needs more than 30 seconds for
-# this entire sequence. Individual commands still enforce their own deadlines
-# and all protocol, toolchain and filesystem-isolation assertions must pass.
+# The real app-server bootstrap covers Full access, PTY, imports and tools.
+# Individual commands and the complete sequence retain finite deadlines.
 if timeout --kill-after=5s 300s env -i \
     LD_LIBRARY_PATH="$BOOTSTRAP_SMOKE_NATIVE" \
     PATH="/system/bin:/system/xbin" \
@@ -2009,7 +2002,7 @@ DEX_MODE="--debug"
 if [ "$BUILD_VARIANT" = "release" ]; then
   DEX_MODE="--release"
 fi
-"$JAVA" -cp "$R8_JAR" com.android.tools.r8.D8 "$DEX_MODE" --min-api "$MIN_SDK" --lib "$ANDROID_JAR" --output "$DEX_DIR" "$CORE_JAR" "$REVIEW_MODE_JAR" "$PROTECTED_MODE_JAR" "$COMPATIBILITY_MODE_JAR" "$STORAGE_JAR" "$FILE_BROWSER_CONTRACTS_JAR" "$FILE_BROWSER_CLIENT_JAR" "$IMPORT_CONTRACTS_JAR" "$IMPORT_CLIENT_JAR" "$MCP_CONTRACTS_JAR" "$MCP_CLIENT_JAR" "$CONNECTOR_CONTRACTS_JAR" "$CONNECTOR_CLIENT_JAR" "$RUNTIME_JAR" "$APP_JAR"
+"$JAVA" -cp "$R8_JAR" com.android.tools.r8.D8 "$DEX_MODE" --min-api "$MIN_SDK" --lib "$ANDROID_JAR" --output "$DEX_DIR" "$CORE_JAR" "$REVIEW_MODE_JAR" "$COMPATIBILITY_MODE_JAR" "$STORAGE_JAR" "$FILE_BROWSER_CONTRACTS_JAR" "$FILE_BROWSER_CLIENT_JAR" "$IMPORT_CONTRACTS_JAR" "$IMPORT_CLIENT_JAR" "$MCP_CONTRACTS_JAR" "$MCP_CLIENT_JAR" "$CONNECTOR_CONTRACTS_JAR" "$CONNECTOR_CLIENT_JAR" "$RUNTIME_JAR" "$APP_JAR"
 cp "$DEX_DIR/classes.dex" "$ADDITIONS/classes.dex"
 
 UNALIGNED_APK="$WORK_DIR/unaligned.apk"

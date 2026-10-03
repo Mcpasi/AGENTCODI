@@ -53,7 +53,7 @@ public final class CodexRuntimeUpdater {
     static final String NOTICE_PINS_BEGIN = "<!-- BEGIN CURRENT CODEX RUNTIME PINS -->";
     static final String NOTICE_PINS_END = "<!-- END CURRENT CODEX RUNTIME PINS -->";
     static final String[] MANAGED = {
-        BUILD, ARCHITECTURE, IDENTITY, IDENTITY_TEST,
+        BUILD, ARCHITECTURE, IDENTITY, IDENTITY_TEST, ".github/ci/build-inputs.tsv",
         "app/src/main/res/values/strings.xml", "app/src/main/res/values-de/strings.xml", NOTICES, NOTICE
     };
     static final String[] PIN_KEYS = {
@@ -201,7 +201,7 @@ public final class CodexRuntimeUpdater {
         });
         System.out.println("Updated " + plan.changed().size() + " project files, including NOTICE.md. Backups: " + work.resolve("before"));
         System.out.println("Next: run ./scripts/test.sh, then ./scripts/build-debug-apk.sh.");
-        System.out.println("Pinning does not verify sandbox operation. No Cargo, test suite, APK build or device test was run.");
+        System.out.println("Pinning does not verify installed-device operation. No Cargo, test suite, APK build or device test was run.");
     }
 
     static void copyBounded(Path source, Path target, long limit) throws Exception {
@@ -285,7 +285,7 @@ public final class CodexRuntimeUpdater {
         environment.put("TMPDIR", probeTemp.toString());
         environment.put("CODEX_CODE_MODE_HOST_PATH", host.toString());
         String version = string(CodexPackageMetadata.read(directory.resolve("package/package.json")), "version");
-        require(("codex-cli " + version).equals(capture(directory, environment, 30, binary.toString(), "--version").trim()),
+        require(("codex-cli " + version.split("-termux\\.", -1)[0]).equals(capture(directory, environment, 30, binary.toString(), "--version").trim()),
             "Executable version differs from package metadata.");
         // Executables were inspected above and only depend on Android platform libraries.
         System.out.println("Generating schemas from the verified Android ELF (" + upstreamTag + ")...");
@@ -328,9 +328,9 @@ public final class CodexRuntimeUpdater {
 
     static int comparePackageVersions(String left, String right) throws IOException {
         require(CodexPackageMetadata.isPackageVersion(left) && CodexPackageMetadata.isPackageVersion(right),
-            "Expected a stable or -agentcodi.N package version.");
-        String[] a = left.split("-agentcodi\\.", -1);
-        String[] b = right.split("-agentcodi\\.", -1);
+            "Expected a stable or -termux.N Community package version.");
+        String[] a = left.split("-termux\\.", -1);
+        String[] b = right.split("-termux\\.", -1);
         int base = compareVersions(a[0], b[0]);
         if (base != 0) return base;
         if (a.length != b.length) return a.length == 1 ? 1 : -1;
@@ -936,6 +936,12 @@ public final class CodexRuntimeUpdater {
             for (String key : new String[] {"CODEX_TERMUX_SOURCE_COMMIT", "CODEX_UPSTREAM_SOURCE_COMMIT", "CODEX_ANDROID_SHA256"}) {
                 replace(NOTICES, old.get(key), next.get(key), 1);
             }
+            replace(".github/ci/build-inputs.tsv",
+                "codex/" + old.get("CODEX_ANDROID_SHA256") + "/package.tgz\\t" + old.get("CODEX_ANDROID_SHA256"),
+                "codex/" + next.get("CODEX_ANDROID_SHA256") + "/package.tgz\\t" + next.get("CODEX_ANDROID_SHA256"), 1);
+            replace(".github/ci/build-inputs.tsv",
+                "/v" + a + "/mmmbuto-codex-cli-termux-" + a + ".tgz",
+                "/v" + b + "/mmmbuto-codex-cli-termux-" + b + ".tgz", 1);
             updateNotice(old, next);
             require(readPins(after.get(BUILD)).equals(next), "Staged pins do not match the verified runtime.");
         }
@@ -953,7 +959,7 @@ public final class CodexRuntimeUpdater {
             String block = notice.substring(begin, end);
             String[] paragraphs = block.trim().split("\\n\\s*\\n");
             require(paragraphs.length == 2 && paragraphs[0].startsWith("AGENTCODI ")
-                && paragraphs[0].contains(" pins the user-supplied Android ARM64 Codex CLI/app-server build ")
+                && paragraphs[0].contains(" pins the Community Android ARM64 Codex CLI/app-server build ")
                 && paragraphs[1].startsWith("The local package tarball is accepted only at SHA-256 "),
                 "NOTICE.md markers must enclose only the two current Codex provenance paragraphs.");
             Map<String, String> replacements = new LinkedHashMap<String, String>();

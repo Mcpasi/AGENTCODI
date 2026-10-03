@@ -12,17 +12,17 @@ Usage: ./scripts/update-codex-runtime.sh [--dry-run] [--archive FILE.tgz]
                                       [--source-dir DIR] [--source-ref REF]
        ./scripts/update-codex-runtime.sh --select-build-archive
 
-Default: inspect the local .tgz in the adjacent codex-termux checkout and pin it.
+Default: inspect the local .tgz in the adjacent codex-termux-community checkout and pin it.
 The filename matching npm-package/package.json is preferred; otherwise exactly
 one .tgz must exist. A positional FILE.tgz is also accepted. No npm download.
 AGENTCODI_CODEX_ARCHIVE and AGENTCODI_CODEX_SOURCE_DIR override these locations.
-The fork Action records gitHead in new packages. For a legacy package without
-that field, --source-ref identifies its build commit. Never infer a new package's
+The source checkout must use the DioNanos Community remote. A release tag
+v<package-version> must resolve to the package source commit. Never infer a new package's
 commit from an unrelated or dirty working tree.
 
 Automatically updates archive/ELF/schema hashes, source revisions, relocation
 offset, version displays, architecture checks, NOTICE.md and APK legal notices.
-Rebuilds of the same fork version are supported. Downgrades, changed licenses or
+Rebuilds of the same Community version are supported. Downgrades, changed licenses or
 dependencies, incompatible schemas and unsafe archives are rejected. Workspace
 version bumps do not count as dependency changes. Author credits are preserved.
 In NOTICE.md, only the two paragraphs inside the CURRENT CODEX RUNTIME PINS
@@ -44,7 +44,7 @@ Requires the Android ARM64 build host, Java/Javac 17, git and timeout.
 AGENTCODI_JAVA_HOME and AGENTCODI_CACHE_DIR also apply to the APK builder.
 This script never runs Cargo, the test suite or the APK build. After updating,
 run ./scripts/test.sh, then ./scripts/build-debug-apk.sh. Pinning alone does not
-verify sandbox operation; installed-device testing remains a separate user step.
+verify installed-device operation; installed-device testing remains a separate user step.
 EOF
     exit 0
     ;;

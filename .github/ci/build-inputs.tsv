@@ -3,6 +3,7 @@
 # Columns: path<TAB>sha256<TAB>origin<TAB>url ("-" when not downloadable).
 # Paths are relative to the cache directory (AGENTCODI_CACHE_DIR,
 # by default .cache/android).
+codex/44cee2f3a4a110fd79d4f7d61378d46fd72406f45cffb3163e809d63e86d946a/package.tgz	44cee2f3a4a110fd79d4f7d61378d46fd72406f45cffb3163e809d63e86d946a	download	https://github.com/DioNanos/codex-termux/releases/download/v0.156.1-termux.1/mmmbuto-codex-cli-termux-0.156.1-termux.1.tgz
 platform-35_r02.zip	0988cacad01b38a18a47bac14a0695f246bc76c1b06c0eeb8eb0dc825ab0c8e0	download	https://dl.google.com/android/repository/platform-35_r02.zip
 r8-9.2.23.jar	c6f69c9398c2f1825cac162d0d26faa4002eb68cfc594a4aec18f574276c07cb	download	https://dl.google.com/dl/android/maven2/com/android/tools/r8/9.2.23/r8-9.2.23.jar
 aapt2-16.0.0.4-1-aarch64.deb	d35298f13ec26eee362d4e84f534b29b8e5f288b86c89d803ba4fb8ccb9784aa	download	https://packages.termux.dev/apt/termux-main/pool/main/a/aapt2/aapt2_16.0.0.4-1_aarch64.deb
@@ -35,6 +36,3 @@ node-24.18.0-LICENSE	148eacf7863ef4329224a29398623077200a27194aa075569faf4a0a855
 icu-78.3-LICENSE	e55522d81edc687a341a4411e0776e54ca654e90147f354a90458aaced4116af	download	https://raw.githubusercontent.com/unicode-org/icu/41bdb529bd7fa3d7c71759e0eef8600805873d61/LICENSE
 openssl-3.6.3-LICENSE	7d5450cb2d142651b8afa315b5f238efc805dad827d91ba367d8516bc9d49e7a	download	https://raw.githubusercontent.com/openssl/openssl/openssl-3.6.3/LICENSE.txt
 zstd-1.5.7-LICENSE	7055266497633c9025b777c78eb7235af13922117480ed5c674677adc381c9d8	download	https://raw.githubusercontent.com/facebook/zstd/v1.5.7/LICENSE
-codex/4c8da95f209b990d253481f974497974ce445e8900749347ee15cb23c60ddbaa/package.tgz	4c8da95f209b990d253481f974497974ce445e8900749347ee15cb23c60ddbaa	local	-
-codex/4c8da95f209b990d253481f974497974ce445e8900749347ee15cb23c60ddbaa/codex_app_server_protocol.schemas.json	e8284c5cb8157554a3dd1e035aadbd4325aea501af56887e9c2e12eb1b9b9448	local	-
-codex/4c8da95f209b990d253481f974497974ce445e8900749347ee15cb23c60ddbaa/codex_app_server_protocol.v2.schemas.json	d3eace08be5dca386bfd1f1e8df650058b4113f1e10870a284d775d75517576a	local	-

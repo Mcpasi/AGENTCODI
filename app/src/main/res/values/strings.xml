@@ -290,10 +290,7 @@
 
   <string name="execution_mode_section">EXECUTION MODE</string>
   <string name="execution_mode_description">Package Edition is for experienced users and always runs with Full access. Codex and commands can read, change or delete every file reachable by this app, including account data outside the workspace. Installed packages are available to both Codex and the terminal.</string>
-  <string name="execution_mode_protected_name">Protected – default</string>
   <string name="execution_mode_compatibility_name">Full access</string>
-  <string name="execution_mode_protected_option">Protected – default\nagentcodi-workspace\nWorkspace only; changes are grouped into one patch with a preview where possible</string>
-  <string name="execution_mode_protected_selected">✓ Protected – default\nagentcodi-workspace\nWorkspace only; changes are grouped into one patch with a preview where possible</string>
   <string name="execution_mode_compatibility_option">Full access\n:danger-full-access\nAccess to every file reachable by this app</string>
   <string name="execution_mode_compatibility_selected">✓ Full access\n:danger-full-access\nAccess to every file reachable by this app</string>
   <string name="execution_mode_compatibility_approvals">Confirm file changes and commands</string>
@@ -301,10 +298,6 @@
   <string name="execution_mode_active">Active: %1$s · %2$s</string>
   <string name="execution_mode_next_start">Selected for the next start: %1$s · %2$s</string>
   <string name="execution_mode_change_rejected">The mode could not be changed. Finish the active turn, open request, or terminal first.</string>
-  <string name="execution_mode_warning_title">Warning: no filesystem protection</string>
-  <string name="execution_mode_warning_message">Experimental compatibility mode activates :danger-full-access. On Android, the pinned app-server provides no effective filesystem isolation for this mode. Codex and commands it starts can directly read, change, or delete every file reachable by the app process—including files outside the workspace and in private sibling directories. This substantially increases the risk of data loss, credential disclosure, and unexpected changes.\n\nEnable this mode only when protected mode cannot provide the required data access reliably.</string>
-  <string name="execution_mode_warning_cancel">Stay protected</string>
-  <string name="execution_mode_warning_confirm">I understand the risk – enable</string>
 
   <string name="runtime_phase_idle">IDLE</string>
   <string name="runtime_phase_starting">STARTING</string>
@@ -505,7 +498,7 @@
   <string name="license_material_icons_title">Material Icons</string>
   <string name="license_material_icons_summary">Round interface icons from Google’s Material Design Icons repository · pinned source paths under Apache License 2.0.</string>
   <string name="license_codex_runtime_title">Codex Android community runtime</string>
-  <string name="license_codex_runtime_summary">OpenAI Codex 0.153.3-agentcodi.2 and the local AGENTCODI Android/Termux fork · Apache License 2.0. This is not an official OpenAI Android APK.</string>
+  <string name="license_codex_runtime_summary">OpenAI Codex 0.156.1-termux.1 and the DioNanos Android/Termux community distribution · Apache License 2.0. This is not an official OpenAI Android APK.</string>
   <string name="license_node_runtime_title">Packaged Node.js toolchain</string>
   <string name="license_node_runtime_summary">Node.js LTS 24.18.0 and its pinned Android runtime dependencies · bundled in the APK and enabled only by an explicit user action or approved Codex command. Includes MIT, Unicode-3.0, Apache-2.0, zlib, and public-domain components.</string>
   <string name="license_npm_runtime_title">Packaged npm toolchain</string>
@@ -530,12 +523,6 @@
   <string name="crash_delete_failed">The crash report could not be deleted.</string>
 
   <string name="approval_allow">Allow</string>
-  <string name="just_in_time_approvals">Just-in-time permissions</string>
-  <string name="just_in_time_approvals_description">Available only in protected mode. Ask before every agent command, file edit and terminal input. Each approval applies once; a command includes its internal file writes. Stop the engine to change this setting or to switch to compatibility mode while it is enabled.</string>
-  <string name="core_just_in_time_mode_switch_blocked">Just-in-time permissions are available only in protected mode. Stop the engine and disable just-in-time permissions before switching modes.</string>
-  <string name="just_in_time_approval_title">The agent is paused. You decide.</string>
-  <string name="just_in_time_execute">Execute</string>
-  <string name="just_in_time_approval_explanation">Allow approves only this action. The next action asks again. Decline skips this action; Stop turn ends the turn.</string>
   <string name="core_approval_once_only">This approval applies only to the current action.</string>
   <string name="approval_decline">Decline</string>
   <string name="approval_stop_turn">Stop turn</string>

@@ -19,7 +19,7 @@ public final class BuildIdentityTest {
         TestSupport.assertEquals(28, BuildIdentity.TARGET_SDK, "package edition target SDK");
         TestSupport.assertEquals(29, BuildIdentity.MIN_SDK, "minimum Android version");
         TestSupport.assertEquals(
-            "0.153.3-agentcodi.2",
+            "0.156.1-termux.1",
             BuildIdentity.CODEX_RUNTIME_VERSION,
             "Codex runtime version"
         );

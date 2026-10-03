@@ -1194,7 +1194,7 @@ public final class AgentRuntimeService extends Service {
         // Old launch intents are migrated to the edition's only supported mode.
         // A sticky service restart must also stay in Full access.
         if (executionModeId == null
-            || CodexExecutionMode.PROTECTED_ID.equals(executionModeId)
+            || "protected".equals(executionModeId)
             || CodexExecutionMode.COMPATIBILITY_ID.equals(executionModeId)) {
             return FullAccessExecutionMode.get();
         }

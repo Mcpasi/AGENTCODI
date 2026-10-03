@@ -16,7 +16,7 @@ public final class CodexPackageMetadataTest {
 
     public static int run() throws Exception {
         permitsStaleAndAbsentReadmeWithoutTrustingIt();
-        permitsOnlyThePinnedAgentcodiPackageVersion();
+        permitsOnlyThePinnedCommunityPackageVersion();
         requiresAgreementOfRegistryArchiveAndSource();
         rejectsMalformedAndLinkedMetadata();
         return 4;
@@ -83,25 +83,25 @@ public final class CodexPackageMetadataTest {
         }
     }
 
-    private static void permitsOnlyThePinnedAgentcodiPackageVersion() throws Exception {
+    private static void permitsOnlyThePinnedCommunityPackageVersion() throws Exception {
         Path directory = Files.createTempDirectory("codex local fork metadata ");
         final Path file = directory.resolve("package.json");
         try {
             Map<String, Object> local = metadata();
-            local.put("version", "0.153.3-agentcodi.1");
+            local.put("version", "0.153.3-termux.1");
             local.put("description", "OpenAI Codex CLI upstream rust-v0.153.2 packaged for Android Termux");
             Files.write(file, JsonCodec.stringify(local).getBytes(StandardCharsets.UTF_8));
-            runBuilderGate(file, "0.153.3-agentcodi.1", "rust-v0.153.2", 0);
+            runBuilderGate(file, "0.153.3-termux.1", "rust-v0.153.2", 0);
             runBuilderGate(file, "0.153.3", "rust-v0.153.2", 1);
-            runBuilderGate(file, "0.153.3-agentcodi.2", "rust-v0.153.2", 1);
-            runBuilderGate(file, "0.153.3-agentcodi.1", "rust-v0.153.3", 1);
-            runBuilderGate(file, "0.153.3-agentcodi.1", "rust-v0.153.2-agentcodi.1", 1);
-            TestSupport.assertFalse(CodexRuntimeUpdater.isVersion("0.153.3-agentcodi.1"),
+            runBuilderGate(file, "0.153.3-termux.2", "rust-v0.153.2", 1);
+            runBuilderGate(file, "0.153.3-termux.1", "rust-v0.153.3", 1);
+            runBuilderGate(file, "0.153.3-termux.1", "rust-v0.153.2-termux.1", 1);
+            TestSupport.assertFalse(CodexRuntimeUpdater.isVersion("0.153.3-termux.1"),
                 "a local fork is never treated as a stable registry release by the updater");
             for (final String version : new String[] {
-                "0.153.3-other.1", "0.153.3-agentcodi", "0.153.3-agentcodi.01",
-                "0.153.3-agentcodi.1+build", "0.153.3-agentcodi.1\n", "../0.153.3-agentcodi.1",
-                "0.153.3-agentcodi.1111111111111111111111111111111111111111"
+                "0.153.3-other.1", "0.153.3-termux", "0.153.3-termux.01",
+                "0.153.3-termux.1+build", "0.153.3-termux.1\n", "../0.153.3-termux.1",
+                "0.153.3-termux.1111111111111111111111111111111111111111"
             }) {
                 local.put("version", version);
                 Files.write(file, JsonCodec.stringify(local).getBytes(StandardCharsets.UTF_8));

@@ -10,23 +10,21 @@ The source paths, original SVG SHA-256 values, local resource mapping, and
 conversion rules are documented in docs/UI_ICONS.md. The complete Apache
 License 2.0 terms are available in the APK legal-notices view.
 
-Codex CLI/app-server Android ARM64 community build 0.153.3-agentcodi.2
+Codex CLI/app-server Android ARM64 community build 0.156.1-termux.1
 (@mmmbuto/codex-cli-termux), Apache License 2.0.
 OpenAI Codex Copyright 2025 OpenAI.
 Original Android/Termux compatibility work Copyright 2026 Davide A. Guglielmi.
-The Android sandbox backend, seccomp/ptrace supervisor and their integration
-into the local Codex fork were developed by Pascal (Mc Pasi).
-Android sandbox contributions Copyright 2026 Pascal (Mc Pasi),
-licensed under the Apache License, Version 2.0.
-This local AGENTCODI fork includes the Android sandbox backend and is not an
-official OpenAI Android APK.
-Distribution source: untagged, commit
-af5fec312538b25568fd83a0090efe3c417807d1.
-OpenAI source base: rust-v0.153.2, commit
-657a993cbee87acf52d14b758ce49dbd46d1b8eb.
+DioNanos Community Codex runs with Full access in this edition.
+This is not an official OpenAI Android APK.
+Pascal (Mc Pasi) retains authorship of the AGENTCODI application and of the
+historical sandbox contributions documented in NOTICE.md.
+Distribution source: v0.156.1-termux.1, commit
+ea762071ec4acbf1531fcc7daf47524836f70a09.
+OpenAI source base: rust-v0.156.1, commit
+b412ff32c417f855c2b2d1581b77058eed87c84b.
 Package SHA-256:
-4c8da95f209b990d253481f974497974ce445e8900749347ee15cb23c60ddbaa.
-The archive is supplied locally; there is no npm fallback for this fork.
+44cee2f3a4a110fd79d4f7d61378d46fd72406f45cffb3163e809d63e86d946a.
+The release archive is SHA-256-pinned; there is no npm or sandbox-fork fallback.
 AGENTCODI deterministically changes one equal-length app-server data field
 from codex-code-mode-host to libcodex-codehost.so so Android Package Manager
 can install the matching, otherwise unchanged host beside the app-server.

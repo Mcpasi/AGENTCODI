@@ -16,8 +16,7 @@ import de.agentcodi.core.CodexSessionSnapshot;
 import de.agentcodi.core.CodexTranscriptItem;
 import de.agentcodi.core.JsonCodec;
 import de.agentcodi.core.TerminalSessionSnapshot;
-import de.agentcodi.mode.compatibility.CompatibilityExecutionMode;
-import de.agentcodi.mode.protectedmode.ProtectedExecutionMode;
+import de.agentcodi.mode.compatibility.FullAccessExecutionMode;
 import de.agentcodi.review.CustomReviewMode;
 
 import java.io.IOException;
@@ -70,8 +69,6 @@ public final class CodexSessionControllerTest {
         startsCompatibilityWithApprovalsEnabled();
         carriesCompatibilityProfileIntoTerminal();
         handlesCommandAndFileApprovals();
-        justInTimeApprovalsAreOneActionInProtectedMode();
-        rejectsJustInTimeCompatibilityMode();
         acceptsFileCreationApproval();
         enrichesFileApprovalAfterReorderedPatchUpdate();
         rejectsIncompleteFileChangePreviews();
@@ -83,151 +80,7 @@ public final class CodexSessionControllerTest {
         terminatesTerminalWhenOutputCapIsReached();
         rejectsTerminalCredentialsAndMalformedOutput();
         usesVettedMcpConfigurationRpcs();
-        return 44;
-    }
-
-    public static void justInTimeApprovalsAreOneActionInProtectedMode() throws Exception {
-        final FixtureServer server = new FixtureServer(true);
-        server.holdTurnOpen = true;
-        final CodexSessionController controller = new CodexSessionController(
-            server, "/private/workspace", null, null,
-            ProtectedExecutionMode.get(), null, false, true);
-        try {
-            controller.start();
-            controller.openThread("thr_existing");
-            awaitJitState(() -> !controller.snapshot().isOperationActive());
-            TestSupport.assertEquals("thr_existing", controller.snapshot().getActiveThreadId(),
-                "existing chat resumed");
-            controller.sendMessage("Perform the proposed actions.");
-            awaitJitState(() -> !controller.snapshot().isOperationActive());
-            TestSupport.assertTrue(controller.snapshot().isTurnActive(), "fixture turn active");
-            TestSupport.assertTrue(controller.snapshot().isJustInTimeApprovalsEnabled(),
-                "JIT applies after resume in protected mode");
-            assertExecutionPermissionRequest(server.lastTurnStartParams,
-                "agentcodi-workspace", "JIT turn");
-
-            for (final long id : new long[] {800L, 801L, 802L}) {
-                boolean patch = id == 802L;
-                String itemId = "jit_" + id;
-                server.requestFromServer(id, patch ? "item/fileChange/requestApproval"
-                    : "item/commandExecution/requestApproval", JsonCodec.object(
-                        "threadId", "thr_existing", "turnId", "turn_fixture",
-                        "itemId", itemId, "startedAtMs", Long.valueOf(1L),
-                        "command", patch ? null : "node checks",
-                        "cwd", "/private/workspace",
-                        "availableDecisions", JsonCodec.array("accept", "decline"),
-                        "proposedExecpolicyAmendment", patch ? null : JsonCodec.array("node")
-                    ));
-                awaitJitState(() -> controller.snapshot().hasInteractiveRequest());
-                CodexInteractiveRequest request = controller.snapshot().getInteractiveRequests().get(0);
-                TestSupport.assertTrue(request.isJustInTimeApproval(), "one-action dialog");
-                TestSupport.assertEquals(null, server.responseFor(id), "no automatic response");
-                if (patch) {
-                    controller.resolveApproval(id, CodexApprovalDecision.ACCEPT, -1);
-                    TestSupport.assertTrue(controller.snapshot().hasInteractiveRequest(),
-                        "file approval waits for visible changes");
-                    server.notifyMessage("item/fileChange/patchUpdated", JsonCodec.object(
-                        "threadId", "thr_existing", "turnId", "turn_fixture", "itemId", itemId,
-                        "changes", JsonCodec.array(
-                            fileChange("/private/workspace/index.js", "add", "", "+hello"),
-                            fileChange("/private/workspace/docs/notice.md", "add", "", "+notice")
-                        )));
-                    awaitJitState(() -> controller.snapshot().getInteractiveRequests().get(0)
-                        .getFileChanges().size() == 2);
-                    TestSupport.assertTrue(controller.snapshot().getInteractiveRequests().get(0)
-                        .isJustInTimeApproval(), "late preview preserves one-action policy");
-                }
-                for (CodexApprovalDecision reusable : new CodexApprovalDecision[] {
-                    CodexApprovalDecision.ACCEPT_FOR_SESSION,
-                    CodexApprovalDecision.ACCEPT_WITH_EXEC_POLICY_AMENDMENT,
-                    CodexApprovalDecision.APPLY_NETWORK_POLICY_AMENDMENT
-                }) {
-                    controller.resolveApproval(id, reusable, 0);
-                    TestSupport.assertTrue(controller.snapshot().hasInteractiveRequest(),
-                        "reusable decision cannot dismiss the request");
-                    TestSupport.assertEquals(null, server.responseFor(id), "no reusable grant sent");
-                }
-                controller.resolveApproval(id, id == 801L ? CodexApprovalDecision.DECLINE
-                    : CodexApprovalDecision.ACCEPT, -1);
-                awaitJitState(() -> server.responseFor(id) != null);
-                TestSupport.assertEquals(JsonCodec.object("decision", id == 801L ? "decline" : "accept"),
-                    server.responseFor(id), "exact one-action wire response");
-            }
-        } finally {
-            controller.close();
-        }
-    }
-
-    public static void rejectsJustInTimeCompatibilityMode() throws Exception {
-        for (final boolean compatibilityApprovals : new boolean[] {false, true}) {
-            final FixtureServer rejectedServer = new FixtureServer(true);
-            try {
-                TestSupport.expectThrows(IllegalArgumentException.class,
-                    () -> new CodexSessionController(rejectedServer, "/private/workspace", null,
-                        null, CompatibilityExecutionMode.afterWarningAcknowledged(true),
-                        null, compatibilityApprovals, true).close(),
-                    "compatibility launch rejects JIT even after warning acknowledgement");
-                TestSupport.assertEquals(0, rejectedServer.requestCount.get(),
-                    "invalid JIT launch sends no RPC");
-            } finally {
-                rejectedServer.close();
-            }
-        }
-
-        final FixtureServer server = new FixtureServer(true);
-        final CodexSessionController controller = new CodexSessionController(server,
-            "/private/workspace", null, "/private/lib/libagentcodi-shell.so",
-            ProtectedExecutionMode.get(), null, false, true);
-        try {
-            controller.start();
-            int requestsBefore = server.requestCount.get();
-            TestSupport.assertFalse(controller.selectExecutionMode(
-                CompatibilityExecutionMode.afterWarningAcknowledged(true)),
-                "active JIT rejects a confirmed compatibility switch");
-            TestSupport.assertEquals(requestsBefore, server.requestCount.get(),
-                "rejected JIT mode switch sends no RPC");
-            CodexSessionSnapshot snapshot = controller.snapshot();
-            TestSupport.assertTrue(snapshot.isReady(), "protected session stays ready");
-            TestSupport.assertFalse(snapshot.isOperationActive(), "no mode switch is queued");
-            TestSupport.assertEquals("agentcodi-workspace", snapshot.getPermissionProfileId(),
-                "rejection preserves the protected profile");
-            TestSupport.assertFalse(snapshot.isDangerousExecutionMode(), "protection stays active");
-            TestSupport.assertTrue(snapshot.isJustInTimeApprovalsEnabled(), "JIT is not silently disabled");
-            TestSupport.assertContains(snapshot.getErrorMessage(), "Engine stoppen",
-                "mode switch explains how to disable JIT");
-
-            controller.startNewThread();
-            waitFor(() -> server.lastThreadStartParams != null
-                && !controller.snapshot().isOperationActive(), "protected JIT thread created");
-            assertExecutionPermissionRequest(server.lastThreadStartParams,
-                "agentcodi-workspace", "JIT thread after rejected switch");
-            controller.openThread("thr_existing");
-            waitFor(() -> "thr_existing".equals(controller.snapshot().getActiveThreadId())
-                && !controller.snapshot().isOperationActive(), "protected JIT thread resumed");
-            assertExecutionPermissionRequest(server.lastThreadResumeParams,
-                "agentcodi-workspace", "JIT resume after rejected switch");
-            controller.sendMessage("Check the workspace.");
-            waitFor(() -> server.lastTurnStartParams != null
-                && !controller.snapshot().isOperationActive() && !controller.snapshot().isTurnActive(),
-                "protected JIT turn completes after rejected switch");
-            assertExecutionPermissionRequest(server.lastTurnStartParams,
-                "agentcodi-workspace", "JIT turn after rejected switch");
-
-            controller.startTerminal(24, 80);
-            waitFor(() -> controller.terminalSnapshot().isRunning(), "protected JIT terminal starts");
-            TestSupport.assertEquals("agentcodi-workspace",
-                server.lastCommandExecParams.get("permissionProfile"),
-                "terminal retains protected profile after rejected switch");
-        } finally {
-            controller.close();
-        }
-    }
-
-    private static void awaitJitState(Condition condition) throws InterruptedException {
-        // Wait for fixture progress without imposing a host-speed deadline.
-        while (!condition.isTrue()) {
-            Thread.sleep(10L);
-        }
+        return 42;
     }
 
     private static void preservesProtectionAfterSandboxBootstrapFailure() throws Exception {
@@ -250,7 +103,7 @@ public final class CodexSessionControllerTest {
                 "filesystem sandbox cannot be enforced on this executor"),
                 "the executor failure remains visible");
             TestSupport.assertEquals(1, server.threadStartRequestCount.get(),
-                "a failed protected thread is not silently retried");
+                "a failed Full access thread is not silently retried");
             TestSupport.assertEquals(0, server.turnStartRequestCount.get(),
                 "no turn is sent after the sandbox fails");
             TestSupport.assertTrue(controller.snapshot().isReady(),
@@ -259,12 +112,12 @@ public final class CodexSessionControllerTest {
                 "the failed bootstrap does not leave an active turn");
             TestSupport.assertEquals("", controller.snapshot().getActiveThreadId(),
                 "no failed thread is published as active");
-            TestSupport.assertEquals("agentcodi-workspace",
+            TestSupport.assertEquals(":danger-full-access",
                 controller.snapshot().getPermissionProfileId(),
                 "the sandbox failure does not select full access");
             assertExecutionPermissionRequest(server.lastThreadStartParams,
-                "agentcodi-workspace", "failed protected thread/start");
-            assertNoPromptOverrides(server.lastThreadStartParams, "failed protected thread/start");
+                ":danger-full-access", "failed Full access thread/start");
+            assertNoPromptOverrides(server.lastThreadStartParams, "failed Full access thread/start");
 
             // Simulate a repaired executor and an explicit user retry. The failed
             // message must not be replayed when thread creation becomes available.
@@ -275,13 +128,13 @@ public final class CodexSessionControllerTest {
                     return "thr_new".equals(controller.snapshot().getActiveThreadId())
                         && !controller.snapshot().isOperationActive();
                 }
-            }, "explicit protected thread retry succeeds");
+            }, "explicit Full access thread retry succeeds");
             TestSupport.assertEquals(2, server.threadStartRequestCount.get(),
                 "only the explicit retry creates another thread");
             TestSupport.assertEquals(0, server.turnStartRequestCount.get(),
                 "the failed message is not replayed");
             assertExecutionPermissionRequest(server.lastThreadStartParams,
-                "agentcodi-workspace", "explicit protected thread retry");
+                ":danger-full-access", "explicit Full access thread retry");
         } finally {
             controller.close();
         }
@@ -1103,7 +956,7 @@ public final class CodexSessionControllerTest {
         TestSupport.assertEquals("--interactive", command.get(1), "interactive shell mode");
         TestSupport.assertEquals("/private/workspace", params.get("cwd"), "terminal cwd");
         TestSupport.assertEquals(
-            "agentcodi-workspace",
+            ":danger-full-access",
             params.get("permissionProfile"),
             "terminal permission profile"
         );
@@ -2289,7 +2142,7 @@ public final class CodexSessionControllerTest {
             "/private/workspace",
             null,
             null,
-            ProtectedExecutionMode.get(),
+            FullAccessExecutionMode.get(),
             CustomReviewMode.get()
         );
         controller.start();
@@ -2571,7 +2424,7 @@ public final class CodexSessionControllerTest {
             "/private/workspace",
             null,
             null,
-            ProtectedExecutionMode.get(),
+            FullAccessExecutionMode.get(),
             CustomReviewMode.get()
         );
         controller.start();
@@ -2702,7 +2555,7 @@ public final class CodexSessionControllerTest {
             "/private/workspace",
             null,
             null,
-            ProtectedExecutionMode.get(),
+            FullAccessExecutionMode.get(),
             CustomReviewMode.get()
         );
         controller.start();
@@ -3144,13 +2997,13 @@ public final class CodexSessionControllerTest {
         );
         controller.start();
         TestSupport.assertEquals(
-            "protected",
+            "compatibility",
             controller.snapshot().getExecutionModeId(),
-            "protected mode is the controller default"
+            "Full access is the controller default"
         );
         TestSupport.assertTrue(
             controller.selectExecutionMode(
-                CompatibilityExecutionMode.afterWarningAcknowledged(true)
+                FullAccessExecutionMode.get()
             ),
             "compatibility mode change queued"
         );
@@ -3229,19 +3082,19 @@ public final class CodexSessionControllerTest {
         );
 
         TestSupport.assertTrue(
-            controller.selectExecutionMode(ProtectedExecutionMode.get()),
-            "protected mode restoration queued"
+            controller.selectExecutionMode(FullAccessExecutionMode.get()),
+            "Full access restoration queued"
         );
         waitFor(new Condition() {
             @Override
             public boolean isTrue() {
-                return "protected".equals(controller.snapshot().getExecutionModeId())
+                return "compatibility".equals(controller.snapshot().getExecutionModeId())
                     && !controller.snapshot().isOperationActive();
             }
-        }, "protected mode restored");
-        TestSupport.assertFalse(
+        }, "Full access restored");
+        TestSupport.assertTrue(
             controller.snapshot().isDangerousExecutionMode(),
-            "protected restoration clears danger marker"
+            "Full access retains its danger marker"
         );
         controller.close();
     }
@@ -3254,17 +3107,17 @@ public final class CodexSessionControllerTest {
             "/private/workspace"
         );
         controller.start();
-        TestSupport.assertFalse(
+        TestSupport.assertTrue(
             controller.setCompatibilityApprovalsEnabled(true),
-            "protected mode rejects compatibility-only approvals"
+            "Full access supports optional command and file approvals"
         );
-        TestSupport.assertFalse(
+        TestSupport.assertTrue(
             controller.snapshot().isCompatibilityApprovalsEnabled(),
-            "protected mode remains on its existing approval policy"
+            "approval selection is retained"
         );
         TestSupport.assertTrue(
             controller.selectExecutionMode(
-                CompatibilityExecutionMode.afterWarningAcknowledged(true)
+                FullAccessExecutionMode.get()
             ),
             "compatibility mode change queued"
         );
@@ -3386,7 +3239,7 @@ public final class CodexSessionControllerTest {
             "/private/workspace",
             null,
             null,
-            CompatibilityExecutionMode.afterWarningAcknowledged(true),
+            FullAccessExecutionMode.get(),
             null,
             true
         );
@@ -3425,7 +3278,7 @@ public final class CodexSessionControllerTest {
             "/private/workspace",
             null,
             "/private/lib/libagentcodi-shell.so",
-            CompatibilityExecutionMode.afterWarningAcknowledged(true)
+            FullAccessExecutionMode.get()
         );
         controller.start();
         controller.startTerminal(24, 80);
@@ -4253,7 +4106,7 @@ public final class CodexSessionControllerTest {
         Map<String, Object> params,
         String method
     ) {
-        assertExecutionPermissionRequest(params, "agentcodi-workspace", method);
+        assertExecutionPermissionRequest(params, ":danger-full-access", method);
     }
 
     private static void assertSupportedExecutionPermissionRequest(
@@ -4617,7 +4470,7 @@ public final class CodexSessionControllerTest {
                 respond(request, JsonCodec.object(
                     "data", JsonCodec.array(
                         JsonCodec.object(
-                            "id", "agentcodi-workspace",
+                            "id", ":danger-full-access",
                             "description", "Private workspace",
                             "allowed", Boolean.valueOf(permissionAllowed)
                         ),

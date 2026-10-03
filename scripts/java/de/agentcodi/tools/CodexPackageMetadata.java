@@ -105,7 +105,7 @@ public final class CodexPackageMetadata {
 
     static boolean isPackageVersion(String version) {
         return isVersion(version) || (version != null && version.length() <= 48
-            && version.matches(RELEASE_VERSION + "-agentcodi\\.(0|[1-9][0-9]*)"));
+            && version.matches(RELEASE_VERSION + "-termux\\.(0|[1-9][0-9]*)"));
     }
 
     private static String string(Map<String, Object> map, String key) throws IOException {

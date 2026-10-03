@@ -72,8 +72,10 @@ public final class CodexInteractiveRequest {
         this.questions = immutableQuestionCopy(questions);
         this.blocking = blocking;
         this.expiresAtMilliseconds = expiresAtMilliseconds;
-        this.justInTimeApproval = justInTimeApprovalsEnabled
-            && kind != Kind.USER_INPUT && this.networkHost.isEmpty();
+        if (justInTimeApprovalsEnabled) {
+            throw new IllegalArgumentException("Package Edition does not support just-in-time permissions");
+        }
+        this.justInTimeApproval = false;
     }
 
     public long getRequestId() {

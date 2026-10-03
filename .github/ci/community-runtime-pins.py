@@ -18,7 +18,7 @@ def main():
     context = b"codex-code-mode-hostzshbincodex-resourcescodex-path"
     assert data.count(context) == 1, "Host context must be unique in this artifact"
     offset = data.index(context)
-    patched = data[:offset] + b"libcodex-codehost.so" + data[offset + 19:]
+    patched = data[:offset] + b"libcodex-codehost.so" + data[offset + len(b"codex-code-mode-host"):]
     assert len(data) == len(patched)
     target = root / "payload/package/bin/libcodex.so"
     target.write_bytes(patched)

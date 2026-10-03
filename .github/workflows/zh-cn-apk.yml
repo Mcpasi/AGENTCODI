@@ -102,6 +102,8 @@ jobs:
           }
           JSON
 
+          chmod 700 .cache/android/reconstructed/package/bin/codex.bin \
+            .cache/android/reconstructed/package/bin/codex-code-mode-host
           tar -C .cache/android/reconstructed -czf .cache/android/codex-reconstructed.tgz package
           archive_sha="$(sha256sum .cache/android/codex-reconstructed.tgz | awk '{print $1}')"
           python3 - "$archive_sha" <<'PY'

@@ -113,6 +113,13 @@ def unpack_verified(archive, destination, expected_hash):
             for member in members if member.isfile()]
 
 
+def origin_only_search_path(runpaths):
+    # GNU/LLVM linkers may emit the same $ORIGIN entry more than once.
+    # Empty entries mean cwd; absolute/other relative entries are not equivalent.
+    return bool(runpaths) and all(
+        entry == "$ORIGIN" for path in runpaths for entry in path.split(":"))
+
+
 def elf_report(path, reports):
     result = subprocess.run(
         ["readelf", "--wide", "--file-header", "--program-headers", "--dynamic", str(path)],
@@ -164,7 +171,8 @@ def inspect(archive, pin, directory, provenance):
         require(relative in native, "Missing native executable: " + name)
         require(native[relative]["interpreter"] == ["/system/bin/linker64"],
                 "Unexpected Android interpreter: " + name)
-        require(native[relative]["runpath"] == ["$ORIGIN"], "Unexpected native search path: " + name + ": " + repr(native[relative]["runpath"]))
+        require(origin_only_search_path(native[relative]["runpath"]),
+                "Unexpected native search path: " + name + ": " + repr(native[relative]["runpath"]))
         mode = next(entry["archive_mode"] for entry in inventory if entry["path"] == relative)
         require(int(mode, 8) & 0o111, "Native executable lacks execute permission: " + name)
     licenses = []

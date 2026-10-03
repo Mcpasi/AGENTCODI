@@ -74,7 +74,7 @@ while IFS=$'\t' read -r path sha origin url; do
     candidate="${candidate//+/%2B}"
     partial="$destination.partial"
     rm -f -- "$partial"
-    if curl --fail --location --http1.1 --silent --show-error --retry 3 --retry-all-errors \
+    if curl --fail --location --http1.1 --silent --show-error --retry 3 \
         --connect-timeout 20 --max-time 300 --output "$partial" "$candidate"; then
       if printf '%s  %s\n' "$sha" "$partial" | sha256sum --check --status; then
         mv -- "$partial" "$destination"

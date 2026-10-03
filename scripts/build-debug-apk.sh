@@ -172,8 +172,11 @@ PROTOBUF_URL="https://grimler.se/termux/termux-main/pool/main/libp/libprotobuf/l
 PROTOBUF_SHA256="a1ba7c7f0e5903a2134662653d3e7b9ffceaa78bdd00e07ac985e2d313ebc738"
 FMT_URL="https://grimler.se/termux/termux-main/pool/main/f/fmt/fmt_1:11.2.0-1_aarch64.deb"
 FMT_SHA256="dad595afcb3b1096d725c6772c0c5531764caa5841affba3c533c6298a32ab08"
-LIBCXX_URL="https://grimler.se/termux/termux-main/pool/main/libc/libc++/libc++_29_aarch64.deb"
-LIBCXX_SHA256="bb9f12113c137aa0e8513bb51cc49fe77a5ce3ca39ab9e92c57d228ecdf00222"
+# Termux removes superseded libc++ packages. The runtime is supplied by NDK r29;
+# use its pinned public archive directly instead of depending on the old .deb.
+LIBCXX_URL="https://dl.google.com/android/repository/android-ndk-r29-linux.zip"
+LIBCXX_SHA256="4abbbcdc842f3d4879206e9695d52709603e52dd68d3c1fff04b3b5e7a308ecf"
+LIBCXX_SHARED_SHA256="0c52cfab2df0d957d8b346a2bdc5ae8d71feca2591924d77e1cd724d5bf74352"
 EXPAT_URL="https://grimler.se/termux/termux-main/pool/main/libe/libexpat/libexpat_2.8.2_aarch64.deb"
 EXPAT_SHA256="6f5eb2fd14b6fe4d7bb79bf7f0f3d7fc838fea07402477a172b147304366b372"
 PNG_URL="https://grimler.se/termux/termux-main/pool/main/libp/libpng/libpng_1.6.58_aarch64.deb"
@@ -425,7 +428,7 @@ AAPT2_ARCHIVE="$CACHE_DIR/aapt2-$AAPT2_VERSION-aarch64.deb"
 ABSEIL_ARCHIVE="$CACHE_DIR/abseil-cpp-20260526.0-aarch64.deb"
 PROTOBUF_ARCHIVE="$CACHE_DIR/libprotobuf-35.1-aarch64.deb"
 FMT_ARCHIVE="$CACHE_DIR/fmt-11.2.0-1-aarch64.deb"
-LIBCXX_ARCHIVE="$CACHE_DIR/libcxx-29-aarch64.deb"
+LIBCXX_ARCHIVE="$CACHE_DIR/android-ndk-r29-linux.zip"
 EXPAT_ARCHIVE="$CACHE_DIR/libexpat-2.8.2-aarch64.deb"
 PNG_ARCHIVE="$CACHE_DIR/libpng-1.6.58-aarch64.deb"
 ZOPFLI_ARCHIVE="$CACHE_DIR/libzopfli-1.0.3-5-aarch64.deb"
@@ -570,7 +573,7 @@ if [ ! -f "$ANDROID_JAR" ]; then
   exit 1
 fi
 
-for archive in "$AAPT2_ARCHIVE" "$ABSEIL_ARCHIVE" "$PROTOBUF_ARCHIVE" "$FMT_ARCHIVE" "$LIBCXX_ARCHIVE" "$EXPAT_ARCHIVE" "$PNG_ARCHIVE" "$ZOPFLI_ARCHIVE" "$ZLIB_ARCHIVE" "$NODE_ARCHIVE" "$CARES_ARCHIVE" "$ICU_ARCHIVE" "$SQLITE_ARCHIVE" "$OPENSSL_ARCHIVE" "$NPM_ARCHIVE" "$PYTHON_ARCHIVE" "$ANDROID_POSIX_SEMAPHORE_ARCHIVE" "$ANDROID_SUPPORT_ARCHIVE" "$BZIP2_ARCHIVE" "$LIBFFI_ARCHIVE" "$LIBLZMA_ARCHIVE" "$NCURSES_ARCHIVE" "$NCURSES_UI_ARCHIVE" "$ZSTD_ARCHIVE" "$TERMUX_LICENSES_ARCHIVE" "$PATCHELF_ARCHIVE"; do
+for archive in "$AAPT2_ARCHIVE" "$ABSEIL_ARCHIVE" "$PROTOBUF_ARCHIVE" "$FMT_ARCHIVE" "$EXPAT_ARCHIVE" "$PNG_ARCHIVE" "$ZOPFLI_ARCHIVE" "$ZLIB_ARCHIVE" "$NODE_ARCHIVE" "$CARES_ARCHIVE" "$ICU_ARCHIVE" "$SQLITE_ARCHIVE" "$OPENSSL_ARCHIVE" "$NPM_ARCHIVE" "$PYTHON_ARCHIVE" "$ANDROID_POSIX_SEMAPHORE_ARCHIVE" "$ANDROID_SUPPORT_ARCHIVE" "$BZIP2_ARCHIVE" "$LIBFFI_ARCHIVE" "$LIBLZMA_ARCHIVE" "$NCURSES_ARCHIVE" "$NCURSES_UI_ARCHIVE" "$ZSTD_ARCHIVE" "$TERMUX_LICENSES_ARCHIVE" "$PATCHELF_ARCHIVE"; do
   dpkg-deb -x "$archive" "$AAPT2_EXTRACT"
 done
 tar -xzf "$CODEX_ANDROID_ARCHIVE" -C "$CODEX_EXTRACT"
@@ -588,6 +591,11 @@ if [ ! -x "$PATCHELF_BIN" ] \
   exit 1
 fi
 LIBCXX_SHARED="$AAPT2_LIBRARY_PATH/libc++_shared.so"
+unzip -p "$LIBCXX_ARCHIVE" \
+  android-ndk-r29/toolchains/llvm/prebuilt/linux-x86_64/sysroot/usr/lib/aarch64-linux-android/libc++_shared.so \
+  > "$LIBCXX_SHARED"
+verify_file_sha256 "$LIBCXX_SHARED" "$LIBCXX_SHARED_SHA256"
+chmod 700 "$LIBCXX_SHARED"
 CODEX_SOURCE_BINARY="$CODEX_EXTRACT/package/bin/codex.bin"
 CODEX_BINARY="$WORK_DIR/codex-app-server-android"
 CODEX_CODE_MODE_HOST_BINARY="$CODEX_EXTRACT/package/bin/codex-code-mode-host"

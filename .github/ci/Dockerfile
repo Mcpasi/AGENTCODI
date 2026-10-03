@@ -26,7 +26,7 @@ COPY restore-ndk-sysroot.sh ndk-29-inputs.tsv /ci/
 RUN bash /ci/restore-ndk-sysroot.sh /output
 
 FROM ${TERMUX_IMAGE} AS termux
-COPY --from=ndk --chown=1000:1000 /output/ndk-sysroot_29-3_aarch64.deb /data/data/com.termux/files/usr/tmp/
+COPY --from=ndk --chown=1000:1000 /output/ndk-sysroot_29-3_aarch64.deb /output/libc++_29_aarch64.deb /data/data/com.termux/files/usr/tmp/
 # The image sets no USER, so RUN executes as root — and Termux refuses to run
 # its package manager as root. Privileges are dropped by the image's own
 # entrypoint, which switches to the `system` user and execs its arguments, so
@@ -47,7 +47,7 @@ RUN /entrypoint.sh bash -c "apt-get update -q \
       clang=${CLANG_VERSION} lld=${CLANG_VERSION} llvm=${CLANG_VERSION} \
       libllvm=${CLANG_VERSION} libcompiler-rt=${CLANG_VERSION} \
       /data/data/com.termux/files/usr/tmp/ndk-sysroot_${NDK_SYSROOT_VERSION}_aarch64.deb \
-      libc++=${LIBCXX_VERSION} \
+      /data/data/com.termux/files/usr/tmp/libc++_${LIBCXX_VERSION}_aarch64.deb \
  && clang++ --version && ld.lld --version && llvm-objcopy --version \
  && dpkg-query -W clang lld llvm libllvm libcompiler-rt ndk-sysroot libc++ \
  && test -f /data/data/com.termux/files/usr/lib/libc++_shared.so"

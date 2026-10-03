@@ -199,19 +199,6 @@ bool canonical_runtime_file(
   return true;
 }
 
-std::string shell_quote(const std::string& value) {
-  std::string quoted("'");
-  for (char character : value) {
-    if (character == '\'') {
-      quoted.append("'\\''");
-    } else {
-      quoted.push_back(character);
-    }
-  }
-  quoted.push_back('\'');
-  return quoted;
-}
-
 bool package_enabled(const PackageSpec& package, std::string* error) {
   return agentcodi::IsToolPackageEnabled(package, error);
 }
@@ -437,33 +424,16 @@ int toolchain_command(int argc, char* argv[]) {
   return 2;
 }
 
-std::string shell_functions(const std::string& bridge) {
-  const std::string command = shell_quote(bridge);
-  return
-      "agentcodi-toolchain() { " + command + " --toolchain \"$@\"; }; "
-      "node() { " + command + " --node \"$@\"; }; "
-      "npm() { " + command + " --npm \"$@\"; }; "
-      "python() { " + command + " --python \"$@\"; }; "
-      "python3() { " + command + " --python \"$@\"; }; "
-      "rg() { " + command + " --ripgrep \"$@\"; }; ";
-}
-
 int run_shell_command(const char* command) {
   if (command == nullptr || std::strlen(command) > kMaximumCommandCharacters) {
     std::cerr << "Shell command exceeds the AGENTCODI limit\n";
     return 2;
   }
-  std::string bridge;
-  std::string error;
-  if (!canonical_packaged_bridge(&bridge, &error)) {
-    std::cerr << error << '\n';
-    return 126;
-  }
-  const std::string prepared = shell_functions(bridge) + command;
+  // Resolve commands through PATH so installations in PREFIX/bin take priority.
   char* const arguments[] = {
       const_cast<char*>(kSystemShell),
       const_cast<char*>("-c"),
-      const_cast<char*>(prepared.c_str()),
+      const_cast<char*>(command),
       nullptr,
   };
   execv(kSystemShell, arguments);
@@ -472,44 +442,6 @@ int run_shell_command(const char* command) {
 }
 
 int run_interactive_shell() {
-  std::string bridge;
-  std::string error;
-  if (!canonical_packaged_bridge(&bridge, &error)) {
-    std::cerr << error << '\n';
-    return 126;
-  }
-  int initialization[2] {-1, -1};
-  if (pipe2(initialization, O_CLOEXEC) != 0) {
-    std::cerr << errno_message("Terminal initialization", errno) << '\n';
-    return 127;
-  }
-  const std::string functions = shell_functions(bridge) + "\n";
-  if (!write_all(initialization[1], functions.data(), functions.size())) {
-    const int saved_errno = errno;
-    close(initialization[0]);
-    close(initialization[1]);
-    std::cerr << errno_message("Terminal initialization", saved_errno) << '\n';
-    return 127;
-  }
-  close(initialization[1]);
-  const int descriptor_flags = fcntl(initialization[0], F_GETFD);
-  if (descriptor_flags < 0
-      || fcntl(initialization[0], F_SETFD, descriptor_flags & ~FD_CLOEXEC) != 0) {
-    const int saved_errno = errno;
-    close(initialization[0]);
-    std::cerr << errno_message(
-        "Terminal initialization descriptor",
-        saved_errno) << '\n';
-    return 127;
-  }
-  const std::string environment_path =
-      "/proc/self/fd/" + std::to_string(initialization[0]);
-  if (setenv("ENV", environment_path.c_str(), 1) != 0) {
-    const int saved_errno = errno;
-    close(initialization[0]);
-    std::cerr << errno_message("Terminal shell environment", saved_errno) << '\n';
-    return 127;
-  }
   char* const arguments[] = {
       const_cast<char*>(kSystemShell),
       const_cast<char*>("-i"),

@@ -28,27 +28,28 @@ execution_mode_card="$PROJECT_ROOT/app/src/main/java/de/agentcodi/app/ExecutionM
 if rg -n '^import de\.agentcodi\.(app|runtime|storage|imports|mcp|mode)\.' \
       "$protected_mode" "$compatibility_mode" \
     || rg -n '^import de\.agentcodi\.mode\.' "$PROJECT_ROOT/modules/core/src/main/java" \
-    || ! rg -q 'PROTECTED_PERMISSION_PROFILE_ID = "agentcodi-workspace"' \
-      "$execution_mode_contract" \
     || ! rg -q 'COMPATIBILITY_PERMISSION_PROFILE_ID = ":danger-full-access"' \
       "$execution_mode_contract" \
-    || ! rg -q 'afterWarningAcknowledged' "$compatibility_mode" \
-    || ! rg -q 'throw new SecurityException' "$compatibility_mode" \
-    || ! rg -q 'showDangerWarning' "$execution_mode_card" \
-    || ! rg -q 'execution_mode_warning_message' "$execution_mode_card" \
-    || ! rg -q 'createLaunchIntent' "$PROJECT_ROOT/modules/runtime/src/main/java/de/agentcodi/runtime/AgentRuntimeService.java" \
-    || ! rg -q 'intent == null' "$PROJECT_ROOT/modules/runtime/src/main/java/de/agentcodi/runtime/AgentRuntimeService.java" \
-    || ! rg -q 'ProtectedExecutionMode\.get' "$PROJECT_ROOT/modules/runtime/src/main/java/de/agentcodi/runtime/AgentRuntimeService.java" \
-    || ! rg -q 'controller\.selectExecutionMode' "$PROJECT_ROOT/modules/runtime/src/main/java/de/agentcodi/runtime/AgentRuntimeService.java" \
-    || ! rg -q 'switchesToCompatibilityProfileWithoutPromptOverrides' "$PROJECT_ROOT/tests/java/de/agentcodi/tests/CodexSessionControllerTest.java" \
-    || ! rg -q -- '--execution-mode-roundtrip' "$PROJECT_ROOT/tests/cpp/agentcodi_engine_test.cpp" \
-    || rg -n 'SharedPreferences|getSharedPreferences' "$execution_mode_card" \
-      "$protected_mode" "$compatibility_mode" \
+    || ! rg -q 'FullAccessExecutionMode\.get' "$PROJECT_ROOT/modules/runtime/src/main/java/de/agentcodi/runtime/AgentRuntimeService.java" \
+    || rg -n 'ProtectedExecutionMode|CompatibilityExecutionMode\.afterWarningAcknowledged' \
+      "$PROJECT_ROOT/modules/runtime/src/main/java" \
+    || rg -n 'PROTECTED_ID|protectedButton|justInTimeApprovalSwitch|showDangerWarning' "$execution_mode_card" \
+    || ! rg -q 'CodexExecutionMode.COMPATIBILITY_ID' "$execution_mode_card" \
+    || ! rg -q 'packageEditionAlwaysUsesFullAccess' "$PROJECT_ROOT/tests/java/de/agentcodi/tests/ExecutionModeTest.java" \
     || rg -n '"(baseInstructions|developerInstructions|systemPrompt|system_prompt)"' \
-      "$PROJECT_ROOT/modules/core/src/main/java/de/agentcodi/core/CodexSessionController.java" \
-    || rg -n '"(baseInstructions|developerInstructions|systemPrompt|system_prompt|instructions)"' \
-      "$execution_mode_contract" "$protected_mode" "$compatibility_mode"; then
-  echo "The modular execution-mode, mandatory warning, safe restart, or no-prompt boundary is incomplete." >&2
+      "$PROJECT_ROOT/modules/core/src/main/java/de/agentcodi/core/CodexSessionController.java"; then
+  echo "Package Edition must offer only Full access without mode prompt injection." >&2
+  exit 1
+fi
+
+if ! rg -q 'android:targetSdkVersion="28"' "$PROJECT_ROOT/app/src/main/AndroidManifest.xml" \
+    || ! rg -q '^TARGET_SDK="28"' "$PROJECT_ROOT/scripts/build-debug-apk.sh" \
+    || ! rg -q 'TARGET_SDK = 28;' "$PROJECT_ROOT/modules/core/src/main/java/de/agentcodi/core/BuildIdentity.java" \
+    || ! rg -q 'getPackagePrefix' "$PROJECT_ROOT/modules/storage/src/main/java/de/agentcodi/storage/WorkspaceLayout.java" \
+    || ! rg -Fq 'secureChild(home, ".local")' "$PROJECT_ROOT/modules/storage/src/main/java/de/agentcodi/storage/WorkspaceLayout.java" \
+    || ! rg -Fq 'prefix + "/bin:"' "$PROJECT_ROOT/modules/native-engine/src/main/cpp/app_server_process.cpp" \
+    || ! rg -Fq '"PREFIX=" + prefix' "$PROJECT_ROOT/modules/native-engine/src/main/cpp/app_server_process.cpp"; then
+  echo "Package Edition target SDK or shared writable package prefix is incomplete." >&2
   exit 1
 fi
 

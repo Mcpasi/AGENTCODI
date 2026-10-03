@@ -67,6 +67,10 @@ public final class WorkspaceLayout {
         File state = secureChild(root, "state");
         File logs = secureChild(root, "logs");
         File home = secureChild(root, "home");
+        File packagePrefix = secureChild(home, ".local");
+        for (String directory : new String[] {"bin", "lib", "include", "share", "etc", "tmp"}) {
+            secureChild(packagePrefix, directory);
+        }
         File codexHome = secureChild(root, "codex-home");
         ensureSeparated(workspace, codexHome);
         validateRuntimeConfigurationFiles(codexHome);
@@ -283,6 +287,11 @@ public final class WorkspaceLayout {
 
     public File getHome() {
         return home;
+    }
+
+    /** Writable installation prefix shared by Codex commands and the terminal. */
+    public File getPackagePrefix() {
+        return new File(home, ".local");
     }
 
     public File getCodexHome() {

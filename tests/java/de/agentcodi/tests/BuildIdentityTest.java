@@ -14,6 +14,8 @@ public final class BuildIdentityTest {
     private static void pinsCompleteCodeModeRuntime() {
         TestSupport.assertEquals("0.7.6-preview.1", BuildIdentity.VERSION_NAME, "app version");
         TestSupport.assertEquals(87, BuildIdentity.VERSION_CODE, "app version code");
+        TestSupport.assertEquals(28, BuildIdentity.TARGET_SDK, "package edition target SDK");
+        TestSupport.assertEquals(29, BuildIdentity.MIN_SDK, "minimum Android version");
         TestSupport.assertEquals(
             "0.153.3-agentcodi.2",
             BuildIdentity.CODEX_RUNTIME_VERSION,

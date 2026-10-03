@@ -1,3 +1,5 @@
+> **Package Edition / Power-User-Version:** Dieser Branch bietet ausschließlich Full access. Programme mit den Rechten dieser App können auch Dateien außerhalb des Workspace und Codex-Kontodaten erreichen. Das ist Teil des dokumentierten Modells dieser Edition. Bestätigungsdialoge bilden keine Dateisystem-Sandbox. Siehe [README](README.md) und [Roadmap](ROADMAP-package-edition.md).
+
 # Security Policy
 
 AGENTCODI runs a local Codex app-server, development tools, and approved commands
@@ -35,7 +37,7 @@ A useful report includes:
 - the Android version and device architecture;
 - a clear description of the impact and required attacker capabilities;
 - minimal, repeatable steps or a proof of concept;
-- whether Protected Mode or Compatibility Mode was active; and
+- whether the Package Edition was used, including the commit and approval setting; and
 - any suggested remediation or planned disclosure date.
 
 Send only the minimum evidence needed. Redact personal data, workspace content,
@@ -50,9 +52,6 @@ Ordinary bugs and feature requests that have no security impact belong in
 
 Examples of issues that should be reported to AGENTCODI include:
 
-- escaping Protected Mode or accessing files outside its intended private
-  workspace;
-- crossing the separation between the workspace and Codex account data;
 - bypassing, misrepresenting, or reusing a command or file-change approval;
 - exposing credentials, private content, or transient authentication data through
   the UI, logs, diagnostics, exports, or saved state;
@@ -61,8 +60,7 @@ Examples of issues that should be reported to AGENTCODI include:
 - unsafe handling of app-server messages or hosted-app metadata that crosses an
   enforced trust boundary;
 - accepting a tampered or unexpected bundled runtime or toolchain artifact; and
-- switching into Compatibility Mode without the required warning and explicit
-  acknowledgement.
+- presenting an isolated workspace or a protected mode while Full access is active.
 
 The following are generally outside this project's scope:
 
@@ -74,11 +72,11 @@ The following are generally outside this project's scope:
 - actions accurately shown to and explicitly approved by the user;
 - access that depends on a rooted or already compromised device, a modified APK,
   or a compromised build environment; and
-- the documented loss of effective filesystem isolation after a user explicitly
-  enables experimental Compatibility Mode.
+- the documented filesystem reach of Full access and user-installed programs in
+  Package Edition.
 
-An approval bypass, misleading approval scope, failure to reset Compatibility
-Mode, or access beyond the selected mode's documented boundary remains in scope.
+An approval bypass, misleading approval scope, credential disclosure through the
+UI or exports, or access beyond the edition's documented boundary remains in scope.
 If it is unclear whether a weakness belongs to AGENTCODI or an upstream project,
 report it privately here first and explain why AGENTCODI may be involved.
 

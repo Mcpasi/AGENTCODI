@@ -1,6 +1,6 @@
 <?xml version="1.0" encoding="utf-8"?>
 <resources>
-  <string name="app_name" translatable="false">AGENTCODI</string>
+  <string name="app_name" translatable="false">AGENTCODI Package</string>
 
   <string name="navigation_chats">‹ Chats</string>
   <string name="navigation_settings">Einstellungen</string>
@@ -118,13 +118,13 @@
   <string name="chat_review_starting">Codex startet den nativen Review…</string>
   <string name="chat_review_active">Codex prüft den Workspace…</string>
   <string name="chat_review_finishing">Das Review-Ergebnis wird abgeschlossen…</string>
-  <string name="chat_compatibility_mode_active">Kompatibilitätsmodus aktiv: keine wirksame Dateisystem-Isolation.</string>
+  <string name="chat_compatibility_mode_active">Package Edition · Full access: Codex kann alle für diese App erreichbaren Dateien nutzen.</string>
   <string name="chat_update_failed">Die Chat-Oberfläche konnte nicht aktualisiert werden: %1$s</string>
   <string name="chat_initialization_failed">AGENTCODI konnte die Chat-Oberfläche nicht initialisieren.</string>
 
   <string name="terminal_title">Terminal</string>
   <string name="terminal_back">‹ Chats</string>
-  <string name="terminal_description">Eine private interaktive Shell im kanonischen Workspace. Terminalausgabe bleibt ausschließlich im Speicher. Tool-Aktivierungen liegen unter workspace/toolchain; CODEX_HOME und Zugangsdaten bleiben getrennt. Füge niemals Zugangsdaten in Befehle ein.</string>
+  <string name="terminal_description">Interaktive Shell mit Full access. Selbst installierte Programme in $HOME/.local/bin haben Vorrang vor mitgelieferten Tools. Terminalausgabe bleibt im Speicher. Befehle können erreichbare Workspace- und Kontodaten nutzen.</string>
   <string name="terminal_status_checking">Terminal-Laufzeit wird geprüft…</string>
   <string name="terminal_status_runtime_required">Starte zuerst die Codex-Laufzeit in den Einstellungen.</string>
   <string name="terminal_status_starting">Begrenzte PTY-Shell wird gestartet…</string>
@@ -289,15 +289,15 @@
   <string name="settings_initialization_failed">AGENTCODI konnte die Einstellungen nicht initialisieren.</string>
 
   <string name="execution_mode_section">AUSFÜHRUNGSMODUS</string>
-  <string name="execution_mode_description">Ausführungsmodus und Bestätigungseinstellung werden ausschließlich als native Berechtigungs- und Zustimmungsoptionen an Threads und Turns übergeben; das Terminal verwendet weiterhin das gewählte Berechtigungsprofil. AGENTCODI fügt dafür keine System- oder Entwickler-Prompts ein. Ein System-Neustart des Dienstes ohne neu bestätigte Auswahl verwendet den geschützten Standard.</string>
+  <string name="execution_mode_description">Die Package Edition ist für erfahrene Nutzer gedacht und läuft immer mit Full access. Codex und Befehle können alle für diese App erreichbaren Dateien lesen, ändern oder löschen, einschließlich Kontodaten außerhalb des Workspace. Installierte Pakete stehen Codex und dem Terminal zur Verfügung.</string>
   <string name="execution_mode_protected_name">Geschützt – Standard</string>
-  <string name="execution_mode_compatibility_name">Kompatibilität – experimentell</string>
+  <string name="execution_mode_compatibility_name">Full access</string>
   <string name="execution_mode_protected_option">Geschützt – Standard\nagentcodi-workspace\nNur Workspace; Änderungen nach Möglichkeit als ein zusammengefasster Patch mit Vorschau</string>
   <string name="execution_mode_protected_selected">✓ Geschützt – Standard\nagentcodi-workspace\nNur Workspace; Änderungen nach Möglichkeit als ein zusammengefasster Patch mit Vorschau</string>
-  <string name="execution_mode_compatibility_option">Kompatibilität – experimentell\n:danger-full-access\nDirekte Dateibearbeitung möglich, aber keine wirksame Dateisystem-Isolation</string>
-  <string name="execution_mode_compatibility_selected">✓ Kompatibilität – experimentell\n:danger-full-access\nDirekte Dateibearbeitung möglich, aber keine wirksame Dateisystem-Isolation</string>
+  <string name="execution_mode_compatibility_option">Full access\n:danger-full-access\nZugriff auf alle für diese App erreichbaren Dateien</string>
+  <string name="execution_mode_compatibility_selected">✓ Full access\n:danger-full-access\nZugriff auf alle für diese App erreichbaren Dateien</string>
   <string name="execution_mode_compatibility_approvals">Dateiänderungen und Befehle bestätigen</string>
-  <string name="execution_mode_compatibility_approvals_description">Verwendet die Codex-Zustimmungsrichtlinie „untrusted“: Vor Dateiänderungen und Befehlen außer erkannten sicheren Lesezugriffen wird nachgefragt. :danger-full-access und der vollständige Dateisystemzugriff bleiben aktiv.</string>
+  <string name="execution_mode_compatibility_approvals_description">Verwendet die Codex-Zustimmungsrichtlinie „untrusted“: Vor Befehlen außer erkannten sicheren Lesezugriffen und vor Dateiänderungen wird nachgefragt. Full access bleibt aktiv; Bestätigungen isolieren installierte Pakete nicht und schützen keine Kontodateien.</string>
   <string name="execution_mode_active">Aktiv: %1$s · %2$s</string>
   <string name="execution_mode_next_start">Für den nächsten Start gewählt: %1$s · %2$s</string>
   <string name="execution_mode_change_rejected">Der Modus konnte nicht gewechselt werden. Beende zuerst den laufenden Turn, eine offene Rückfrage oder das Terminal.</string>

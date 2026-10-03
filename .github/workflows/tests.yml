@@ -86,3 +86,20 @@ jobs:
 
       - name: Run C++ host tests
         run: .github/ci/run-cpp-tests.sh
+
+  android:
+    name: Android sources and resources
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    steps:
+      - name: Check out the repository
+        uses: actions/checkout@v4
+
+      - name: Set up JDK 17
+        uses: actions/setup-java@v4
+        with:
+          distribution: temurin
+          java-version: '17'
+
+      - name: Compile Android sources and resources
+        run: .github/ci/compile-android-sources.sh

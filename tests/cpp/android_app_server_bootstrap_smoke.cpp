@@ -729,7 +729,7 @@ int main(int argc, char* argv[]) {
       "\"test -z \\\"$(command -v libnode.so)\\\" && "
       "test -z \\\"$(command -v libpython-bin.so)\\\" && "
       "test -z \\\"$(command -v libripgrep.so)\\\" && "
-      "\\\"$LD_LIBRARY_PATH/libripgrep.so\\\" "
+      "\\\"${LD_LIBRARY_PATH##*:}/libripgrep.so\\\" "
       "--pre=/system/bin/sh needle . >/dev/null 2>&1; "
       "test $? -eq 2 && command -v node && command -v rg && "
       "command -v agentcodi-toolchain && "

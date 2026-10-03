@@ -977,13 +977,19 @@ int main(int argc, char* argv[]) {
          "Codex home excluded from tool environment");
   expect(joined_arguments.find("/private/state") == std::string::npos,
          "materialization proof state excluded from tool arguments");
+  expect(joined_arguments.find("PREFIX=\"/private/home/.local\"") != std::string::npos,
+         "Codex commands receive the writable package prefix");
+  expect(joined_arguments.find(
+             "LD_LIBRARY_PATH=\"/private/home/.local/lib:/private/native\"")
+             != std::string::npos,
+         "Codex commands can resolve libraries installed with user packages");
   expect(joined_arguments.find("SHELL=\"/system/bin/sh\"")
              != std::string::npos,
          "Codex reports the actual Android system shell");
   expect(joined_arguments.find(
-             "PATH=\"/private/tool-bin:/system/bin:/system/xbin\"")
+             "PATH=\"/private/home/.local/bin:/private/tool-bin:/system/bin:/system/xbin\"")
              != std::string::npos,
-         "Codex tools resolve packaged command aliases before system commands");
+         "Codex resolves user packages before packaged aliases and system commands");
   expect(
       joined_arguments.find(
           "PATH=\"/private/tool-bin:/private/native:/system/bin:/system/xbin\"")
@@ -1036,9 +1042,9 @@ int main(int argc, char* argv[]) {
          "Codex prompt telemetry disabled");
   expect(joined_arguments.find("feedback.enabled=false") != std::string::npos,
          "Codex feedback upload disabled");
-  expect(joined_arguments.find("default_permissions=\"agentcodi-workspace\"")
+  expect(joined_arguments.find("default_permissions=\":danger-full-access\"")
              != std::string::npos,
-         "Codex private permission profile default");
+         "Package Edition defaults to full access");
   expect(joined_arguments.find("model_provider=\"agentcodi-openai-http\"")
              != std::string::npos,
          "Codex HTTPS model provider selected");
@@ -1280,6 +1286,13 @@ int main(int argc, char* argv[]) {
            "process-test toolchain alias");
     expect(mkdir(codex_home.c_str(), 0700) == 0, "process-test Codex home");
     expect(mkdir(home.c_str(), 0700) == 0, "process-test home");
+    const std::string package_prefix = home + "/.local";
+    expect(mkdir(package_prefix.c_str(), 0700) == 0, "process-test package prefix");
+    expect(mkdir((package_prefix + "/bin").c_str(), 0700) == 0, "package binary directory");
+    const std::string user_node = package_prefix + "/bin/node";
+    expect(write_fixture_file(user_node, "#!/system/bin/sh\nprintf 'user-package-selected\\n'\n"),
+           "install a user executable that shadows the packaged Node alias");
+    expect(chmod(user_node.c_str(), 0700) == 0, "make user package executable");
     expect(mkdir(state.c_str(), 0700) == 0, "process-test private state");
     expect(mkdir(temporary.c_str(), 0700) == 0, "process-test temporary directory");
 
@@ -1734,6 +1747,7 @@ int main(int argc, char* argv[]) {
         "\"$CODEX_HOME\" \"$HOME\" \"$(umask)\"; "
         "printf '%s\\n' \"$CODEX_CODE_MODE_HOST_PATH\"; "
         "printf '%s\\n' \"$PATH\"; "
+        "node; "
         "IFS= read -r line; printf '%s\\n' \"$line\"",
     };
     expect(setenv("AGENTCODI_PARENT_SECRET", "must-not-leak", 1) == 0,
@@ -1768,9 +1782,14 @@ int main(int argc, char* argv[]) {
               == agentcodi::LineReadStatus::kLine,
           "read closed app-server PATH");
       expect(
-          child_path == tool_binary + ":/system/bin:/system/xbin"
+          child_path == home + "/.local/bin:" + tool_binary + ":/system/bin:/system/xbin"
               && child_path.find("/system/lib64") == std::string::npos,
-          "app-server PATH exposes aliases but not real tool ELFs");
+          "app-server PATH gives user packages priority and preserves APK alias fallback");
+      std::string package_output;
+      expect(process->ReadLine(1024U, &package_output, &error)
+                 == agentcodi::LineReadStatus::kLine
+                 && package_output == "user-package-selected",
+             "a user-installed executable runs through the supervisor PATH");
       const std::string probe = "{\"probe\":\"ok\"}";
       std::vector<unsigned char> mutable_probe(probe.begin(), probe.end());
       expect(
@@ -2861,6 +2880,9 @@ int main(int argc, char* argv[]) {
            "image materialization leaves private temporary directory empty");
     expect(rmdir(state.c_str()) == 0,
            "image materialization leaves only explicit private proof state");
+    unlink(user_node.c_str());
+    rmdir((package_prefix + "/bin").c_str());
+    rmdir(package_prefix.c_str());
     rmdir(home.c_str());
     rmdir(codex_home.c_str());
     unlink(supervised_node_alias.c_str());

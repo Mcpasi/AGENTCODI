@@ -31,8 +31,7 @@ import de.agentcodi.mcp.McpConfigurationSnapshot;
 import de.agentcodi.mcp.McpServerDraft;
 import de.agentcodi.mcp.client.McpCatalogController;
 import de.agentcodi.mcp.client.McpConfigurationController;
-import de.agentcodi.mode.compatibility.CompatibilityExecutionMode;
-import de.agentcodi.mode.protectedmode.ProtectedExecutionMode;
+import de.agentcodi.mode.compatibility.FullAccessExecutionMode;
 import de.agentcodi.review.CustomReviewMode;
 import de.agentcodi.storage.WorkspaceLayout;
 
@@ -645,9 +644,8 @@ public final class AgentRuntimeService extends Service {
             startRuntimeIfNeeded(
                 executionMode,
                 compatibilityApprovalsFromIntent(intent, executionMode),
-                intent != null && intent.getBooleanExtra(
-                    EXTRA_JUST_IN_TIME_APPROVALS_ENABLED, false
-                )
+                false // Package Edition does not offer protected-mode JIT approvals.
+
             );
         } catch (Throwable error) {
             recordServiceFailure("service-onStartCommand", error);
@@ -1164,7 +1162,7 @@ public final class AgentRuntimeService extends Service {
 
     private static CodexExecutionMode executionModeFromIntent(Intent intent) {
         if (intent == null) {
-            return ProtectedExecutionMode.get();
+            return FullAccessExecutionMode.get();
         }
         return resolveExecutionMode(
             intent.getStringExtra(EXTRA_EXECUTION_MODE),
@@ -1193,16 +1191,14 @@ public final class AgentRuntimeService extends Service {
         String executionModeId,
         boolean dangerWarningAcknowledged
     ) {
+        // Old launch intents are migrated to the edition's only supported mode.
+        // A sticky service restart must also stay in Full access.
         if (executionModeId == null
-            || CodexExecutionMode.PROTECTED_ID.equals(executionModeId)) {
-            return ProtectedExecutionMode.get();
+            || CodexExecutionMode.PROTECTED_ID.equals(executionModeId)
+            || CodexExecutionMode.COMPATIBILITY_ID.equals(executionModeId)) {
+            return FullAccessExecutionMode.get();
         }
-        if (CodexExecutionMode.COMPATIBILITY_ID.equals(executionModeId)) {
-            return CompatibilityExecutionMode.afterWarningAcknowledged(
-                dangerWarningAcknowledged
-            );
-        }
-        throw new IllegalArgumentException("Unsupported runtime execution mode");
+        throw new IllegalArgumentException("Unsupported Package Edition execution mode");
     }
 
     private static String safeMessage(String message) {

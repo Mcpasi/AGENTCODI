@@ -1,6 +1,6 @@
 <?xml version="1.0" encoding="utf-8"?>
 <resources>
-  <string name="app_name" translatable="false">AGENTCODI</string>
+  <string name="app_name" translatable="false">AGENTCODI Package</string>
 
   <string name="navigation_chats">‹ Chats</string>
   <string name="navigation_settings">Settings</string>
@@ -118,13 +118,13 @@
   <string name="chat_review_starting">Codex is starting the native review…</string>
   <string name="chat_review_active">Codex is reviewing the workspace…</string>
   <string name="chat_review_finishing">The review result is being finalized…</string>
-  <string name="chat_compatibility_mode_active">Compatibility mode is active: there is no effective filesystem isolation.</string>
+  <string name="chat_compatibility_mode_active">Package Edition · Full access: Codex can access all files reachable by this app.</string>
   <string name="chat_update_failed">The chat interface could not be updated: %1$s</string>
   <string name="chat_initialization_failed">AGENTCODI could not initialize the chat interface.</string>
 
   <string name="terminal_title">Terminal</string>
   <string name="terminal_back">‹ Chats</string>
-  <string name="terminal_description">A private interactive shell in the canonical workspace. Terminal output is kept only in memory. Tool activation data lives under workspace/toolchain; CODEX_HOME and credentials stay separate. Never paste credentials into commands.</string>
+  <string name="terminal_description">Interactive shell with Full access. User-installed commands in $HOME/.local/bin take priority over packaged tools. Terminal output stays in memory. Commands can access workspace and account data reachable by the app.</string>
   <string name="terminal_status_checking">Checking terminal runtime…</string>
   <string name="terminal_status_runtime_required">Start the Codex runtime in Settings before opening a terminal.</string>
   <string name="terminal_status_starting">Starting the bounded PTY shell…</string>
@@ -289,15 +289,15 @@
   <string name="settings_initialization_failed">AGENTCODI could not initialize Settings.</string>
 
   <string name="execution_mode_section">EXECUTION MODE</string>
-  <string name="execution_mode_description">The execution mode and approval setting are sent only as native permission and approval settings for threads and turns; the terminal continues to use the selected permission profile. AGENTCODI does not inject system or developer prompts for them. A system service restart without a newly confirmed selection uses the protected default.</string>
+  <string name="execution_mode_description">Package Edition is for experienced users and always runs with Full access. Codex and commands can read, change or delete every file reachable by this app, including account data outside the workspace. Installed packages are available to both Codex and the terminal.</string>
   <string name="execution_mode_protected_name">Protected – default</string>
-  <string name="execution_mode_compatibility_name">Compatibility – experimental</string>
+  <string name="execution_mode_compatibility_name">Full access</string>
   <string name="execution_mode_protected_option">Protected – default\nagentcodi-workspace\nWorkspace only; changes are grouped into one patch with a preview where possible</string>
   <string name="execution_mode_protected_selected">✓ Protected – default\nagentcodi-workspace\nWorkspace only; changes are grouped into one patch with a preview where possible</string>
-  <string name="execution_mode_compatibility_option">Compatibility – experimental\n:danger-full-access\nDirect file editing is possible, but there is no effective filesystem isolation</string>
-  <string name="execution_mode_compatibility_selected">✓ Compatibility – experimental\n:danger-full-access\nDirect file editing is possible, but there is no effective filesystem isolation</string>
+  <string name="execution_mode_compatibility_option">Full access\n:danger-full-access\nAccess to every file reachable by this app</string>
+  <string name="execution_mode_compatibility_selected">✓ Full access\n:danger-full-access\nAccess to every file reachable by this app</string>
   <string name="execution_mode_compatibility_approvals">Confirm file changes and commands</string>
-  <string name="execution_mode_compatibility_approvals_description">Uses Codex’s untrusted approval policy: file changes and commands other than recognized safe reads ask first. :danger-full-access and full filesystem reach remain active.</string>
+  <string name="execution_mode_compatibility_approvals_description">Uses the Codex untrusted approval policy: commands other than recognized safe reads and file changes ask first. Full access remains active; approvals do not isolate installed packages or protect account files.</string>
   <string name="execution_mode_active">Active: %1$s · %2$s</string>
   <string name="execution_mode_next_start">Selected for the next start: %1$s · %2$s</string>
   <string name="execution_mode_change_rejected">The mode could not be changed. Finish the active turn, open request, or terminal first.</string>

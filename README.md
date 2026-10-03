@@ -1,219 +1,86 @@
+> **Package Edition — nur für Power User und erfahrene Nutzer.** Diese Version bietet ausschließlich **Full access**. Codex und selbst installierte Programme können alle für die App erreichbaren Dateien lesen, verändern oder löschen, einschließlich Codex-Kontodaten. Androids App-Isolation gegenüber anderen Apps bleibt bestehen; innerhalb dieser App gibt es keine Workspace-Sandbox.
+>
+> **Entwicklungsstand:** Der Paketpräfix und Full access sind eingerichtet. Die Umstellung auf den Community-App-Server, ein Paketmanager und der schlankere APK-Build stehen noch aus. Siehe [Roadmap](ROADMAP-package-edition.md). Diese Entwicklungslinie wird nicht in `main` gemergt.
+
 <div align="center">
 
-# AGENTCODI
+# AGENTCODI Package Edition
 
-### Codex workflows, native on Android.
+### Codex workflows, native on Android — with user-installed tools.
 
-**Run the Codex app-server, workspace, approvals, terminal and supported development toolchains directly on your Android device.**
-
-[Visit me on my website](https://devsblog.com/)
-
-Now also available on APKPure
-[Download now on APKPure](https://apkpure.com/p/de.agentcodi.app)
-
-Updates appear with a delay on APKPure; updates are always available on GitHub first.
-
-<br>
+[Website](https://devsblog.com/) · [Issues](../../issues) · [Roadmap](ROADMAP-package-edition.md)
 
 ![Android](https://img.shields.io/badge/Android-10%2B-3DDC84?logo=android&logoColor=white)
 ![Architecture](https://img.shields.io/badge/Architecture-ARM64-555555)
-![Codex](https://img.shields.io/badge/Codex%20app--server-0.153.3--agentcodi.2-111111)
-![Source](https://img.shields.io/badge/Source-Java%20%2B%20C%2B%2B-00599C)
+![Target SDK](https://img.shields.io/badge/targetSdk-28-orange)
 ![License](https://img.shields.io/badge/License-Apache%202.0-blue)
-
-  [Releases](../../releases) . [Issues](../../issues) .  [CHANGELOG.md](CHANGELOG.md)
-
-<br>
-
-**No Termux required to use AGENTCODI. No WebView shell. No separate gateway setup.**
 
 </div>
 
----
+## Diese Entwicklungslinie
 
-<p align="center">
-<img src="screenshots/agentcodi_demo_01.gif" width="50%">
-</p>
+Alle Änderungen dieser zweiten Version liegen ausschließlich in `Mcpasi/package-edition`. Die reguläre AGENTCODI-Version wird weiterhin in `main` gepflegt.
 
+AGENTCODI bietet native Codex-Chats, Workspace-Import und Export, Dateivorschau, ein interaktives Terminal und MCP-Verwaltung. Der App-Server läuft lokal; Modellanfragen benötigen weiterhin Internetzugang und OpenAI-Authentifizierung. Die Oberfläche ist auf Deutsch und Englisch verfügbar.
 
-<p align="center">
-  <img src="screenshots/AGENTCODI_1.jpg" width="30%">
-  &nbsp;
-  <img src="screenshots/AGENTCODI_2.jpg" width="30%">
-  &nbsp;
-  <img src="screenshots/AGENTCODI_3.jpg" width="30%">
-</p>
+Die Package Edition setzt bewusst `targetSdk 28` ein, um die Android-Beschränkung für die Ausführung von Dateien in beschreibbarem App-Speicher bei Apps mit Target SDK ab 29 zu vermeiden. Das Mindestniveau bleibt Android 10 / API 29. Ein niedrigeres Target SDK ersetzt keine passende ARM64/Bionic-Laufzeit und macht Termux-Pakete nicht automatisch mit einem anderen Installationspfad kompatibel.
 
----
+## Full access
 
+Full access ist der einzige App-Modus — auch nach einem Neustart des Runtime-Dienstes. Der geschützte Modus und seine Just-in-time-Berechtigungseinstellung werden in dieser Edition nicht angeboten. Der Chat zeigt Full access dauerhaft an.
 
-## Codex development in your pocket
+Optional können Befehle und Dateiänderungen mit der Codex-Richtlinie `untrusted` bestätigt werden. Diese Bestätigungen sind keine Dateisystem-Isolation. Ein installiertes Programm läuft mit den Rechten der App.
 
-AGENTCODI is a native Android app that turns an ARM64 phone or tablet into a workspace for Codex.
+Workspace, Benutzer-Home und `CODEX_HOME` bleiben als Verzeichnisse getrennt. Diese organisatorische Trennung schützt Kontodaten nicht vor Programmen im selben App-Prozess. Import, Vorschau und Export verwenden weiterhin ihre eigenen Dateiprüfungen.
 
-Tell Codex what you want to build, change or understand. You can follow its work live, answer questions, approve actions, inspect files and use a terminal without leaving the app.
+## Eigene Programme
 
-The Codex app-server, workspace, terminal and included command-line tools run on your device. The AI model is not part of the APK: model requests still require an internet connection and valid OpenAI authentication.
+Der beschreibbare Installationspräfix ist `$PREFIX = $HOME/.local`. Beim Start legt AGENTCODI `bin`, `lib`, `include`, `share`, `etc` und `tmp` an; vorhandene Installationen bleiben erhalten.
 
----
+Codex-Kommandos und das Terminal erhalten dieselbe Suchreihenfolge:
 
-## What you can do
+```text
+PATH=$PREFIX/bin:<bisherige APK-Tool-Aliase>:/system/bin:/system/xbin
+LD_LIBRARY_PATH=$PREFIX/lib:<native APK-Bibliotheken>
+```
 
-- **Work with Codex through native chat.** Start or resume conversations, stream progress, add guidance while Codex is working, stop a turn and request a focused review.
-- **See what is happening.** Messages, plans, reasoning summaries, commands, file changes and tool activity appear as clear cards in the conversation.
-- **Manage real workspace files.** Import documents from Android, browse folders, preview text and images, inspect binary files and export a file or folder ZIP through the system document picker.
-- **Use a real terminal.** Run interactive commands in the active workspace with keyboard input, live output and resize support.
-- **Enable useful development tools.** Node.js, npm, Python and ripgrep are packaged with the app and can be activated when needed.
-- **Choose how Codex works.** Select a supported model and reasoning level, view account quota information and respond to approval or input requests in native dialogs.
-- **Bring in Gmail and GitHub.** Connect the hosted Codex apps in your browser, return to AGENTCODI and use either service with your next message.
-- **Inspect advanced capabilities.** View available MCP servers, tools, skills and apps. Expert Mode can manage supported MCP server settings without exposing credential fields.
+Eigene Programme haben damit Vorrang vor den bisherigen Tools. Die Terminal-Shell definiert keine festen Funktionen mehr für `node`, `npm`, `python` oder `rg`, die diesen Vorrang überschreiben könnten.
 
----
+Für einen ersten Gerätetest kann ein eigenes Shell-Programm installiert werden:
 
-## A simple workflow
+```sh
+printf '#!/system/bin/sh\nprintf "package-edition-ok\\n"\n' > "$PREFIX/bin/package-check"
+chmod 700 "$PREFIX/bin/package-check"
+package-check
+```
 
-1. Open AGENTCODI and sign in with ChatGPT or an OpenAI API key.
-2. Start a conversation and describe the result you want.
-3. Follow the live activity and respond when Codex asks for approval or more information.
-4. Open the workspace to inspect, preview or export the result.
+Anschließend kann Codex `package-check` als normalen Befehl ausführen. Das ist ein Funktionstest des Installationspfads; ein `pkg`-/APT-Paketmanager ist noch nicht enthalten.
 
-Conversations can be resumed later, archived, restored or permanently deleted after confirmation. The interface is available in English and German, with light and dark themes.
+Native Pakete müssen für Android ARM64/Bionic gebaut sein und den tatsächlichen Präfix unterstützen. Bestehende Termux-DEBs enthalten häufig feste Pfade wie `/data/data/com.termux/files/usr`. Einfaches Entpacken nach `$PREFIX` reicht dann nicht aus. Paketquellen und Bootstrap werden im nächsten Bauabschnitt festgelegt.
 
----
+Die bisherigen mitgelieferten Node.js-, npm-, Python- und ripgrep-Laufzeiten bleiben vorerst als Übergang erhalten. Ihre Aktivierungs- und Laufzeitprüfungen gelten weiterhin; insbesondere sind die alten npm-/Python-Wrapper noch keine allgemeine Paketverwaltung.
 
-## Native on Android
+## Runtime und Build
 
-AGENTCODI is not a remote desktop or a browser wrapper. Its interface is written for Android, and the packaged Codex runtime is started locally inside the app.
+Der aktive Build verwendet vorläufig weiterhin den gepinnten Mcpasi-Fork `0.153.3-agentcodi.2`. Als Migrationsziel wurde der Community-Ursprung [DioNanos/codex-termux](https://github.com/DioNanos/codex-termux) mit Release [v0.156.1-termux.1](https://github.com/DioNanos/codex-termux/releases/tag/v0.156.1-termux.1) geprüft. Der Austausch erfordert neue Artefakt- und Schema-Pins sowie App-Server-Kompatibilitätstests; er ist noch nicht umgesetzt.
 
-| Runs on your Android device | Requires an online service |
-|---|---|
-| Native app interface | Codex model requests |
-| Codex app-server | OpenAI authentication |
-| Private workspace and file browser | Hosted Gmail and GitHub capabilities, when selected |
-| Terminal and packaged tools | |
-
-Gmail and GitHub sign-in is completed in the system browser. AGENTCODI does not collect or store provider passwords or tokens.
-
----
-
-## Android sandbox
-
-Protected mode uses the Android sandbox backend provided by AGENTCODI's packaged Codex runtime.
-
-The sandbox is implemented in the [AGENTCODI Codex Termux fork](https://github.com/Mcpasi/codex-termux) and is activated whenever Codex commands run in Protected mode. Codex can read and modify files inside the permitted workspace while filesystem access outside the granted boundary is blocked.
-
-Enforcement happens below the agent and approval layer through a seccomp and ptrace supervisor that monitors filesystem-relevant system calls.
-
-Before a sandboxed command is allowed to run, the runtime verifies that syscall interception is actually working on the device. If the protection cannot be verified, execution is refused instead of silently falling back to unrestricted execution.
-
-Compatibility mode intentionally runs without this effective filesystem isolation and is clearly marked as a less restricted execution mode.
-
----
-
-## Safety and control
-
-AGENTCODI keeps its workspace in private app storage and separates it from Codex account data.
-
-- **Protected mode is the default.** Codex works only inside the private workspace, and file changes are grouped into a preview where possible.
-- **Approvals stay with you.** Supported command, file-change and input requests are shown in native dialogs and are never approved automatically.
-- **Import and export are explicit.** Files enter or leave the workspace only after you choose them through Android's document picker.
-- **Compatibility mode is clearly marked.** This experimental mode removes effective filesystem isolation for files reachable by the app. It requires an immediate warning and acknowledgement, remains visibly active and is not remembered after an unconfirmed restart.
-- **Credentials stay separate.** Authentication is handled through the Codex account flow, and sensitive values are kept out of the workspace and app history.
-
----
-
-## Requirements
-
-| | |
-|---|---|
-| Android | Android 10 / API 29 or newer |
-| Device | ARM64 |
-| Connection | Internet access for Codex requests |
-| Authentication | ChatGPT sign-in or OpenAI API key |
-| Current release line | AGENTCODI 0.7.6-preview |
-| Packaged Codex runtime | 0.153.3.agentcodi.2 |
-
----
-
-## Get started
-
-1. Download an APK from [Releases](../../releases).
-2. Install it directly on a supported Android device.
-3. Open **Settings** and authenticate with ChatGPT or an OpenAI API key.
-4. Return to chat, start a new conversation and tell Codex what you want to do.
-
-AGENTCODI is under active development. Reproducible bug reports are welcome through [GitHub Issues](../../issues).
-
----
-
-## Build from source
-
-### GitHub Actions
-
-GitHub Actions runs the Java and C++ tests and architecture checks automatically on pushes and pull requests. Updates to `main` also build a signed ARM64 debug APK and check the packaged runtime, including Protected mode.
-
-You can build through GitHub without setting up Termux or Ubuntu on your device. GitHub prepares the build environment and verifies the required dependencies.
-
-To try the latest development build:
-
-1. Open the [APK workflow](https://github.com/Mcpasi/AGENTCODI/actions/workflows/apk.yml).
-2. Select a successful run for `main`.
-3. Download `agentcodi-debug-apk` from **Artifacts**, extract the ZIP and install the APK on a supported Android device.
-
-GitHub requires you to sign in to download build artifacts. These APKs use debug signing and are intended for development and testing. Published versions are available from [Releases](../../releases).
-
-To start a build manually, open the APK workflow, select **Run workflow** and choose `main`. Clear **Only check the container, do not build** to produce an APK; leaving it selected checks the build environment only.
-
-### Local builds
-
-Local APK builds use the project's Android build environment. Run the tests before building:
+Die bestehenden GitHub-Tests laufen bei jedem Branch-Push. Der APK-Workflow kann manuell für `Mcpasi/package-edition` ausgeführt werden. Die komplette Runtime-/Build-Migration ist vor Veröffentlichung eines Package-Edition-APKs zu erledigen.
 
 ```sh
 ./scripts/test.sh
 ./scripts/build-debug-apk.sh
 ```
 
-Production builds use the separate release script and externally supplied signing credentials:
+Die Build-Umgebung ist in [.github/ci/README.md](.github/ci/README.md) dokumentiert. Dort beschriebene Prüfungen für den bisherigen Fork und geschützten Modus sind derzeit noch Teil des Übergangsbuilds.
 
-```sh
-./scripts/build-release-apk.sh
-```
+Die Edition verwendet momentan dieselbe Application-ID `de.agentcodi.app` wie die reguläre Version und kann daher nicht parallel installiert werden. Eine getrennte Installationsidentität ist Bestandteil der Roadmap. Vor Wechsel zwischen den Entwicklungslinien eigene Dateien sichern. Neuere Android-Versionen können beim Installieren auf das niedrige Target SDK hinweisen.
 
-For build environment and CI setup details, see the [build documentation](.github/ci/README.md). Device installation and behavior should also be validated on physical Android hardware.
+## Lizenz
 
-To increment the app version or update the pinned Codex runtime:
+Originaler Java-/C++-App-Code, Tests, Ressourcen, Build-Automation und Dokumentation:
 
-```sh
-./scripts/bump-version.sh
-./scripts/update-codex-runtime.sh
-```
+Copyright 2026 Pascal (Mc Pasi). [Apache License 2.0](LICENSE).
 
-Update the related documentation and run the tests and APK build after changing the version or runtime.
+Lizenzen und Hinweise zu weiterhin enthaltenen Drittanbieterkomponenten stehen in [NOTICE.md](NOTICE.md) und in der App.
 
----
-
-## License
-
-AGENTCODI LICENSE
-
-AGENTCODI original Java/C++ application code, tests, resources, build
-automation, and documentation:
-
-Copyright 2026 Pascal (Mc Pasi)
-
-
-AGENTCODI's original application code, tests, resources, build automation and documentation are licensed under the [Apache License 2.0](LICENSE).
-
-Licenses and notices for bundled third-party components are listed in [NOTICE.md](NOTICE.md) and in the app's legal notices screen.
-
----
-
-<div align="center">
-
-### Build with Codex directly from Android.
-
-**AGENTCODI**
-
-</div>
-
-AGENTCODI is an independent open-source project and is not affiliated with or endorsed by OpenAI.
+AGENTCODI ist ein unabhängiges Open-Source-Projekt und weder mit OpenAI verbunden noch von OpenAI unterstützt.

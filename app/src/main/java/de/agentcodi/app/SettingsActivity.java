@@ -100,7 +100,7 @@ public final class SettingsActivity extends Activity {
     private RuntimePhase lastRuntimePhase;
     private long lastSessionRevision = Long.MIN_VALUE;
     private boolean launchAfterNotificationPermission;
-    private String pendingLaunchExecutionModeId = CodexExecutionMode.PROTECTED_ID;
+    private String pendingLaunchExecutionModeId = CodexExecutionMode.COMPATIBILITY_ID;
     private boolean pendingLaunchDangerWarningAcknowledged;
     private boolean pendingLaunchCompatibilityApprovalsEnabled;
     private boolean pendingLaunchJustInTimeApprovalsEnabled;
@@ -757,7 +757,7 @@ public final class SettingsActivity extends Activity {
 
     private void requestPermissionAndLaunchRuntime() {
         if (executionModeSettingsCard == null) {
-            pendingLaunchExecutionModeId = CodexExecutionMode.PROTECTED_ID;
+            pendingLaunchExecutionModeId = CodexExecutionMode.COMPATIBILITY_ID;
             pendingLaunchDangerWarningAcknowledged = false;
             pendingLaunchCompatibilityApprovalsEnabled = false;
             pendingLaunchJustInTimeApprovalsEnabled = false;

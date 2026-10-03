@@ -27,6 +27,8 @@ public final class WorkspaceLayoutTest {
 
     public static int run() throws Exception {
         createsStablePrivateLayout();
+        preservesUserInstalledPackages();
+        rejectsSymbolicPackagePrefix();
         preparesPackagedToolAliases();
         rejectsUnexpectedPackagedToolEntries();
         preparesVerifiedPackagedToolRuntime();
@@ -61,7 +63,7 @@ public final class WorkspaceLayoutTest {
         rejectsPngBytesAfterIend();
         rejectsMalformedPngDuringCopy();
         rejectsOversizedWorkspaceImage();
-        return 35;
+        return 37;
     }
 
     private static void createsStablePrivateLayout() throws Exception {
@@ -114,6 +116,55 @@ public final class WorkspaceLayoutTest {
             );
         } finally {
             deleteRecursively(temporary);
+        }
+    }
+
+    private static void preservesUserInstalledPackages() throws Exception {
+        Path base = Files.createTempDirectory("agentcodi-package-prefix-");
+        try {
+            WorkspaceLayout first = WorkspaceLayout.create(base.toFile());
+            Path prefix = first.getPackagePrefix().toPath();
+            TestSupport.assertEquals(first.getHome().toPath().resolve(".local"),
+                prefix, "package prefix below home");
+            for (String name : new String[] {"bin", "lib", "include", "share", "etc", "tmp"}) {
+                TestSupport.assertTrue(Files.isDirectory(prefix.resolve(name)),
+                    "package prefix directory " + name);
+            }
+            Path program = prefix.resolve("bin/user-tool");
+            byte[] contents = "#!/system/bin/sh\nprintf user-package\n"
+                .getBytes(java.nio.charset.StandardCharsets.US_ASCII);
+            Files.write(program, contents);
+            TestSupport.assertTrue(program.toFile().setExecutable(true, true),
+                "user package can be marked executable");
+            WorkspaceLayout second = WorkspaceLayout.create(base.toFile());
+            TestSupport.assertEquals(prefix, second.getPackagePrefix().toPath(),
+                "prefix stays stable after restart");
+            TestSupport.assertTrue(Arrays.equals(contents, Files.readAllBytes(program)),
+                "startup preserves user-installed contents");
+            TestSupport.assertTrue(program.toFile().canExecute(),
+                "startup preserves executable permissions");
+            TestSupport.assertFalse(prefix.startsWith(first.getCodexHome().toPath()),
+                "packages stay outside account storage");
+        } finally {
+            deleteRecursively(base);
+        }
+    }
+
+    private static void rejectsSymbolicPackagePrefix() throws Exception {
+        Path base = Files.createTempDirectory("agentcodi-package-link-");
+        Path destination = Files.createTempDirectory("agentcodi-package-destination-");
+        try {
+            Path home = Files.createDirectories(base.resolve("agentcodi/home"));
+            Files.createSymbolicLink(home.resolve(".local"), destination);
+            TestSupport.expectThrows(IOException.class, new TestSupport.ThrowingRunnable() {
+                @Override
+                public void run() throws Exception {
+                    WorkspaceLayout.create(base.toFile());
+                }
+            }, "package prefix must be a real private directory");
+        } finally {
+            deleteRecursively(base);
+            deleteRecursively(destination);
         }
     }
 

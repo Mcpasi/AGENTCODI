@@ -2090,20 +2090,20 @@ int decode_wait_status(int status) {
 }
 
 std::vector<std::string> child_environment(const ProcessConfig& config) {
-  // Only policy-enforcing aliases are command-searchable. The native library
-  // directory remains available to Android's dynamic linker, but none of its
-  // real tool ELFs is exposed as a second command entry point.
+  // User-installed commands take precedence over the transitional APK tools.
+  const std::string prefix = config.home_directory + "/.local";
   const std::string path =
-      config.tool_binary_directory + ":/system/bin:/system/xbin";
+      prefix + "/bin:" + config.tool_binary_directory + ":/system/bin:/system/xbin";
   return {
       "HOME=" + config.home_directory,
+      "PREFIX=" + prefix,
       "CODEX_HOME=" + config.codex_home,
       "TMPDIR=" + config.temporary_directory,
       "TMP=" + config.temporary_directory,
       "TEMP=" + config.temporary_directory,
       "PATH=" + path,
       "SHELL=" + std::string(kSystemShell),
-      "LD_LIBRARY_PATH=" + config.library_directory,
+      "LD_LIBRARY_PATH=" + prefix + "/lib:" + config.library_directory,
       "HISTFILE=/dev/null",
       "NODE_REPL_HISTORY=/dev/null",
       "SSL_CERT_DIR=/system/etc/security/cacerts",
@@ -2289,17 +2289,19 @@ InboundLineCompactionStatus MaterializeAndCompactInboundImagePayloads(
 }
 
 std::vector<std::string> CodexAppServerArguments(const ProcessConfig& config) {
+  const std::string prefix = config.home_directory + "/.local";
   const std::string child_path =
-      config.tool_binary_directory + ":/system/bin:/system/xbin";
+      prefix + "/bin:" + config.tool_binary_directory + ":/system/bin:/system/xbin";
   const std::string shell_environment =
       "shell_environment_policy={inherit=\"none\","
       "ignore_default_excludes=false,set={PATH=" + toml_string(child_path)
       + ",SHELL=" + toml_string(kSystemShell)
       + ",HOME=" + toml_string(config.home_directory)
+      + ",PREFIX=" + toml_string(prefix)
       + ",TMPDIR=" + toml_string(config.temporary_directory)
       + ",TMP=" + toml_string(config.temporary_directory)
       + ",TEMP=" + toml_string(config.temporary_directory)
-      + ",LD_LIBRARY_PATH=" + toml_string(config.library_directory)
+      + ",LD_LIBRARY_PATH=" + toml_string(prefix + "/lib:" + config.library_directory)
       + ",HISTFILE=\"/dev/null\""
       + ",NODE_REPL_HISTORY=\"/dev/null\""
       + ",SSL_CERT_DIR=\"/system/etc/security/cacerts\""
@@ -2356,7 +2358,7 @@ std::vector<std::string> CodexAppServerArguments(const ProcessConfig& config) {
       "-c",
       "model_providers.agentcodi-openai-http.supports_standalone_web_search=true",
       "-c",
-      "default_permissions=\"agentcodi-workspace\"",
+      "default_permissions=\":danger-full-access\"",
       "-c",
       "permissions.agentcodi-workspace.description=\"AGENTCODI private workspace\"",
       "-c",

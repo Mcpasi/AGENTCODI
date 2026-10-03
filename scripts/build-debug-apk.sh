@@ -4,12 +4,13 @@ set -Eeuo pipefail
 SCRIPT_DIR="$(cd -- "$(dirname -- "$0")" && pwd -P)"
 PROJECT_ROOT="$(cd -- "$SCRIPT_DIR/.." && pwd -P)"
 
-APP_NAME="AGENTCODI"
+APP_NAME="AGENTCODI Package"
 APP_ID="de.agentcodi.app"
 APP_VERSION="0.7.6-preview.1"
 VERSION_CODE="87"
 MIN_SDK="29"
-TARGET_SDK="35"
+# Package Edition allows execution of user-installed files in private app storage.
+TARGET_SDK="28"
 ABI="arm64-v8a"
 BUILD_VARIANT="${AGENTCODI_BUILD_VARIANT:-debug}"
 BOOTSTRAP_LAYOUT="${AGENTCODI_BOOTSTRAP_LAYOUT:-nested}"

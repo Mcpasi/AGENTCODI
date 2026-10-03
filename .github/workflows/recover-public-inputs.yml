@@ -27,6 +27,7 @@ jobs:
               -H "Authorization: Bearer $GH_TOKEN" \
               -o "$archive" \
               "https://api.github.com/repos/termux/termux-packages/actions/artifacts/$artifact/zip"
+            unzip -Z1 "$archive"
             entry="$(unzip -Z1 "$archive" | awk -v name="$name" '$0 == name || $0 ~ ("/" name "$") {print}')"
             test -n "$entry"
             unzip -p "$archive" "$entry" > "/tmp/$name"

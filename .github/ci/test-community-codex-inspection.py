@@ -79,5 +79,17 @@ class ArchiveValidationTest(unittest.TestCase):
         self.assertFalse(self.destination.exists())
 
 
+class ElfSearchPathTest(unittest.TestCase):
+    def test_repeated_origin_entries_keep_the_same_lookup_directory(self):
+        self.assertTrue(inspection.origin_only_search_path(["$ORIGIN"]))
+        self.assertTrue(inspection.origin_only_search_path(["$ORIGIN:$ORIGIN"]))
+
+    def test_missing_empty_or_external_entries_are_not_origin_only(self):
+        for paths in ([], [""], ["$ORIGIN:"], [":$ORIGIN"],
+                      ["$ORIGIN:/data/data/com.termux/files/usr/lib"], ["."]):
+            with self.subTest(paths=paths):
+                self.assertFalse(inspection.origin_only_search_path(paths))
+
+
 if __name__ == "__main__":
     unittest.main()

@@ -103,3 +103,29 @@ jobs:
 
       - name: Compile Android sources and resources
         run: .github/ci/compile-android-sources.sh
+
+  community-codex:
+    name: Community Codex release inspection
+    if: github.ref == 'refs/heads/Mcpasi/package-edition'
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    steps:
+      - name: Check out the repository
+        uses: actions/checkout@v4
+
+      - name: Check the archive inspection driver
+        run: |
+          python3 -m py_compile .github/ci/inspect-community-codex.py
+          python3 .github/ci/test-community-codex-inspection.py
+
+      - name: Download, verify and inspect the pinned Community release
+        run: |
+          python3 .github/ci/inspect-community-codex.py \
+            --output "$RUNNER_TEMP/community-codex-${{ github.run_id }}-${{ github.run_attempt }}"
+
+      - name: Upload the static inspection report
+        uses: actions/upload-artifact@v4
+        with:
+          name: community-codex-release-inspection
+          path: ${{ runner.temp }}/community-codex-${{ github.run_id }}-${{ github.run_attempt }}/report/
+          if-no-files-found: error

@@ -31,6 +31,7 @@ Der eigene Fork basiert laut GitHub auf `DioNanos/codex-termux`. Geprüftes Comm
 
 - Repository: https://github.com/DioNanos/codex-termux
 - Release: `v0.156.1-termux.1`, Upstream `rust-v0.156.1`
+- Quellcommit des Release-Tags: `ea762071ec4acbf1531fcc7daf47524836f70a09`
 - Archiv: `mmmbuto-codex-cli-termux-0.156.1-termux.1.tgz`
 - SHA-256 laut GitHub-Release-Asset-Digest: `44cee2f3a4a110fd79d4f7d61378d46fd72406f45cffb3163e809d63e86d946a`
 
@@ -75,4 +76,13 @@ Erst nach funktionierendem Bootstrap die bisher enthaltenen nutzerinstallierbare
 
 ## Verifikation dieses Bauabschnitts
 
-Die Änderungen werden ausschließlich über den GitHub Connector committed und über die vorhandenen GitHub-Actions-Hosttests geprüft. Ein vollständiger Android-Build und echte Gerätetests sind separat zu verifizieren. Der Community-Runtime-Wechsel, Paketmanager und verkleinerte Build sind ausdrücklich offen.
+Erfolgreicher [GitHub-Actions-Lauf](https://github.com/Mcpasi/AGENTCODI/actions/runs/37154718553) für Commit `801f44d82fe5aa4398d12395383a0806bb89ec41`:
+
+- Architekturchecks erfolgreich.
+- 309 Java-Tests erfolgreich.
+- Alle 8 portablen C++-Testsuiten erfolgreich, einschließlich tatsächlicher Ausführung eines selbst installierten Programms über den Supervisor.
+- Android-Java-Quellen und Ressourcen gegen API 35 erfolgreich kompiliert; Target SDK 28, Minimum SDK 29 und Editions-Anzeigename geprüft.
+
+Zusätzlich deckt ein Terminal-Shell-Test den Vorrang selbst installierter Programme gegenüber früheren festen Shell-Funktionen ab.
+
+Alle Repository-Zugriffe und Änderungen erfolgen ausschließlich über den GitHub Connector. Ein vollständiger Android-APK-Build und echte Gerätetests sind noch offen. Der Community-Runtime-Wechsel, Paketmanager und verkleinerte Build sind ausdrücklich offen.

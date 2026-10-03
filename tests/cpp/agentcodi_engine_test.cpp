@@ -1833,6 +1833,13 @@ int main(int argc, char* argv[]) {
       int shell_exit = -1;
       expect(
           run_toolchain_shell(
+              argv[1], {"-c", "PATH=" + package_prefix + "/bin:/system/bin node"},
+              workspace, toolchain, &shell_output, &shell_exit)
+              && shell_exit == 0
+              && shell_output == "user-package-selected\n",
+          "terminal shell resolves the installed Node instead of a fixed shell function");
+      expect(
+          run_toolchain_shell(
               argv[1], {"--toolchain", "list"}, workspace, toolchain,
               &shell_output, &shell_exit)
               && shell_exit == 0

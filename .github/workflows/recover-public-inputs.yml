@@ -27,10 +27,10 @@ jobs:
               -H "Authorization: Bearer $GH_TOKEN" \
               -o "$archive" \
               "https://api.github.com/repos/termux/termux-packages/actions/artifacts/$artifact/zip"
-            unzip -Z1 "$archive"
-            entry="$(unzip -Z1 "$archive" | awk -v name="$name" '$0 == name || $0 ~ ("/" name "$") {print}')"
+            unzip -p "$archive" '*.tar' > "/tmp/${name}.tar"
+            entry="$(tar -tf "/tmp/${name}.tar" | awk -v name="$name" '$0 == name || $0 ~ ("/" name "$") {print}')"
             test -n "$entry"
-            unzip -p "$archive" "$entry" > "/tmp/$name"
+            tar -xOf "/tmp/${name}.tar" "$entry" > "/tmp/$name"
             printf '%s  %s\n' "$sha" "/tmp/$name" | sha256sum --check
             echo "PUBLIC_BASE64_BEGIN $name"
             base64 -w 160 "/tmp/$name"
@@ -39,3 +39,10 @@ jobs:
           recover 8567576638 nodejs-lts_24.18.0_aarch64.deb 6456b78aba9e0007de7a4c580d2b34bb3865145bebe06e75273152f8dcba4236
           recover 8746673348 npm_11.19.0_all.deb 385a051111f66c56d0564e6809244f1740427805a78d2e5a5dc470fb420832f8
           recover 8126700666 patchelf_0.19.1_aarch64.deb a08bea49b3c9c3bf449ee0c7b7ee9c97a9f3ab84ae06ace08a564d0903a23c3f
+          curl --fail --location --silent --show-error \
+            -o /tmp/patchelf-0.19.1-source.tar.gz \
+            https://github.com/NixOS/patchelf/archive/refs/tags/0.19.1.tar.gz
+          echo '39cd33c4810f10ec479d22b8ee6cf8e7acb77c356f3864e3270e2d45f7d23448  /tmp/patchelf-0.19.1-source.tar.gz' | sha256sum --check
+          echo 'PUBLIC_BASE64_BEGIN patchelf-0.19.1-source.tar.gz'
+          base64 -w 160 /tmp/patchelf-0.19.1-source.tar.gz
+          echo 'PUBLIC_BASE64_END patchelf-0.19.1-source.tar.gz'

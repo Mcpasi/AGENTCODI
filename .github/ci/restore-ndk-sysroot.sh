@@ -36,7 +36,6 @@ unzip -q "$WORK_DIR/ndk.zip" \
   'android-ndk-r29/toolchains/llvm/prebuilt/linux-x86_64/sysroot/usr/lib/aarch64-linux-android/24/*.o' \
   'android-ndk-r29/toolchains/llvm/prebuilt/linux-x86_64/sysroot/usr/lib/aarch64-linux-android/libcompiler_rt-extras.a' \
   'android-ndk-r29/toolchains/llvm/prebuilt/linux-x86_64/sysroot/usr/lib/aarch64-linux-android/libc++experimental.a' \
-  'android-ndk-r29/toolchains/llvm/prebuilt/linux-x86_64/sysroot/usr/lib/aarch64-linux-android/libc++_shared.so' \
   'android-ndk-r29/toolchains/llvm/prebuilt/linux-x86_64/lib/clang/21/lib/linux/aarch64/libatomic.a' \
   'android-ndk-r29/toolchains/llvm/prebuilt/linux-x86_64/lib/clang/21/lib/linux/aarch64/libunwind.a' \
   -d "$WORK_DIR"
@@ -88,21 +87,3 @@ CONTROL
 mkdir -p "$OUTPUT_DIR"
 dpkg-deb --build --root-owner-group -Zxz "$PACKAGE_ROOT" \
   "$OUTPUT_DIR/ndk-sysroot_29-3_aarch64.deb"
-
-# libc++ 29 left the rolling pool as well. Recreate its installation package
-# from the same verified NDK, so LLVM does not pull in the NDK r30 runtime.
-LIBCXX_ROOT="$WORK_DIR/libcxx-package"
-mkdir -p "$LIBCXX_ROOT$PREFIX/lib" "$LIBCXX_ROOT/DEBIAN"
-install -m 700 "$NDK_ROOT/sysroot/usr/lib/aarch64-linux-android/libc++_shared.so" \
-  "$LIBCXX_ROOT$PREFIX/lib/libc++_shared.so"
-printf '%s  %s\n' '0c52cfab2df0d957d8b346a2bdc5ae8d71feca2591924d77e1cd724d5bf74352' \
-  "$LIBCXX_ROOT$PREFIX/lib/libc++_shared.so" | sha256sum --check
-cat > "$LIBCXX_ROOT/DEBIAN/control" <<'CONTROL'
-Package: libc++
-Version: 29
-Architecture: aarch64
-Maintainer: AGENTCODI contributors
-Description: Android NDK r29 C++ runtime reconstructed for AGENTCODI CI
-CONTROL
-dpkg-deb --build --root-owner-group -Zxz "$LIBCXX_ROOT" \
-  "$OUTPUT_DIR/libc++_29_aarch64.deb"

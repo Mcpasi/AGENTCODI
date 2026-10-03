@@ -51,8 +51,7 @@ jobs:
         run: |
           set -Eeuo pipefail
           mkdir -p .cache/android/reconstructed/package/bin
-          curl --fail --location --retry 3 --retry-delay 2 \
-            -o /tmp/agentcodi-official.apk "$OFFICIAL_APK_URL"
+          cp .cache/android/agentcodi-libcxx-preview-0.7.6.apk /tmp/agentcodi-official.apk
           echo "$OFFICIAL_APK_SHA256  /tmp/agentcodi-official.apk" | sha256sum -c -
 
           unzip -p /tmp/agentcodi-official.apk \

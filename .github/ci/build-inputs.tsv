@@ -9,7 +9,7 @@ aapt2-16.0.0.4-2-aarch64.deb	ae91c1c1cf743098a4d847e6d44e37a8fd8b83e00548ad7e50e
 abseil-cpp-20260526.0-aarch64.deb	e489fac652cddc39d9436141e627285f1034a545a06fbb19c420514a419ad877	download	https://grimler.se/termux/termux-main/pool/main/a/abseil-cpp/abseil-cpp_20260526.0_aarch64.deb
 libprotobuf-35.1-aarch64.deb	a1ba7c7f0e5903a2134662653d3e7b9ffceaa78bdd00e07ac985e2d313ebc738	download	https://grimler.se/termux/termux-main/pool/main/libp/libprotobuf/libprotobuf_2:35.1_aarch64.deb
 fmt-11.2.0-1-aarch64.deb	dad595afcb3b1096d725c6772c0c5531764caa5841affba3c533c6298a32ab08	download	https://grimler.se/termux/termux-main/pool/main/f/fmt/fmt_1:11.2.0-1_aarch64.deb
-android-ndk-r29-linux.zip	4abbbcdc842f3d4879206e9695d52709603e52dd68d3c1fff04b3b5e7a308ecf	download	https://dl.google.com/android/repository/android-ndk-r29-linux.zip
+agentcodi-libcxx-preview-0.7.6.apk	62b91245fd8ed0aa38598b8f755695d93648307d69fd861c26549ba624b0cebd	download	https://github.com/Mcpasi/AGENTCODI/releases/download/preview-0.7.6/AGENTCODI-0.7.6-preview.1-arm64-v8a-release.apk
 libexpat-2.8.2-aarch64.deb	6f5eb2fd14b6fe4d7bb79bf7f0f3d7fc838fea07402477a172b147304366b372	download	https://grimler.se/termux/termux-main/pool/main/libe/libexpat/libexpat_2.8.2_aarch64.deb
 libpng-1.6.58-aarch64.deb	e47937405c72734867513cf0c63d27f36400d462666b65dfada984667d7228c4	download	https://grimler.se/termux/termux-main/pool/main/libp/libpng/libpng_1.6.58_aarch64.deb
 libzopfli-1.0.3-5-aarch64.deb	95cd7cb2209fbafb25825f5fcd4f86f021512175608e038b1c3d8d3fa0a4fe40	download	https://grimler.se/termux/termux-main/pool/main/libz/libzopfli/libzopfli_1.0.3-5_aarch64.deb

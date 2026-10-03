@@ -258,11 +258,13 @@ Node.js 24.18.0, npm 11.19.0 and patchelf 0.19.1. Verified downloads are cached.
 Upstream Actions artifacts can expire; a future unavailable revision must be
 replaced with another verified source or an updated runtime pin set.
 
-The superseded libc++ 29 package is replaced by the public Android NDK r29
-archive. Its SHA-256 and extracted ARM64 runtime are pinned in the build
-script. The container reconstructs both ndk-sysroot 29-3 and a libc++ 29
-installation package from this verified NDK, preserving the LLVM 21.1.8
-build environment. The APK uses the same verified NDK runtime directly.
+The superseded libc++ 29 package is replaced by the already stripped and
+ELF-cleaned NDK r29 runtime from the pinned public preview APK. Both the APK
+and extracted ARM64 library have fixed SHA-256 checks in the build script.
+Using the packaged library preserves its Android linker compatibility; the
+raw NDK library contains unsupported dynamic tags on the container's linker.
+The pinned Termux base image already supplies libc++ 29 for the compiler.
+The container continues to reconstruct ndk-sysroot 29-3 from the verified NDK.
 
 The locally built Codex archive is reconstructed from the pinned official
 preview APK. Each extracted binary, licence and notice retains its existing

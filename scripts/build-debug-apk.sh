@@ -172,11 +172,11 @@ PROTOBUF_URL="https://grimler.se/termux/termux-main/pool/main/libp/libprotobuf/l
 PROTOBUF_SHA256="a1ba7c7f0e5903a2134662653d3e7b9ffceaa78bdd00e07ac985e2d313ebc738"
 FMT_URL="https://grimler.se/termux/termux-main/pool/main/f/fmt/fmt_1:11.2.0-1_aarch64.deb"
 FMT_SHA256="dad595afcb3b1096d725c6772c0c5531764caa5841affba3c533c6298a32ab08"
-# Termux removes superseded libc++ packages. The runtime is supplied by NDK r29;
-# use its pinned public archive directly instead of depending on the old .deb.
-LIBCXX_URL="https://dl.google.com/android/repository/android-ndk-r29-linux.zip"
-LIBCXX_SHA256="4abbbcdc842f3d4879206e9695d52709603e52dd68d3c1fff04b3b5e7a308ecf"
-LIBCXX_SHARED_SHA256="0c52cfab2df0d957d8b346a2bdc5ae8d71feca2591924d77e1cd724d5bf74352"
+# Termux removes superseded libc++ packages. Recover the already stripped and
+# ELF-cleaned NDK r29 runtime from the pinned public preview APK.
+LIBCXX_URL="https://github.com/Mcpasi/AGENTCODI/releases/download/preview-0.7.6/AGENTCODI-0.7.6-preview.1-arm64-v8a-release.apk"
+LIBCXX_SHA256="62b91245fd8ed0aa38598b8f755695d93648307d69fd861c26549ba624b0cebd"
+LIBCXX_SHARED_SHA256="e09c2f45cf4cf8ae574f94b6c2650d99ead0d332d5396f6613f062a2d2d73540"
 EXPAT_URL="https://grimler.se/termux/termux-main/pool/main/libe/libexpat/libexpat_2.8.2_aarch64.deb"
 EXPAT_SHA256="6f5eb2fd14b6fe4d7bb79bf7f0f3d7fc838fea07402477a172b147304366b372"
 PNG_URL="https://grimler.se/termux/termux-main/pool/main/libp/libpng/libpng_1.6.58_aarch64.deb"
@@ -428,7 +428,7 @@ AAPT2_ARCHIVE="$CACHE_DIR/aapt2-$AAPT2_VERSION-aarch64.deb"
 ABSEIL_ARCHIVE="$CACHE_DIR/abseil-cpp-20260526.0-aarch64.deb"
 PROTOBUF_ARCHIVE="$CACHE_DIR/libprotobuf-35.1-aarch64.deb"
 FMT_ARCHIVE="$CACHE_DIR/fmt-11.2.0-1-aarch64.deb"
-LIBCXX_ARCHIVE="$CACHE_DIR/android-ndk-r29-linux.zip"
+LIBCXX_ARCHIVE="$CACHE_DIR/agentcodi-libcxx-preview-0.7.6.apk"
 EXPAT_ARCHIVE="$CACHE_DIR/libexpat-2.8.2-aarch64.deb"
 PNG_ARCHIVE="$CACHE_DIR/libpng-1.6.58-aarch64.deb"
 ZOPFLI_ARCHIVE="$CACHE_DIR/libzopfli-1.0.3-5-aarch64.deb"
@@ -592,7 +592,7 @@ if [ ! -x "$PATCHELF_BIN" ] \
 fi
 LIBCXX_SHARED="$AAPT2_LIBRARY_PATH/libc++_shared.so"
 unzip -p "$LIBCXX_ARCHIVE" \
-  android-ndk-r29/toolchains/llvm/prebuilt/linux-x86_64/sysroot/usr/lib/aarch64-linux-android/libc++_shared.so \
+  lib/arm64-v8a/libc++_shared.so \
   > "$LIBCXX_SHARED"
 verify_file_sha256 "$LIBCXX_SHARED" "$LIBCXX_SHARED_SHA256"
 chmod 700 "$LIBCXX_SHARED"

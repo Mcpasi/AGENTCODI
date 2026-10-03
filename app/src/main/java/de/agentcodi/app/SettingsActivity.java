@@ -538,9 +538,12 @@ public final class SettingsActivity extends Activity {
 
     private String languageSummary() {
         UiLanguage selected = AppLanguage.selected(this);
-        String effective = "de".equals(AppLanguage.effectiveLanguageTag(this))
+        String effectiveTag = AppLanguage.effectiveLanguageTag(this);
+        String effective = "de".equals(effectiveTag)
             ? getString(R.string.language_german)
-            : getString(R.string.language_english);
+            : "zh-CN".equals(effectiveTag)
+                ? getString(R.string.language_simplified_chinese)
+                : getString(R.string.language_english);
         return selected.followsSystem()
             ? getString(R.string.language_current_system, effective)
             : getString(R.string.language_current_explicit, effective);
@@ -550,17 +553,23 @@ public final class SettingsActivity extends Activity {
         final UiLanguage[] choices = new UiLanguage[] {
             UiLanguage.SYSTEM,
             UiLanguage.ENGLISH,
-            UiLanguage.GERMAN
+            UiLanguage.GERMAN,
+            UiLanguage.SIMPLIFIED_CHINESE
         };
         String[] labels = new String[] {
             getString(R.string.language_system),
             getString(R.string.language_english),
-            getString(R.string.language_german)
+            getString(R.string.language_german),
+            getString(R.string.language_simplified_chinese)
         };
         UiLanguage selected = AppLanguage.selected(this);
-        int checked = selected == UiLanguage.ENGLISH
-            ? 1
-            : selected == UiLanguage.GERMAN ? 2 : 0;
+        int checked = 0;
+        for (int index = 0; index < choices.length; index++) {
+            if (choices[index] == selected) {
+                checked = index;
+                break;
+            }
+        }
         final AlertDialog dialog = new AlertDialog.Builder(this)
             .setTitle(R.string.language_dialog_title)
             .setSingleChoiceItems(labels, checked, null)

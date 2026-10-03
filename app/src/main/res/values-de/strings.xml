@@ -336,6 +336,7 @@
   <string name="language_system">Gerätesprache verwenden</string>
   <string name="language_english">Englisch</string>
   <string name="language_german">Deutsch</string>
+  <string name="language_simplified_chinese">Chinesisch (vereinfacht)</string>
 
   <string name="workspace_export_section">WORKSPACE-DATEIEN</string>
   <string name="workspace_export_description">Im grafischen Dateibrowser kannst du den privaten Workspace prüfen, jede verifizierte reguläre Datei bytegenau exportieren oder den aktuell geöffneten Ordner – einschließlich der Workspace-Wurzel – über Androids Dokumentdialog als begrenztes ZIP exportieren.</string>

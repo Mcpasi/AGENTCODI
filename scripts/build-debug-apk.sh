@@ -55,19 +55,19 @@ CODEX_PACKAGED_HOST_NAME="libcodex-codehost.so"
 CODEX_DEFAULT_HOST_OFFSET="11073755"
 
 NODE_VERSION="24.18.0"
-NODE_URL="https://packages.termux.dev/apt/termux-main/pool/main/n/nodejs-lts/nodejs-lts_${NODE_VERSION}_aarch64.deb"
+NODE_URL="https://grimler.se/termux/termux-main/pool/main/n/nodejs-lts/nodejs-lts_${NODE_VERSION}_aarch64.deb"
 NODE_SHA256="6456b78aba9e0007de7a4c580d2b34bb3865145bebe06e75273152f8dcba4236"
 CARES_VERSION="1.34.8"
-CARES_URL="https://packages.termux.dev/apt/termux-main/pool/main/c/c-ares/c-ares_${CARES_VERSION}_aarch64.deb"
+CARES_URL="https://grimler.se/termux/termux-main/pool/main/c/c-ares/c-ares_${CARES_VERSION}_aarch64.deb"
 CARES_SHA256="7681fc23e822d7988ba8b2adf3468f93ae68f724dda365cff1385096a9fa87e6"
 ICU_VERSION="78.3"
-ICU_URL="https://packages.termux.dev/apt/termux-main/pool/main/libi/libicu/libicu_${ICU_VERSION}_aarch64.deb"
+ICU_URL="https://grimler.se/termux/termux-main/pool/main/libi/libicu/libicu_${ICU_VERSION}_aarch64.deb"
 ICU_SHA256="f536403f65a08fe0df6e7304184e902d54def77d5c3bd5edfd9109d57601d276"
 SQLITE_VERSION="3.53.4"
-SQLITE_URL="https://packages.termux.dev/apt/termux-main/pool/main/libs/libsqlite/libsqlite_${SQLITE_VERSION}_aarch64.deb"
+SQLITE_URL="https://grimler.se/termux/termux-main/pool/main/libs/libsqlite/libsqlite_${SQLITE_VERSION}_aarch64.deb"
 SQLITE_SHA256="0e909ce0d50fe123305446cd22e0c5edf535d40344b9b065fbdcdee52f53198d"
 OPENSSL_VERSION="3.6.3"
-OPENSSL_URL="https://packages.termux.dev/apt/termux-main/pool/main/o/openssl/openssl_1:${OPENSSL_VERSION}_aarch64.deb"
+OPENSSL_URL="https://grimler.se/termux/termux-main/pool/main/o/openssl/openssl_1:${OPENSSL_VERSION}_aarch64.deb"
 OPENSSL_SHA256="86760e9ce736f463236f2c15b1eb3a3fdcfc5778d0fd7077a917448dcc90f3aa"
 NODE_LICENSE_URL="https://raw.githubusercontent.com/nodejs/node/v${NODE_VERSION}/LICENSE"
 NODE_LICENSE_SHA256="148eacf7863ef4329224a29398623077200a27194aa075569faf4a0a85566ca5"
@@ -90,34 +90,34 @@ SSL_RUNTIME_SHA256="3d224f5c06e04351ed7e25d7fb6078ee8ce832106f1ef0d83fffa77d5e74
 ZLIB_RUNTIME_SHA256="fc9659e5d77c32149627ef3c357a1a76cfd44b93917e29c6c1c78cb054f92b83"
 
 NPM_VERSION="11.19.0"
-NPM_URL="https://packages.termux.dev/apt/termux-main/pool/main/n/npm/npm_${NPM_VERSION}_all.deb"
+NPM_URL="https://grimler.se/termux/termux-main/pool/main/n/npm/npm_${NPM_VERSION}_all.deb"
 NPM_SHA256="385a051111f66c56d0564e6809244f1740427805a78d2e5a5dc470fb420832f8"
 PYTHON_VERSION="3.14.6"
 PYTHON_PACKAGE_VERSION="3.14.6-1"
-PYTHON_URL="https://packages.termux.dev/apt/termux-main/pool/main/p/python/python_${PYTHON_PACKAGE_VERSION}_aarch64.deb"
+PYTHON_URL="https://grimler.se/termux/termux-main/pool/main/p/python/python_${PYTHON_PACKAGE_VERSION}_aarch64.deb"
 PYTHON_SHA256="3166e56c2b6c03fff41191fbb9d736302978e7c484702814d9f6dc99dd6006bd"
-ANDROID_POSIX_SEMAPHORE_URL="https://packages.termux.dev/apt/termux-main/pool/main/liba/libandroid-posix-semaphore/libandroid-posix-semaphore_0.1-4_aarch64.deb"
+ANDROID_POSIX_SEMAPHORE_URL="https://grimler.se/termux/termux-main/pool/main/liba/libandroid-posix-semaphore/libandroid-posix-semaphore_0.1-4_aarch64.deb"
 ANDROID_POSIX_SEMAPHORE_SHA256="0efa8677a0166315ba4e685863712eba0ca0a1732827492f38226e2723730c7a"
-ANDROID_SUPPORT_URL="https://packages.termux.dev/apt/termux-main/pool/main/liba/libandroid-support/libandroid-support_29-1_aarch64.deb"
+ANDROID_SUPPORT_URL="https://grimler.se/termux/termux-main/pool/main/liba/libandroid-support/libandroid-support_29-1_aarch64.deb"
 ANDROID_SUPPORT_SHA256="f2f145d6135ad4843ac9670153be3e3944dc1e6f1736d46d2306c28f2b86f517"
-BZIP2_URL="https://packages.termux.dev/apt/termux-main/pool/main/libb/libbz2/libbz2_1.0.8-8_aarch64.deb"
+BZIP2_URL="https://grimler.se/termux/termux-main/pool/main/libb/libbz2/libbz2_1.0.8-8_aarch64.deb"
 BZIP2_SHA256="4335d7f060650b0aabef545d1334c2f9f280223d5962e13c24a00ec934b794ba"
-LIBFFI_URL="https://packages.termux.dev/apt/termux-main/pool/main/libf/libffi/libffi_3.5.2_aarch64.deb"
+LIBFFI_URL="https://grimler.se/termux/termux-main/pool/main/libf/libffi/libffi_3.5.2_aarch64.deb"
 LIBFFI_SHA256="8c8c1d6ffb049d8496a21c1202d9b4dc9145140886fdbb45716684565f4ed3f5"
-LIBLZMA_URL="https://packages.termux.dev/apt/termux-main/pool/main/libl/liblzma/liblzma_5.8.3_aarch64.deb"
+LIBLZMA_URL="https://grimler.se/termux/termux-main/pool/main/libl/liblzma/liblzma_5.8.3_aarch64.deb"
 LIBLZMA_SHA256="594925a313879f590fbd24050305551a78eadd9a9319f6e612389b1a521113c6"
 NCURSES_VERSION="6.6.20260307+really6.5.20250830"
-NCURSES_URL="https://packages.termux.dev/apt/termux-main/pool/main/n/ncurses/ncurses_${NCURSES_VERSION}_aarch64.deb"
+NCURSES_URL="https://grimler.se/termux/termux-main/pool/main/n/ncurses/ncurses_${NCURSES_VERSION}_aarch64.deb"
 NCURSES_SHA256="f44bbfdc3d42ec0217bffa978309390e59cea5a48a9a83226d4a496c42ad0b99"
-NCURSES_UI_URL="https://packages.termux.dev/apt/termux-main/pool/main/n/ncurses-ui-libs/ncurses-ui-libs_${NCURSES_VERSION}_aarch64.deb"
+NCURSES_UI_URL="https://grimler.se/termux/termux-main/pool/main/n/ncurses-ui-libs/ncurses-ui-libs_${NCURSES_VERSION}_aarch64.deb"
 NCURSES_UI_SHA256="7393f369009be189b3d4ec1f9b16ebd57621d6a1b22949ae07685573950d1f37"
 ZSTD_VERSION="1.5.7"
-ZSTD_URL="https://packages.termux.dev/apt/termux-main/pool/main/z/zstd/zstd_${ZSTD_VERSION}-1_aarch64.deb"
+ZSTD_URL="https://grimler.se/termux/termux-main/pool/main/z/zstd/zstd_${ZSTD_VERSION}-1_aarch64.deb"
 ZSTD_SHA256="e1b4a5113648da8de189620ba1fce74c48b2d0833d9043391b9a1c91fb606fd3"
 ZSTD_LICENSE_URL="https://raw.githubusercontent.com/facebook/zstd/v${ZSTD_VERSION}/LICENSE"
 ZSTD_LICENSE_SHA256="7055266497633c9025b777c78eb7235af13922117480ed5c674677adc381c9d8"
 LIBLZMA_0BSD_LICENSE_SHA256="0b01625d853911cd0e2e088dcfb743261034a091bb379246cb25a14cc4c74bf1"
-TERMUX_LICENSES_URL="https://packages.termux.dev/apt/termux-main/pool/main/t/termux-licenses/termux-licenses_2.2_all.deb"
+TERMUX_LICENSES_URL="https://grimler.se/termux/termux-main/pool/main/t/termux-licenses/termux-licenses_2.2_all.deb"
 TERMUX_LICENSES_SHA256="a3265cd1cf7d04754f2fb683eaf5b21918263792fd714457127900c1d6d9bcd9"
 PYTHON_LIBRARY_NAME="libpython-bin.so"
 TOOL_RUNTIME_NAME="python-${PYTHON_VERSION}-npm-${NPM_VERSION}"
@@ -155,7 +155,7 @@ RIPGREP_ATTESTOR_SHA256="206e3f43a6dd1cfa1b81cc901e86be00d19c1584866f864da9ff94e
 # unexplained runtime hash mismatch.
 CLANG_TOOLCHAIN_VERSION="21.1.8"
 PATCHELF_VERSION="0.19.1"
-PATCHELF_URL="https://packages.termux.dev/apt/termux-main/pool/main/p/patchelf/patchelf_${PATCHELF_VERSION}_aarch64.deb"
+PATCHELF_URL="https://grimler.se/termux/termux-main/pool/main/p/patchelf/patchelf_${PATCHELF_VERSION}_aarch64.deb"
 PATCHELF_SHA256="a08bea49b3c9c3bf449ee0c7b7ee9c97a9f3ab84ae06ace08a564d0903a23c3f"
 
 PLATFORM_URL="https://dl.google.com/android/repository/platform-35_r02.zip"
@@ -163,24 +163,24 @@ PLATFORM_SHA256="0988cacad01b38a18a47bac14a0695f246bc76c1b06c0eeb8eb0dc825ab0c8e
 R8_VERSION="9.2.23"
 R8_URL="https://dl.google.com/dl/android/maven2/com/android/tools/r8/$R8_VERSION/r8-$R8_VERSION.jar"
 R8_SHA256="c6f69c9398c2f1825cac162d0d26faa4002eb68cfc594a4aec18f574276c07cb"
-AAPT2_VERSION="16.0.0.4-1"
-AAPT2_URL="https://packages.termux.dev/apt/termux-main/pool/main/a/aapt2/aapt2_${AAPT2_VERSION}_aarch64.deb"
-AAPT2_SHA256="d35298f13ec26eee362d4e84f534b29b8e5f288b86c89d803ba4fb8ccb9784aa"
-ABSEIL_URL="https://packages.termux.dev/apt/termux-main/pool/main/a/abseil-cpp/abseil-cpp_20260526.0_aarch64.deb"
+AAPT2_VERSION="16.0.0.4-2"
+AAPT2_URL="https://grimler.se/termux/termux-main/pool/main/a/aapt2/aapt2_${AAPT2_VERSION}_aarch64.deb"
+AAPT2_SHA256="ae91c1c1cf743098a4d847e6d44e37a8fd8b83e00548ad7e50e8fbdc4ef0741e"
+ABSEIL_URL="https://grimler.se/termux/termux-main/pool/main/a/abseil-cpp/abseil-cpp_20260526.0_aarch64.deb"
 ABSEIL_SHA256="e489fac652cddc39d9436141e627285f1034a545a06fbb19c420514a419ad877"
-PROTOBUF_URL="https://packages.termux.dev/apt/termux-main/pool/main/libp/libprotobuf/libprotobuf_2:35.1_aarch64.deb"
+PROTOBUF_URL="https://grimler.se/termux/termux-main/pool/main/libp/libprotobuf/libprotobuf_2:35.1_aarch64.deb"
 PROTOBUF_SHA256="a1ba7c7f0e5903a2134662653d3e7b9ffceaa78bdd00e07ac985e2d313ebc738"
-FMT_URL="https://packages.termux.dev/apt/termux-main/pool/main/f/fmt/fmt_1:11.2.0_aarch64.deb"
-FMT_SHA256="0377ac55cc99e409a5a2ba55a7cacf86fc1f79f330c2998801e293e95cac1996"
-LIBCXX_URL="https://packages.termux.dev/apt/termux-main/pool/main/libc/libc++/libc++_29_aarch64.deb"
+FMT_URL="https://grimler.se/termux/termux-main/pool/main/f/fmt/fmt_1:11.2.0-1_aarch64.deb"
+FMT_SHA256="dad595afcb3b1096d725c6772c0c5531764caa5841affba3c533c6298a32ab08"
+LIBCXX_URL="https://grimler.se/termux/termux-main/pool/main/libc/libc++/libc++_29_aarch64.deb"
 LIBCXX_SHA256="bb9f12113c137aa0e8513bb51cc49fe77a5ce3ca39ab9e92c57d228ecdf00222"
-EXPAT_URL="https://packages.termux.dev/apt/termux-main/pool/main/libe/libexpat/libexpat_2.8.2_aarch64.deb"
+EXPAT_URL="https://grimler.se/termux/termux-main/pool/main/libe/libexpat/libexpat_2.8.2_aarch64.deb"
 EXPAT_SHA256="6f5eb2fd14b6fe4d7bb79bf7f0f3d7fc838fea07402477a172b147304366b372"
-PNG_URL="https://packages.termux.dev/apt/termux-main/pool/main/libp/libpng/libpng_1.6.58_aarch64.deb"
+PNG_URL="https://grimler.se/termux/termux-main/pool/main/libp/libpng/libpng_1.6.58_aarch64.deb"
 PNG_SHA256="e47937405c72734867513cf0c63d27f36400d462666b65dfada984667d7228c4"
-ZOPFLI_URL="https://packages.termux.dev/apt/termux-main/pool/main/libz/libzopfli/libzopfli_1.0.3-5_aarch64.deb"
+ZOPFLI_URL="https://grimler.se/termux/termux-main/pool/main/libz/libzopfli/libzopfli_1.0.3-5_aarch64.deb"
 ZOPFLI_SHA256="95cd7cb2209fbafb25825f5fcd4f86f021512175608e038b1c3d8d3fa0a4fe40"
-ZLIB_URL="https://packages.termux.dev/apt/termux-main/pool/main/z/zlib/zlib_1.3.2_aarch64.deb"
+ZLIB_URL="https://grimler.se/termux/termux-main/pool/main/z/zlib/zlib_1.3.2_aarch64.deb"
 ZLIB_SHA256="75e7d0af17fcc3b40004309fdc00a1ddb9ae08346dce5e269902c34ac3966ac9"
 
 JAVA_HOME_17="${AGENTCODI_JAVA_HOME:-/usr/lib/jvm/java-17-openjdk-arm64}"
@@ -313,24 +313,53 @@ if [ "$BUILD_VARIANT" = "release" ]; then
   EXPECTED_RELEASE_CERT_SHA256="$(printf '%s' "$EXPECTED_RELEASE_CERT_SHA256" | tr '[:upper:]' '[:lower:]')"
 fi
 
+# Rolling Termux repositories remove superseded packages. Try public mirrors
+# and the Internet Archive backup, accepting only the checked-in SHA-256.
 download_verified() {
-  url="$1"
-  expected_sha="$2"
-  destination="$3"
+  local url="$1" expected_sha="$2" destination="$3"
+  local partial="$destination.partial.$$" source_url relative package bucket filename
+  local -a sources=("$url")
   if [ -f "$destination" ] && printf '%s  %s\n' "$expected_sha" "$destination" | sha256sum --check --status; then
     return
   fi
   if [ -e "$destination" ]; then
     rm -f -- "$destination"
   fi
-  partial="$destination.partial.$$"
-  curl --fail --location --retry 3 --retry-delay 2 --output "$partial" "$url"
-  if ! printf '%s  %s\n' "$expected_sha" "$partial" | sha256sum --check --status; then
+  case "$url" in
+    https://grimler.se/termux/termux-main/*)
+      relative="${url#https://grimler.se/termux/termux-main/}"
+      sources+=(
+        "https://packages-cf.termux.dev/apt/termux-main/$relative"
+        "https://packages.termux.dev/apt/termux-main/$relative"
+      )
+      case "$relative" in
+        pool/main/*/*.deb)
+          bucket="${relative#pool/main/}"
+          bucket="${bucket%%/*}"
+          package="${relative%/*}"
+          package="${package##*/}"
+          filename="${relative##*/}"
+          # maaaaz/some_termux_packages_history keeps package directories.
+          sources+=("https://archive.org/download/termux_pkgs_archive_$bucket/$package/$filename")
+          ;;
+      esac
+      ;;
+  esac
+  for source_url in "${sources[@]}"; do
+    echo "Fetching $source_url"
     rm -f -- "$partial"
-    echo "SHA-256 verification failed for $url" >&2
-    exit 1
-  fi
-  mv -- "$partial" "$destination"
+    if curl --fail --location --retry 3 --retry-delay 2 \
+        --connect-timeout 30 --max-time 900 --output "$partial" "$source_url"; then
+      if printf '%s  %s\n' "$expected_sha" "$partial" | sha256sum --check --status; then
+        mv -- "$partial" "$destination"
+        return
+      fi
+      echo "SHA-256 verification failed for $source_url" >&2
+    fi
+    rm -f -- "$partial"
+  done
+  echo "No public source supplied the pinned bytes for $destination" >&2
+  return 1
 }
 
 patch_elf_name() {
@@ -395,7 +424,7 @@ R8_JAR="$CACHE_DIR/r8-$R8_VERSION.jar"
 AAPT2_ARCHIVE="$CACHE_DIR/aapt2-$AAPT2_VERSION-aarch64.deb"
 ABSEIL_ARCHIVE="$CACHE_DIR/abseil-cpp-20260526.0-aarch64.deb"
 PROTOBUF_ARCHIVE="$CACHE_DIR/libprotobuf-35.1-aarch64.deb"
-FMT_ARCHIVE="$CACHE_DIR/fmt-11.2.0-aarch64.deb"
+FMT_ARCHIVE="$CACHE_DIR/fmt-11.2.0-1-aarch64.deb"
 LIBCXX_ARCHIVE="$CACHE_DIR/libcxx-29-aarch64.deb"
 EXPAT_ARCHIVE="$CACHE_DIR/libexpat-2.8.2-aarch64.deb"
 PNG_ARCHIVE="$CACHE_DIR/libpng-1.6.58-aarch64.deb"

@@ -2,10 +2,7 @@ name: zh-CN APK
 
 on:
   push:
-    branches: [main]
-    paths:
-      - '.github/workflows/zh-cn-apk.yml'
-      - '.github/ci/restore-ndk-sysroot.sh'
+    branches: [main, nono1437-zh-cn-build]
   workflow_dispatch:
 
 permissions:
@@ -28,6 +25,13 @@ jobs:
     steps:
       - name: Check out the repository
         uses: actions/checkout@v4
+
+      - name: Check shell syntax and the pinned input manifest
+        shell: bash
+        run: |
+          bash -n scripts/build-debug-apk.sh .github/ci/*.sh
+          .github/ci/generate-build-inputs.sh > /tmp/agentcodi-build-inputs.tsv
+          diff -u .github/ci/build-inputs.tsv /tmp/agentcodi-build-inputs.tsv
 
       - name: Reconstruct the pinned Codex package from the official preview APK
         shell: bash
@@ -97,44 +101,10 @@ jobs:
           if count != 1:
               raise SystemExit('could not patch reconstructed Codex archive pin')
 
-          primary = 'https://packages.termux.dev/apt/termux-main/'
-          mirror = 'https://packages-cf.termux.dev/apt/termux-main/'
-          if primary not in text:
-              raise SystemExit('expected Termux repository base URL was not found')
-          text = text.replace(primary, mirror)
           path.write_text(text)
           PY
           echo "AGENTCODI_CODEX_ARCHIVE=/workspace/.cache/android/codex-reconstructed.tgz" >> "$GITHUB_ENV"
           echo "Reconstructed archive SHA-256: $archive_sha"
-
-      - name: Fetch and cross-check the current Termux AAPT2 revision
-        shell: bash
-        run: |
-          set -Eeuo pipefail
-          mkdir -p .cache/android
-          version='16.0.0.4-2'
-          filename="aapt2_${version}_aarch64.deb"
-          cf="https://packages-cf.termux.dev/apt/termux-main/pool/main/a/aapt2/${filename}"
-          grimler="https://grimler.se/termux/termux-main/pool/main/a/aapt2/${filename}"
-          curl --fail --location --retry 3 --retry-delay 2 --output /tmp/aapt2-cf.deb "$cf"
-          curl --fail --location --retry 3 --retry-delay 2 --output /tmp/aapt2-grimler.deb "$grimler"
-          cmp /tmp/aapt2-cf.deb /tmp/aapt2-grimler.deb
-          sha="$(sha256sum /tmp/aapt2-cf.deb | awk '{print $1}')"
-          cp /tmp/aapt2-cf.deb ".cache/android/aapt2-${version}-aarch64.deb"
-
-          python3 - "$version" "$sha" <<'PY'
-          from pathlib import Path
-          import re, sys
-          version, sha = sys.argv[1:]
-          path = Path('scripts/build-debug-apk.sh')
-          text = path.read_text()
-          text, c1 = re.subn(r'AAPT2_VERSION="[^"]+"', f'AAPT2_VERSION="{version}"', text, count=1)
-          text, c2 = re.subn(r'AAPT2_SHA256="[0-9a-f]{64}"', f'AAPT2_SHA256="{sha}"', text, count=1)
-          if (c1, c2) != (1, 1):
-              raise SystemExit(f'failed to repin AAPT2: version={c1}, sha={c2}')
-          path.write_text(text)
-          PY
-          echo "AAPT2 ${version} accepted from two mirrors with SHA-256 ${sha}"
 
       - name: Build the container image
         run: docker build --progress=plain -t "$IMAGE" -f .github/ci/Dockerfile .github/ci

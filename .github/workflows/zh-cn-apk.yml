@@ -125,6 +125,12 @@ jobs:
               raise SystemExit('could not synchronize the reconstructed archive architecture pin')
           checks = checks.replace(expected, f'CODEX_ANDROID_SHA256="{sha}"', 1)
           check_path.write_text(checks)
+          for name in ('NOTICE.md', 'app/src/main/res/raw/third_party_notices.txt'):
+              pin_path = Path(name)
+              pins = pin_path.read_text()
+              if pins.count(original_sha) != 1:
+                  raise SystemExit(f'could not synchronize the reconstructed archive pin in {name}')
+              pin_path.write_text(pins.replace(original_sha, sha, 1))
           PY
           echo "AGENTCODI_CODEX_ARCHIVE=/workspace/.cache/android/codex-reconstructed.tgz" >> "$GITHUB_ENV"
           echo "Reconstructed archive SHA-256: $archive_sha"

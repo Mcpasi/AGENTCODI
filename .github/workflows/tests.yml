@@ -145,6 +145,7 @@ jobs:
         run: |
           python3 .github/ci/inspect-community-codex.py --output "$RUNNER_TEMP/community-runtime"
           python3 .github/ci/community-runtime-pins.py "$RUNNER_TEMP/community-runtime"
+          chmod 755 "$RUNNER_TEMP/community-runtime/payload/package/bin/codex.bin" "$RUNNER_TEMP/community-runtime/payload/package/bin/codex-code-mode-host"
           sudo chmod -R a+rX "$RUNNER_TEMP/community-runtime"
           sudo chmod 777 "$RUNNER_TEMP/community-runtime/report"
       - name: Generate schemas using the actual ARM64 Android runtime

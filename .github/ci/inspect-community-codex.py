@@ -197,7 +197,13 @@ def inspect(archive, pin, directory, provenance):
             })
     # A string occurrence shows a host-name reference, not a validated relocation offset.
     host_reference = b"codex-code-mode-host" in (package_root / "bin/codex.bin").read_bytes()
+    readme = (package_root / "README.md").read_text(encoding="utf-8")
+    documentation_versions = sorted(set(re.findall(r"rust-v[0-9]+\.[0-9]+\.[0-9]+", readme)))
+    metadata_versions = sorted(set(re.findall(
+        r"rust-v[0-9]+\.[0-9]+\.[0-9]+", package.get("description", ""))))
     report = {
+        "documentation_upstream_versions": documentation_versions,
+        "metadata_upstream_versions": metadata_versions,
         "pin": pin, "release_provenance": provenance,
         "package": package, "npm_dependencies": dependencies,
         "native": native, "licenses": licenses, "launchers": launchers,
@@ -229,6 +235,13 @@ def inspect(archive, pin, directory, provenance):
     for name, metadata in native.items():
         summary.append("| " + name + " | " + ", ".join(metadata["needed"]) + " | "
                        + ", ".join(metadata["runpath"]) + " | " + ", ".join(metadata["interpreter"]) + " |")
+    summary.extend([
+        "", "### Packaged notices and documentation", "",
+        "- README upstream versions: " + ", ".join(documentation_versions),
+        "- Package description upstream versions: " + ", ".join(metadata_versions),
+        "- README/package description version mismatch: " + str(documentation_versions != metadata_versions),
+        "", "```text", (package_root / "NOTICE").read_text(encoding="utf-8").strip(), "```",
+    ])
     summary.extend(["", "### Native file checksums", ""])
     for entry in inventory:
         if entry["path"] in native:

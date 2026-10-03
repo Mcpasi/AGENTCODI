@@ -37,9 +37,9 @@ Der eigene Fork basiert laut GitHub auf `DioNanos/codex-termux`. Geprüftes Comm
 - Archiv: `mmmbuto-codex-cli-termux-0.156.1-termux.1.tgz`
 - SHA-256 laut GitHub-Release-Asset-Digest: `44cee2f3a4a110fd79d4f7d61378d46fd72406f45cffb3163e809d63e86d946a`
 
-Diese Angaben sind das überprüfte Migrationsziel, noch nicht die aktive Build-Konfiguration.
+Diese Angaben sind das überprüfte Migrationsziel. Release-Archiv und Inhalt sind jetzt in CI untersucht; die aktive Build-Konfiguration wird erst in den folgenden Schritten umgestellt.
 
-- [ ] Release-Archiv in CI herunterladen, Prüfsumme verifizieren und Inhalt einschließlich Code-mode-Host, Lizenzen und Abhängigkeiten untersuchen.
+- [x] Release-Archiv in CI herunterladen, Prüfsumme verifizieren und Inhalt einschließlich Code-mode-Host, Lizenzen und Abhängigkeiten untersuchen.
 - [ ] Quellcommit und vollständige Binär-/Schema-Prüfsummen erfassen; keine alten Hashes oder Binäroffsets wiederverwenden.
 - [ ] `scripts/update-codex-runtime.sh`, CodexRuntimeUpdater/Metadata/LocalSource, BuildIdentity, Build-Input-Liste und Notices auf den Community-Kanal umstellen.
 - [ ] App-Server-JSON-Schema gegen alle verwendeten RPCs prüfen: Initialize, Login, Models, Permission Profiles, Thread/Turn, Approvals, Terminal-PTY, MCP und Connectors.
@@ -49,6 +49,29 @@ Diese Angaben sind das überprüfte Migrationsziel, noch nicht die aktive Build-
 - [ ] Alte Protected-/JIT-Verträge, Module, Ressourcen und Tests gezielt ablösen; übrige Regressionen behalten.
 - [ ] CI-Sandbox-Sonderoptionen und seccomp/ptrace-/Protected-Smokes im Edition-Build durch Full-access-Smokes ersetzen.
 - [ ] Keine Runtime-Aktualisierung darf wieder den Mcpasi-Sandbox-Fork auswählen.
+
+### Ergebnis der Community-Archivprüfung — 2026-10-03
+
+Umgesetzt mit `.github/ci/community-codex-release.json`, `inspect-community-codex.py` und dem zusätzlichen Tests-Job `Community Codex release inspection`, ausschließlich auf diesem Branch. Der erfolgreiche [CI-Lauf 37158009969](https://github.com/Mcpasi/AGENTCODI/actions/runs/37158009969) für Commit `5a89b6a3a4e2871b3952d10b2201215527e4ea10` prüft den Release-Asset-Digest, den aufgelösten Tag-Quellcommit und die tatsächlich heruntergeladenen Archivbytes. Das [Prüfartefakt](https://github.com/Mcpasi/AGENTCODI/actions/runs/37158009969/artifacts/11286760213) enthält das vollständige Dateiinventar mit SHA-256, ELF-Berichte, Metadaten, Launcher-Befunde sowie LICENSE/NOTICE.
+
+- Das Archiv enthält 12 reguläre Dateien, darunter `codex.bin`, den separaten `codex-code-mode-host` und `libc++_shared.so`. Der Hostname ist im Codex-Binary vorhanden; seine tatsächliche Auflösung beziehungsweise ein APK-Relokationsoffset ist damit noch nicht bestätigt.
+- Beide ausführbaren ELF-Dateien sind ARM64/ELF64 mit Interpreter `/system/bin/linker64` und RUNPATH `$ORIGIN:$ORIGIN`. Die zwei identischen Einträge sind gleichwertig zum selben Bibliotheksordner; fremde oder leere Suchpfade werden abgelehnt.
+- `codex.bin` benötigt dynamisch `libdl.so/libm.so/libc.so`, der Code-mode-Host zusätzlich `liblog.so`. Die mitgelieferte `libc++_shared.so` benötigt `libc.so/libm.so/libdl.so`; die beiden Programme haben in diesem Release keinen direkten DT_NEEDED-Eintrag für libc++. Alle ermittelten dynamischen Abhängigkeiten sind Android-Systembibliotheken.
+- Keine npm-Paketabhängigkeiten sind deklariert. Die JavaScript-Launcher deklarieren Node.js `>=18.0.0`; das Postinstall-Skript passt Shebangs anhand des laufenden Node-Interpreters an. Shell- und JavaScript-Launcher enthalten weiterhin den Termux-Standardpräfix `/data/data/com.termux/files/usr`. Sie werden bei der späteren Integration an die Editions-Umgebung angepasst.
+- Paketlizenz und LICENSE sind Apache-2.0; NOTICE nennt OpenAI, Davide A. Guglielmi und Ratatui/MIT. Separate Lizenztexte für libc++ und statisch eingebundene Rust-/V8-Abhängigkeiten sind im Archiv nicht enthalten. Ihre vollständigen Notices bleiben vor der späteren Auslieferung zu prüfen.
+- Das archivierte README nennt veraltet `rust-v0.155.0`; Release und Paketbeschreibung nennen `rust-v0.156.1`. Die Prüfung dokumentiert diese Abweichung und verwendet die gepinnten Release-/Quellangaben.
+
+Neu ermittelte ELF-Prüfsummen, ausschließlich für dieses unveränderte Release-Archiv:
+
+| Datei | SHA-256 |
+| --- | --- |
+| `codex.bin` | `6cbfa7f1660095e9cf2df7de242014579a0fb0d42545652fb0e22d1b6c8571a5` |
+| `codex-code-mode-host` | `8afb196579c3fd8ecac558dbebfcba5467f91389b3754e485728ce6904e6ceaf` |
+| `libc++_shared.so` | `430f7cde7c1a88042bb9e39ae1c1f4b9f5819f3bd95acd1453d2e02c63ba1870` |
+
+Architekturchecks, 309 Java-Tests, alle 8 portablen C++-Suites, Android-Quellen/Ressourcen gegen API 35 und die Release-Prüfung einschließlich 8 neuer Archiv-/Suchpfadtests sind erfolgreich. Die anfänglichen CI-Ursachen (anonymes GitHub-API-Ratenlimit und zu strenger Vergleich der doppelten ORIGIN-Einträge) sind behoben.
+
+Kein npm-Install/Postinstall und kein Community-ELF wurden ausgeführt; diese statische Prüfung verändert keine APK-Runtime. Schema-Erzeugung und -Prüfsummen, RPC-/Startkompatibilität, Host-Relokation und der aktive Kanalwechsel bleiben die nächsten offenen Schritte. Geräte-Tests bleiben offen und wurden gemäß Nutzeranweisung übersprungen.
 
 ## 3. Paket-Bootstrap und Workspace vervollständigen
 

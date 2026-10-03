@@ -20,6 +20,15 @@ Ubuntu runner. They are additional entry points only:
 | Architecture contracts | `scripts/check-architecture.sh` | The existing script, unchanged. It is pure `rg`/`find`, so it is the one part of `scripts/` that is already portable. |
 | Java host tests | `run-java-tests.sh` | The complete Java suite — the same 138 sources and the same `de.agentcodi.tests.TestMain` entry point that `scripts/test.sh` compiles. |
 | C++ host tests | `run-cpp-tests.sh` | The portable 8 of the 9 C++ host suites. |
+| Android sources and resources | `compile-android-sources.sh` | Compile against API 35, check SDK pins and Package Edition identity, and resolve every manifest component against its compiled Java class. |
+
+Package Edition builds use installation ID `de.agentcodi.pkg`, their own
+`0.1.0-package.1` version line (Android versionCode starts at 1), and APK names
+starting with `AGENTCODI-Package-`. The manual APK workflow on this branch
+uploads `agentcodi-package-debug-apk`. Java classes and resources retain the
+`de.agentcodi.app` namespace via AAPT2's `--custom-package`; manifest components
+use their full Java class names. Host compilation does not replace an APK
+installation and parallel-app test on Android hardware.
 
 ## Running them locally
 

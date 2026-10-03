@@ -99,6 +99,6 @@ jobs:
         if: ${{ !inputs.preflight_only }}
         uses: actions/upload-artifact@v4
         with:
-          name: agentcodi-debug-apk
+          name: agentcodi-package-debug-apk
           path: output/apk/*.apk
           if-no-files-found: error

@@ -5,9 +5,10 @@ SCRIPT_DIR="$(cd -- "$(dirname -- "$0")" && pwd -P)"
 PROJECT_ROOT="$(cd -- "$SCRIPT_DIR/.." && pwd -P)"
 
 APP_NAME="AGENTCODI Package"
-APP_ID="de.agentcodi.app"
-APP_VERSION="0.7.6-preview.1"
-VERSION_CODE="87"
+APP_ARTIFACT_NAME="AGENTCODI-Package"
+APP_ID="de.agentcodi.pkg"
+APP_VERSION="0.1.0-package.1"
+VERSION_CODE="1"
 MIN_SDK="29"
 # Package Edition allows execution of user-installed files in private app storage.
 TARGET_SDK="28"
@@ -748,7 +749,7 @@ echo "Compiling Android resources..."
 env LD_LIBRARY_PATH="$AAPT2_LIBRARY_PATH" "$AAPT2_BIN" compile --dir "$PROJECT_ROOT/app/src/main/res" -o "$COMPILED_RESOURCES"
 
 UNSIGNED_APK="$WORK_DIR/unsigned.apk"
-env LD_LIBRARY_PATH="$AAPT2_LIBRARY_PATH" "$AAPT2_BIN" link -o "$UNSIGNED_APK" --manifest "$PROJECT_ROOT/app/src/main/AndroidManifest.xml" --java "$GENERATED_JAVA" --min-sdk-version "$MIN_SDK" --target-sdk-version "$TARGET_SDK" --version-code "$VERSION_CODE" --version-name "$APP_VERSION" -I "$ANDROID_JAR" "$COMPILED_RESOURCES"
+env LD_LIBRARY_PATH="$AAPT2_LIBRARY_PATH" "$AAPT2_BIN" link -o "$UNSIGNED_APK" --manifest "$PROJECT_ROOT/app/src/main/AndroidManifest.xml" --java "$GENERATED_JAVA" --custom-package de.agentcodi.app --min-sdk-version "$MIN_SDK" --target-sdk-version "$TARGET_SDK" --version-code "$VERSION_CODE" --version-name "$APP_VERSION" -I "$ANDROID_JAR" "$COMPILED_RESOURCES"
 
 echo "Compiling isolated Java modules..."
 CORE_CLASSES="$CLASSES_ROOT/core"
@@ -2026,12 +2027,12 @@ if [ "$BUILD_VARIANT" = "debug" ]; then
     "$KEYTOOL" -genkeypair -noprompt -keystore "$DEBUG_KEYSTORE" -storepass android -keypass android -alias androiddebugkey -dname "CN=AGENTCODI Android Debug,O=AGENTCODI,C=DE" -keyalg RSA -keysize 2048 -validity 10000
   fi
   chmod 600 "$DEBUG_KEYSTORE"
-  VERSIONED_APK="$OUTPUT_DIR/$APP_NAME-$APP_VERSION-$ABI-debug.apk"
-  NAMED_APK="$OUTPUT_DIR/$APP_NAME-debug.apk"
+  VERSIONED_APK="$OUTPUT_DIR/$APP_ARTIFACT_NAME-$APP_VERSION-$ABI-debug.apk"
+  NAMED_APK="$OUTPUT_DIR/$APP_ARTIFACT_NAME-debug.apk"
   apksigner sign --min-sdk-version "$MIN_SDK" --ks "$DEBUG_KEYSTORE" --ks-key-alias androiddebugkey --ks-pass pass:android --key-pass pass:android --out "$VERSIONED_APK" "$ALIGNED_APK"
 else
-  VERSIONED_APK="$OUTPUT_DIR/$APP_NAME-$APP_VERSION-$ABI-release.apk"
-  NAMED_APK="$OUTPUT_DIR/$APP_NAME-release.apk"
+  VERSIONED_APK="$OUTPUT_DIR/$APP_ARTIFACT_NAME-$APP_VERSION-$ABI-release.apk"
+  NAMED_APK="$OUTPUT_DIR/$APP_ARTIFACT_NAME-release.apk"
   if [ "$RELEASE_PASSWORD_MODE" = "file" ]; then
     apksigner sign --min-sdk-version "$MIN_SDK" --ks "$RELEASE_KEYSTORE" --ks-key-alias "$RELEASE_KEY_ALIAS" --ks-pass "file:$RELEASE_STORE_PASSWORD_FILE" --key-pass "file:$RELEASE_KEY_PASSWORD_FILE" --out "$VERSIONED_APK" "$ALIGNED_APK"
   else

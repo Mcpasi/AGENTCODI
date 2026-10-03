@@ -73,7 +73,11 @@ Die bestehenden GitHub-Tests laufen bei jedem Branch-Push. Der APK-Workflow kann
 
 Die Build-Umgebung ist in [.github/ci/README.md](.github/ci/README.md) dokumentiert. Dort beschriebene Prüfungen für den bisherigen Fork und geschützten Modus sind derzeit noch Teil des Übergangsbuilds.
 
-Die Edition verwendet momentan dieselbe Application-ID `de.agentcodi.app` wie die reguläre Version und kann daher nicht parallel installiert werden. Eine getrennte Installationsidentität ist Bestandteil der Roadmap. Vor Wechsel zwischen den Entwicklungslinien eigene Dateien sichern. Neuere Android-Versionen können beim Installieren auf das niedrige Target SDK hinweisen.
+Die Package Edition verwendet die separate Application-ID `de.agentcodi.pkg` und beginnt bei `0.1.0-package.1` mit eigenem Android-`versionCode 1`. Sie kann neben der regulären Version (`de.agentcodi.app`) installiert werden. Beide Apps haben getrennte private Dateien, Einstellungen und Anmeldungen. Die Java-Klassen und generierten Ressourcen bleiben unter `de.agentcodi.app`; das ist unabhängig von der Installationsidentität.
+
+APK-Dateien heißen `AGENTCODI-Package-<Version>-arm64-v8a-debug.apk` beziehungsweise `AGENTCODI-Package-<Version>-arm64-v8a-release.apk`. Die unversionierten Kopien heißen `AGENTCODI-Package-debug.apk` und `AGENTCODI-Package-release.apk`; der APK-Workflow verwendet das Artefakt `agentcodi-package-debug-apk`. `scripts/bump-version.sh` erhöht die eigene Versionslinie und den eigenen Versionscode.
+
+Frühere Package-Edition-Builds mit der gemeinsamen ID bleiben in der bisherigen Installation. Deren Dateien werden nicht automatisch in die neue App übernommen; benötigte Workspace-Dateien vor dem Wechsel exportieren und in die neue App importieren. Der spätere verwaltete Paketpräfix ist damit auf `/data/data/de.agentcodi.pkg/files/usr` festgelegt; aktuell gilt weiterhin `$HOME/.local`. Neuere Android-Versionen können beim Installieren auf das niedrige Target SDK hinweisen.
 
 ## Lizenz
 

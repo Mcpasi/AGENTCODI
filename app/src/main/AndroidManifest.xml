@@ -1,9 +1,9 @@
 <?xml version="1.0" encoding="utf-8"?>
 <manifest
     xmlns:android="http://schemas.android.com/apk/res/android"
-    package="de.agentcodi.app"
-    android:versionCode="87"
-    android:versionName="0.7.6-preview.1">
+    package="de.agentcodi.pkg"
+    android:versionCode="1"
+    android:versionName="0.1.0-package.1">
 
     <uses-sdk android:minSdkVersion="29" android:targetSdkVersion="28" />
 
@@ -13,7 +13,7 @@
     <uses-permission android:name="android.permission.POST_NOTIFICATIONS" />
 
     <application
-        android:name=".AgentCodiApplication"
+        android:name="de.agentcodi.app.AgentCodiApplication"
         android:allowBackup="false"
         android:debuggable="false"
         android:extractNativeLibs="true"
@@ -35,7 +35,7 @@
         </service>
 
         <activity
-            android:name=".MainActivity"
+            android:name="de.agentcodi.app.MainActivity"
             android:configChanges="keyboard|keyboardHidden|orientation|screenLayout|screenSize|smallestScreenSize"
             android:exported="true"
             android:launchMode="singleTask">
@@ -46,29 +46,29 @@
         </activity>
 
         <activity
-            android:name=".SettingsActivity"
+            android:name="de.agentcodi.app.SettingsActivity"
             android:exported="false" />
 
         <activity
-            android:name=".TerminalActivity"
+            android:name="de.agentcodi.app.TerminalActivity"
             android:configChanges="keyboard|keyboardHidden|orientation|screenLayout|screenSize|smallestScreenSize"
             android:exported="false" />
 
         <activity
-            android:name=".WorkspaceBrowserActivity"
+            android:name="de.agentcodi.app.WorkspaceBrowserActivity"
             android:configChanges="keyboard|keyboardHidden|orientation|screenLayout|screenSize|smallestScreenSize"
             android:exported="false" />
 
         <activity
-            android:name=".LicensesActivity"
+            android:name="de.agentcodi.app.LicensesActivity"
             android:exported="false" />
 
         <activity
-            android:name=".McpManagementActivity"
+            android:name="de.agentcodi.app.McpManagementActivity"
             android:exported="false" />
 
         <activity
-            android:name=".ConnectorActivity"
+            android:name="de.agentcodi.app.ConnectorActivity"
             android:exported="false" />
     </application>
 </manifest>

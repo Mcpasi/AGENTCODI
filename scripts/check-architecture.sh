@@ -43,6 +43,12 @@ if rg -n '^import de\.agentcodi\.(app|runtime|storage|imports|mcp|mode)\.' \
 fi
 
 if ! rg -q 'android:targetSdkVersion="28"' "$PROJECT_ROOT/app/src/main/AndroidManifest.xml" \
+    || ! rg -Fq 'package="de.agentcodi.pkg"' "$PROJECT_ROOT/app/src/main/AndroidManifest.xml" \
+    || ! rg -Fq 'APPLICATION_ID = "de.agentcodi.pkg";' "$PROJECT_ROOT/modules/core/src/main/java/de/agentcodi/core/BuildIdentity.java" \
+    || ! rg -Fq 'APP_ID="de.agentcodi.pkg"' "$PROJECT_ROOT/scripts/build-debug-apk.sh" \
+    || ! rg -Fq 'APP_ARTIFACT_NAME="AGENTCODI-Package"' "$PROJECT_ROOT/scripts/build-debug-apk.sh" \
+    || ! rg -Fq -- '--custom-package de.agentcodi.app' "$PROJECT_ROOT/scripts/build-debug-apk.sh" \
+    || ! rg -Fq -- '--custom-package de.agentcodi.app' "$PROJECT_ROOT/.github/ci/compile-android-sources.sh" \
     || ! rg -q '^TARGET_SDK="28"' "$PROJECT_ROOT/scripts/build-debug-apk.sh" \
     || ! rg -q 'TARGET_SDK = 28;' "$PROJECT_ROOT/modules/core/src/main/java/de/agentcodi/core/BuildIdentity.java" \
     || ! rg -q 'getPackagePrefix' "$PROJECT_ROOT/modules/storage/src/main/java/de/agentcodi/storage/WorkspaceLayout.java" \
@@ -153,7 +159,7 @@ if rg -n '^import de\.agentcodi\.' "$file_browser_contracts" \
       "$PROJECT_ROOT/app/src/main/java/de/agentcodi/app/WorkspaceBrowserActivity.java" \
     || ! rg -q 'R\.string\.browser_directory_export' \
       "$PROJECT_ROOT/app/src/main/java/de/agentcodi/app/WorkspaceBrowserActivity.java" \
-    || ! rg -Uq 'android:name="\.WorkspaceBrowserActivity"[[:space:][:print:]]{0,260}android:exported="false"' \
+    || ! rg -Uq 'android:name="de\.agentcodi\.app\.WorkspaceBrowserActivity"[[:space:][:print:]]{0,260}android:exported="false"' \
       "$manifest" \
     || ! rg -q 'WorkspaceFileBrowserTest\.run' \
       "$PROJECT_ROOT/tests/java/de/agentcodi/tests/TestMain.java" \
@@ -257,7 +263,7 @@ if rg -n '^import de\.agentcodi\.' "$connector_contracts" \
     || ! rg -q 'suppressesUnboundedConnectorCatalogNotifications' "$PROJECT_ROOT/tests/java/de/agentcodi/tests/CodexSessionControllerTest.java" \
     || ! rg -q -- '--connector-roundtrip' "$PROJECT_ROOT/tests/cpp/agentcodi_engine_test.cpp" \
     || ! rg -q -- '--emit-oversized-app-list-update' "$PROJECT_ROOT/tests/cpp/agentcodi_engine_test.cpp" \
-    || ! rg -Uq 'android:name="\.ConnectorActivity"[[:space:][:print:]]{0,220}android:exported="false"' "$manifest" \
+    || ! rg -Uq 'android:name="de\.agentcodi\.app\.ConnectorActivity"[[:space:][:print:]]{0,220}android:exported="false"' "$manifest" \
     || rg -n 'SharedPreferences|getSharedPreferences|onSaveInstanceState|WebView' "$connector_activity" \
     || rg -n 'mcpServer/oauth/login|auth\.json|client_secret|access_token|refresh_token|api[_ -]?key' \
       "$connector_activity" "$connector_client" "$connector_contracts"; then
@@ -297,7 +303,7 @@ fi
 
 mcp_activity="$PROJECT_ROOT/app/src/main/java/de/agentcodi/app/McpManagementActivity.java"
 mcp_editor="$PROJECT_ROOT/app/src/main/java/de/agentcodi/app/McpServerEditorDialog.java"
-if ! rg -Uq 'android:name="\.McpManagementActivity"[[:space:][:print:]]{0,220}android:exported="false"' "$manifest" \
+if ! rg -Uq 'android:name="de\.agentcodi\.app\.McpManagementActivity"[[:space:][:print:]]{0,220}android:exported="false"' "$manifest" \
     || ! rg -q 'McpManagementActivity' "$PROJECT_ROOT/app/src/main/java/de/agentcodi/app/SettingsActivity.java" \
     || ! rg -q 'mcpCatalogSnapshot' "$mcp_activity" \
     || ! rg -q 'refreshMcpCatalog' "$mcp_activity" \
@@ -826,7 +832,7 @@ ripgrep_artifact="$PROJECT_ROOT/third_party/ripgrep/ripgrep-15.2.0-android-arm64
 ripgrep_dependencies="$PROJECT_ROOT/third_party/ripgrep/DEPENDENCIES"
 ripgrep_licenses="$PROJECT_ROOT/third_party/ripgrep/LICENSES"
 ripgrep_provenance="$PROJECT_ROOT/third_party/ripgrep/PROVENANCE"
-if ! rg -Uq 'android:name="\.TerminalActivity"[[:space:][:print:]]{0,220}android:exported="false"' "$manifest" \
+if ! rg -Uq 'android:name="de\.agentcodi\.app\.TerminalActivity"[[:space:][:print:]]{0,220}android:exported="false"' "$manifest" \
     || ! rg -q 'openTerminal' "$PROJECT_ROOT/app/src/main/java/de/agentcodi/app/MainActivity.java" \
     || ! rg -q 'AgentRuntimeService\.startTerminal' "$terminal_activity" \
     || ! rg -q 'AgentRuntimeService\.sendTerminalInput' "$terminal_activity" \
@@ -1015,13 +1021,13 @@ if ! rg -q 'PYTHON_SOURCE_EXTENSION_COUNT="75"' "$apk_builder" \
   exit 1
 fi
 
-if ! rg -q 'VERSION_NAME = "0\.7\.6-preview\.1"' "$core_root/BuildIdentity.java" \
-    || ! rg -q 'VERSION_CODE = 87' "$core_root/BuildIdentity.java" \
+if ! rg -q 'VERSION_NAME = "0\.1\.0-package\.1"' "$core_root/BuildIdentity.java" \
+    || ! rg -q 'VERSION_CODE = 1' "$core_root/BuildIdentity.java" \
     || ! rg -q 'CODEX_RUNTIME_VERSION = "0\.153\.3-agentcodi\.2"' "$core_root/BuildIdentity.java" \
-    || ! rg -q 'android:versionName="0\.7\.6-preview\.1"' "$manifest" \
-    || ! rg -q 'android:versionCode="87"' "$manifest" \
-    || ! rg -q 'APP_VERSION="0\.7\.6-preview\.1"' "$apk_builder" \
-    || ! rg -q 'VERSION_CODE="87"' "$apk_builder" \
+    || ! rg -q 'android:versionName="0\.1\.0-package\.1"' "$manifest" \
+    || ! rg -q 'android:versionCode="1"' "$manifest" \
+    || ! rg -q 'APP_VERSION="0\.1\.0-package\.1"' "$apk_builder" \
+    || ! rg -q 'VERSION_CODE="1"' "$apk_builder" \
     || ! rg -q 'CODEX_ANDROID_VERSION="0\.153\.3-agentcodi\.2"' "$apk_builder" \
     || ! rg -q 'CODEX_TERMUX_SOURCE_TAG="untagged"' "$apk_builder" \
     || ! rg -q 'CODEX_TERMUX_SOURCE_COMMIT="af5fec312538b25568fd83a0090efe3c417807d1"' "$apk_builder" \
@@ -1042,7 +1048,7 @@ if ! rg -q 'VERSION_NAME = "0\.7\.6-preview\.1"' "$core_root/BuildIdentity.java"
     || ! rg -q 'af5fec312538b25568fd83a0090efe3c417807d1' "$PROJECT_ROOT/app/src/main/res/raw/third_party_notices.txt" \
     || ! rg -q '657a993cbee87acf52d14b758ce49dbd46d1b8eb' "$PROJECT_ROOT/NOTICE.md" \
     || ! rg -q '657a993cbee87acf52d14b758ce49dbd46d1b8eb' "$PROJECT_ROOT/app/src/main/res/raw/third_party_notices.txt"; then
-  echo "The 0.7.6-preview.1 / Codex 0.153.3-agentcodi.2 identity is inconsistent." >&2
+  echo "The 0.1.0-package.1 / Codex 0.153.3-agentcodi.2 identity is inconsistent." >&2
   exit 1
 fi
 

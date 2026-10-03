@@ -2180,7 +2180,7 @@ public final class CodexSessionControllerTest {
             "type", "imageGeneration",
             "status", "completed",
             "result", "metadata only",
-            "savedPath", "/data/data/de.agentcodi.app/files/agentcodi/workspace/generated.png"
+            "savedPath", "/data/data/de.agentcodi.pkg/files/agentcodi/workspace/generated.png"
         ));
         notifyCompletedTool(server, JsonCodec.object(
             "id", "hook_card",
@@ -2251,7 +2251,7 @@ public final class CodexSessionControllerTest {
             "canonical runtime validation is explained"
         );
         TestSupport.assertEquals(
-            "/data/data/de.agentcodi.app/files/agentcodi/workspace/generated.png",
+            "/data/data/de.agentcodi.pkg/files/agentcodi/workspace/generated.png",
             cardById(controller.snapshot(), "alias_image_card").getReportedImagePath(),
             "Android path alias reaches canonical runtime validation"
         );

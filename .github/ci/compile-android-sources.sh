@@ -5,7 +5,7 @@ set -Eeuo pipefail
 SCRIPT_DIR="$(cd -- "$(dirname -- "$0")" && pwd -P)"
 PROJECT_ROOT="$(cd -- "$SCRIPT_DIR/../.." && pwd -P)"
 BUILD_DIR="$(mktemp -d "${RUNNER_TEMP:-/tmp}/agentcodi-android-compile.XXXXXX")"
-trap 'rm -rf -- "$BUILD_DIR"' EXIT
+trap 'build_status=$?; if [ "$build_status" -ne 0 ] && [ -f "$BUILD_DIR/badging.txt" ]; then cat "$BUILD_DIR/badging.txt"; fi; rm -rf -- "$BUILD_DIR"; exit "$build_status"' EXIT
 
 : "${ANDROID_HOME:?The GitHub runner Android SDK is required}"
 ANDROID_JAR="$ANDROID_HOME/platforms/android-35/android.jar"
@@ -22,7 +22,7 @@ mkdir -p "$BUILD_DIR/generated" "$BUILD_DIR/classes"
   -I "$ANDROID_JAR" "$BUILD_DIR/resources.zip"
 "$AAPT2" dump badging "$BUILD_DIR/resources.apk" > "$BUILD_DIR/badging.txt"
 grep -Fq "targetSdkVersion:'28'" "$BUILD_DIR/badging.txt"
-grep -Fq "sdkVersion:'29'" "$BUILD_DIR/badging.txt"
+grep -Eq "(minSdkVersion|sdkVersion):'29'" "$BUILD_DIR/badging.txt"
 grep -Fq "application-label:'AGENTCODI Package'" "$BUILD_DIR/badging.txt"
 
 find "$PROJECT_ROOT/app/src/main/java" "$PROJECT_ROOT/modules" "$BUILD_DIR/generated" \

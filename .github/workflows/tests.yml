@@ -154,7 +154,7 @@ jobs:
             termux/termux-docker:aarch64@sha256:e19ea56dd687563849826cbda57da714ae23277ee463e21f39917dbc0a59bab4 \
             bash -c 'set -eu
               mkdir -p /audit/report/schema
-              export HOME=/tmp/community-home CODEX_HOME=/tmp/community-home/codex TMPDIR=/tmp
+              export HOME=/audit/report/home CODEX_HOME=/audit/report/home/codex TMPDIR=/data/data/com.termux/files/usr/tmp
               mkdir -p "$CODEX_HOME"
               /audit/payload/package/bin/codex.bin --version
               /audit/payload/package/bin/codex-code-mode-host --help

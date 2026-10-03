@@ -33,6 +33,10 @@ jobs:
           .github/ci/generate-build-inputs.sh > /tmp/agentcodi-build-inputs.tsv
           diff -u .github/ci/build-inputs.tsv /tmp/agentcodi-build-inputs.tsv
 
+      - name: Restore downloadable inputs from public sources
+        shell: bash
+        run: bash .github/ci/fetch-public-build-inputs.sh .cache/android
+
       - name: Reconstruct the pinned Codex package from the official preview APK
         shell: bash
         run: |

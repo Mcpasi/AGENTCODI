@@ -1,0 +1,9 @@
+{
+  "repository": "DioNanos/codex-termux",
+  "release": "v0.156.1-termux.1",
+  "source_commit": "ea762071ec4acbf1531fcc7daf47524836f70a09",
+  "package_name": "@mmmbuto/codex-cli-termux",
+  "package_version": "0.156.1-termux.1",
+  "asset_name": "mmmbuto-codex-cli-termux-0.156.1-termux.1.tgz",
+  "archive_sha256": "44cee2f3a4a110fd79d4f7d61378d46fd72406f45cffb3163e809d63e86d946a"
+}

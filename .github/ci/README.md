@@ -255,3 +255,42 @@ ungranted `/proc` ancestor. The ELF guards already use the direct link read.
 
 This layout requires write access to `/` and is intended for the root-owned
 build container. Local builds retain the default `nested` layout.
+
+## Community Codex archive inspection (Package Edition)
+
+The next migration step is a static audit of the Community release, separate
+from the APK's active runtime pins. `community-codex-release.json` fixes
+`DioNanos/codex-termux` release `v0.156.1-termux.1`, its source commit and
+the release archive's SHA-256. The Tests workflow runs this additional job only
+on `Mcpasi/package-edition`; pushing a commit starts it alongside the existing
+architecture, Java, C++ and Android compilation jobs.
+
+`inspect-community-codex.py` verifies the GitHub release-asset digest, resolves
+the release tag to the pinned commit, downloads the exact asset, and verifies
+the downloaded bytes before reading archive entries. It rejects missing
+required files, duplicate paths, traversal, links and special files. It records
+every file's size, archive mode and SHA-256, checks package identity and platform,
+and reads each ELF's ARM64 header, interpreter, RUNPATH and DT_NEEDED entries
+with the host's `readelf`. Native dependencies must resolve to bundled files or
+the listed Android system libraries. Both Codex and its separate code-mode host
+must have Android's `/system/bin/linker64` interpreter and `$ORIGIN` search path.
+
+The job prints its findings in the Actions summary and uploads
+`community-codex-release-inspection`: `report.json`, `inventory.json`,
+per-ELF readelf reports, package metadata, README, LICENSE and NOTICE.
+The archive and extracted binaries stay in the runner's temporary directory.
+No npm install/postinstall, native execution or APK integration occurs.
+The focused rejection tests run before the real release inspection.
+
+To repeat the audit on a host with Python 3 and binutils:
+
+```sh
+python3 .github/ci/test-community-codex-inspection.py
+python3 .github/ci/inspect-community-codex.py --output /tmp/agentcodi-community-audit
+```
+
+Use a new output directory for every run. The archive audit establishes the
+packaged host and dependency inventory. Schema generation, API compatibility,
+APK host relocation, notice completeness for libc++/Rust/V8, and the active
+runtime-channel switch remain the following Roadmap steps. A successful static
+audit does not establish Android runtime or installation compatibility.

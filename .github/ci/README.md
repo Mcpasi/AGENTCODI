@@ -273,14 +273,22 @@ every file's size, archive mode and SHA-256, checks package identity and platfor
 and reads each ELF's ARM64 header, interpreter, RUNPATH and DT_NEEDED entries
 with the host's `readelf`. Native dependencies must resolve to bundled files or
 the listed Android system libraries. Both Codex and its separate code-mode host
-must have Android's `/system/bin/linker64` interpreter and `$ORIGIN` search path.
+must have Android's `/system/bin/linker64` interpreter and only `$ORIGIN`
+search-path entries. The observed `$ORIGIN:$ORIGIN` is accepted because both
+entries name the same directory; empty entries or other directories fail.
+Metadata requests use the workflow's read-only `GH_TOKEN` to avoid the shared
+hosted-runner anonymous rate limit; that token is never sent to asset redirects.
 
 The job prints its findings in the Actions summary and uploads
 `community-codex-release-inspection`: `report.json`, `inventory.json`,
 per-ELF readelf reports, package metadata, README, LICENSE and NOTICE.
 The archive and extracted binaries stay in the runner's temporary directory.
 No npm install/postinstall, native execution or APK integration occurs.
-The focused rejection tests run before the real release inspection.
+The eight focused archive/search-path tests run before the real release
+inspection. The report also includes the packaged NOTICE text and compares
+upstream versions mentioned in the README and package description. The current
+archive has a stale `rust-v0.155.0` README while its release tag and description
+identify `rust-v0.156.1`; this documentation discrepancy is reported explicitly.
 
 To repeat the audit on a host with Python 3 and binutils:
 

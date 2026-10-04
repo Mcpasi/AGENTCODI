@@ -11,6 +11,7 @@ import subprocess
 import threading
 import time
 import uuid
+from http.server import BaseHTTPRequestHandler, ThreadingHTTPServer
 from jsonschema import Draft7Validator
 
 IMAGE = "termux/termux-docker:aarch64@sha256:e19ea56dd687563849826cbda57da714ae23277ee463e21f39917dbc0a59bab4"
@@ -35,8 +36,49 @@ def validate_sources(bundle):
     print("Source RPC inventory verified:", ", ".join(sorted(used)))
     return used
 
+
+class ModelFixture:
+    """Serve deterministic Responses SSE without credentials or external inference."""
+    def __init__(self):
+        self.requests = []
+        fixture = self
+        class Handler(BaseHTTPRequestHandler):
+            def log_message(self, *args):
+                pass
+            def do_POST(self):
+                body = self.rfile.read(int(self.headers["Content-Length"]))
+                fixture.requests.append(json.loads(body))
+                number = len(fixture.requests)
+                events = [{"type": "response.created", "response": {"id": "ci-" + str(number)}}]
+                if number == 1:
+                    events.append({"type": "response.output_item.done", "item": {
+                        "type": "custom_tool_call", "call_id": "community-host-probe",
+                        "name": "exec", "input": "text('community-code-host-ok');"}})
+                else:
+                    events.append({"type": "response.output_item.done", "item": {
+                        "type": "message", "role": "assistant", "id": "ci-message",
+                        "content": [{"type": "output_text", "text": "Community host verified."}]}})
+                events.append({"type": "response.completed", "response": {
+                    "id": "ci-" + str(number), "usage": {
+                        "input_tokens": 0, "output_tokens": 0, "total_tokens": 0,
+                        "input_tokens_details": None, "output_tokens_details": None}}})
+                payload = "".join("event: " + e["type"] + "\ndata: " + json.dumps(e) + "\n\n"
+                                  for e in events).encode()
+                self.send_response(200)
+                self.send_header("Content-Type", "text/event-stream")
+                self.send_header("Content-Length", str(len(payload)))
+                self.end_headers()
+                self.wfile.write(payload)
+        self.server = ThreadingHTTPServer(("127.0.0.1", 0), Handler)
+        self.url = "http://127.0.0.1:" + str(self.server.server_port) + "/v1"
+        threading.Thread(target=self.server.serve_forever, daemon=True).start()
+
+    def close(self):
+        self.server.shutdown()
+        self.server.server_close()
+
 class Runtime:
-    def __init__(self, audit, validate):
+    def __init__(self, audit, validate, mock_url):
         self.name = "community-probe-" + uuid.uuid4().hex
         prefix = "/data/data/com.termux/files/usr"
         probe = "/probe"
@@ -45,7 +87,7 @@ class Runtime:
         runtime_data.chmod(0o777)
         command = [
             "docker", "run", "--rm", "-i", "--name", self.name,
-            "--entrypoint", "/entrypoint.sh", "-v", str(audit) + ":/audit",
+            "--network", "host", "--entrypoint", "/entrypoint.sh", "-v", str(audit) + ":/audit",
             "-v", str(runtime_data) + ":/probe", IMAGE,
             "bash", "-c",
             'mkdir -p ' + probe + '/home/codex ' + probe + '/workspace ' + probe + '/home/.local/bin; '
@@ -65,6 +107,12 @@ class Runtime:
             '-c \'model_providers.agentcodi-openai-http.supports_websockets=false\' '
             '-c \'model_providers.agentcodi-openai-http.supports_standalone_web_search=true\''
         ]
+        command[-1] += (
+            ' -c \'model_providers.agentcodi-openai-http.requires_openai_auth=false\''
+            ' -c \'model_providers.agentcodi-openai-http.base_url="' + mock_url + '"\''
+            ' -c \'features.enable_request_compression=false\''
+            ' -c \'features.code_mode_only=true\''
+        )
         # Intentionally omit CODEX_CODE_MODE_HOST_PATH: exercise sibling host discovery.
         self.process = subprocess.Popen(command, stdin=subprocess.PIPE, stdout=subprocess.PIPE,
                                         stderr=subprocess.PIPE, text=True, bufsize=1)
@@ -111,6 +159,18 @@ class Runtime:
                 return response["result"]
             self.notifications.append(response)
         raise AssertionError("RPC timed out: " + method + "\n" + "".join(self.errors))
+
+    def wait_notification(self, method):
+        deadline = time.monotonic() + 60
+        while time.monotonic() < deadline:
+            for index, message in enumerate(self.notifications):
+                if message.get("method") == method:
+                    return self.notifications.pop(index)["params"]
+            try:
+                self.notifications.append(json.loads(self.lines.get(timeout=1)))
+            except queue.Empty:
+                assert self.process.poll() is None, "".join(self.errors)
+        raise AssertionError("Notification timed out: " + method + "\n" + "".join(self.errors))
 
     def initialize(self):
         result = self.request("initialize", {
@@ -166,7 +226,8 @@ def main():
         observed.add(message["method"])
     print("Generated schemas accepted", count, "actual Java fixture RPCs:", ", ".join(sorted(observed)))
 
-    runtime = Runtime(audit, client)
+    model = ModelFixture()
+    runtime = Runtime(audit, client, model.url)
     thread_id = None
     try:
         runtime.initialize()
@@ -220,15 +281,21 @@ def main():
         runtime.request("config/mcpServer/reload")
         runtime.request("app/list", {"limit": 50, "forceRefetch": False})
         runtime.request("app/installed", {"limit": 50})
-        # A missing thread is expected; this proves the real server decodes the complete turn shape.
-        runtime.request("turn/start", {"threadId": "missing-ci-thread",
-            "input": [{"type": "text", "text": "synthetic"}], "cwd": runtime.cwd,
-            "runtimeWorkspaceRoots": [runtime.cwd], "approvalPolicy": "on-request",
-            "permissions": PROFILE, "model": "gpt-5.1-codex", "effort": "medium", "summary": "auto"},
-            expect_error=True)
+        runtime.request("turn/start", {"threadId": thread_id,
+            "input": [{"type": "text", "text": "run the synthetic host probe"}],
+            "cwd": runtime.cwd, "runtimeWorkspaceRoots": [runtime.cwd],
+            "approvalPolicy": "on-request", "permissions": PROFILE,
+            "model": "gpt-5.1-codex", "effort": "medium", "summary": "auto"})
+        completed = runtime.wait_notification("turn/completed")
+        assert completed["turn"]["status"] == "completed", completed
+        assert len(model.requests) == 2, "Expected host call and follow-up model request"
+        follow_up = json.dumps(model.requests[1].get("input", []))
+        assert "community-code-host-ok" in follow_up, follow_up
+        assert "failed to spawn" not in follow_up and "failed to initialize" not in follow_up
+        print("Relocated sibling code-mode host executed JavaScript successfully.")
     finally:
         runtime.close()
-    restarted = Runtime(audit, client)
+    restarted = Runtime(audit, client, model.url)
     try:
         restarted.initialize()
         resumed = restarted.request("thread/resume", {"threadId": thread_id, "cwd": restarted.cwd,
@@ -239,6 +306,7 @@ def main():
         assert command["exitCode"] == 0 and "package-edition-ok" in command["stdout"]
     finally:
         restarted.close()
+        model.close()
     report = {"source_methods": sorted(used), "emitted_methods": sorted(observed),
               "java_messages_validated": count, "real_runtime": "passed",
               "device_tests": "skipped"}

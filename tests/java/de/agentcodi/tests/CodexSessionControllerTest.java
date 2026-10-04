@@ -4445,6 +4445,15 @@ public final class CodexSessionControllerTest {
                 throw new IOException("fixture closed");
             }
             Map<String, Object> request = JsonCodec.parseObject(line);
+            String audit = System.getenv("AGENTCODI_RPC_AUDIT");
+            if (audit != null && request.containsKey("method")) {
+                synchronized (FixtureServer.class) {
+                    java.nio.file.Files.write(java.nio.file.Paths.get(audit),
+                        (line + "\\n").getBytes(java.nio.charset.StandardCharsets.UTF_8),
+                        java.nio.file.StandardOpenOption.CREATE,
+                        java.nio.file.StandardOpenOption.APPEND);
+                }
+            }
             String method = JsonCodec.optionalString(request.get("method"));
             if (request.get("id") == null) {
                 return;

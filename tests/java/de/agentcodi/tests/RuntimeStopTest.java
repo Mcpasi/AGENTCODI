@@ -93,7 +93,7 @@ public final class RuntimeStopTest {
         state.beginStop();
         state.finishStop(previous);
         long current = state.beginStart();
-        TestSupport.assertEquals(CodexExecutionMode.PROTECTED_ID,
+        TestSupport.assertEquals(CodexExecutionMode.COMPATIBILITY_ID,
             state.snapshot().getExecutionModeId(), "restart defaults to protected mode");
         TestSupport.assertFalse(state.finishStop(previous), "stale cleanup cannot stop restart");
         TestSupport.assertTrue(state.markReady(current, "native/2", "", "/workspace"),

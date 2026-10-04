@@ -16,6 +16,17 @@ on:
   push:
     branches:
       - 'Mcpasi/package-edition'
+    paths:
+      - 'app/**'
+      - 'modules/**'
+      - 'scripts/**'
+      - 'tests/**'
+      - '.github/workflows/apk.yml'
+      - '.github/ci/Dockerfile'
+      - '.github/ci/*build-inputs*'
+      - '.github/ci/container-preflight.sh'
+      - '.github/ci/restore-ndk-sysroot.sh'
+      - '.github/ci/ndk-29-inputs.tsv'
   workflow_dispatch:
     inputs:
       preflight_only:

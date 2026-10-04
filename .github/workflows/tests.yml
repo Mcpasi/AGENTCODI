@@ -45,7 +45,10 @@ jobs:
       # scripts/check-architecture.sh is pure ripgrep and find, so unlike the
       # build and test scripts it runs unchanged on a hosted runner.
       - name: Check architecture contracts
-        run: ./scripts/check-architecture.sh
+        run: |
+          bash -n scripts/build-debug-apk.sh scripts/check-architecture.sh .github/ci/generate-build-inputs.sh
+          ./scripts/check-architecture.sh
+          diff -u .github/ci/build-inputs.tsv <(.github/ci/generate-build-inputs.sh)
 
   java:
     name: Java host tests
@@ -115,7 +118,7 @@ jobs:
 
       - name: Check the archive inspection driver
         run: |
-          python3 -m py_compile .github/ci/inspect-community-codex.py
+          python3 -m py_compile .github/ci/inspect-community-codex.py .github/ci/community-runtime-pins.py .github/ci/verify-community-protocol.py
           python3 .github/ci/test-community-codex-inspection.py
 
       - name: Download, verify and inspect the pinned Community release

@@ -1,0 +1,88 @@
+{
+  "format_version": 1,
+  "groups": {
+    "python": [
+      "python"
+    ],
+    "node": [
+      "nodejs-lts",
+      "npm"
+    ],
+    "git": [
+      "git"
+    ],
+    "ripgrep": [
+      "ripgrep"
+    ]
+  },
+  "edits": [
+    {
+      "path": "packages/python/build.sh",
+      "upstream_blob": "5c3b8d2f8b52bc84c21fcb463735301bcd759c40",
+      "replacements": [
+        {
+          "old": "TERMUX_PKG_BUILD_DEPENDS=\"tk\"",
+          "new": "TERMUX_PKG_BUILD_DEPENDS=\"\""
+        },
+        {
+          "old": "TERMUX_PKG_SUGGESTS=\"python-tkinter\"",
+          "new": "# Initial catalog is headless; Tk is a separate future adaptation."
+        },
+        {
+          "old": "_ssl _tkinter zlib",
+          "new": "_ssl zlib"
+        },
+        {
+          "old": "--without-ensurepip\"",
+          "new": "--without-ensurepip --without-static-libpython\""
+        },
+        {
+          "old": "lib/python${_MAJOR_VERSION}/test\n",
+          "new": "lib/python${_MAJOR_VERSION}/idlelib\nlib/python${_MAJOR_VERSION}/tkinter\nlib/python${_MAJOR_VERSION}/turtle.py\nlib/python${_MAJOR_VERSION}/turtledemo\nbin/idle*\nlib/python${_MAJOR_VERSION}/test\n"
+        }
+      ]
+    },
+    {
+      "path": "packages/git/build.sh",
+      "upstream_blob": "56e2cde479019cdbc517ccd48dcc33a1f130e829",
+      "replacements": [
+        {
+          "old": "NO_NSEC=1",
+          "new": "NO_PERL=1\nNO_TCLTK=1\nNO_NSEC=1"
+        },
+        {
+          "old": "--with-tcltk=$TERMUX_PREFIX/bin/wish",
+          "new": "--without-tcltk"
+        }
+      ]
+    },
+    {
+      "path": "packages/npm/build.sh",
+      "upstream_blob": "0544cd37cd30945983eb5788221949cf076f2985",
+      "replacements": [
+        {
+          "old": "TERMUX_PKG_SRCURL=git+https://github.com/npm/cli.git",
+          "new": "TERMUX_PKG_SRCURL=git+https://github.com/npm/cli.git\nTERMUX_PKG_GIT_BRANCH=v11.20.0\nTERMUX_PKG_GIT_COMMIT=d12b9434dd010b5fb7044c3cc149cdda317813f8"
+        },
+        {
+          "old": "TERMUX_PKG_DEPENDS=\"nodejs | nodejs-lts\"",
+          "new": "TERMUX_PKG_DEPENDS=\"nodejs-lts\""
+        }
+      ]
+    }
+  ],
+  "removals": [
+    {
+      "path": "packages/python/python-tkinter.subpackage.sh",
+      "upstream_blob": "e6405571aadccfdeb04cc366df6ee717896002ba"
+    },
+    {
+      "path": "packages/git/git-gitk.subpackage.sh",
+      "upstream_blob": "b9026448a34a28c026842a8bdb68dad862e6c85c"
+    },
+    {
+      "path": "packages/git/git-gui.subpackage.sh",
+      "upstream_blob": "714700635a29d33001c35ae64952dc1773390ca3"
+    }
+  ]
+}

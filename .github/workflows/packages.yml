@@ -1,0 +1,128 @@
+name: Package catalog
+on:
+  push:
+    branches: ['Mcpasi/package-edition']
+    paths:
+      - 'scripts/package-edition/**'
+      - '.github/workflows/packages.yml'
+      - '.github/workflows/bootstrap.yml'
+      - '.github/ci/catalog-*'
+      - '.github/ci/bootstrap-*'
+      - '.github/ci/BootstrapInstall.java'
+  workflow_dispatch:
+permissions:
+  contents: read
+  actions: read
+concurrency:
+  group: package-catalog-${{ github.ref }}
+  cancel-in-progress: false
+jobs:
+  bootstrap:
+    if: github.ref == 'refs/heads/Mcpasi/package-edition'
+    uses: ./.github/workflows/bootstrap.yml
+    with:
+      source_run_id: 37215181811
+  build:
+    name: Source build (${{ matrix.group }})
+    if: github.ref == 'refs/heads/Mcpasi/package-edition'
+    runs-on: ubuntu-latest
+    timeout-minutes: 300
+    strategy:
+      fail-fast: false
+      matrix:
+        group: [python, node, git, ripgrep]
+    steps:
+      - uses: actions/checkout@v4
+      - name: Prepare the pinned catalog recipes in fresh storage
+        run: |
+          set -euo pipefail
+          python3 -m py_compile scripts/package-edition/prepare-catalog.py scripts/package-edition/audit-catalog.py
+          bash -n scripts/package-edition/build-catalog.sh .github/ci/catalog-smoke.sh
+          root="$RUNNER_TEMP/package-catalog"
+          mkdir -p "$root/output"
+          git init -q "$root/source"
+          git -C "$root/source" remote add origin https://github.com/termux/termux-packages.git
+          git -C "$root/source" fetch --depth=1 origin "$(jq -r .source.commit scripts/package-edition/lock.json)"
+          git -C "$root/source" checkout --detach FETCH_HEAD
+          python3 -B scripts/package-edition/prepare-catalog.py --source "$root/source" --output "$root/prepared"
+          sudo chown -R 1001:1001 "$root/prepared" "$root/output"
+      - name: Build the catalog and all dependencies from sources
+        run: |
+          set -euo pipefail
+          root="$RUNNER_TEMP/package-catalog"
+          docker run --rm --platform linux/amd64 \
+            --device /dev/fuse --cap-add SYS_ADMIN --security-opt apparmor=unconfined \
+            -v "$GITHUB_WORKSPACE":/audit:ro \
+            -v "$root/prepared":/home/builder/termux-packages \
+            -v "$root/output":/catalog \
+            "$(jq -r .builder.image scripts/package-edition/lock.json)" \
+            bash /audit/scripts/package-edition/build-catalog.sh "${{ matrix.group }}"
+      - name: Retain all DEBs and preparation on failure
+        if: failure()
+        run: |
+          root="$RUNNER_TEMP/package-catalog"
+          sudo cp -a "$root/prepared/output" "$root/output/failed-build-debs" || true
+          sudo cp "$root/prepared/agentcodi-preparation.json" "$root/output/" || true
+      - uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: agentcodi-catalog-${{ matrix.group }}
+          path: ${{ runner.temp }}/package-catalog/output/
+          if-no-files-found: error
+  runtime:
+    name: Catalog ARM64 Bionic (${{ matrix.group }})
+    needs: [bootstrap, build]
+    runs-on: ubuntu-24.04-arm
+    timeout-minutes: 30
+    strategy:
+      fail-fast: false
+      matrix:
+        group: [python, node, git, ripgrep]
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/download-artifact@v4
+        with:
+          name: agentcodi-package-bootstrap
+          path: bootstrap
+      - uses: actions/download-artifact@v4
+        with:
+          name: agentcodi-bootstrap-ci-compat
+          path: bootstrap/ci-compat
+      - uses: actions/download-artifact@v4
+        with:
+          name: agentcodi-catalog-${{ matrix.group }}
+          path: bootstrap/catalog
+      - uses: actions/setup-java@v4
+        with:
+          distribution: temurin
+          java-version: '17'
+      - name: Verify artifacts and install the app bootstrap
+        run: |
+          set -euo pipefail
+          (cd bootstrap && sha256sum -c SHA256SUMS)
+          (cd bootstrap/catalog && sha256sum -c SHA256SUMS)
+          (cd bootstrap/ci-compat && sha256sum -c SHA256SUMS)
+          .github/ci/run-java-tests.sh
+          javac -cp "$RUNNER_TEMP/agentcodi-ci-java/classes" -d "$RUNNER_TEMP/agentcodi-ci-java/classes" .github/ci/BootstrapInstall.java
+          mkdir -p bootstrap/root
+          java -cp "$RUNNER_TEMP/agentcodi-ci-java/classes" BootstrapInstall bootstrap
+          cp .github/ci/catalog-smoke.sh bootstrap/smoke.sh
+          chmod 755 bootstrap/ci-compat/bootstrap-api29-compat-test
+          sudo chown -R 1000:1000 bootstrap
+      - name: Install and exercise the actual catalog in Bionic
+        run: |
+          set -euo pipefail
+          docker run --rm --user 1000:1000 \
+            --entrypoint /data/data/de.agentcodi.pkg/files/usr/bin/dash \
+            -e LD_LIBRARY_PATH=/data/data/de.agentcodi.pkg/files/usr/lib \
+            -e LD_PRELOAD=/audit/ci-compat/libagentcodi-ci-api29.so \
+            -v "$GITHUB_WORKSPACE/bootstrap":/audit \
+            -v "$GITHUB_WORKSPACE/bootstrap/root":/data/data/de.agentcodi.pkg/files \
+            termux/termux-docker:aarch64@sha256:e19ea56dd687563849826cbda57da714ae23277ee463e21f39917dbc0a59bab4 \
+            /audit/smoke.sh "${{ matrix.group }}"
+      - uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: agentcodi-catalog-runtime-${{ matrix.group }}
+          path: bootstrap/evidence/
+          if-no-files-found: warn

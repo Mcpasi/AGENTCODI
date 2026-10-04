@@ -192,3 +192,38 @@ Real Android hardware tests remain skipped.
 The signed repository, trust key, pkg frontend and public package catalog are
 separate roadmap steps. apt update cannot authenticate the planned source yet.
 No insecure repository fallback is configured.
+
+## Source-built catalog CI
+
+The branch-only Package catalog workflow builds Python, Node.js LTS plus npm,
+Git and ripgrep in four fresh amd64 build containers. Every target dependency
+is rebuilt from the locked sources; no official Termux DEBs, dependency caches
+or binary cycle seeds are restored. Node.js LTS 24.18.0 is the initial Node
+variant. Python 3.14.6, npm 11.20.0, Git 2.56.0 and ripgrep 15.2.0 come from
+the same recipe tree. The separate catalog.json overlay makes Python and Git
+headless (no Tk, Git GUI or optional Perl commands) and pins npm's Git tag to
+d12b9434dd010b5fb7044c3cc149cdda317813f8. Bootstrap recipes are unaffected.
+
+Each agentcodi-catalog-<group> artifact contains the runtime DEBs, dependency
+versions, full prefix/ELF audit, hashes, preparation and corresponding sources
+for runtime and build-only recipes. all-built-packages.json audits every built
+DEB. The bootstrap-shaped ZIP in these artifacts is only a checked combined
+layout fixture; it is never embedded in the APK. The APK continues to use
+agentcodi-package-bootstrap.
+
+Hosted ARM64/Bionic jobs install the normal app bootstrap through its Java
+initializer, configure dpkg, then use APT's local-DEB dependency resolver to
+install the catalog without online repositories or authentication exceptions.
+They execute Python native modules, Node crypto/ICU, offline npm pack/run,
+Git commit/fsck and ripgrep PCRE2, remove the catalog roots and reinstall them.
+Installed versions and command results are uploaded as runtime evidence.
+Physical-device tests remain skipped; online signed publication is a separate
+roadmap step.
+
+Pushes affecting package sources or CI start the workflow automatically on
+Mcpasi/package-edition; workflow_dispatch is also available on that branch.
+Build failures retain produced DEBs and preparation for diagnosis. New catalog
+groups must have pinned recipes, a closed dependency graph, prefix/ELF evidence
+and a Bionic lifecycle smoke before publication. These jobs do not assert
+bit-for-bit identity between independent compiler builds; the fixed build
+contract and artifact hashes make inputs and results inspectable.

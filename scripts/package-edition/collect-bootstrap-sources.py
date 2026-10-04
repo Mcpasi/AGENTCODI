@@ -21,7 +21,10 @@ def collect(recipes, build, output):
         parents[recipe.name] = recipe
         for subpackage in recipe.glob("*.subpackage.sh"):
             parents[subpackage.name.removesuffix(".subpackage.sh")] = recipe
-    selected = sorted({parents[name].name for name in report["packages"]})
+    names = set(report["packages"])
+    if report.get("catalog"):
+        names.update(json.loads((output / "all-built-packages.json").read_text()))
+    selected = sorted({parents[name].name for name in names})
     materials = []
     git_sources = []
     with tarfile.open(output / "bootstrap-corresponding-sources.tar.xz", "w:xz") as archive:

@@ -121,6 +121,17 @@ def assemble(debs, output, readelf):
                 if path.name != "control":
                     shutil.copy2(path, info / (name + "." + path.name))
             control_text = (control / "control").read_text().strip()
+            conffiles = control / "conffiles"
+            if conffiles.exists() and conffiles.read_text().strip():
+                records = []
+                for conffile in conffiles.read_text().splitlines():
+                    path = payload / conffile.lstrip("/")
+                    if not path.is_file() or path.is_symlink():
+                        raise ValueError("Invalid bootstrap conffile: " + conffile)
+                    # dpkg uses MD5 to distinguish user edits during package upgrades.
+                    digest = hashlib.md5(path.read_bytes(), usedforsecurity=False).hexdigest()
+                    records.append(" " + conffile + " " + digest)
+                control_text += "\nConffiles:\n" + "\n".join(records)
             status.append(control_text + "\nStatus: install ok unpacked\n")
             shutil.copy2(deb, output / deb.name)
         (prefix / "var/lib/dpkg/status").write_text("\n".join(status) + "\n")

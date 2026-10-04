@@ -112,6 +112,9 @@ class AssemblyTest(unittest.TestCase):
                     self.assertEqual(hashlib.sha256(data).hexdigest(), fields[3])
             status = archive.read("var/lib/dpkg/status").decode()
             self.assertEqual(status.count("Status: install ok unpacked"), 6)
+            cert = archive.read("etc/tls/cert.pem")
+            self.assertIn("Conffiles:\n " + bootstrap.verify.PREFIX + "/etc/tls/cert.pem " +
+                          hashlib.md5(cert, usedforsecurity=False).hexdigest(), status)
             for name in report["packages"]:
                 listing = archive.read("var/lib/dpkg/info/" + name + ".list").decode().splitlines()
                 self.assertTrue(listing)

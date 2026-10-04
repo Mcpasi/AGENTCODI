@@ -8,6 +8,8 @@ export PATH="$prefix/bin:/system/bin" LD_LIBRARY_PATH="$prefix/lib" TMPDIR="$pre
 mkdir -p "$HOME" "$TMPDIR"
 "$prefix/bin/dpkg" --configure -a
 "$prefix/bin/dpkg" --audit
+"$prefix/bin/dpkg-query" -W -f='${Conffiles}\n' apt > /audit/apt-conffiles.txt
+grep -Eq '^ /data/data/de[.]agentcodi[.]pkg/files/usr/etc/apt/sources[.]list [0-9a-f]{32}$' /audit/apt-conffiles.txt
 "$prefix/bin/apt" --version
 "$prefix/bin/gpgv" --version
 "$prefix/bin/sh" -c 'test "$PREFIX" = /data/data/de.agentcodi.pkg/files/usr'

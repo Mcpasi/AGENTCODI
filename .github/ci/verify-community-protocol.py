@@ -39,10 +39,14 @@ class Runtime:
     def __init__(self, audit, validate):
         self.name = "community-probe-" + uuid.uuid4().hex
         prefix = "/data/data/com.termux/files/usr"
-        probe = prefix + "/tmp/package-edition-probe"
+        probe = "/probe"
+        runtime_data = audit / "runtime-data"
+        runtime_data.mkdir(exist_ok=True, mode=0o777)
+        runtime_data.chmod(0o777)
         command = [
             "docker", "run", "--rm", "-i", "--name", self.name,
-            "--entrypoint", "/entrypoint.sh", "-v", str(audit) + ":/audit", IMAGE,
+            "--entrypoint", "/entrypoint.sh", "-v", str(audit) + ":/audit",
+            "-v", str(runtime_data) + ":/probe", IMAGE,
             "bash", "-c",
             'mkdir -p ' + probe + '/home/codex ' + probe + '/workspace ' + probe + '/home/.local/bin; '
             'exec env HOME=' + probe + '/home CODEX_HOME=' + probe + '/home/codex TMPDIR=' + prefix + '/tmp '

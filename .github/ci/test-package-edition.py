@@ -71,7 +71,7 @@ class PrefixTest(unittest.TestCase):
     def test_module_template_is_data_but_executable_shebang_is_checked(self):
         module = self.prefix / "lib/ExtUtils/Miniperl.pm"
         module.parent.mkdir(parents=True)
-        module.write_text("#!./perl\\n# nonexecuted module template\\n")
+        module.write_text("#!./perl\n# nonexecuted module template\n")
         module.chmod(0o600)
         verify.audit(self.root)
         module.chmod(0o700)

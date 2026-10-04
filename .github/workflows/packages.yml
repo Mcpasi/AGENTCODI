@@ -197,7 +197,7 @@ jobs:
           (cd bootstrap/ci-compat && sha256sum -c SHA256SUMS)
           .github/ci/run-java-tests.sh
           javac -cp "$RUNNER_TEMP/agentcodi-ci-java/classes" -d "$RUNNER_TEMP/agentcodi-ci-java/classes" .github/ci/BootstrapInstall.java
-          mkdir -p bootstrap/root
+          mkdir -p bootstrap/root bootstrap/cache/apt/archives/partial
           java -cp "$RUNNER_TEMP/agentcodi-ci-java/classes" BootstrapInstall bootstrap
           cp .github/ci/catalog-smoke.sh bootstrap/smoke.sh
           chmod 755 bootstrap/ci-compat/bootstrap-api29-compat-test
@@ -211,6 +211,7 @@ jobs:
             -e LD_PRELOAD=/audit/ci-compat/libagentcodi-ci-api29.so \
             -v "$GITHUB_WORKSPACE/bootstrap":/audit \
             -v "$GITHUB_WORKSPACE/bootstrap/root":/data/data/de.agentcodi.pkg/files \
+            -v "$GITHUB_WORKSPACE/bootstrap/cache":/data/data/de.agentcodi.pkg/cache \
             termux/termux-docker:aarch64@sha256:e19ea56dd687563849826cbda57da714ae23277ee463e21f39917dbc0a59bab4 \
             /audit/smoke.sh "${{ matrix.group }}"
       - uses: actions/upload-artifact@v4

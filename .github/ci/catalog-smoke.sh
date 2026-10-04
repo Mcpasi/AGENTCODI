@@ -4,11 +4,16 @@ prefix=/data/data/de.agentcodi.pkg/files/usr
 export PREFIX="$prefix" TERMUX_PREFIX="$prefix"
 export HOME=/data/data/de.agentcodi.pkg/files/agentcodi/home
 export PATH="$prefix/bin:/system/bin" LD_LIBRARY_PATH="$prefix/lib" TMPDIR="$prefix/tmp"
-mkdir -p "$HOME" "$TMPDIR" /audit/evidence
+mkdir -p "$HOME" "$TMPDIR" /audit/evidence /audit/apt-empty/sources.list.d
+: > /audit/apt-empty/sources.list
+apt_local() {
+    apt-get -o Dir::Etc::sourcelist=/audit/apt-empty/sources.list \
+        -o Dir::Etc::sourceparts=/audit/apt-empty/sources.list.d "$@"
+}
 /audit/ci-compat/bootstrap-api29-compat-test
 dpkg --configure -a
 # Local DEBs require no online source or repository authentication exception.
-apt-get -o Dir::Etc::sourcelist=/dev/null -o Dir::Etc::sourceparts=- \
+apt_local \
     --no-install-recommends -y install /audit/catalog/*.deb
 dpkg --audit
 group="$1"
@@ -76,11 +81,11 @@ ripgrep)
 esac
 dpkg-query -W > /audit/evidence/installed-packages.txt
 # Remove the roots, then reinstall through the same local dependency resolver.
-apt-get -o Dir::Etc::sourcelist=/dev/null -o Dir::Etc::sourceparts=- -y remove $roots
+apt_local -y remove $roots
 for package in $roots; do
     test "$(dpkg-query -W -f='${db:Status-Status}' "$package" 2>/dev/null || true)" != installed
 done
-apt-get -o Dir::Etc::sourcelist=/dev/null -o Dir::Etc::sourceparts=- \
+apt_local \
     --no-install-recommends -y install /audit/catalog/*.deb
 dpkg --audit
 for package in $roots; do

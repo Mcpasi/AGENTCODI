@@ -295,14 +295,24 @@ def main():
         runtime.request("config/mcpServer/reload")
         runtime.request("app/list", {"limit": 50, "forceRefetch": False})
         runtime.request("app/installed", {"limit": 50})
+        fixture = runtime.command("printf imported-ci-content > '" + runtime.cwd + "/imported-content.bin'")
+        assert fixture["exitCode"] == 0
         runtime.request("turn/start", {"threadId": thread_id,
-            "input": [{"type": "text", "text": "run the synthetic host probe"}],
+            "input": [{"type": "text", "text": "run the synthetic host probe"},
+                      {"type": "mention", "name": "VISIBLE-LABEL-MUST-NOT-BE-MODEL-CONTEXT.bin",
+                       "path": runtime.cwd + "/imported-content.bin"}],
+            "additionalContext": {"agentcodi-import-1": {"kind": "application",
+                "value": "Read the actual bytes at " + runtime.cwd + "/imported-content.bin before answering."}},
             "cwd": runtime.cwd, "runtimeWorkspaceRoots": [runtime.cwd],
             "approvalPolicy": "on-request", "permissions": PROFILE,
             "model": "gpt-5.1-codex", "effort": "medium", "summary": "auto"})
         completed = runtime.wait_notification("turn/completed")
         assert completed["turn"]["status"] == "completed", completed
         assert len(model.requests) == 2, "Expected host call and follow-up model request"
+        first_input = json.dumps(model.requests[0].get("input", []))
+        assert runtime.cwd + "/imported-content.bin" in first_input, first_input
+        assert "Read the actual bytes" in first_input, first_input
+        assert "VISIBLE-LABEL-MUST-NOT-BE-MODEL-CONTEXT.bin" not in first_input, first_input
         follow_up = json.dumps(model.requests[1].get("input", []))
         assert "community-code-host-ok" in follow_up, follow_up
         assert "failed to spawn" not in follow_up and "failed to initialize" not in follow_up

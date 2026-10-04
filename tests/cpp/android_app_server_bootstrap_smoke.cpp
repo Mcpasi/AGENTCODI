@@ -74,7 +74,7 @@ bool read_response(
         }
         if (line.find("\"exitCode\":43") != std::string::npos
             || line.find("\"exitCode\":44") != std::string::npos) {
-          std::cerr << "Full-access executor allowed access to the synthetic private sibling\n";
+          std::cerr << "Full-access executor could not access the synthetic private sibling\n";
         }
         std::cerr << "Bootstrap response omitted its required contract marker\n";
         return false;
@@ -970,7 +970,8 @@ int main(int argc, char* argv[]) {
     }
     if (line.find("\"id\":31") != std::string::npos
         && line.find("\"thread\":{") != std::string::npos) {
-      ExtractBootstrapJsonString(line, "id", &probe_thread_id);
+      const std::size_t thread_begin = line.find("\"thread\":{");
+      ExtractBootstrapJsonString(line.substr(thread_begin), "id", &probe_thread_id);
     }
   }
   const std::string visible_label = "VISIBLE-LABEL-MUST-NOT-BE-MODEL-CONTEXT.bin";
@@ -990,7 +991,7 @@ int main(int argc, char* argv[]) {
           "\"additionalContext\":{\"agentcodi-import-1\":{"
           "\"kind\":\"application\",\"value\":\"" + context_value + "\"}},"
           "\"cwd\":\"" + workspace + "\",\"model\":\"gpt-5.1-codex\","
-          "\"approvalPolicy\":\"never\",\"permissionProfile\":\":danger-full-access\"}}",
+          "\"approvalPolicy\":\"never\",\"permissions\":\":danger-full-access\"}}",
           &error)
       || !read_response(probe, "\"id\":32", "\"status\":\"inProgress\"", &error)) {
     probe->Stop(2'000);

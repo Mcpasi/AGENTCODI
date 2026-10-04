@@ -32,13 +32,14 @@ The complete distributor LICENSE and NOTICE are packaged verbatim at:
 assets/third-party/codex/LICENSE
 assets/third-party/codex/NOTICE
 
-Codex Android sandbox dependencies
+Historical Codex Android sandbox dependency attributions
 
-The local fork compiles the Android seccomp/ptrace sandbox supervisor into
-codex.bin. Landlock is an optional additional layer.
-The following permissive alternatives are selected from the exact locked
-crate archives. Their complete license texts follow; no crate source is
-packaged as AGENTCODI application code.
+These license texts are retained from the previously bundled Mcpasi runtime
+and preserve the original third-party credits. Package Edition now uses the
+DioNanos Community artifact above with Full access. This historical list does
+not describe an active workspace sandbox.
+The permissive alternatives below were selected from the locked crate
+archives. No crate source is packaged as AGENTCODI application code.
 
 landlock 0.4.4: MIT
 Crate SHA-256: 49fefd6652c57d68aaa32544a4c0e642929725bdc1fd929367cdeb673ab81088

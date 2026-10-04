@@ -90,7 +90,8 @@ def audit(root, readelf="readelf"):
             data = path.read_bytes()
             if any(marker in data for marker in FOREIGN):
                 raise ValueError("Foreign Termux path or package source: " + name)
-            check_script(data, name)
+            if path.stat().st_mode & 0o111:
+                check_script(data, name)
             inventory[name] = {"sha256": hashlib.sha256(data).hexdigest(),
                                "mode": oct(path.stat().st_mode & 0o777)}
             if data.startswith(b"\x7fELF"):

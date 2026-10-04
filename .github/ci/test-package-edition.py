@@ -64,7 +64,18 @@ class PrefixTest(unittest.TestCase):
 
     def test_foreign_shebang_is_rejected(self):
         (self.prefix / "bin/hello").write_text("#!/usr/bin/python3\n")
+        (self.prefix / "bin/hello").chmod(0o700)
         with self.assertRaisesRegex(ValueError, "Foreign shebang"):
+            verify.audit(self.root)
+
+    def test_module_template_is_data_but_executable_shebang_is_checked(self):
+        module = self.prefix / "lib/ExtUtils/Miniperl.pm"
+        module.parent.mkdir(parents=True)
+        module.write_text("#!./perl\\n# nonexecuted module template\\n")
+        module.chmod(0o600)
+        verify.audit(self.root)
+        module.chmod(0o700)
+        with self.assertRaisesRegex(ValueError, "Noncanonical shebang"):
             verify.audit(self.root)
 
     def test_shebang_path_traversal_is_rejected(self):

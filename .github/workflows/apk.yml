@@ -39,6 +39,7 @@ on:
 
 permissions:
   contents: read
+  actions: read
 
 concurrency:
   group: package-apk-${{ github.ref }}
@@ -47,6 +48,8 @@ concurrency:
 jobs:
   bootstrap:
     uses: ./.github/workflows/bootstrap.yml
+    with:
+      source_run_id: 37208312449
   apk:
     needs: bootstrap
     name: Debug APK

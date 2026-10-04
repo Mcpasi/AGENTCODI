@@ -113,7 +113,13 @@ fixture: those real package outputs still need their own rebuild checks.
 
 ## Minimal bootstrap and recovery
 
-The APK workflow calls the branch-scoped reusable bootstrap workflow. It builds
+The APK workflow calls the branch-scoped reusable bootstrap workflow. It may reuse
+source build 37208312449 while its artifact remains available and every package
+source/build input (excluding this README) matches that trusted branch push.
+The source-build job must have passed; all payload SHA-256 and the complete lock
+are rechecked, and source-build.json records provenance. Changed inputs or expired
+artifacts cause a full rebuild. Java, ARM64/Bionic and APK checks still run.
+It builds
 dash, bash (required by maintainer scripts), APT, dpkg, CA certificates and their
 runtime dependencies in fresh storage with the pinned builder. Its FUSE capability
 is needed only by the cross-build sysroot; it is unrelated to app permissions.

@@ -1,8 +1,14 @@
 name: Package bootstrap
 on:
   workflow_call:
+    inputs:
+      source_run_id:
+        description: 'Reuse a verified same-branch source build only if recipe inputs are identical'
+        type: number
+        default: 0
 permissions:
   contents: read
+  actions: read
 jobs:
   build:
     name: Build ARM64 package bootstrap
@@ -11,7 +17,70 @@ jobs:
     timeout-minutes: 180
     steps:
       - uses: actions/checkout@v4
+      - name: Check the prior source build and recipe inputs
+        id: reuse
+        if: inputs.source_run_id > 0
+        env:
+          GH_TOKEN: ${{ github.token }}
+          SOURCE_RUN_ID: ${{ inputs.source_run_id }}
+        run: |
+          set -euo pipefail
+          echo 'reuse=false' >> "$GITHUB_OUTPUT"
+          if ! gh api "repos/$GITHUB_REPOSITORY/actions/runs/$SOURCE_RUN_ID" > "$RUNNER_TEMP/source-run.json"; then
+            echo 'Previous source build unavailable; rebuilding.'
+            exit 0
+          fi
+          if ! jq -e --arg repo "$GITHUB_REPOSITORY" '.head_branch == "Mcpasi/package-edition" and .event == "push" and .head_repository.full_name == $repo' "$RUNNER_TEMP/source-run.json" >/dev/null; then
+            echo 'Previous source build is not a trusted edition push; rebuilding.'
+            exit 0
+          fi
+          source_sha="$(jq -r .head_sha "$RUNNER_TEMP/source-run.json")"
+          git fetch --depth=1 origin "$source_sha"
+          if ! git diff --quiet "$source_sha" HEAD -- scripts/package-edition ':(exclude)scripts/package-edition/README.md'; then
+            echo 'Package source/build inputs changed; rebuilding.'
+            exit 0
+          fi
+          if ! gh api "repos/$GITHUB_REPOSITORY/actions/runs/$SOURCE_RUN_ID/jobs?per_page=100" | jq -e 'any(.jobs[]; (.name | endswith("Build ARM64 package bootstrap")) and .conclusion == "success")' >/dev/null; then
+            echo 'Previous source build did not pass; rebuilding.'
+            exit 0
+          fi
+          if ! gh api "repos/$GITHUB_REPOSITORY/actions/runs/$SOURCE_RUN_ID/artifacts?per_page=100" | jq -e 'any(.artifacts[]; .name == "agentcodi-package-bootstrap" and .expired == false)' >/dev/null; then
+            echo 'Previous bootstrap artifact unavailable; rebuilding.'
+            exit 0
+          fi
+          echo 'reuse=true' >> "$GITHUB_OUTPUT"
+          echo "source_sha=$source_sha" >> "$GITHUB_OUTPUT"
+      - name: Download the verified source-built bootstrap
+        if: steps.reuse.outputs.reuse == 'true'
+        uses: actions/download-artifact@v4
+        with:
+          name: agentcodi-package-bootstrap
+          run-id: ${{ inputs.source_run_id }}
+          github-token: ${{ github.token }}
+          path: ${{ runner.temp }}/package-bootstrap/output
+      - name: Verify reused payloads and record source build provenance
+        if: steps.reuse.outputs.reuse == 'true'
+        env:
+          SOURCE_RUN_ID: ${{ inputs.source_run_id }}
+          SOURCE_SHA: ${{ steps.reuse.outputs.source_sha }}
+        run: |
+          cd "$RUNNER_TEMP/package-bootstrap/output"
+          sha256sum -c SHA256SUMS
+          python3 - "$GITHUB_WORKSPACE/scripts/package-edition/lock.json" <<'PY'
+          import json, os, sys
+          from pathlib import Path
+          if json.loads(Path("bootstrap-report.json").read_text())["lock"] != json.loads(Path(sys.argv[1]).read_text()):
+              raise SystemExit("Reused bootstrap lock differs")
+          Path("source-build.json").write_text(json.dumps({
+              "source_run_id": int(os.environ["SOURCE_RUN_ID"]),
+              "source_commit": os.environ["SOURCE_SHA"],
+              "consumer_commit": os.environ["GITHUB_SHA"],
+              "recipe_inputs_identical": True}, indent=2) + "\n")
+          PY
+          sed -i '/  source-build[.]json$/d' SHA256SUMS
+          sha256sum source-build.json >> SHA256SUMS
       - name: Prepare the pinned source recipes
+        if: steps.reuse.outputs.reuse != 'true'
         run: |
           build_root="$RUNNER_TEMP/package-bootstrap"
           mkdir -p "$build_root"
@@ -23,6 +92,7 @@ jobs:
           mkdir -p "$build_root/output"
           sudo chown -R 1001:1001 "$build_root/prepared" "$build_root/output"
       - name: Build source dependencies and assemble the minimal bootstrap
+        if: steps.reuse.outputs.reuse != 'true'
         run: |
           build_root="$RUNNER_TEMP/package-bootstrap"
           docker run --rm --platform linux/amd64 \
@@ -85,7 +155,9 @@ jobs:
           chmod -R a+rX bootstrap
       - name: Configure and execute the actual Android bootstrap
         run: |
-          docker run --rm --user 1001:1001 --entrypoint /system/bin/sh \
+          docker run --rm --user 1001:1001 \
+            --entrypoint /data/data/de.agentcodi.pkg/files/usr/bin/dash \
+            -e LD_LIBRARY_PATH=/data/data/de.agentcodi.pkg/files/usr/lib \
             -v "$GITHUB_WORKSPACE/bootstrap":/audit \
             -v "$GITHUB_WORKSPACE/bootstrap/root":/data/data/de.agentcodi.pkg/files \
             termux/termux-docker:aarch64@sha256:e19ea56dd687563849826cbda57da714ae23277ee463e21f39917dbc0a59bab4 \

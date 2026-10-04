@@ -57,6 +57,10 @@
         {
           "old": "TERMUX_PKG_SUGGESTS=\"perl\"",
           "new": "TERMUX_PKG_SUGGESTS=\"perl\"\nTERMUX_PKG_ANTI_BUILD_DEPENDS=\"tk\""
+        },
+        {
+          "old": "termux_step_post_make_install() {\n",
+          "new": "termux_step_post_make_install() {\n\t# The minimal catalog has no Perl runtime; omit its optional Watchman hook.\n\trm -f \"$TERMUX_PREFIX/share/git-core/templates/hooks/fsmonitor-watchman.sample\"\n"
         }
       ]
     },

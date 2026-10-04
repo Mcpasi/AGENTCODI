@@ -47,7 +47,7 @@ jobs:
           run-id: 37234682673
           github-token: ${{ github.token }}
           path: ${{ runner.temp }}/git-audit-input
-      - name: Check the library template mode and audit the real diagnostic DEBs
+      - name: Check the library template mode and verify the Git recipe fix on diagnostic DEBs
         run: |
           set -euo pipefail
           root="$RUNNER_TEMP/git-audit-input"
@@ -66,6 +66,27 @@ jobs:
                   mode = modules[0].stat().st_mode & 0o777
                   print("Miniperl.pm mode:", oct(mode), "first line:", modules[0].read_text().splitlines()[0])
                   assert mode & 0o111 == 0
+          PY
+          # These modified legacy DEBs are diagnostic fixtures, never deliverables.
+          # Apply exactly the hook removal from the new source recipe and audit it.
+          python3 - "$root/extracted/output" <<'PY'
+          from pathlib import Path
+          import subprocess, sys, tempfile
+          for deb in Path(sys.argv[1]).glob("*.deb"):
+              if subprocess.check_output(["dpkg-deb", "-f", str(deb), "Package"], text=True).strip() != "git":
+                  continue
+              with tempfile.TemporaryDirectory() as temporary:
+                  subprocess.run(["dpkg-deb", "-R", str(deb), temporary], check=True)
+                  hook = Path(temporary) / "data/data/de.agentcodi.pkg/files/usr/share/git-core/templates/hooks/fsmonitor-watchman.sample"
+                  assert hook.is_file() and hook.stat().st_mode & 0o111
+                  assert hook.read_bytes().splitlines()[0] == b"#!/data/data/de.agentcodi.pkg/files/usr/bin/perl"
+                  relative = hook.relative_to(temporary).as_posix()
+                  hook.unlink()
+                  sums = Path(temporary) / "DEBIAN/md5sums"
+                  if sums.exists():
+                      sums.write_text("\n".join(line for line in sums.read_text().splitlines() if line.split(maxsplit=1)[-1].lstrip("./") != relative) + "\n")
+                  subprocess.run(["dpkg-deb", "--root-owner-group", "-b", temporary, str(deb)], check=True)
+                  print("Diagnostic fixture: removed optional Perl Watchman hook")
           PY
           python3 -B scripts/package-edition/audit-catalog.py --debs "$root/extracted/output" --output "$RUNNER_TEMP/git-audit-report" --group git
       - uses: actions/upload-artifact@v4
@@ -102,7 +123,19 @@ jobs:
           jq -e --arg repo "$GITHUB_REPOSITORY" '.head_branch == "Mcpasi/package-edition" and .event == "push" and .head_repository.full_name == $repo' "$RUNNER_TEMP/source-run.json" >/dev/null || exit 0
           source_sha="$(jq -r .head_sha "$RUNNER_TEMP/source-run.json")"
           git fetch --depth=1 origin "$source_sha"
-          git diff --quiet "$source_sha" HEAD -- scripts/package-edition/lock.json scripts/package-edition/overlay.json scripts/package-edition/catalog.json scripts/package-edition/prepare.py scripts/package-edition/prepare-catalog.py scripts/package-edition/build-catalog.sh || exit 0
+          git diff --quiet "$source_sha" HEAD -- scripts/package-edition/lock.json scripts/package-edition/overlay.json scripts/package-edition/prepare.py scripts/package-edition/prepare-catalog.py scripts/package-edition/build-catalog.sh || exit 0
+          python3 - "$source_sha" "$GROUP" <<'PY' || exit 0
+          import json, subprocess, sys
+          from pathlib import Path
+          previous = json.loads(subprocess.check_output(["git", "show", sys.argv[1] + ":scripts/package-edition/catalog.json"]))
+          current = json.loads(Path("scripts/package-edition/catalog.json").read_text())
+          if sys.argv[2] != "git":
+              # Changes to an unused Git recipe do not change other source builds.
+              # The downloaded producer report must prove Git was never built.
+              for configuration in (previous, current):
+                  configuration["edits"] = [edit for edit in configuration["edits"] if edit["path"] != "packages/git/build.sh"]
+          assert previous == current, "Source recipe inputs changed"
+          PY
           for attempt in $(seq 1 240); do
             gh api "repos/$GITHUB_REPOSITORY/actions/runs/$SOURCE_RUN_ID/jobs?per_page=100" > "$RUNNER_TEMP/source-jobs.json"
             state="$(jq -r --arg name "Source build ($GROUP)" '.jobs[] | select(.name == $name) | .status' "$RUNNER_TEMP/source-jobs.json")"
@@ -130,6 +163,12 @@ jobs:
           set -euo pipefail
           root="$RUNNER_TEMP/package-catalog"
           (cd "$root/input" && sha256sum -c SHA256SUMS)
+          python3 - "$root/input/all-built-packages.json" "${{ matrix.group }}" <<'PY'
+          import json, sys
+          from pathlib import Path
+          built = json.loads(Path(sys.argv[1]).read_text())
+          assert sys.argv[2] == "git" or "git" not in built, "Cannot ignore a recipe that was built"
+          PY
           mkdir -p "$root/unpacked"
           tar -C "$root/unpacked" -xf "$root/input/source-built-debs.tar"
           python3 -B scripts/package-edition/audit-catalog.py --debs "$root/unpacked/output" --output "$root/output" --group "${{ matrix.group }}"
@@ -142,7 +181,8 @@ jobs:
               "source_run_id": int(os.environ["SOURCE_RUN_ID"]),
               "source_commit": os.environ["SOURCE_SHA"],
               "consumer_commit": os.environ["GITHUB_SHA"],
-              "recipe_inputs_identical": True}, indent=2) + "\n")
+              "recipe_inputs_identical": True,
+              "comparison": "All build inputs and catalog configuration match; only an unused Git recipe may differ"}, indent=2) + "\n")
           PY
           (cd "$root/output" && sha256sum source-built-debs.tar source-build.json >> SHA256SUMS)
       - name: Prepare the pinned catalog recipes in fresh storage

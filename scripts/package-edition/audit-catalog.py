@@ -35,6 +35,7 @@ def audit(debs, output, group):
             evidence = assembly.verify.audit(payload)
             built[name] = {**metadata, "deb_sha256": hashlib.sha256(deb.read_bytes()).hexdigest(),
                            "audit": evidence}
+    (output / "all-built-packages.json").write_text(json.dumps(built, indent=2) + "\n")
     # Use the same dependency/version, collision, interpreter and ELF checks as
     # the bootstrap. This ZIP is a CI layout fixture, never an APK input.
     original_select = assembly.select
@@ -45,7 +46,6 @@ def audit(debs, output, group):
     report["catalog"] = {"group": group, "roots": roots,
                          "configuration_sha256": hashlib.sha256((HERE / "catalog.json").read_bytes()).hexdigest()}
     report_path.write_text(json.dumps(report, indent=2) + "\n")
-    (output / "all-built-packages.json").write_text(json.dumps(built, indent=2) + "\n")
 
 if __name__ == "__main__":
     parser = argparse.ArgumentParser(description=__doc__)

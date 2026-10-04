@@ -39,7 +39,7 @@
         },
         {
           "old": "TERMUX_PKG_BUILD_DEPENDS=\"docbook-xsl,libdb\"",
-          "new": "TERMUX_PKG_BUILD_DEPENDS=\"libdb\""
+          "new": "TERMUX_PKG_BUILD_DEPENDS=\"\""
         },
         {
           "old": "-DWITH_DOC_MANPAGES=ON",
@@ -47,7 +47,7 @@
         },
         {
           "old": "\t# for manpage build\n\tlocal docbook_xsl_version=$(. $TERMUX_SCRIPTDIR/packages/docbook-xsl/build.sh; echo $TERMUX_PKG_VERSION)\n\tTERMUX_PKG_EXTRA_CONFIGURE_ARGS+=\" -DDOCBOOK_XSL=$TERMUX_PREFIX/share/xml/docbook/xsl-stylesheets-$docbook_xsl_version-nons\"",
-          "new": "\t# The minimal package manager does not build DocBook manuals."
+          "new": "\t# This bootstrap does not build documentation or the repository archiver.\n\tpython3 - \"$TERMUX_PKG_SRCDIR/CMakeLists.txt\" <<'PY'\nfrom pathlib import Path\nimport sys\npath = Path(sys.argv[1])\ntext = path.read_text()\nfor old, new in ((\"find_package(Berkeley REQUIRED)\", \"set(BERKELEY_FOUND FALSE)\"),\n                 (\"add_subdirectory(ftparchive)\", \"# AGENTCODI: no repository archiver\")):\n    if text.count(old) != 1:\n        raise SystemExit(\"APT bootstrap CMake context mismatch: \" + old)\n    text = text.replace(old, new)\npath.write_text(text)\nPY"
         },
         {
           "old": "bin/apt-cdrom\nbin/apt-extracttemplates",

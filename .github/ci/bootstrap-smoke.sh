@@ -2,7 +2,6 @@
 set -eu
 prefix=/data/data/de.agentcodi.pkg/files/usr
 mkdir -p /data/data/de.agentcodi.pkg/files
-cp -R /audit/root/usr /data/data/de.agentcodi.pkg/files/
 export PREFIX="$prefix" TERMUX_PREFIX="$prefix"
 export HOME=/data/data/de.agentcodi.pkg/files/agentcodi/home
 export PATH="$prefix/bin:/system/bin" LD_LIBRARY_PATH="$prefix/lib" TMPDIR="$prefix/tmp"

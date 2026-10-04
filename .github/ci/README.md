@@ -17,14 +17,16 @@ Ubuntu runner. They are additional entry points only:
 
 | Job | Driver | What it runs |
 | --- | --- | --- |
-| Architecture contracts | `scripts/check-architecture.sh` | The existing script, unchanged. It is pure `rg`/`find`, so it is the one part of `scripts/` that is already portable. |
-| Java host tests | `run-java-tests.sh` | The complete Java suite — the same 138 sources and the same `de.agentcodi.tests.TestMain` entry point that `scripts/test.sh` compiles. |
+| Architecture contracts | `scripts/check-architecture.sh` | Architecture rules, shell syntax, and generated build-input manifest synchronization. |
+| Java host tests | `run-java-tests.sh` | The complete Java suite — the same sources and the same `de.agentcodi.tests.TestMain` entry point that `scripts/test.sh` compiles. |
 | C++ host tests | `run-cpp-tests.sh` | The portable 8 of the 9 C++ host suites. |
+| Community release inspection | `inspect-community-codex.py` | Verify release, tag, archive, native dependencies and notices. |
+| Community ARM64 Bionic runtime | `community-runtime-pins.py`, `verify-community-protocol.py` | Verify binary relocation and generated schemas, validate actual Java fixture RPCs, and run the real Android app-server. |
 | Android sources and resources | `compile-android-sources.sh` | Compile against API 35, check SDK pins and Package Edition identity, and resolve every manifest component against its compiled Java class. |
 
 Package Edition builds use installation ID `de.agentcodi.pkg`, their own
 `0.1.0-package.1` version line (Android versionCode starts at 1), and APK names
-starting with `AGENTCODI-Package-`. The manual APK workflow on this branch
+starting with `AGENTCODI-Package-`. The APK workflow on this branch
 uploads `agentcodi-package-debug-apk`. Java classes and resources retain the
 `de.agentcodi.app` namespace via AAPT2's `--custom-package`; manifest components
 use their full Java class names. Host compilation does not replace an APK
@@ -48,8 +50,8 @@ and exits without touching anything.
 
 `tests/cpp/agentcodi_engine_test.cpp` drives the real app-server supervisor,
 which spawns `/system/bin/sh` and validates the native payload read grant
-against `/system/lib64`. A hosted runner has neither, which costs 31 of the 329
-engine assertions, so the workflow creates three paths before the C++ job:
+against `/system/lib64`. A hosted runner has neither, which costs several of the engine
+assertions, so the workflow creates three paths before the C++ job:
 
 * `/system/bin/sh` — a **copy** of the runner's shell. It must not be a
   symlink: the supervisor resolves the executable with `realpath` and compares
@@ -80,8 +82,7 @@ Two C++ suites cannot run on a hosted x86-64 runner. Both stay local-only:
 
 ## Keeping the Java source list in sync
 
-`java-sources.txt` mirrors the `find` block in `scripts/test.sh`. Because that
-script must stay untouched, the list is duplicated rather than shared, so
+`java-sources.txt` mirrors the `find` block in `scripts/test.sh`. The source list is duplicated, so
 `run-java-tests.sh` re-extracts the paths from `scripts/test.sh` on every run
 and fails with a diff if the two drift apart. When a module or app file is
 added to `scripts/test.sh`, add it to `java-sources.txt` as well.
@@ -96,7 +97,7 @@ live in the cache directory (`AGENTCODI_CACHE_DIR`, by default
 
 | File | Purpose |
 | --- | --- |
-| `build-inputs.tsv` | The 35 pinned inputs: path, SHA-256, origin, source URL. |
+| `build-inputs.tsv` | The 33 pinned inputs: path, SHA-256, origin, source URL. |
 | `generate-build-inputs.sh` | Regenerates the manifest from the build script. |
 | `verify-build-inputs.sh` | Checks a directory against the manifest. |
 | `fetch-build-inputs.sh` | Restores the inputs from the mirror, or upstream. |
@@ -109,10 +110,12 @@ live in the cache directory (`AGENTCODI_CACHE_DIR`, by default
 .github/ci/generate-build-inputs.sh > .github/ci/build-inputs.tsv
 ```
 
-The manifest is derived from the build script — the 32 `download_verified`
-calls plus the three content-addressed Codex files — so it is regenerated,
-never hand-edited. `verify-build-inputs.sh` regenerates it on every run and
-fails with a diff when the two drift apart.
+The manifest is derived from all 33 `download_verified` calls in the build
+script, including the content-addressed Community release archive. The explicit
+configuration marker includes every destination assignment. Regenerate it when
+pins change; architecture CI and `verify-build-inputs.sh` reject drift.
+Schemas are generated from the verified binary rather than restored as old
+cached inputs.
 
 The build script also pins the LLVM toolchain through `CLANG_TOOLCHAIN_VERSION`
 and refuses to build when clang, lld, llvm-objcopy or llvm-strip report a
@@ -123,13 +126,13 @@ much later as an unexplained hash mismatch.
 
 ### Why this matters beyond CI
 
-The Codex runtime (`codex/<sha>/package.tgz`, ~108 MB) is a locally built fork
-with no registry fallback — the build script says so explicitly: *consume this
-exact local artifact without registry fallback*. And the Termux package pool
-deletes superseded revisions, so pinned URLs die: six already return 404
-(`nodejs-lts`, `npm`, `aapt2`, `libexpat`, `libffi`, `liblzma`). Those bytes
-exist only in the cache and its mirror. Run `--check-urls` for the current
-picture.
+The Community Codex archive is downloaded from the pinned DioNanos GitHub
+release, with an optional local override for the same verified bytes. The
+Termux package pool removes superseded revisions; some pinned tool URLs may
+therefore require the existing private build-input mirror. Run
+`--check-urls` for current availability. The Package Edition APK job reads
+the existing `0.7.6-preview.1` mirror for unchanged tools and fetches the new
+Community archive from its release when absent from that mirror.
 
 ### The mirror
 
@@ -195,7 +198,9 @@ the image is:
   they are bionic binaries. On an arm64 runner all of this runs natively,
   without qemu.
 
-The workflow builds on pushes to `main` and `CI-TEST*` branches.
+The APK workflow builds only on `Mcpasi/package-edition` pushes that change
+app, module, script, test or build-input paths. Documentation and Community
+audit-driver changes do not restart an unchanged APK build.
 Manual runs default to a preflight-only run.
 `container-preflight.sh` reads the required command list and the pinned
 toolchain version out of the build script — so they cannot drift — and reports
@@ -231,74 +236,67 @@ keep the full contract.
 `container-preflight.sh` probes and reports the property, so the container's
 actual behaviour is visible rather than assumed.
 
-### The protected bootstrap fixture layout
+### Full-access bootstrap
 
-The APK workflow sets `AGENTCODI_BOOTSTRAP_LAYOUT=flat`. The container's Bionic
-`realpath()` probes every ancestor with `newfstatat`; the read-narrowed Android
-sandbox grants the native payload and workspace directories, not `/workspace`
-or `/data`. A nested payload therefore fails to resolve `libc++_shared.so` even
-when that pinned library is present next to the executable.
+The Edition build uses ordinary Docker process confinement. It adds no
+seccomp profile, ptrace capability or AppArmor override. The bootstrap fixture
+uses Full access and verifies successful reads and writes of synthetic files
+outside the workspace, plus terminal sessions and the packaged
+Node/npm/Python/ripgrep tools. The former protected-only probe is removed.
 
-The flat layout creates separate, private fixture directories directly under
-`/` in the disposable build container and copies the verified native payload
-and tool runtime into them. It runs the same complete bootstrap against those
-copies, including workspace reads/writes, denial of private sibling access,
-terminal sessions, Node/npm/Python/ripgrep, and the app-server protocol probes.
-The layout copies the compiled payload without changing its bytes or the
-sandbox policy. All fixture directories are removed by the build's exit trap,
-including on failure.
+## Community Codex runtime verification (Package Edition)
 
-The shell bridge also reads `/proc/self/exe` with `readlink()` before resolving
-the returned executable path. This retains its canonical-file, executable,
-basename and single-link checks while avoiding Bionic's metadata probes of the
-ungranted `/proc` ancestor. The ELF guards already use the direct link read.
+`community-codex-release.json` fixes `DioNanos/codex-termux` release
+`v0.156.1-termux.1`, source commit, archive digest, native ELF hashes,
+the APK host-name relocation and both generated schema hashes. These are the
+active runtime pins. Both Community jobs run only on
+`Mcpasi/package-edition`.
 
-This layout requires write access to `/` and is intended for the root-owned
-build container. Local builds retain the default `nested` layout.
-
-## Community Codex archive inspection (Package Edition)
-
-The next migration step is a static audit of the Community release, separate
-from the APK's active runtime pins. `community-codex-release.json` fixes
-`DioNanos/codex-termux` release `v0.156.1-termux.1`, its source commit and
-the release archive's SHA-256. The Tests workflow runs this additional job only
-on `Mcpasi/package-edition`; pushing a commit starts it alongside the existing
-architecture, Java, C++ and Android compilation jobs.
-
-`inspect-community-codex.py` verifies the GitHub release-asset digest, resolves
-the release tag to the pinned commit, downloads the exact asset, and verifies
-the downloaded bytes before reading archive entries. It rejects missing
+`inspect-community-codex.py` verifies the GitHub asset digest, the resolved
+tag and downloaded archive bytes before reading entries. It rejects missing
 required files, duplicate paths, traversal, links and special files. It records
-every file's size, archive mode and SHA-256, checks package identity and platform,
-and reads each ELF's ARM64 header, interpreter, RUNPATH and DT_NEEDED entries
-with the host's `readelf`. Native dependencies must resolve to bundled files or
-the listed Android system libraries. Both Codex and its separate code-mode host
-must have Android's `/system/bin/linker64` interpreter and only `$ORIGIN`
-search-path entries. The observed `$ORIGIN:$ORIGIN` is accepted because both
-entries name the same directory; empty entries or other directories fail.
-Metadata requests use the workflow's read-only `GH_TOKEN` to avoid the shared
-hosted-runner anonymous rate limit; that token is never sent to asset redirects.
+each file's size, mode and digest, and checks ARM64 ELF headers, interpreter,
+RUNPATH and DT_NEEDED with `readelf`. Dependencies must resolve to bundled
+files or Android system libraries. Both executables must use
+`/system/bin/linker64` and only `$ORIGIN` search paths. The eight archive
+and search-path tests run before the real release inspection.
 
-The job prints its findings in the Actions summary and uploads
-`community-codex-release-inspection`: `report.json`, `inventory.json`,
-per-ELF readelf reports, package metadata, README, LICENSE and NOTICE.
-The archive and extracted binaries stay in the runner's temporary directory.
-No npm install/postinstall, native execution or APK integration occurs.
-The eight focused archive/search-path tests run before the real release
-inspection. The report also includes the packaged NOTICE text and compares
-upstream versions mentioned in the README and package description. The current
-archive has a stale `rust-v0.155.0` README while its release tag and description
-identify `rust-v0.156.1`; this documentation discrepancy is reported explicitly.
+The original package metadata, LICENSE and NOTICE are included in
+`community-codex-release-inspection`. Its README still mentions
+`rust-v0.155.0`, while the verified tag and description identify
+`rust-v0.156.1`; the discrepancy is reported, not used as a runtime pin.
+No npm lifecycle script or Termux-default launcher is executed.
 
-To repeat the audit on a host with Python 3 and binutils:
+The ARM64 job runs the downloaded native executables in the digest-pinned
+Termux/Bionic image. `community-runtime-pins.py` checks the unique
+install-context field at byte offset `10568364`, substitutes the equal-length
+APK host name `libcodex-codehost.so`, and checks the complete resulting
+binary digest. Additional host-name references remain untouched. The job then
+generates both schemas with the real ELF and verifies their hashes against
+the lock and build script.
+
+`verify-community-protocol.py` validates the actual outbound RPCs emitted
+by the Java controller fixtures against those schemas, inventories source
+methods, and validates synthetic login and PTY-write requests. The real
+app-server checks initialization, permissions, models, account reads,
+threads, Full-access commands, PTY operations, MCP configuration/reload and
+connector listings. A deterministic local Responses API fixture completes a
+turn through the relocated sibling code-mode host. Its JavaScript output must
+appear in the follow-up request. A fresh runtime then resumes the persisted
+thread and executes the program installed outside the workspace. No OpenAI
+credentials or external inference are used.
+
+Reports and generated schemas are uploaded as `community-codex-runtime`;
+synthetic runtime state and the downloaded binaries are excluded. Real-device
+linker, app installation and Android service lifecycle tests remain separate.
+
+To repeat the static audit:
 
 ```sh
 python3 .github/ci/test-community-codex-inspection.py
 python3 .github/ci/inspect-community-codex.py --output /tmp/agentcodi-community-audit
 ```
 
-Use a new output directory for every run. The archive audit establishes the
-packaged host and dependency inventory. Schema generation, API compatibility,
-APK host relocation, notice completeness for libc++/Rust/V8, and the active
-runtime-channel switch remain the following Roadmap steps. A successful static
-audit does not establish Android runtime or installation compatibility.
+Use a fresh output directory for each audit. The ARM64 workflow defines the
+complete runnable runtime/schema sequence. Publishing a final APK still
+requires the later roadmap work and its device validation.

@@ -22,7 +22,7 @@
       "replacements": [
         {
           "old": "TERMUX_PKG_BUILD_DEPENDS=\"tk\"",
-          "new": "TERMUX_PKG_BUILD_DEPENDS=\"\""
+          "new": "TERMUX_PKG_BUILD_DEPENDS=\"\"\nTERMUX_PKG_ANTI_BUILD_DEPENDS=\"tcl, tk\""
         },
         {
           "old": "TERMUX_PKG_SUGGESTS=\"python-tkinter\"",
@@ -53,6 +53,10 @@
         {
           "old": "--with-tcltk=$TERMUX_PREFIX/bin/wish",
           "new": "--without-tcltk"
+        },
+        {
+          "old": "TERMUX_PKG_SUGGESTS=\"perl\"",
+          "new": "TERMUX_PKG_SUGGESTS=\"perl\"\nTERMUX_PKG_ANTI_BUILD_DEPENDS=\"tk\""
         }
       ]
     },
@@ -71,18 +75,5 @@
       ]
     }
   ],
-  "removals": [
-    {
-      "path": "packages/python/python-tkinter.subpackage.sh",
-      "upstream_blob": "e6405571aadccfdeb04cc366df6ee717896002ba"
-    },
-    {
-      "path": "packages/git/git-gitk.subpackage.sh",
-      "upstream_blob": "b9026448a34a28c026842a8bdb68dad862e6c85c"
-    },
-    {
-      "path": "packages/git/git-gui.subpackage.sh",
-      "upstream_blob": "714700635a29d33001c35ae64952dc1773390ca3"
-    }
-  ]
+  "removals": []
 }

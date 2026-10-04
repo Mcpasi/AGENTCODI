@@ -126,7 +126,10 @@ class AssemblyTest(unittest.TestCase):
                 self.assertIn("var/lib/dpkg/info/" + name + ".md5sums", archive.namelist())
                 listing = archive.read("var/lib/dpkg/info/" + name + ".list").decode().splitlines()
                 self.assertTrue(listing)
-                self.assertTrue(all(path == bootstrap.verify.PREFIX or
+                ancestors = {str(path) for path in Path(bootstrap.verify.PREFIX).parents
+                             if str(path) != "/"}
+                self.assertTrue(ancestors.issubset(listing))
+                self.assertTrue(all(path in ancestors or path == bootstrap.verify.PREFIX or
                                     path.startswith(bootstrap.verify.PREFIX + "/") for path in listing))
             self.assertEqual(archive.read("var/lib/dpkg/info/ca-certificates.conffiles").decode(),
                              bootstrap.verify.PREFIX + "/etc/tls/cert.pem\n")

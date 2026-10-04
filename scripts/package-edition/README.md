@@ -146,7 +146,9 @@ source instead of using a floating Ubuntu package index. Source archive hashes a
 patches remain pinned by the recipe tree. Assembly selects only the runtime
 Depends/Pre-Depends closure, validates dependency versions and DT_NEEDED libraries,
 and rejects foreign prefixes, architectures, shebangs and escaping links.
-Build-only packages are omitted from the installed bootstrap.
+Build-only packages are omitted from the installed bootstrap. dpkg file lists
+retain the DEBs' shared ancestor-directory records, so uninstalling a later
+package does not try to remove protected app/system parent directories.
 
 The artifact agentcodi-package-bootstrap contains the DEBs, bootstrap ZIP,
 BOOTSTRAP-MANIFEST, complete package/ELF report, corresponding-source archive and SHA256SUMS.

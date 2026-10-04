@@ -215,6 +215,7 @@ public final class PackageBootstrap {
         for (String directory : new String[] {
             "tmp", "var/lib/dpkg/updates", "var/lib/dpkg/triggers",
             "var/lib/dpkg/alternatives", "var/log/apt", "etc/apt/keyrings",
+            "etc/apt/preferences.d",
             "var/cache/apt/archives/partial", "var/lib/apt/lists/partial"
         }) {
             destination(stage, directory + "/.directory");

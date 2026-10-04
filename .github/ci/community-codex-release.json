@@ -5,5 +5,22 @@
   "package_name": "@mmmbuto/codex-cli-termux",
   "package_version": "0.156.1-termux.1",
   "asset_name": "mmmbuto-codex-cli-termux-0.156.1-termux.1.tgz",
-  "archive_sha256": "44cee2f3a4a110fd79d4f7d61378d46fd72406f45cffb3163e809d63e86d946a"
+  "archive_sha256": "44cee2f3a4a110fd79d4f7d61378d46fd72406f45cffb3163e809d63e86d946a",
+  "upstream_tag": "rust-v0.156.1",
+  "upstream_commit": "b412ff32c417f855c2b2d1581b77058eed87c84b",
+  "native_sha256": {
+    "codex.bin": "6cbfa7f1660095e9cf2df7de242014579a0fb0d42545652fb0e22d1b6c8571a5",
+    "codex-code-mode-host": "8afb196579c3fd8ecac558dbebfcba5467f91389b3754e485728ce6904e6ceaf",
+    "libc++_shared.so": "430f7cde7c1a88042bb9e39ae1c1f4b9f5819f3bd95acd1453d2e02c63ba1870"
+  },
+  "schema_sha256": {
+    "codex_app_server_protocol.schemas.json": "eb1ba91bd0fab656523092f6ed7de3ea7aef278921a650f14dc871ae7dcfaf84",
+    "codex_app_server_protocol.v2.schemas.json": "995fc3b8f8c469f6787e8fc5be4038c4f31359025edd8480b862e83355f3bf3b"
+  },
+  "apk_relocation": {
+    "offset": 10568364,
+    "from": "codex-code-mode-host",
+    "to": "libcodex-codehost.so",
+    "sha256": "cf1b406252928b0d68cb0f8f81adde6a02bf357a7fffb762d10cb503a235be06"
+  }
 }

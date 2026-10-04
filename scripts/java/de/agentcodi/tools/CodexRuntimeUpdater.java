@@ -937,8 +937,8 @@ public final class CodexRuntimeUpdater {
                 replace(NOTICES, old.get(key), next.get(key), 1);
             }
             replace(".github/ci/build-inputs.tsv",
-                "codex/" + old.get("CODEX_ANDROID_SHA256") + "/package.tgz\\t" + old.get("CODEX_ANDROID_SHA256"),
-                "codex/" + next.get("CODEX_ANDROID_SHA256") + "/package.tgz\\t" + next.get("CODEX_ANDROID_SHA256"), 1);
+                "codex/" + old.get("CODEX_ANDROID_SHA256") + "/package.tgz\t" + old.get("CODEX_ANDROID_SHA256"),
+                "codex/" + next.get("CODEX_ANDROID_SHA256") + "/package.tgz\t" + next.get("CODEX_ANDROID_SHA256"), 1);
             replace(".github/ci/build-inputs.tsv",
                 "/v" + a + "/mmmbuto-codex-cli-termux-" + a + ".tgz",
                 "/v" + b + "/mmmbuto-codex-cli-termux-" + b + ".tgz", 1);

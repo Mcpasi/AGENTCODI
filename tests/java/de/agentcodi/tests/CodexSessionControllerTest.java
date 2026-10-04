@@ -4449,7 +4449,7 @@ public final class CodexSessionControllerTest {
             if (audit != null && request.containsKey("method")) {
                 synchronized (FixtureServer.class) {
                     java.nio.file.Files.write(java.nio.file.Paths.get(audit),
-                        (line + "\\n").getBytes(java.nio.charset.StandardCharsets.UTF_8),
+                        (line + "\n").getBytes(java.nio.charset.StandardCharsets.UTF_8),
                         java.nio.file.StandardOpenOption.CREATE,
                         java.nio.file.StandardOpenOption.APPEND);
                 }

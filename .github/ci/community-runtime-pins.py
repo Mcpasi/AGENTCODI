@@ -3,6 +3,7 @@
 import argparse
 import hashlib
 import json
+import re
 from pathlib import Path
 
 def sha(path):
@@ -13,11 +14,13 @@ def main():
     parser.add_argument("audit", type=Path)
     args = parser.parse_args()
     root = args.audit
+    lock = json.loads(Path(__file__).with_name("community-codex-release.json").read_text())
     binary = root / "payload/package/bin/codex.bin"
     data = binary.read_bytes()
     context = b"codex-code-mode-hostzshbincodex-resourcescodex-path"
     assert data.count(context) == 1, "Host context must be unique in this artifact"
     offset = data.index(context)
+    assert offset == lock["apk_relocation"]["offset"], "Host offset differs from reviewed artifact"
     patched = data[:offset] + b"libcodex-codehost.so" + data[offset + len(b"codex-code-mode-host"):]
     assert len(data) == len(patched)
     target = root / "payload/package/bin/libcodex.so"
@@ -34,6 +37,9 @@ def main():
         "CODEX_LICENSE_SHA256": sha(root / "payload/package/LICENSE"),
         "CODEX_NOTICE_SHA256": sha(root / "payload/package/NOTICE"),
     }
+    for name, expected in lock["native_sha256"].items():
+        assert sha(root / "payload/package/bin" / name) == expected, name
+    assert sha(target) == lock["apk_relocation"]["sha256"], "APK relocation digest"
     schema = root / "report/schema"
     if schema.exists():
         for key, name in [
@@ -41,12 +47,21 @@ def main():
             ("CODEX_V2_SCHEMA_BUNDLE_SHA256", "codex_app_server_protocol.v2.schemas.json"),
         ]:
             pins[key] = sha(schema / name)
-        for name in sorted(schema.glob("*.json")):
-            # Compact RPC/shape inventory makes CI findings inspectable via job logs.
-            obj = json.loads(name.read_text())
-            if name.name == "codex_app_server_protocol.schemas.json":
-                for key in ("ClientRequest", "ServerRequest"):
-                    print(key + "=" + json.dumps(obj.get("definitions", {}).get(key), separators=(",", ":")))
+            assert pins[key] == lock["schema_sha256"][name], "Generated schema changed: " + name
+        obj = json.loads((schema / "codex_app_server_protocol.schemas.json").read_text())
+        for key in ("ClientRequest", "ServerRequest"):
+            methods = [v["properties"]["method"]["enum"][0] for v in obj["definitions"][key]["oneOf"]]
+            print(key + " methods=" + json.dumps(methods))
+    build = Path("scripts/build-debug-apk.sh").read_text()
+    for key, value in pins.items():
+        actual = re.search(r'^' + key + r'="([^"]+)".write_text(json.dumps(pins, indent=2) + "\n")
+    for key, value in pins.items():
+        print(key + '="' + value + '"')
+
+if __name__ == "__main__":
+    main()
+, build, re.M)
+        assert actual and actual.group(1) == value, "Build pin differs: " + key
     (root / "report/runtime-pins.json").write_text(json.dumps(pins, indent=2) + "\n")
     for key, value in pins.items():
         print(key + '="' + value + '"')

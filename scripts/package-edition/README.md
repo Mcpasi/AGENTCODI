@@ -1,8 +1,8 @@
 # Package Edition recipe build contract
 
-This directory pins the inputs for packages rebuilt for AGENTCODI. It does not
-install a package manager in the APK. The following roadmap step builds and
-initializes the minimal bootstrap.
+This directory pins and builds the minimal ARM64/Bionic package bootstrap for
+AGENTCODI. The APK includes its audited ZIP, manifest and build report, and
+initializes it before starting the app-server.
 
 ## Locked inputs
 
@@ -109,3 +109,55 @@ overlay contexts together. Use fresh build storage, rerun CI, inspect
 artifact reports and review all affected dependency recipes. Do not infer
 bit-for-bit reproducibility of the eventual package catalog from this
 fixture: those real package outputs still need their own rebuild checks.
+
+
+## Minimal bootstrap and recovery
+
+The APK workflow calls the branch-scoped reusable bootstrap workflow. It builds
+dash, bash (required by maintainer scripts), APT, dpkg, CA certificates and their
+runtime dependencies in fresh storage with the pinned builder. Its FUSE capability
+is needed only by the cross-build sysroot; it is unrelated to app permissions.
+No official Termux binary dependencies, PRoot or Termux app components are used.
+
+The overlay removes unused dpkg Perl/development subpackages and Java certificate
+generation, builds GnuPG's gpgv-only variant and disables GnuTLS's optional Unbound
+integration. dpkg's Git tag must resolve to
+b2f9600ead232a2dd3c27f8b52807a9ca5854d17. Source archive hashes and package recipe
+patches remain pinned by the recipe tree. Assembly selects only the runtime
+Depends/Pre-Depends closure, validates dependency versions and DT_NEEDED libraries,
+and rejects foreign prefixes, architectures, shebangs and escaping links.
+Build-only packages are omitted from the installed bootstrap.
+
+The artifact agentcodi-package-bootstrap contains the DEBs, bootstrap ZIP,
+BOOTSTRAP-MANIFEST, complete package/ELF report and SHA256SUMS. ZIP order and
+timestamps are fixed. This does not claim that every package's compiler output
+is independently bit-for-bit reproducible; real rebuild comparison remains part
+of the later package-catalog CI step.
+
+PackageBootstrap checks every file's size, SHA-256 and mode while extracting into
+a sibling staging directory. It preserves existing nonconflicting prefix files
+and refuses collisions. It publishes using two same-filesystem atomic renames.
+A crash between renames restores the original prefix before WorkspaceLayout
+creates directories. An incomplete extraction is discarded and retried.
+After publication, native dpkg --configure -a initializes package scripts and
+alternatives. Failure or interruption retains the unpacked prefix and retries
+configuration on the next app start; the log is
+files/agentcodi/logs/package-bootstrap.log. The ready marker is written only
+after successful configuration. Staging and backup directories are then removed.
+
+A ready prefix is never re-extracted or reset on app restart or APK update:
+package versions, APT/dpkg state and user modifications persist. HOME,
+CODEX_HOME and the legacy HOME/.local prefix are preserved. Do not remove the
+ready marker to upgrade a working installation. Bootstrap upgrades need an
+explicit package update through the future signed repository.
+
+The hosted ARM64/Bionic smoke installs the real ZIP with the Java initializer,
+configures it with the actual Android dpkg, checks shell/APT/gpgv/certificates,
+and installs, executes and removes a local fixture package. Host regression
+tests cover extraction failure, checksum/ZIP/link rejection, rename recovery,
+configuration retry, existing-file preservation and APK-update persistence.
+Real Android hardware tests remain skipped.
+
+The signed repository, trust key, pkg frontend and public package catalog are
+separate roadmap steps. apt update cannot authenticate the planned source yet.
+No insecure repository fallback is configured.

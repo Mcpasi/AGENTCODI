@@ -138,6 +138,26 @@
           "new": "\t: # The bootstrap variant installs only the signature verifier."
         }
       ]
+    },
+    {
+      "path": "packages/bash/build.sh",
+      "upstream_blob": "4fe660cd1709386cbac843637fd35a045393db64",
+      "replacements": [
+        {
+          "old": ", termux-tools\"",
+          "new": "\""
+        }
+      ]
+    },
+    {
+      "path": "packages/ca-certificates/build.sh",
+      "upstream_blob": "5ad361715bc74694cb595482bd0e3d582b2f9824",
+      "replacements": [
+        {
+          "old": "\n\t# Build java keystore which is split out into a ca-certificates-java subpackage:\n\tlocal KEYUTIL_JAR=$TERMUX_PKG_CACHEDIR/keyutil-0.4.0.jar\n\ttermux_download \\\n\t\thttps://github.com/use-sparingly/keyutil/releases/download/0.4.0/keyutil-0.4.0.jar \\\n\t\t$KEYUTIL_JAR \\\n\t\t18f1d2c82839d84949b1ad015343c509e81ef678c24db6112acc6c0761314610\n\n\tlocal JAVA_KEYSTORE_DIR=$TERMUX_PREFIX/lib/jvm/java-17-openjdk/lib/security\n\tmkdir -p $JAVA_KEYSTORE_DIR\n\n\tjava -jar $KEYUTIL_JAR \\\n\t\t--import \\\n\t\t--new-keystore $JAVA_KEYSTORE_DIR/jssecacerts \\\n\t\t--password changeit \\\n\t\t--force-new-overwrite \\\n\t\t--import-pem-file $CERTFILE",
+          "new": ""
+        }
+      ]
     }
   ],
   "removals": [
@@ -152,6 +172,10 @@
     {
       "path": "packages/gnupg/scdaemon.subpackage.sh",
       "upstream_blob": "5d601accbd44105fdef06709fe58041f80434dfb"
+    },
+    {
+      "path": "packages/ca-certificates/ca-certificates-java.subpackage.sh",
+      "upstream_blob": "1d2b7655be21702fc4377f20ef47e36f5005b5d9"
     }
   ]
 }

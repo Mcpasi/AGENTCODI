@@ -60,6 +60,15 @@ jobs:
           javac -cp "$RUNNER_TEMP/agentcodi-ci-java/classes" -d "$RUNNER_TEMP/agentcodi-ci-java/classes" .github/ci/BootstrapInstall.java
           mkdir -p bootstrap/root
           java -cp "$RUNNER_TEMP/agentcodi-ci-java/classes" BootstrapInstall bootstrap
+          cp .github/ci/bootstrap-smoke.sh bootstrap/smoke.sh
+          fixture="$RUNNER_TEMP/bootstrap-fixture"
+          prefix=/data/data/de.agentcodi.pkg/files/usr
+          mkdir -p "$fixture/DEBIAN" "$fixture$prefix/bin"
+          printf 'Package: bootstrap-fixture\nVersion: 1.0\nArchitecture: aarch64\nMaintainer: AGENTCODI\nDescription: Bootstrap lifecycle fixture\n' > "$fixture/DEBIAN/control"
+          printf '#!%s/bin/sh\nprintf "bootstrap-ok\\n"\n' "$prefix" > "$fixture$prefix/bin/bootstrap-fixture"
+          chmod 755 "$fixture$prefix/bin/bootstrap-fixture"
+          dpkg-deb --build "$fixture" bootstrap/bootstrap-fixture.deb
+          chmod -R a+rX bootstrap
       - name: Configure and execute the actual Android bootstrap
         run: |
           docker run --rm --user 0 --entrypoint /system/bin/sh \

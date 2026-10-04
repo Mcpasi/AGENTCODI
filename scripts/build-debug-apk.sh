@@ -533,6 +533,18 @@ TOOL_RUNTIME_STAGE="$WORK_DIR/tool-runtime-stage"
 TOOL_RUNTIME_MANIFEST="$TOOL_RUNTIME_ASSETS/RUNTIME-MANIFEST"
 TOOL_RUNTIME_ARCHIVE="$TOOL_RUNTIME_ASSETS/RUNTIME.zip"
 mkdir -p "$EXTRACT_DIR" "$AAPT2_EXTRACT" "$GENERATED_JAVA" "$CLASSES_ROOT" "$JARS_ROOT" "$DEX_DIR" "$NATIVE_DIR" "$CODEX_EXTRACT" "$THIRD_PARTY_ASSETS" "$NODE_THIRD_PARTY_ASSETS" "$NPM_THIRD_PARTY_ASSETS" "$PYTHON_THIRD_PARTY_ASSETS" "$RIPGREP_THIRD_PARTY_ASSETS" "$TOOL_RUNTIME_ASSETS" "$TOOL_RUNTIME_STAGE"
+# The bootstrap is built from the pinned edition recipes, not from Termux DEBs.
+PACKAGE_BOOTSTRAP_INPUT="$PROJECT_ROOT/output/package-bootstrap"
+PACKAGE_BOOTSTRAP_ASSETS="$ADDITIONS/assets/third-party/package-bootstrap"
+test -f "$PACKAGE_BOOTSTRAP_INPUT/bootstrap-aarch64.zip"
+test -f "$PACKAGE_BOOTSTRAP_INPUT/BOOTSTRAP-MANIFEST"
+(
+  cd "$PACKAGE_BOOTSTRAP_INPUT"
+  sha256sum -c SHA256SUMS
+)
+mkdir -p "$PACKAGE_BOOTSTRAP_ASSETS"
+cp "$PACKAGE_BOOTSTRAP_INPUT/bootstrap-aarch64.zip" "$PACKAGE_BOOTSTRAP_INPUT/BOOTSTRAP-MANIFEST" \
+  "$PACKAGE_BOOTSTRAP_INPUT/bootstrap-report.json" "$PACKAGE_BOOTSTRAP_ASSETS/"
 mkdir -m 700 "$CODEX_SCHEMA_DIR" "$CODEX_SCHEMA_HOME" "$CODEX_SCHEMA_TMP"
 mkdir -m 700 "$CODEX_SCHEMA_HOME/codex-home"
 
@@ -2112,6 +2124,8 @@ for forbidden_apk_entry in \
     exit 1
   fi
 done
+grep -Fx 'assets/third-party/package-bootstrap/bootstrap-aarch64.zip' "$WORK_DIR/apk-entries.txt"
+grep -Fx 'assets/third-party/package-bootstrap/BOOTSTRAP-MANIFEST' "$WORK_DIR/apk-entries.txt"
 grep -Fx 'assets/third-party/codex/LICENSE' "$WORK_DIR/apk-entries.txt"
 grep -Fx 'assets/third-party/codex/NOTICE' "$WORK_DIR/apk-entries.txt"
 for license_file in NODE-LICENSE CARES-LICENSE ICU-LICENSE OPENSSL-LICENSE ZLIB-LICENSE; do

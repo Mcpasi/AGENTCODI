@@ -34,6 +34,7 @@ public final class TestMain {
         passed += UiStartupStateTest.run();
         passed += UiLanguageTest.run();
         passed += WorkspaceLayoutTest.run();
+        passed += PackageBootstrapTest.run();
         passed += WorkspaceImportTest.run();
         passed += de.agentcodi.imports.client.WorkspaceImportLifecycleTest.run();
         passed += WorkspaceExportTest.run();

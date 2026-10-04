@@ -34,6 +34,7 @@ import de.agentcodi.mcp.client.McpConfigurationController;
 import de.agentcodi.mode.compatibility.FullAccessExecutionMode;
 import de.agentcodi.review.CustomReviewMode;
 import de.agentcodi.storage.WorkspaceLayout;
+import de.agentcodi.storage.PackageBootstrap;
 
 import java.io.File;
 import java.io.IOException;
@@ -813,6 +814,19 @@ public final class AgentRuntimeService extends Service {
                     WorkspaceLayout layout = WorkspaceLayout.create(getFilesDir());
                     WorkspaceFileImporter.recoverPendingImports(layout);
                     NativeEngine engine = new NativeEngine();
+                    try (
+                        InputStream archive = getAssets().open("third-party/package-bootstrap/bootstrap-aarch64.zip");
+                        InputStream manifest = getAssets().open("third-party/package-bootstrap/BOOTSTRAP-MANIFEST")
+                    ) {
+                        PackageBootstrap.prepare(layout, archive, manifest, new PackageBootstrap.Configurator() {
+                            @Override public void configure(File prefix) throws IOException {
+                                engine.configurePackageBootstrap(
+                                    prefix.getCanonicalPath(), layout.getHome().getCanonicalPath(),
+                                    new File(layout.getLogs(), "package-bootstrap.log").getCanonicalPath()
+                                );
+                            }
+                        });
+                    }
                     int result = engine.selfTest();
                     if (result != 0) {
                         throw new IllegalStateException("C++ self-test failed with code " + result);

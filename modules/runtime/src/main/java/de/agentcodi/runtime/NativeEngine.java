@@ -19,6 +19,14 @@ public final class NativeEngine {
         return nativeDiagnostics();
     }
 
+    void configurePackageBootstrap(String prefix, String home, String log) throws IOException {
+        nativeConfigurePackageBootstrap(prefix, home, log);
+    }
+
+    private static native void nativeConfigurePackageBootstrap(
+        String prefix, String home, String log
+    ) throws IOException;
+
     long startAppServer(
         String executable,
         String codeModeHostExecutable,

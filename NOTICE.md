@@ -75,3 +75,22 @@ Permission is hereby granted, free of charge, to any person obtaining a copy of 
 - The names of the copyright holders, project, or contributors may not be used to endorse or promote derived products without specific prior written permission.
 
 THE SOFTWARE IS PROVIDED "AS IS", WITHOUT WARRANTY OF ANY KIND, EXPRESS OR IMPLIED, INCLUDING BUT NOT LIMITED TO THE WARRANTIES OF MERCHANTABILITY, FITNESS FOR A PARTICULAR PURPOSE AND NONINFRINGEMENT. IN NO EVENT SHALL THE CONTRIBUTORS OR COPYRIGHT HOLDERS BE LIABLE FOR ANY CLAIM, DAMAGES OR OTHER LIABILITY, WHETHER IN AN ACTION OF CONTRACT, TORT OR OTHERWISE, ARISING FROM, OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE SOFTWARE.
+
+
+## Package Edition bootstrap
+
+The edition bootstrap is rebuilt from termux/termux-packages at
+b6af76b353140fe17f299248fca1ac13ea91c5c5 with the versioned overlay in
+scripts/package-edition. It includes dash/bash, APT, dpkg, CA certificates and
+their runtime dependency closure. These third-party programs retain their
+upstream authorship and licenses, including GPL-2.0/GPL-3.0, LGPL, BSD, MIT,
+Apache-2.0 and MPL-2.0 as specified by each recipe and installed license file.
+Their inclusion does not relicense them under AGENTCODI's Apache license.
+
+The APK asset third-party/package-bootstrap/bootstrap-report.json records the
+actual package versions, source/build pins, DEB and ELF checksums. The installed
+prefix retains the upstream license material under share/doc and share/licenses.
+The bootstrap CI artifact includes the selected DEBs and build evidence.
+The source recipe tree, source download checksums, dpkg Git source commit and
+all edition build modifications are available through the linked package-build
+documentation. No Termux app, API, tools, exec or trust-key package is included.

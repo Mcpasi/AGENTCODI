@@ -1,6 +1,6 @@
 > **Package Edition — for power users and experienced users only.** This edition offers **Full access** exclusively. Codex and user-installed programs can read, change, or delete every file reachable by the app, including Codex account data. Android's isolation from other apps remains in place; there is no workspace sandbox within this app.
 >
-> **Development status:** The writable package prefix, Full access, and Community app-server integration are implemented. A package manager and a smaller APK remain on the [roadmap](ROADMAP-package-edition.md). This development branch is not merged into `main`.
+> **Development status:** The writable package prefix, Full access, and Community app-server integration are implemented. The minimal APT/dpkg bootstrap is integrated; a signed package repository, package catalog and a smaller APK remain on the [roadmap](ROADMAP-package-edition.md). This development branch is not merged into `main`.
 
 <div align="center">
 
@@ -58,11 +58,11 @@ chmod 700 "$PREFIX/bin/package-check"
 package-check
 ```
 
-Codex can then run `package-check` as a normal command. This checks the installation path; a `pkg`/APT package manager is not yet included.
+Codex can then run `package-check` as a normal command. This checks the installation path. APT and dpkg are initialized from the edition bootstrap on first start; the `pkg` frontend and signed online repository remain upcoming steps.
 
 Native packages must be built for Android ARM64/Bionic and support the actual prefix. Existing Termux DEBs often contain fixed paths such as `/data/data/com.termux/files/usr`. Extracting them into `$PREFIX` is insufficient. The chosen architecture uses Termux package recipes rebuilt for this edition, a minimal bootstrap, and a dedicated signed repository; implementation is tracked in the roadmap.
 
-The recipe source, build container, NDK/SDK, and edition prefix configuration are pinned and checked in CI. See the [package build contract](scripts/package-edition/README.md) for recipe preparation, source-only dependency builds, and the planned dedicated repository. The minimal bootstrap and its installer are the next implementation step.
+The recipe source, build container, NDK/SDK, and edition prefix configuration are pinned and checked in CI. See the [package build contract](scripts/package-edition/README.md) for recipe preparation, source-only dependency builds, and the planned dedicated repository. The APK now installs an audited minimal bootstrap with dash/bash, APT, dpkg, CA certificates and their dependencies before starting Codex. Interrupted extraction is retried, interrupted package configuration resumes with `dpkg --configure -a`, and a ready installation is preserved across app restarts and APK updates. Conflicting pre-existing prefix files are kept and reported instead of overwritten. Configuration errors are logged to `<app files>/agentcodi/logs/package-bootstrap.log`. The planned HTTPS repository has no published trust key yet, so online package installation and updates await the signed-repository step.
 
 The bundled Node.js, npm, Python, and ripgrep runtimes remain during the transition. Their activation and runtime checks still apply; the existing npm/Python wrappers do not provide general package management.
 

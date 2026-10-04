@@ -5,6 +5,13 @@
 #include "workspace_import_installer.h"
 
 #include <jni.h>
+#include <cerrno>
+#include <chrono>
+#include <csignal>
+#include <fcntl.h>
+#include <sys/wait.h>
+#include <unistd.h>
+
 
 #include <atomic>
 #include <cstdint>
@@ -698,5 +705,78 @@ Java_de_agentcodi_runtime_NativeEngine_nativeInstallWorkspaceImportNoReplace(
         error.empty()
             ? "Workspace import could not be installed safely"
             : error);
+  }
+}
+
+
+extern "C" JNIEXPORT void JNICALL
+Java_de_agentcodi_runtime_NativeEngine_nativeConfigurePackageBootstrap(
+    JNIEnv* environment, jclass, jstring java_prefix, jstring java_home, jstring java_log) {
+  std::string prefix, home, log;
+  if (!from_java_string(environment, java_prefix, "Package prefix", &prefix)
+      || !from_java_string(environment, java_home, "Package home", &home)
+      || !from_java_string(environment, java_log, "Bootstrap log", &log)) {
+    return;
+  }
+  const std::string executable = prefix + "/bin/dpkg";
+  std::vector<std::string> values{
+      "PATH=" + prefix + "/bin:/system/bin",
+      "PREFIX=" + prefix, "TERMUX_PREFIX=" + prefix,
+      "HOME=" + home, "TMPDIR=" + prefix + "/tmp",
+      "LD_LIBRARY_PATH=" + prefix + "/lib",
+      "ANDROID_ROOT=/system", "ANDROID_DATA=/data", "LANG=C.UTF-8",
+      "DEBIAN_FRONTEND=noninteractive"};
+  std::vector<char*> env;
+  for (std::string& value : values) {
+    env.push_back(&value[0]);
+  }
+  env.push_back(nullptr);
+  char* args[] = {const_cast<char*>(executable.c_str()),
+                  const_cast<char*>("--configure"), const_cast<char*>("-a"), nullptr};
+  const int output = open(log.c_str(), O_WRONLY | O_CREAT | O_APPEND | O_CLOEXEC | O_NOFOLLOW, 0600);
+  const int input = open("/dev/null", O_RDONLY | O_CLOEXEC);
+  if (output < 0 || input < 0) {
+    if (output >= 0) close(output);
+    if (input >= 0) close(input);
+    throw_io_exception(environment, "Cannot open bootstrap configuration log");
+    return;
+  }
+  const pid_t child = fork();
+  if (child == 0) {
+    setpgid(0, 0);
+    dup2(input, STDIN_FILENO);
+    dup2(output, STDOUT_FILENO);
+    dup2(output, STDERR_FILENO);
+    close(input);
+    close(output);
+    execve(executable.c_str(), args, env.data());
+    _exit(127);
+  }
+  close(input);
+  close(output);
+  if (child < 0) {
+    throw_io_exception(environment, "Cannot start dpkg bootstrap configuration");
+    return;
+  }
+  setpgid(child, child);
+  const auto deadline = std::chrono::steady_clock::now() + std::chrono::seconds(120);
+  int status = 0;
+  for (;;) {
+    const pid_t result = waitpid(child, &status, WNOHANG);
+    if (result == child) break;
+    if (result < 0 && errno != EINTR) {
+      throw_io_exception(environment, "Cannot wait for dpkg bootstrap configuration");
+      return;
+    }
+    if (std::chrono::steady_clock::now() >= deadline) {
+      kill(-child, SIGKILL);
+      while (waitpid(child, &status, 0) < 0 && errno == EINTR) { }
+      throw_io_exception(environment, "Bootstrap configuration timed out; retry on next start");
+      return;
+    }
+    usleep(10000);
+  }
+  if (!WIFEXITED(status) || WEXITSTATUS(status) != 0) {
+    throw_io_exception(environment, "Bootstrap configuration failed; see package-bootstrap.log and retry");
   }
 }

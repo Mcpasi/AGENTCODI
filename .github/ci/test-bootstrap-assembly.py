@@ -1,6 +1,13 @@
 #!/usr/bin/env python3
 """Exercise bootstrap dependency selection against real Debian version semantics."""
+import contextlib
+import hashlib
 import importlib.util
+import io
+import json
+import subprocess
+import tempfile
+import zipfile
 from pathlib import Path
 import unittest
 
@@ -40,6 +47,99 @@ class ClosureTest(unittest.TestCase):
     def test_runtime_cycle_is_closed_without_downloads(self):
         packages = {"a": package("a", Depends="b"), "b": package("b", Depends="a")}
         self.assertEqual(set(bootstrap.select(packages, ["a"])), {"a", "b"})
+
+
+class AssemblyTest(unittest.TestCase):
+    def setUp(self):
+        self.temporary = tempfile.TemporaryDirectory()
+        self.addCleanup(self.temporary.cleanup)
+        self.root = Path(self.temporary.name)
+        self.debs = self.root / "debs"
+        self.debs.mkdir()
+        payloads = {
+            "dash": {"bin/dash": b"shell fixture\n"},
+            "bash": {"bin/bash": b"bash fixture\n"},
+            "apt": {"bin/apt": b"apt fixture\n"},
+            "dpkg": {"bin/dpkg": b"dpkg fixture\n"},
+            "ca-certificates": {"etc/tls/cert.pem": b"certificate fixture\n"},
+            "fixture-lib": {"lib/fixture.txt": b"runtime library fixture\n"},
+            "compiler": {"bin/compiler": b"build-only fixture\n"},
+        }
+        for name, files in payloads.items():
+            directory = self.root / name
+            control = directory / "DEBIAN"
+            control.mkdir(parents=True)
+            depends = "Depends: fixture-lib (>= 1.0)\n" if name == "apt" else ""
+            (control / "control").write_text(
+                "Package: " + name + "\nVersion: 1.0\nArchitecture: all\n"
+                "Maintainer: AGENTCODI\nDescription: assembly regression fixture\n" + depends)
+            prefix = directory / bootstrap.verify.PREFIX.lstrip("/")
+            for path, data in files.items():
+                target = prefix / path
+                target.parent.mkdir(parents=True, exist_ok=True)
+                target.write_bytes(data)
+                target.chmod(0o700 if path.startswith("bin/") else 0o600)
+            if name == "dash":
+                (prefix / "bin/sh").symlink_to("dash")
+            if name == "ca-certificates":
+                (control / "conffiles").write_text(bootstrap.verify.PREFIX + "/etc/tls/cert.pem\n")
+            self.build_deb(name)
+
+    def build_deb(self, name):
+        subprocess.run(["dpkg-deb", "--build", str(self.root / name),
+                        str(self.debs / (name + ".deb"))], check=True,
+                       stdout=subprocess.DEVNULL)
+
+    def assemble(self, output):
+        with contextlib.redirect_stdout(io.StringIO()):
+            bootstrap.assemble(self.debs, output, "readelf")
+
+    def test_real_debs_assemble_with_complete_database_and_verified_manifest(self):
+        output = self.root / "bootstrap"
+        self.assemble(output)
+        report = json.loads((output / "bootstrap-report.json").read_text())
+        self.assertEqual(set(report["packages"]),
+                         {"dash", "bash", "apt", "dpkg", "ca-certificates", "fixture-lib"})
+        self.assertFalse((output / "compiler.deb").exists())
+        records = (output / "BOOTSTRAP-MANIFEST").read_text().splitlines()
+        self.assertIn("L\tdash\tbin/sh", records)
+        with zipfile.ZipFile(output / "bootstrap-aarch64.zip") as archive:
+            for record in records[1:]:
+                fields = record.split("\t")
+                if fields[0] == "F":
+                    data = archive.read(fields[4])
+                    self.assertEqual(len(data), int(fields[2]))
+                    self.assertEqual(hashlib.sha256(data).hexdigest(), fields[3])
+            status = archive.read("var/lib/dpkg/status").decode()
+            self.assertEqual(status.count("Status: install ok unpacked"), 6)
+            for name in report["packages"]:
+                listing = archive.read("var/lib/dpkg/info/" + name + ".list").decode().splitlines()
+                self.assertTrue(listing)
+                self.assertTrue(all(path == bootstrap.verify.PREFIX or
+                                    path.startswith(bootstrap.verify.PREFIX + "/") for path in listing))
+            self.assertEqual(archive.read("var/lib/dpkg/info/ca-certificates.conffiles").decode(),
+                             bootstrap.verify.PREFIX + "/etc/tls/cert.pem\n")
+        again = self.root / "again"
+        self.assemble(again)
+        self.assertEqual((again / "bootstrap-aarch64.zip").read_bytes(),
+                         (output / "bootstrap-aarch64.zip").read_bytes())
+        self.assertEqual((again / "BOOTSTRAP-MANIFEST").read_bytes(),
+                         (output / "BOOTSTRAP-MANIFEST").read_bytes())
+
+    def test_package_file_collision_fails(self):
+        path = self.root / "bash" / bootstrap.verify.PREFIX.lstrip("/") / "bin/apt"
+        path.write_text("conflicting file")
+        self.build_deb("bash")
+        with self.assertRaisesRegex(ValueError, "Package file collision"):
+            self.assemble(self.root / "bootstrap")
+
+    def test_payload_outside_managed_prefix_fails(self):
+        path = self.root / "dpkg" / "etc/foreign"
+        path.parent.mkdir(parents=True)
+        path.write_text("invalid package payload")
+        self.build_deb("dpkg")
+        with self.assertRaisesRegex(ValueError, "Payload outside managed prefix"):
+            self.assemble(self.root / "bootstrap")
 
 
 if __name__ == "__main__":

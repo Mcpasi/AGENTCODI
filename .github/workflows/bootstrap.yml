@@ -32,6 +32,13 @@ jobs:
             -v "$build_root/output":/bootstrap \
             "$(jq -r .builder.image scripts/package-edition/lock.json)" \
             bash /audit/scripts/package-edition/build-bootstrap.sh
+      - name: Retain source-built DEBs for assembly failure diagnosis
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: agentcodi-package-build-debs
+          path: ${{ runner.temp }}/package-bootstrap/prepared/output/*.deb
+          if-no-files-found: ignore
       - name: Upload bootstrap and package evidence
         if: always()
         uses: actions/upload-artifact@v4

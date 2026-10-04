@@ -92,6 +92,8 @@ def assemble(debs, output, readelf):
         reports = {}
         for name, (deb, metadata) in sorted(selected.items()):
             payload, control = work / name / "payload", work / name / "control"
+            payload.mkdir(parents=True)
+            control.mkdir(parents=True)
             subprocess.run(["dpkg-deb", "-x", str(deb), str(payload)], check=True)
             subprocess.run(["dpkg-deb", "-e", str(deb), str(control)], check=True)
             reports[name] = verify.audit(payload, readelf)

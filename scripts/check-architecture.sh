@@ -898,7 +898,7 @@ if ! rg -q 'getToolchain\(\)' "$storage_layout" \
     || ! rg -q 'AGENTCODI_TOOL_BIN=' "$native_process" \
     || ! rg -q 'AGENTCODI_TOOL_RUNTIME=' "$native_process" \
     || ! rg -q 'SHELL=" \+ std::string\(kSystemShell\)' "$native_process" \
-    || ! rg -q 'config\.tool_binary_directory \+ ":/system/bin:/system/xbin"' "$native_process" \
+    || ! rg -Uq 'config\.tool_binary_directory[[:space:]]*\+ ":/system/bin:/system/xbin"' "$native_process" \
     || rg -q 'tool_binary_directory \+ ":" \+ config\.library_directory' "$native_process" \
     || ! rg -q 'PrepareGuardedToolInvocation' "$toolchain_shell" "$toolchain_policy" "$toolchain_elf_guard" \
     || ! rg -q 'non-canonical executable entry point' "$toolchain_elf_guard" "$toolchain_elf_guard_test" \

@@ -69,9 +69,10 @@ class AssemblyTest(unittest.TestCase):
             directory = self.root / name
             control = directory / "DEBIAN"
             control.mkdir(parents=True)
+            version = "1:1.0" if name == "ca-certificates" else "1.0"
             depends = "Depends: fixture-lib (>= 1.0)\n" if name == "apt" else ""
             (control / "control").write_text(
-                "Package: " + name + "\nVersion: 1.0\nArchitecture: all\n"
+                "Package: " + name + "\nVersion: " + version + "\nArchitecture: all\n"
                 "Maintainer: AGENTCODI\nDescription: assembly regression fixture\n" + depends)
             prefix = directory / bootstrap.verify.PREFIX.lstrip("/")
             for path, data in files.items():
@@ -86,8 +87,9 @@ class AssemblyTest(unittest.TestCase):
             self.build_deb(name)
 
     def build_deb(self, name):
+        filename = name + ("_1:1.0_all.deb" if name == "ca-certificates" else ".deb")
         subprocess.run(["dpkg-deb", "--build", str(self.root / name),
-                        str(self.debs / (name + ".deb"))], check=True,
+                        str(self.debs / filename)], check=True,
                        stdout=subprocess.DEVNULL)
 
     def assemble(self, output):
@@ -100,7 +102,9 @@ class AssemblyTest(unittest.TestCase):
         report = json.loads((output / "bootstrap-report.json").read_text())
         self.assertEqual(set(report["packages"]),
                          {"dash", "bash", "apt", "dpkg", "ca-certificates", "fixture-lib"})
-        self.assertFalse((output / "compiler.deb").exists())
+        self.assertFalse(list(output.glob("compiler*.deb")))
+        self.assertTrue((output / "ca-certificates_1_1.0_all.deb").is_file())
+        self.assertEqual(report["packages"]["ca-certificates"]["Version"], "1:1.0")
         records = (output / "BOOTSTRAP-MANIFEST").read_text().splitlines()
         self.assertIn("L\tdash\tbin/sh", records)
         with zipfile.ZipFile(output / "bootstrap-aarch64.zip") as archive:

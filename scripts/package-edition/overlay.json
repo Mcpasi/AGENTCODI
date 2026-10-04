@@ -113,7 +113,7 @@
         },
         {
           "old": "bin/dpkg-scansources\nbin/dpkg-shlibdeps",
-          "new": "bin/dpkg-scansources\nbin/dpkg-scanpackages\nshare/perl5\nshare/man/man1/dpkg-scanpackages.*\nbin/dpkg-shlibdeps"
+          "new": "bin/dpkg-scansources\nbin/dpkg-scanpackages\nbin/dpkg-buildapi\nbin/dpkg-buildtree\nbin/dpkg-fsys-usrunmess\nshare/man/man1/dpkg-buildapi.*\nshare/man/man1/dpkg-buildtree.*\nshare/man/man1/dpkg-fsys-usrunmess.*\nshare/perl5\nshare/man/man1/dpkg-scanpackages.*\nbin/dpkg-shlibdeps"
         }
       ]
     },

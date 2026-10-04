@@ -133,7 +133,7 @@ def assemble(debs, output, readelf):
                     records.append(" " + conffile + " " + digest)
                 control_text += "\nConffiles:\n" + "\n".join(records)
             status.append(control_text + "\nStatus: install ok unpacked\n")
-            shutil.copy2(deb, output / deb.name)
+            shutil.copy2(deb, output / deb.name.replace(":", "_"))
         (prefix / "var/lib/dpkg/status").write_text("\n".join(status) + "\n")
         (prefix / "var/lib/dpkg/available").touch()
         for directory in ("var/lib/dpkg/updates", "var/lib/dpkg/triggers",
@@ -154,7 +154,7 @@ def assemble(debs, output, readelf):
                     interpreter = first[2:].strip().split()[0].decode()
                     target = root / interpreter.lstrip("/")
                     if not target.is_file() or not target.stat().st_mode & 0o111:
-                        raise ValueError("Missing bootstrap script interpreter: " + interpreter)
+                        raise ValueError("Missing bootstrap script interpreter: " + str(path.relative_to(prefix)) + " -> " + interpreter)
         system = {"libc.so", "libm.so", "libdl.so", "liblog.so", "libandroid.so"}
         for path, report in audit["elf"].items():
             for library in re.findall(r"\(NEEDED\).*?\[([^]]+)\]", report):

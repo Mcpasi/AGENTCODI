@@ -3,6 +3,8 @@
 import argparse
 import hashlib
 import json
+import io
+import shutil
 from pathlib import Path
 import tarfile
 
@@ -51,10 +53,49 @@ def collect(recipes, build, output):
         for path in sorted(output.iterdir()) if path.is_file() and path.name != "SHA256SUMS"))
 
 
+def reuse(source, output):
+    """Repackage unchanged binary sources with the current assembly/audit scripts."""
+    previous = json.loads((source / "bootstrap-report.json").read_text())
+    current = json.loads((output / "bootstrap-report.json").read_text())
+    if previous["lock"] != current["lock"] or set(previous["packages"]) != set(current["packages"]):
+        raise ValueError("Reused package selection or lock differs; rebuild from source")
+    for name in current["packages"]:
+        if previous["packages"][name]["deb_sha256"] != current["packages"][name]["deb_sha256"]:
+            raise ValueError("Reused DEB checksum differs: " + name)
+    archive_name = previous["corresponding_sources"]["archive"]
+    originals = {path.name: path for path in HERE.iterdir() if path.is_file()}
+    retained = set()
+    with tarfile.open(source / archive_name, "r:xz") as old, tarfile.open(output / archive_name, "w:xz") as new:
+        for member in old:
+            relative = member.name.removeprefix("agentcodi/")
+            if member.name.startswith("agentcodi/") and relative in originals:
+                data = originals[relative].read_bytes()
+                member.size = len(data)
+                new.addfile(member, io.BytesIO(data))
+                retained.add(relative)
+            else:
+                new.addfile(member, old.extractfile(member) if member.isfile() else None)
+        for name in sorted(set(originals) - retained):
+            new.add(originals[name], arcname="agentcodi/" + name)
+    shutil.copy2(source / "agentcodi-preparation.json", output / "agentcodi-preparation.json")
+    current["corresponding_sources"] = {**previous["corresponding_sources"],
+        "sha256": hashlib.sha256((output / archive_name).read_bytes()).hexdigest()}
+    (output / "bootstrap-report.json").write_text(json.dumps(current, indent=2) + "\n")
+    (output / "SHA256SUMS").write_text("".join(
+        hashlib.sha256(path.read_bytes()).hexdigest() + "  " + path.name + "\n"
+        for path in sorted(output.iterdir()) if path.is_file() and path.name != "SHA256SUMS"))
+
+
 if __name__ == "__main__":
     parser = argparse.ArgumentParser(description=__doc__)
-    parser.add_argument("--recipes", type=Path, required=True)
-    parser.add_argument("--build", type=Path, required=True)
+    parser.add_argument("--recipes", type=Path)
+    parser.add_argument("--build", type=Path)
+    parser.add_argument("--reuse-from", type=Path)
     parser.add_argument("--output", type=Path, required=True)
     args = parser.parse_args()
-    collect(args.recipes, args.build, args.output)
+    if args.reuse_from:
+        reuse(args.reuse_from, args.output)
+    elif args.recipes and args.build:
+        collect(args.recipes, args.build, args.output)
+    else:
+        parser.error('--recipes and --build are required for a fresh source build')

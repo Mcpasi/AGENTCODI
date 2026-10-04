@@ -119,7 +119,11 @@ class AssemblyTest(unittest.TestCase):
             cert = archive.read("etc/tls/cert.pem")
             self.assertIn("Conffiles:\n " + bootstrap.verify.PREFIX + "/etc/tls/cert.pem " +
                           hashlib.md5(cert, usedforsecurity=False).hexdigest(), status)
+            apt_sum = hashlib.md5(archive.read("bin/apt"), usedforsecurity=False).hexdigest()
+            self.assertEqual(archive.read("var/lib/dpkg/info/apt.md5sums").decode(),
+                             apt_sum + "  " + bootstrap.verify.PREFIX.lstrip("/") + "/bin/apt\n")
             for name in report["packages"]:
+                self.assertIn("var/lib/dpkg/info/" + name + ".md5sums", archive.namelist())
                 listing = archive.read("var/lib/dpkg/info/" + name + ".list").decode().splitlines()
                 self.assertTrue(listing)
                 self.assertTrue(all(path == bootstrap.verify.PREFIX or

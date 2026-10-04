@@ -120,6 +120,16 @@ def assemble(debs, output, readelf):
             for path in control.iterdir():
                 if path.name != "control":
                     shutil.copy2(path, info / (name + "." + path.name))
+            if not (info / (name + ".md5sums")).exists():
+                configs = set((control / "conffiles").read_text().splitlines()) if (control / "conffiles").exists() else set()
+                sums = []
+                for path in sorted(payload.rglob("*")):
+                    if path.is_file() and not path.is_symlink():
+                        relative = path.relative_to(payload).as_posix()
+                        if "/" + relative not in configs:
+                            sums.append(hashlib.md5(path.read_bytes(), usedforsecurity=False).hexdigest() +
+                                        "  " + relative)
+                (info / (name + ".md5sums")).write_text("\n".join(sums) + ("\n" if sums else ""))
             control_text = (control / "control").read_text().strip()
             conffiles = control / "conffiles"
             if conffiles.exists() and conffiles.read_text().strip():

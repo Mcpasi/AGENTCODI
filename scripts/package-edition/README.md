@@ -115,8 +115,11 @@ fixture: those real package outputs still need their own rebuild checks.
 
 The APK workflow calls the branch-scoped reusable bootstrap workflow. It may reuse
 source build 37208312449 while its artifact remains available and every package
-source/build input (excluding this README) matches that trusted branch push.
-The source-build job must have passed; all payload SHA-256 and the complete lock
+source/build input matches that trusted branch push. README, assembly, source-archive
+and audit code are excluded from the binary build key; they are rerun on the
+verified source-built DEBs. The source archive retains the original package
+sources and includes the current assembly/audit scripts.
+The source-build job must have passed; all input SHA-256, DEB hashes and the complete lock
 are rechecked, and source-build.json records provenance. Changed inputs or expired
 artifacts cause a full rebuild. Java, ARM64/Bionic and APK checks still run.
 It builds

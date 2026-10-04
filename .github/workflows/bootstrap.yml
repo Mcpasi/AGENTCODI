@@ -36,7 +36,7 @@ jobs:
           fi
           source_sha="$(jq -r .head_sha "$RUNNER_TEMP/source-run.json")"
           git fetch --depth=1 origin "$source_sha"
-          if ! git diff --quiet "$source_sha" HEAD -- scripts/package-edition ':(exclude)scripts/package-edition/README.md'; then
+          if ! git diff --quiet "$source_sha" HEAD -- scripts/package-edition ':(exclude)scripts/package-edition/README.md' ':(exclude)scripts/package-edition/assemble-bootstrap.py' ':(exclude)scripts/package-edition/collect-bootstrap-sources.py' ':(exclude)scripts/package-edition/verify-prefix.py'; then
             echo 'Package source/build inputs changed; rebuilding.'
             exit 0
           fi
@@ -57,14 +57,14 @@ jobs:
           name: agentcodi-package-bootstrap
           run-id: ${{ inputs.source_run_id }}
           github-token: ${{ github.token }}
-          path: ${{ runner.temp }}/package-bootstrap/output
+          path: ${{ runner.temp }}/package-bootstrap/input
       - name: Verify reused payloads and record source build provenance
         if: steps.reuse.outputs.reuse == 'true'
         env:
           SOURCE_RUN_ID: ${{ inputs.source_run_id }}
           SOURCE_SHA: ${{ steps.reuse.outputs.source_sha }}
         run: |
-          cd "$RUNNER_TEMP/package-bootstrap/output"
+          cd "$RUNNER_TEMP/package-bootstrap/input"
           sha256sum -c SHA256SUMS
           python3 - "$GITHUB_WORKSPACE/scripts/package-edition/lock.json" <<'PY'
           import json, os, sys
@@ -77,7 +77,12 @@ jobs:
               "consumer_commit": os.environ["GITHUB_SHA"],
               "recipe_inputs_identical": True}, indent=2) + "\n")
           PY
-          sed -i '/  source-build[.]json$/d' SHA256SUMS
+          input="$RUNNER_TEMP/package-bootstrap/input"
+          output="$RUNNER_TEMP/package-bootstrap/output"
+          python3 "$GITHUB_WORKSPACE/scripts/package-edition/assemble-bootstrap.py" --debs "$input" --output "$output"
+          python3 "$GITHUB_WORKSPACE/scripts/package-edition/collect-bootstrap-sources.py" --reuse-from "$input" --output "$output"
+          cp source-build.json "$output/"
+          cd "$output"
           sha256sum source-build.json >> SHA256SUMS
       - name: Prepare the pinned source recipes
         if: steps.reuse.outputs.reuse != 'true'
@@ -163,3 +168,9 @@ jobs:
             -v "$GITHUB_WORKSPACE/bootstrap/root":/data/data/de.agentcodi.pkg/files \
             termux/termux-docker:aarch64@sha256:e19ea56dd687563849826cbda57da714ae23277ee463e21f39917dbc0a59bab4 \
             /audit/smoke.sh
+      - name: Diagnose APT failures with the host debugger
+        if: failure()
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y gdb
+          bash .github/ci/bootstrap-apt-debug.sh

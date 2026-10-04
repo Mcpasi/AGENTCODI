@@ -11,3 +11,5 @@ export TERMUX_PKG_MAKE_PROCESSES=4
 python3 /audit/scripts/package-edition/assemble-bootstrap.py \
     --debs ./output --output /bootstrap
 cp agentcodi-preparation.json /bootstrap/
+python3 /audit/scripts/package-edition/collect-bootstrap-sources.py \
+    --recipes "$PWD" --build /home/builder/.termux-build --output /bootstrap

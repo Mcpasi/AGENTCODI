@@ -158,6 +158,20 @@
           "new": ""
         }
       ]
+    },
+    {
+      "path": "packages/p11-kit/build.sh",
+      "upstream_blob": "272005605743b3098c0c9fb87a4b40f13d33f845",
+      "replacements": [
+        {
+          "old": "\ttermux_download_ubuntu_packages libtasn1-bin",
+          "new": "\t# Build the host ASN.1 generator from the same checksum-pinned source.\n\tlocal version url digest\n\tversion=$(. \"$TERMUX_SCRIPTDIR/packages/libtasn1/build.sh\"; echo \"$TERMUX_PKG_VERSION\")\n\turl=$(. \"$TERMUX_SCRIPTDIR/packages/libtasn1/build.sh\"; echo \"$TERMUX_PKG_SRCURL\")\n\tdigest=$(. \"$TERMUX_SCRIPTDIR/packages/libtasn1/build.sh\"; echo \"$TERMUX_PKG_SHA256\")\n\ttermux_download \"$url\" \"$TERMUX_PKG_CACHEDIR/host-libtasn1.tar.gz\" \"$digest\"\n\ttar xf \"$TERMUX_PKG_CACHEDIR/host-libtasn1.tar.gz\"\n\tcd \"libtasn1-$version\"\n\t./configure --prefix=\"$TERMUX_PKG_HOSTBUILD_DIR/native\" --disable-shared --enable-static --disable-doc\n\tmake -j\"$TERMUX_PKG_MAKE_PROCESSES\"\n\tmake install"
+        },
+        {
+          "old": "PATH+=\":${TERMUX_PKG_HOSTBUILD_DIR}/ubuntu_packages/usr/bin\"",
+          "new": "PATH+=\":${TERMUX_PKG_HOSTBUILD_DIR}/native/bin\""
+        }
+      ]
     }
   ],
   "removals": [

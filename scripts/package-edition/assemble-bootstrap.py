@@ -100,7 +100,8 @@ def assemble(debs, output, readelf):
             for path in sorted(payload.rglob("*")):
                 relative = path.relative_to(payload)
                 dest = root / relative
-                file_list.append("/" + relative.as_posix())
+                if path.is_relative_to(payload / verify.PREFIX.lstrip("/")):
+                    file_list.append("/" + relative.as_posix())
                 if path.is_dir() and not path.is_symlink():
                     if dest.is_symlink() or (dest.exists() and not dest.is_dir()):
                         raise ValueError("Directory collision: " + str(relative))

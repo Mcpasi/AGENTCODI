@@ -122,14 +122,15 @@ No official Termux binary dependencies, PRoot or Termux app components are used.
 The overlay removes unused dpkg Perl/development subpackages and Java certificate
 generation, builds GnuPG's gpgv-only variant and disables GnuTLS's optional Unbound
 integration. dpkg's Git tag must resolve to
-b2f9600ead232a2dd3c27f8b52807a9ca5854d17. Source archive hashes and package recipe
+b2f9600ead232a2dd3c27f8b52807a9ca5854d17. p11-kit's host ASN.1 generator is rebuilt from the checksum-pinned libtasn1
+source instead of using a floating Ubuntu package index. Source archive hashes and package recipe
 patches remain pinned by the recipe tree. Assembly selects only the runtime
 Depends/Pre-Depends closure, validates dependency versions and DT_NEEDED libraries,
 and rejects foreign prefixes, architectures, shebangs and escaping links.
 Build-only packages are omitted from the installed bootstrap.
 
 The artifact agentcodi-package-bootstrap contains the DEBs, bootstrap ZIP,
-BOOTSTRAP-MANIFEST, complete package/ELF report and SHA256SUMS. ZIP order and
+BOOTSTRAP-MANIFEST, complete package/ELF report, corresponding-source archive and SHA256SUMS. ZIP order and
 timestamps are fixed. This does not claim that every package's compiler output
 is independently bit-for-bit reproducible; real rebuild comparison remains part
 of the later package-catalog CI step.

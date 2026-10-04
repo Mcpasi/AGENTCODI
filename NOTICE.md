@@ -90,7 +90,9 @@ Their inclusion does not relicense them under AGENTCODI's Apache license.
 The APK asset third-party/package-bootstrap/bootstrap-report.json records the
 actual package versions, source/build pins, DEB and ELF checksums. The installed
 prefix retains the upstream license material under share/doc and share/licenses.
-The bootstrap CI artifact includes the selected DEBs and build evidence.
+The bootstrap CI artifact includes the selected DEBs, build evidence and
+bootstrap-corresponding-sources.tar.xz with the source downloads/Git snapshot,
+recipes, patches and edition build scripts used for these packages.
 The source recipe tree, source download checksums, dpkg Git source commit and
 all edition build modifications are available through the linked package-build
 documentation. No Termux app, API, tools, exec or trust-key package is included.

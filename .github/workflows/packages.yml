@@ -10,12 +10,17 @@ on:
       - '.github/ci/bootstrap-*'
       - '.github/ci/BootstrapInstall.java'
   workflow_dispatch:
+    inputs:
+      source_run_id:
+        description: 'Reuse successful same-branch source jobs only with identical build inputs'
+        type: number
+        default: 0
 permissions:
   contents: read
   actions: read
 concurrency:
   group: package-catalog-${{ github.ref }}
-  cancel-in-progress: false
+  cancel-in-progress: true
 jobs:
   bootstrap:
     if: github.ref == 'refs/heads/Mcpasi/package-edition'
@@ -33,7 +38,58 @@ jobs:
         group: [python, node, git, ripgrep]
     steps:
       - uses: actions/checkout@v4
+      - name: Check reusable source build provenance and inputs
+        id: reuse
+        env:
+          GH_TOKEN: ${{ github.token }}
+          SOURCE_RUN_ID: ${{ inputs.source_run_id || 0 }}
+          GROUP: ${{ matrix.group }}
+        run: |
+          set -euo pipefail
+          echo 'reuse=false' >> "$GITHUB_OUTPUT"
+          [ "$SOURCE_RUN_ID" -gt 0 ] || exit 0
+          gh api "repos/$GITHUB_REPOSITORY/actions/runs/$SOURCE_RUN_ID" > "$RUNNER_TEMP/source-run.json" || exit 0
+          jq -e --arg repo "$GITHUB_REPOSITORY" '.head_branch == "Mcpasi/package-edition" and .event == "push" and .head_repository.full_name == $repo' "$RUNNER_TEMP/source-run.json" >/dev/null || exit 0
+          source_sha="$(jq -r .head_sha "$RUNNER_TEMP/source-run.json")"
+          git fetch --depth=1 origin "$source_sha"
+          git diff --quiet "$source_sha" HEAD -- scripts/package-edition/lock.json scripts/package-edition/overlay.json scripts/package-edition/catalog.json scripts/package-edition/prepare.py scripts/package-edition/prepare-catalog.py scripts/package-edition/build-catalog.sh || exit 0
+          gh api "repos/$GITHUB_REPOSITORY/actions/runs/$SOURCE_RUN_ID/jobs?per_page=100" | jq -e --arg name "Source build ($GROUP)" 'any(.jobs[]; .name == $name and .conclusion == "success")' >/dev/null || exit 0
+          gh api "repos/$GITHUB_REPOSITORY/actions/runs/$SOURCE_RUN_ID/artifacts?per_page=100" | jq -e --arg name "agentcodi-catalog-$GROUP" 'any(.artifacts[]; .name == $name and .expired == false)' >/dev/null || exit 0
+          echo 'reuse=true' >> "$GITHUB_OUTPUT"
+          echo "source_sha=$source_sha" >> "$GITHUB_OUTPUT"
+      - uses: actions/download-artifact@v4
+        if: steps.reuse.outputs.reuse == 'true'
+        with:
+          name: agentcodi-catalog-${{ matrix.group }}
+          run-id: ${{ inputs.source_run_id }}
+          github-token: ${{ github.token }}
+          path: ${{ runner.temp }}/package-catalog/input
+      - name: Reaudit verified source-built DEBs with current validators
+        if: steps.reuse.outputs.reuse == 'true'
+        env:
+          SOURCE_RUN_ID: ${{ inputs.source_run_id }}
+          SOURCE_SHA: ${{ steps.reuse.outputs.source_sha }}
+        run: |
+          set -euo pipefail
+          root="$RUNNER_TEMP/package-catalog"
+          (cd "$root/input" && sha256sum -c SHA256SUMS)
+          mkdir -p "$root/unpacked"
+          tar -C "$root/unpacked" -xf "$root/input/source-built-debs.tar"
+          python3 -B scripts/package-edition/audit-catalog.py --debs "$root/unpacked/output" --output "$root/output" --group "${{ matrix.group }}"
+          python3 -B scripts/package-edition/collect-bootstrap-sources.py --reuse-from "$root/input" --output "$root/output"
+          cp "$root/input/source-built-debs.tar" "$root/output/"
+          python3 - "$root/output/source-build.json" <<'PY'
+          import json, os, sys
+          from pathlib import Path
+          Path(sys.argv[1]).write_text(json.dumps({
+              "source_run_id": int(os.environ["SOURCE_RUN_ID"]),
+              "source_commit": os.environ["SOURCE_SHA"],
+              "consumer_commit": os.environ["GITHUB_SHA"],
+              "recipe_inputs_identical": True}, indent=2) + "\n")
+          PY
+          (cd "$root/output" && sha256sum source-built-debs.tar source-build.json >> SHA256SUMS)
       - name: Prepare the pinned catalog recipes in fresh storage
+        if: steps.reuse.outputs.reuse != 'true'
         run: |
           set -euo pipefail
           python3 -m py_compile scripts/package-edition/prepare-catalog.py scripts/package-edition/audit-catalog.py
@@ -47,6 +103,7 @@ jobs:
           python3 -B scripts/package-edition/prepare-catalog.py --source "$root/source" --output "$root/prepared"
           sudo chown -R 1001:1001 "$root/prepared" "$root/output"
       - name: Build the catalog and all dependencies from sources
+        if: steps.reuse.outputs.reuse != 'true'
         run: |
           set -euo pipefail
           root="$RUNNER_TEMP/package-catalog"
@@ -57,12 +114,20 @@ jobs:
             -v "$root/output":/catalog \
             "$(jq -r .builder.image scripts/package-edition/lock.json)" \
             bash /audit/scripts/package-edition/build-catalog.sh "${{ matrix.group }}"
-      - name: Retain all DEBs and preparation on failure
-        if: failure()
+      - name: Archive all source-built DEBs and preparation
+        if: always() && steps.reuse.outputs.reuse != 'true'
         run: |
+          set -euo pipefail
           root="$RUNNER_TEMP/package-catalog"
-          sudo cp -a "$root/prepared/output" "$root/output/failed-build-debs" || true
-          sudo cp "$root/prepared/agentcodi-preparation.json" "$root/output/" || true
+          if [ -d "$root/prepared/output" ]; then
+            sudo tar -C "$root/prepared" -cf "$root/output/source-built-debs.tar" output
+            if [ -f "$root/output/SHA256SUMS" ]; then
+              (cd "$root/output" && sha256sum source-built-debs.tar >> SHA256SUMS)
+            fi
+          fi
+          if [ -f "$root/prepared/agentcodi-preparation.json" ]; then
+            sudo cp "$root/prepared/agentcodi-preparation.json" "$root/output/"
+          fi
       - uses: actions/upload-artifact@v4
         if: always()
         with:

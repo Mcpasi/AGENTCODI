@@ -19,6 +19,8 @@ def collect(recipes, build, output):
         if not (recipe / "build.sh").exists():
             continue
         parents[recipe.name] = recipe
+        # buildorder/package splitting synthesizes this name without a recipe file.
+        parents[recipe.name + "-static"] = recipe
         for subpackage in recipe.glob("*.subpackage.sh"):
             parents[subpackage.name.removesuffix(".subpackage.sh")] = recipe
     names = set(report["packages"])

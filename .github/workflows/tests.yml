@@ -206,6 +206,7 @@ jobs:
         run: |
           bash -n .github/ci/check-package-edition.sh scripts/package-edition/check-toolchain.sh
           python3 -B .github/ci/test-bootstrap-assembly.py
+          python3 -B .github/ci/test-catalog-sources.py
           .github/ci/check-package-edition.sh
       - name: Upload package build contract evidence
         if: always()

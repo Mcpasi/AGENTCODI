@@ -1,6 +1,6 @@
 # Roadmap: AGENTCODI Package Edition
 
-Stand: 2026-10-03. Ausschließlich Branch `Mcpasi/package-edition`; kein Merge nach `main`.
+Stand: 2026-10-04. Ausschließlich Branch `Mcpasi/package-edition`; kein Merge nach `main`.
 
 ## Ziel und feste Entscheidungen
 
@@ -25,7 +25,7 @@ Ein Target-SDK-Wechsel allein liefert weder einen Paketmanager noch eine passend
 
 Die Installationsidentität ist unabhängig vom Java-Namespace. Alle Manifest-Komponenten verwenden vollständige Klassennamen; AAPT2 erzeugt Ressourcen weiter unter `de.agentcodi.app`. Die Android-CI vergleicht die Installations-/Versionsangaben in Manifest, Build-Skript, BuildIdentity und verknüpften Ressourcen und prüft, dass jede Manifest-Komponente als Java-Klasse existiert. Ein echter Installations-/Parallelbetriebtest bleibt Teil der offenen Android-Gerätetests. Bisherige Daten der gemeinsamen ID werden nicht automatisch übernommen; Export/Import ist in der README beschrieben.
 
-Die alten geschützten Core-Verträge und das Modul bleiben vorerst für die bestehende Regressionstestsuite und den Übergangsbuild im Repository. Die App startet ausschließlich `:danger-full-access`; die historische interne Mode-ID `compatibility` bleibt zur Kompatibilität mit bestehenden Sitzungsdaten erhalten.
+Die Edition verwendet ausschließlich `:danger-full-access`; das Protected-Modul, aktive Protected-Verträge und JIT-Auswahl sind entfernt. Verbliebene alte boolesche Übergabeparameter sind stets false oder weisen true ausdrücklich zurück. Alte Launch-Intents werden auf Full access migriert. Die historische interne Mode-ID `compatibility` bleibt zur Kompatibilität mit bestehenden Sitzungsdaten erhalten.
 
 ## 2. Community-App-Server anbinden
 
@@ -37,18 +37,18 @@ Der eigene Fork basiert laut GitHub auf `DioNanos/codex-termux`. Geprüftes Comm
 - Archiv: `mmmbuto-codex-cli-termux-0.156.1-termux.1.tgz`
 - SHA-256 laut GitHub-Release-Asset-Digest: `44cee2f3a4a110fd79d4f7d61378d46fd72406f45cffb3163e809d63e86d946a`
 
-Diese Angaben sind das überprüfte Migrationsziel. Release-Archiv und Inhalt sind jetzt in CI untersucht; die aktive Build-Konfiguration wird erst in den folgenden Schritten umgestellt.
+Diese Angaben sind die aktive, vollständig angepinnte Community-Runtime. Archiv, Quellcommit, ELF-Dateien, APK-Relokation und erzeugte Schemas werden in GitHub Actions geprüft.
 
 - [x] Release-Archiv in CI herunterladen, Prüfsumme verifizieren und Inhalt einschließlich Code-mode-Host, Lizenzen und Abhängigkeiten untersuchen.
-- [ ] Quellcommit und vollständige Binär-/Schema-Prüfsummen erfassen; keine alten Hashes oder Binäroffsets wiederverwenden.
-- [ ] `scripts/update-codex-runtime.sh`, CodexRuntimeUpdater/Metadata/LocalSource, BuildIdentity, Build-Input-Liste und Notices auf den Community-Kanal umstellen.
-- [ ] App-Server-JSON-Schema gegen alle verwendeten RPCs prüfen: Initialize, Login, Models, Permission Profiles, Thread/Turn, Approvals, Terminal-PTY, MCP und Connectors.
-- [ ] Anpassungen für umbenannte Felder, Fähigkeiten oder Methoden in Client/SessionController umsetzen und mit realem App-Server prüfen.
-- [ ] Code-mode-Host-Auflösung prüfen. Falls weiterhin eine APK-Bibliothek umbenannt wird, den neuen Offset am neuen Artefakt bestimmen.
-- [ ] Native Startargumente auf Full access reduzieren und das unbenutzte `agentcodi-workspace`-Profil entfernen.
-- [ ] Alte Protected-/JIT-Verträge, Module, Ressourcen und Tests gezielt ablösen; übrige Regressionen behalten.
-- [ ] CI-Sandbox-Sonderoptionen und seccomp/ptrace-/Protected-Smokes im Edition-Build durch Full-access-Smokes ersetzen.
-- [ ] Keine Runtime-Aktualisierung darf wieder den Mcpasi-Sandbox-Fork auswählen.
+- [x] Quellcommit und vollständige Binär-/Schema-Prüfsummen erfassen; keine alten Hashes oder Binäroffsets wiederverwenden.
+- [x] `scripts/update-codex-runtime.sh`, CodexRuntimeUpdater/Metadata/LocalSource, BuildIdentity, Build-Input-Liste und Notices auf den Community-Kanal umstellen.
+- [x] App-Server-JSON-Schema gegen alle verwendeten RPCs prüfen: Initialize, Login, Models, Permission Profiles, Thread/Turn, Approvals, Terminal-PTY, MCP und Connectors.
+- [x] Anpassungen für umbenannte Felder, Fähigkeiten oder Methoden in Client/SessionController umsetzen und mit realem App-Server prüfen.
+- [x] Code-mode-Host-Auflösung prüfen. Falls weiterhin eine APK-Bibliothek umbenannt wird, den neuen Offset am neuen Artefakt bestimmen.
+- [x] Native Startargumente auf Full access reduzieren und das unbenutzte `agentcodi-workspace`-Profil entfernen.
+- [x] Alte Protected-/JIT-Verträge, Module, Ressourcen und Tests gezielt ablösen; übrige Regressionen behalten.
+- [x] CI-Sandbox-Sonderoptionen und seccomp/ptrace-/Protected-Smokes im Edition-Build durch Full-access-Smokes ersetzen.
+- [x] Keine Runtime-Aktualisierung darf wieder den Mcpasi-Sandbox-Fork auswählen.
 
 ### Ergebnis der Community-Archivprüfung — 2026-10-03
 
@@ -72,6 +72,59 @@ Neu ermittelte ELF-Prüfsummen, ausschließlich für dieses unveränderte Releas
 Architekturchecks, 309 Java-Tests, alle 8 portablen C++-Suites, Android-Quellen/Ressourcen gegen API 35 und die Release-Prüfung einschließlich 8 neuer Archiv-/Suchpfadtests sind erfolgreich. Die anfänglichen CI-Ursachen (anonymes GitHub-API-Ratenlimit und zu strenger Vergleich der doppelten ORIGIN-Einträge) sind behoben.
 
 Kein npm-Install/Postinstall und kein Community-ELF wurden ausgeführt; diese statische Prüfung verändert keine APK-Runtime. Schema-Erzeugung und -Prüfsummen, RPC-/Startkompatibilität, Host-Relokation und der aktive Kanalwechsel bleiben die nächsten offenen Schritte. Geräte-Tests bleiben offen und wurden gemäß Nutzeranweisung übersprungen.
+
+### Abschluss der Community-Anbindung — 2026-10-04
+
+Der aktive Build verwendet `0.156.1-termux.1`; das ELF meldet die Upstream-Version
+`codex-cli 0.156.1`. Die Versionsprüfung berücksichtigt diese Unterscheidung.
+Updater, Metadatenprüfung und Quellprüfung akzeptieren den DioNanos-Kanal,
+verlangen den passenden Release-Tag und lehnen `-agentcodi` sowie eine fremde
+Source-Remote ab. Die 33 Download-Einträge im Build-Input-Manifest werden aus
+dem Build-Skript erzeugt; veraltete lokale Sandbox-/Schema-Inputs sind entfernt.
+LICENSE und NOTICE des Community-Archivs werden unverändert ins APK übernommen;
+historische Credits sind klar als historische Angaben erhalten.
+
+| Pin | Ermittelter Wert |
+| --- | --- |
+| Community-Quellcommit | `ea762071ec4acbf1531fcc7daf47524836f70a09` |
+| OpenAI-Upstream-Commit | `b412ff32c417f855c2b2d1581b77058eed87c84b` |
+| Unverändertes App-Server-ELF SHA-256 | `6cbfa7f1660095e9cf2df7de242014579a0fb0d42545652fb0e22d1b6c8571a5` |
+| Unveränderter Code-mode-Host SHA-256 | `8afb196579c3fd8ecac558dbebfcba5467f91389b3754e485728ce6904e6ceaf` |
+| APK-App-Server-ELF SHA-256 | `cf1b406252928b0d68cb0f8f81adde6a02bf357a7fffb762d10cb503a235be06` |
+| Gesamtes App-Server-Schema SHA-256 | `eb1ba91bd0fab656523092f6ed7de3ea7aef278921a650f14dc871ae7dcfaf84` |
+| v2-Schema SHA-256 | `995fc3b8f8c469f6787e8fc5be4038c4f31359025edd8480b862e83355f3bf3b` |
+| Host-Namensfeld im neuen ELF | Byteoffset `10568364`; `codex-code-mode-host` → `libcodex-codehost.so` |
+
+Der neue Offset stammt aus dem eindeutigen Install-context-Datenfeld des
+Community-Artefakts. Die Änderung erhält die Binärlänge und ändert genau diesen
+Eintrag; weitere Host-Namensreferenzen bleiben unverändert. Vollständige
+ELF-Prüfsummen sichern das Ergebnis ab.
+
+Die ARM64/Bionic-CI erzeugt die Schemas mit dem tatsächlichen ELF, validiert
+378 vom Java-Client gesendete Test-RPCs und prüft zusätzlich Login-, Approval-
+und User-input-Formate. Verwendete Methoden für Initialize, Models, Permission
+Profiles, Thread/Turn, Terminal, MCP und Connectors sind im Schema vorhanden.
+Der echte App-Server führt Full-access-Kommandos aus, liest und schreibt
+synthetische Dateien außerhalb des Workspaces, verarbeitet PTY-Operationen und
+MCP-/Connector-Abfragen. Import-Kontext wird mit dem kanonischen Dateipfad statt des sichtbaren Labels
+in der tatsächlichen Modellanfrage nachgewiesen. Der native Bootstrap liest
+Thread-IDs gezielt aus dem Thread-Objekt, unabhängig vom davor stehenden
+`activePermissionProfile`.
+Ein lokaler Responses-API-Dummy schließt einen Turn
+durch den umbenannten Code-mode-Host ab; dessen JavaScript-Ergebnis wird im
+Folgerequest geprüft. Nach dem Runtime-Neustart werden die Sitzung fortgesetzt
+und ein selbst installiertes Programm erneut ausgeführt. Keine echten
+OpenAI-Zugangsdaten oder externe Modellanfragen sind dafür erforderlich.
+
+Native Startargumente enthalten weder JIT noch das alte Workspace-Profil.
+Protected-/JIT-spezifische Module, UI-Ressourcen und Tests wurden gezielt durch
+Full-access-Vertragsprüfungen ersetzt; die übrigen Regressionen bleiben erhalten.
+Der Edition-APK-Build benötigt keine besonderen seccomp-/ptrace-/AppArmor-Optionen
+und prüft Full access statt der alten Workspace-Isolation.
+
+Die Root-README ist vollständig Englisch. Abschnitt 3 und 4 sowie echte
+Android-Gerätetests bleiben offen; Gerätetests wurden auf ausdrücklichen
+Nutzerwunsch nicht ausgeführt.
 
 ## 3. Paket-Bootstrap und Workspace vervollständigen
 
@@ -125,7 +178,7 @@ Erst nach funktionierendem Bootstrap die bisher enthaltenen nutzerinstallierbare
 - [ ] Installations-/Update-Test inklusive niedrigem Target SDK, Foreground Service, Notifications, Login, Dateiauswahl und Backups durchführen.
 - [ ] Finales APK auf Gerät testen und erst danach als Package Edition veröffentlichen.
 
-## Verifikation dieses Bauabschnitts
+## Bisherige Verifikation des Grundlagenabschnitts
 
 Erfolgreicher [GitHub-Actions-Lauf](https://github.com/Mcpasi/AGENTCODI/actions/runs/37154718553) für Commit `801f44d82fe5aa4398d12395383a0806bb89ec41`:
 
@@ -136,4 +189,16 @@ Erfolgreicher [GitHub-Actions-Lauf](https://github.com/Mcpasi/AGENTCODI/actions/
 
 Zusätzlich deckt ein Terminal-Shell-Test den Vorrang selbst installierter Programme gegenüber früheren festen Shell-Funktionen ab.
 
-Alle Repository-Zugriffe und Änderungen erfolgen ausschließlich über den GitHub Connector. Ein vollständiger Android-APK-Build und echte Gerätetests sind noch offen. Der Community-Runtime-Wechsel, Paketmanager und verkleinerte Build sind ausdrücklich offen.
+Alle Repository-Zugriffe und Änderungen erfolgen ausschließlich über den GitHub Connector. Die Community-Anbindung aus Abschnitt 2 ist umgesetzt; Paketmanager, verkleinerter Build und echte Gerätetests folgen in Abschnitt 3/4. Die ursprünglichen Verifikationsangaben oben beschreiben den vorausgehenden Grundlagenabschnitt.
+
+## Verifikation der Community-Anbindung
+
+Geprüfter Implementierungscommit: `1fed889377c980f66cdd6eabc0dba2dbcce0b9de`.
+
+- [Tests-Lauf 37165001117](https://github.com/Mcpasi/AGENTCODI/actions/runs/37165001117): alle sechs Jobs erfolgreich — Architektur/Manifest, 303 Java-Tests, acht portable C++-Suites, Android-Kompilierung, Community-Archivprüfung und echter ARM64/Bionic-App-Server.
+- [Runtime-Prüfartefakt](https://github.com/Mcpasi/AGENTCODI/actions/runs/37165001117/artifacts/11289216891): erzeugte Schemas, vollständige ELF-/Archivbefunde und Protokollnachweis.
+- [APK-Lauf 37165001114](https://github.com/Mcpasi/AGENTCODI/actions/runs/37165001114): vollständiger Debug-APK-Build einschließlich nativer Full-access-, PTY-, Import-Kontext- und Übergangswerkzeug-Smokes erfolgreich.
+- Geräteabhängige Linker-Tests wurden mit `AGENTCODI_SKIP_DEVICE_LINKER_TESTS=1` übersprungen; echte Installations-/Hardwaretests bleiben offen.
+- `main` bleibt auf `ff27ec7c30d373a864e845e9a7ceeae3380dd103`. Kein PR, Merge oder Release wurde eingereicht.
+
+Das [Debug-APK-Artefakt](https://github.com/Mcpasi/AGENTCODI/actions/runs/37165001114/artifacts/11289032769) enthält `AGENTCODI-Package-0.1.0-package.1-arm64-v8a-debug.apk` (149 MiB; SHA-256 `2ebf610159251aea8caa3766d19ded24399efcd05360f19160aab68833529247`). Signatur, Alignment, Application-ID, ABI und enthaltene Runtime wurden erfolgreich geprüft. Dies ist ein CI-Artefakt; eine öffentliche Release-Veröffentlichung aus Abschnitt 4 wurde nicht vorgenommen.

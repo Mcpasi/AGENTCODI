@@ -211,10 +211,10 @@ def inspect(archive, pin, directory, provenance):
                            "name_referenced_in_codex_binary": host_reference},
         "scope": "Static archive audit; no npm install, postinstall, ELF execution, APK mutation or device test.",
         "follow_up": [
-            "Generate and validate the app-server schema on a compatible ARM64/Bionic host.",
-            "Determine host resolution and any relocation offset from this exact artifact before APK integration.",
+            "The separate Community ARM64 runtime job generates and verifies the app-server schemas.",
+            "The runtime job verifies the new APK relocation and executes the sibling code-mode host.",
             "Review notices for bundled libc++ and statically linked Rust/V8 dependencies before redistribution.",
-            "Adapt Termux-default prefixes and launcher shebangs to the Package Edition runtime.",
+            "The APK uses the native ELF directly; Termux npm launchers are not executed. Managed package-prefix work follows in Roadmap section 3.",
         ],
     }
     (reports / "report.json").write_text(json.dumps(report, indent=2) + "\n", encoding="utf-8")
@@ -257,7 +257,7 @@ def inspect(archive, pin, directory, provenance):
         for line in launcher["environment_and_prefix_lines"]:
             if "/data/data/" in line or "execPath" in line or "Interpreter" in line:
                 summary.append("  - `" + line.strip() + "`")
-    summary.extend(["", "### Remaining integration checks", ""] + [
+    summary.extend(["", "### Separate runtime and release checks", ""] + [
         "- " + item for item in report["follow_up"]
     ])
     text = "\n".join(summary) + "\n"

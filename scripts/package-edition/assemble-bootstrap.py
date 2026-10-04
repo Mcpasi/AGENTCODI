@@ -135,6 +135,15 @@ def assemble(debs, output, readelf):
         (prefix / "etc/apt/apt.conf.d/00agentcodi").write_text(
             'APT::Sandbox::User "";\nAcquire::AllowInsecureRepositories "false";\n')
         audit = verify.audit(root, readelf)
+        for path in prefix.rglob("*"):
+            if path.is_file() and not path.is_symlink() and path.stat().st_mode & 0o111:
+                with path.open("rb") as stream:
+                    first = stream.readline(127)
+                if first.startswith(b"#!" + verify.PREFIX.encode() + b"/bin/"):
+                    interpreter = first[2:].strip().split()[0].decode()
+                    target = root / interpreter.lstrip("/")
+                    if not target.is_file() or not target.stat().st_mode & 0o111:
+                        raise ValueError("Missing bootstrap script interpreter: " + interpreter)
         system = {"libc.so", "libm.so", "libdl.so", "liblog.so", "libandroid.so"}
         for path, report in audit["elf"].items():
             for library in re.findall(r"\(NEEDED\).*?\[([^]]+)\]", report):

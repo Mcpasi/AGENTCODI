@@ -110,6 +110,10 @@
         {
           "old": "TERMUX_PKG_GIT_BRANCH=\"${TERMUX_PKG_VERSION}\"",
           "new": "TERMUX_PKG_GIT_BRANCH=\"${TERMUX_PKG_VERSION}\"\nTERMUX_PKG_GIT_COMMIT=b2f9600ead232a2dd3c27f8b52807a9ca5854d17"
+        },
+        {
+          "old": "bin/dpkg-scansources\nbin/dpkg-shlibdeps",
+          "new": "bin/dpkg-scansources\nbin/dpkg-scanpackages\nshare/perl5\nshare/man/man1/dpkg-scanpackages.*\nbin/dpkg-shlibdeps"
         }
       ]
     },

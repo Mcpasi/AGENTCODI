@@ -133,6 +133,14 @@ class AssemblyTest(unittest.TestCase):
         with self.assertRaisesRegex(ValueError, "Package file collision"):
             self.assemble(self.root / "bootstrap")
 
+    def test_missing_script_interpreter_fails(self):
+        path = self.root / "dpkg" / bootstrap.verify.PREFIX.lstrip("/") / "bin/perl-tool"
+        path.write_text("#!" + bootstrap.verify.PREFIX + "/bin/perl\n")
+        path.chmod(0o700)
+        self.build_deb("dpkg")
+        with self.assertRaisesRegex(ValueError, "Missing bootstrap script interpreter"):
+            self.assemble(self.root / "bootstrap")
+
     def test_payload_outside_managed_prefix_fails(self):
         path = self.root / "dpkg" / "etc/foreign"
         path.parent.mkdir(parents=True)

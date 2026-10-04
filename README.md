@@ -62,6 +62,8 @@ Codex can then run `package-check` as a normal command. This checks the installa
 
 Native packages must be built for Android ARM64/Bionic and support the actual prefix. Existing Termux DEBs often contain fixed paths such as `/data/data/com.termux/files/usr`. Extracting them into `$PREFIX` is insufficient. The chosen architecture uses Termux package recipes rebuilt for this edition, a minimal bootstrap, and a dedicated signed repository; implementation is tracked in the roadmap.
 
+The recipe source, build container, NDK/SDK, and edition prefix configuration are pinned and checked in CI. See the [package build contract](scripts/package-edition/README.md) for recipe preparation, source-only dependency builds, and the planned dedicated repository. The minimal bootstrap and its installer are the next implementation step.
+
 The bundled Node.js, npm, Python, and ripgrep runtimes remain during the transition. Their activation and runtime checks still apply; the existing npm/Python wrappers do not provide general package management.
 
 ## Runtime and build

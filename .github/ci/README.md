@@ -20,6 +20,7 @@ Ubuntu runner. They are additional entry points only:
 | Architecture contracts | `scripts/check-architecture.sh` | Architecture rules, shell syntax, and generated build-input manifest synchronization. |
 | Java host tests | `run-java-tests.sh` | The complete Java suite — the same sources and the same `de.agentcodi.tests.TestMain` entry point that `scripts/test.sh` compiles. |
 | C++ host tests | `run-cpp-tests.sh` | The portable 8 of the 9 C++ host suites. |
+| Package recipe and toolchain contracts | `check-package-edition.sh` | Pinned recipe preparation, prefix and APT contracts, NDK ARM64 cross-compile and repeatable fixture DEB with metadata/ELF audit. |
 | Community release inspection | `inspect-community-codex.py` | Verify release, tag, archive, native dependencies and notices. |
 | Community ARM64 Bionic runtime | `community-runtime-pins.py`, `verify-community-protocol.py` | Verify binary relocation and generated schemas, validate actual Java fixture RPCs, and run the real Android app-server. |
 | Android sources and resources | `compile-android-sources.sh` | Compile against API 35, check SDK pins and Package Edition identity, and resolve every manifest component against its compiled Java class. |

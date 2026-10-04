@@ -1,0 +1,87 @@
+{
+  "format_version": 1,
+  "edits": [
+    {
+      "path": "scripts/properties.sh",
+      "upstream_blob": "fe062eaa77406a5a64c7b5435f8abb7b95c73e69",
+      "replacements": [
+        {
+          "old": "TERMUX_APP__PACKAGE_NAME=\"com.termux\"",
+          "new": "TERMUX_APP__PACKAGE_NAME=\"de.agentcodi.pkg\""
+        },
+        {
+          "old": "TERMUX__HOME_SUBDIR=\"home\"",
+          "new": "TERMUX__HOME_SUBDIR=\"agentcodi/home\""
+        }
+      ]
+    },
+    {
+      "path": "scripts/build/termux_step_setup_variables.sh",
+      "upstream_blob": "ac15406648cbdc80c073faf4c9c94278959b2b18",
+      "replacements": [
+        {
+          "old": ": \"${TERMUX_PKG_API_LEVEL:=\"24\"}\"",
+          "new": ": \"${TERMUX_PKG_API_LEVEL:=\"29\"}\""
+        }
+      ]
+    },
+    {
+      "path": "packages/apt/build.sh",
+      "upstream_blob": "cb404982091b5c6c22ed46569bd870a1e5d63708",
+      "replacements": [
+        {
+          "old": ", termux-keyring, termux-licenses",
+          "new": ", termux-licenses"
+        },
+        {
+          "old": "\t{\n\t\techo \"# The main termux repository, with cloudflare cache\"\n\t\techo \"deb https://packages-cf.termux.dev/apt/termux-main/ stable main\"\n\t\techo \"# The main termux repository, without cloudflare cache\"\n\t\techo \"# deb https://packages.termux.dev/apt/termux-main/ stable main\"\n\t} > $TERMUX_PREFIX/etc/apt/sources.list",
+          "new": "\tmkdir -p \"$TERMUX_PREFIX/etc/apt/keyrings\"\n\tprintf '%s\\n' 'deb [arch=aarch64 signed-by=/data/data/de.agentcodi.pkg/files/usr/etc/apt/keyrings/agentcodi-package.gpg] https://mcpasi.github.io/AGENTCODI/apt/package-edition stable main' > \"$TERMUX_PREFIX/etc/apt/sources.list\""
+        }
+      ]
+    },
+    {
+      "path": "scripts/build-bootstraps.sh",
+      "upstream_blob": "53bb59df8f43fc323934290a7142c49dbfe193bf",
+      "replacements": [
+        {
+          "old": "TERMUX_PACKAGES_DIRECTORY=\"/home/builder/termux-packages\"",
+          "new": "TERMUX_PACKAGES_DIRECTORY=\"$TERMUX_SCRIPTDIR\""
+        }
+      ]
+    },
+    {
+      "path": "build-package.sh",
+      "upstream_blob": "fc3b5a125b9ac8fd48765565ab4acd4ec1a10f89",
+      "replacements": [
+        {
+          "old": "# Dependencies should be used from repo only if they are built for",
+          "new": "# AGENTCODI: every dependency is rebuilt for this prefix; no binary repo seeds.\nif [[ \"${TERMUX_INSTALL_DEPS-false}\" == \"true\" || \"${TERMUX_PACKAGE_LIBRARY-bionic}\" != \"bionic\" || \"${TERMUX_PACKAGE_FORMAT-debian}\" != \"debian\" || \"${TERMUX_ARCH-aarch64}\" != \"aarch64\" || \"${TERMUX_PKG_API_LEVEL-29}\" != \"29\" ]]; then\n\ttermux_error_exit \"AGENTCODI requires source-built aarch64/Bionic/API 29 Debian packages; dependency downloads are disabled\"\nfi\n\n# Dependencies should be used from repo only if they are built for"
+        },
+        {
+          "old": "export TERMUX_SCRIPTDIR\n\n# Store pid",
+          "new": "export TERMUX_SCRIPTDIR\n# AGENTCODI: pin the target and reproducible timestamp for recursive builds too.\nsource \"$TERMUX_SCRIPTDIR/agentcodi.env\"\n\n# Store pid"
+        }
+      ]
+    },
+    {
+      "path": "scripts/build/termux_step_get_dependencies.sh",
+      "upstream_blob": "004a3d0b4deda0bb2ce486c0f9f3df4c75f03261",
+      "replacements": [
+        {
+          "old": "termux_download_repo_file() {\n\ttermux_get_repo_files",
+          "new": "termux_download_repo_file() {\n\ttermux_error_exit \"AGENTCODI requires source-built dependencies; circular dependencies need an explicit edition seed build\"\n\ttermux_get_repo_files"
+        }
+      ]
+    },
+    {
+      "path": "scripts/build/termux_step_start_build.sh",
+      "upstream_blob": "e392f6457c02f78b646663de629617f7cad6a7d4",
+      "replacements": [
+        {
+          "old": "\t# shellcheck source=/dev/null\n\tsource \"$TERMUX_PKG_BUILDER_SCRIPT\"",
+          "new": "\tcase \"$TERMUX_PKG_NAME\" in\n\t\ttermux-core|termux-exec|termux-tools|termux-api|termux-keyring|root-repo|x11-repo) termux_error_exit \"Package $TERMUX_PKG_NAME requires a separate AGENTCODI adaptation\";;\n\tesac\n\t# shellcheck source=/dev/null\n\tsource \"$TERMUX_PKG_BUILDER_SCRIPT\""
+        }
+      ]
+    }
+  ]
+}

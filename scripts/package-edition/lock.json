@@ -1,0 +1,64 @@
+{
+  "format_version": 1,
+  "source": {
+    "repository": "https://github.com/termux/termux-packages.git",
+    "commit": "b6af76b353140fe17f299248fca1ac13ea91c5c5",
+    "tree": "34c914ef107a5552e9c850299be67050cbabe4eb",
+    "source_date_epoch": 1791110575
+  },
+  "builder": {
+    "image": "ghcr.io/termux/package-builder@sha256:1db92723f6a82fd3ba45288d68ff99dbdeb08a3e9f3f0c4750115178cc7a6879",
+    "platform": "linux/amd64",
+    "source_commit": "c3326ca2d01cbc89bd3d48fd26f407b9fed1c69c",
+    "evidence": "https://github.com/termux/termux-packages/actions/runs/35882400849/job/107253886726"
+  },
+  "toolchain": {
+    "ndk": {
+      "version": "30",
+      "url": "https://dl.google.com/android/repository/android-ndk-r30-linux.zip",
+      "sha256": "753611f410d002cfcd3f3dc2ef49aad532089d3180b436c060a90bf0fcb64df2"
+    },
+    "sdk": {
+      "revision": "9123335",
+      "url": "https://dl.google.com/android/repository/commandlinetools-linux-9123335_latest.zip",
+      "sha256": "0bebf59339eaa534f4217f8aa0972d14dc49e7207be225511073c661ae01da0a",
+      "build_tools": "37.0.0"
+    },
+    "host_llvm_major": "21"
+  },
+  "target": {
+    "application_id": "de.agentcodi.pkg",
+    "architecture": "aarch64",
+    "library": "bionic",
+    "api_level": 29,
+    "package_format": "debian",
+    "rootfs": "/data/data/de.agentcodi.pkg/files",
+    "prefix": "/data/data/de.agentcodi.pkg/files/usr",
+    "home": "/data/data/de.agentcodi.pkg/files/agentcodi/home"
+  },
+  "repository": {
+    "name": "agentcodi-package",
+    "url": "https://mcpasi.github.io/AGENTCODI/apt/package-edition",
+    "suite": "stable",
+    "component": "main",
+    "signed_by": "/data/data/de.agentcodi.pkg/files/usr/etc/apt/keyrings/agentcodi-package.gpg",
+    "publication_status": "planned"
+  },
+  "bootstrap": {
+    "roots": [
+      "dash",
+      "apt",
+      "dpkg",
+      "ca-certificates"
+    ],
+    "unsupported_packages": [
+      "termux-core",
+      "termux-exec",
+      "termux-tools",
+      "termux-api",
+      "termux-keyring",
+      "root-repo",
+      "x11-repo"
+    ]
+  }
+}

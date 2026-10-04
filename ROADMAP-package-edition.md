@@ -152,7 +152,7 @@ Das Termux-Buildsystem dokumentiert anpassbare App- und Präfixvariablen in [scr
 - [x] Architekturentscheidung des Nutzers dokumentieren: eigener Präfix, minimaler Bootstrap und signiertes Repository aus neu gebauten Termux-Paketrezepten.
 - [x] Separate Application-ID endgültig festlegen und in der App umsetzen, bevor Pakete mit absoluten Pfaden gebaut werden: `de.agentcodi.pkg`; zukünftiger verwalteter Präfix `/data/data/de.agentcodi.pkg/files/usr`.
 - [x] Verwalteten Präfix auf `files/usr` außerhalb des Benutzer-Homes umstellen. Bestehende Dateien in `$HOME/.local` erhalten; Übergang/Migration und Suchreihenfolge dokumentieren und testen.
-- [ ] Reproduzierbaren Stand von `termux-packages` und Toolchain festlegen; gezielte Build-Anpassungen für App-ID, Präfix und Repository-URLs versionieren. Bootstrap, Paketmetadaten, Shebangs, RPATH/RUNPATH und Konfigurationen auf denselben finalen Pfad ausrichten.
+- [x] Reproduzierbaren Stand von `termux-packages` und Toolchain festlegen; gezielte Build-Anpassungen für App-ID, Präfix und Repository-URLs versionieren. Bootstrap, Paketmetadaten, Shebangs, RPATH/RUNPATH und Konfigurationen auf denselben finalen Pfad ausrichten.
 - [ ] Minimalen ARM64-Bootstrap mit Shell, APT, dpkg, Zertifikaten und Abhängigkeiten bauen; Initialisierung sowie Reparatur nach abgebrochener Installation integrieren.
 - [ ] Eigene CI für Paket- und Abhängigkeitsbuilds aufsetzen; zuerst Bootstrap und einen kleinen Katalog wie Python, Node.js/npm, Git und ripgrep prüfen, danach erweitern.
 - [ ] Eigenes signiertes APT-Repository mit Vertrauensschlüssel, HTTPS, Veröffentlichungsablauf und Aktualisierungsstrategie einrichten.
@@ -183,6 +183,57 @@ Prozess-Neustart und Ablehnung ungeeigneter Präfixverzeichnisse ab. Der echte
 ARM64/Bionic-APK-Smoke prüft den Vertrag über Codex- und Terminal-Shell.
 Bootstrap und Paketrepository sind weiterhin die folgenden offenen Punkte.
 Gerätetests bleiben gemäß Nutzeranweisung offen und werden übersprungen.
+
+### Reproduzierbarer Paket-Buildvertrag — 2026-10-04
+
+Umgesetzt mit `scripts/package-edition/lock.json`, dem kleinen versionierten
+`overlay.json`, `prepare.py` und `verify-prefix.py`. Der Rezeptstand ist
+`termux/termux-packages@b6af76b353140fe17f299248fca1ac13ea91c5c5`
+(Git-Tree `34c914ef107a5552e9c850299be67050cbabe4eb`). Der amd64-Buildcontainer
+ist per Digest `sha256:1db92723f6a82fd3ba45288d68ff99dbdeb08a3e9f3f0c4750115178cc7a6879`
+aus dem erfolgreichen [Upstream-Build](https://github.com/termux/termux-packages/actions/runs/35882400849/job/107253886726)
+gepinnt. NDK r30, SDK 9123335 samt Archiv-SHA-256, Build-Tools 37.0.0,
+Host-LLVM 21 sowie ARM64/Bionic/API 29 sind festgelegt. Die festen Containerbytes
+pinnen auch die Host-Abhängigkeiten; dort wird kein Paket-Upgrade ausgeführt.
+API 29 ist das native Mindestniveau; das Manifest bleibt bei Target SDK 28.
+
+Die Vorbereitung verlangt einen sauberen Checkout, prüft Commit, Tree,
+einzelne Blob-IDs und eindeutige Änderungskontexte und schreibt ausschließlich
+eine separate Rezeptkopie. App-ID und Home werden vor der Ableitung der
+Upstream-Pfade eingestellt: Paketbasis `/data/data/de.agentcodi.pkg/files/usr`,
+Home `files/agentcodi/home`. Patchersetzung, Bootstrap-Pfadvorlagen,
+Shebang-Massage, Linker-RUNPATH und Debian-Metadaten verwenden dieselbe
+Paketbasis. Rekursive Builds erhalten dieselben Pins und
+`SOURCE_DATE_EPOCH=1791110575`. Fremde ABIs, glibc und heruntergeladene
+Binärabhängigkeiten einschließlich automatischer zyklischer Seeds werden
+abgelehnt; solche Zyklen benötigen später explizit geprüfte Editions-Seeds.
+
+`repo.json` und das APT-Rezept verwenden ausschließlich die geplante
+HTTPS-Quelle `https://mcpasi.github.io/AGENTCODI/apt/package-edition`
+mit `stable main` und `signed-by=$PREFIX/etc/apt/keyrings/agentcodi-package.gpg`.
+Der upstream Termux-Keyring wird nicht eingebunden. Veröffentlichung und
+Vertrauensschlüssel sind weiterhin der offene Repository-Schritt; bis dahin
+ist die Quelle nicht benutzbar. Es wurde kein Repository veröffentlicht.
+
+Der neue Tests-Job „Package recipe and toolchain contracts“ prüft die
+Vorbereitung zweimal, echte Upstream-Pfadableitungen, Bootstrap-Vorlagen,
+Patch-/Shebang-Ersetzung, APT-Konfiguration und Ablehnungsfälle.
+Er baut im gepinnten Container mit der tatsächlichen NDK ein ARM64-Test-ELF
+und eine Bibliothek, verwendet den echten Debian-Metadaten-/Archiv-Hook,
+vergleicht zwei DEB-Erzeugungen und prüft Interpreter, RUNPATH, Payload-,
+Symlink-, Skript- und Metadatenpfade. Das Artefakt enthält Compiler-/
+Host-Inventar, Vorbereitung, ELF-Berichte, Paketmetadaten, Test-DEB und SHA-256.
+Die FUSE-/Sysroot-Einrichtung und die echten Bootstrap-Pakete werden erst
+beim folgenden vollständigen Build geprüft.
+
+Die Startpakete für den folgenden Bootstrap sind Dash, APT, dpkg und
+Zertifikate samt Abhängigkeiten. Das Test-DEB ist kein auslieferbarer
+Bootstrap; AGENTCODI-Initialisierung/Reparatur, echte Paketbuilds und
+signierte Veröffentlichung bleiben offen. Termux-App-/API-/Exec-/Tools-
+Komponenten erfordern eigene Anpassungen und werden vorerst abgelehnt.
+Die [Build-Dokumentation](scripts/package-edition/README.md) beschreibt Pins,
+Anpassungen, Prüfungen und den Aktualisierungsablauf. Gerätetests werden
+gemäß Nutzeranweisung übersprungen.
 
 ## 4. Build verkleinern und veröffentlichbare Edition erstellen
 

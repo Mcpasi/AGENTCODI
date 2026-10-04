@@ -186,3 +186,30 @@ jobs:
           name: community-codex-runtime
           path: ${{ runner.temp }}/community-runtime/report/
           if-no-files-found: error
+
+  package-build-contract:
+    name: Package recipe and toolchain contracts
+    if: github.ref == 'refs/heads/Mcpasi/package-edition'
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+    steps:
+      - uses: actions/checkout@v4
+      - name: Install recipe metadata reader
+        run: |
+          if ! command -v jq >/dev/null 2>&1; then
+            sudo apt-get update
+            sudo apt-get install -y jq
+          fi
+      - name: Check pinned source, edition overlay and ARM64 package paths
+        env:
+          AGENTCODI_PACKAGE_REPORT: ${{ runner.temp }}/package-contract-report
+        run: |
+          bash -n .github/ci/check-package-edition.sh scripts/package-edition/check-toolchain.sh
+          .github/ci/check-package-edition.sh
+      - name: Upload package build contract evidence
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: package-build-contract
+          path: ${{ runner.temp }}/package-contract-report/
+          if-no-files-found: error

@@ -11,6 +11,9 @@ mkdir -p "$HOME" "$TMPDIR"
 "$prefix/bin/dpkg-query" -W -f='${Conffiles}\n' apt > /audit/apt-conffiles.txt
 grep -Eq '^ /data/data/de[.]agentcodi[.]pkg/files/usr/etc/apt/sources[.]list [0-9a-f]{32}$' /audit/apt-conffiles.txt
 "$prefix/bin/apt" --version
+version=$("$prefix/bin/dpkg-query" -W -f='${Version}' apt)
+LC_ALL=C "$prefix/bin/apt-cache" policy apt > /audit/apt-policy.txt
+grep -Fq "Installed: $version" /audit/apt-policy.txt
 "$prefix/bin/gpgv" --version
 "$prefix/bin/sh" -c 'test "$PREFIX" = /data/data/de.agentcodi.pkg/files/usr'
 test -s "$prefix/etc/tls/cert.pem"

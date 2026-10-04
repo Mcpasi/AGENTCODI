@@ -119,7 +119,7 @@ fixture: those real package outputs still need their own rebuild checks.
 ## Minimal bootstrap and recovery
 
 The APK workflow calls the branch-scoped reusable bootstrap workflow. It may reuse
-source build 37208312449 while its artifact remains available and every package
+source build 37215181811 while its artifact remains available and every package
 source/build input matches that trusted branch push. README, assembly, source-archive
 and audit code are excluded from the binary build key; they are rerun on the
 verified source-built DEBs. The source archive retains the original package
@@ -174,7 +174,7 @@ ready marker to upgrade a working installation. Bootstrap upgrades need an
 explicit package update through the future signed repository.
 
 The hosted ARM64/Bionic smoke installs the real ZIP with the Java initializer,
-configures it with the actual Android dpkg, checks shell/APT/gpgv/certificates,
+configures it with the actual Android dpkg, checks shell/APT/gpgv/certificates and APT's registered version against dpkg,
 and installs, executes and removes a local fixture package. Host regression
 tests cover extraction failure, checksum/ZIP/link rejection, rename recovery,
 configuration retry, existing-file preservation and APK-update persistence.

@@ -49,7 +49,7 @@ jobs:
   bootstrap:
     uses: ./.github/workflows/bootstrap.yml
     with:
-      source_run_id: 37208312449
+      source_run_id: 37215181811
   apk:
     needs: bootstrap
     name: Debug APK

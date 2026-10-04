@@ -77,16 +77,21 @@ jobs:
                   continue
               with tempfile.TemporaryDirectory() as temporary:
                   subprocess.run(["dpkg-deb", "-R", str(deb), temporary], check=True)
-                  hook = Path(temporary) / "data/data/de.agentcodi.pkg/files/usr/share/git-core/templates/hooks/fsmonitor-watchman.sample"
-                  assert hook.is_file() and hook.stat().st_mode & 0o111
-                  assert hook.read_bytes().splitlines()[0] == b"#!/data/data/de.agentcodi.pkg/files/usr/bin/perl"
-                  relative = hook.relative_to(temporary).as_posix()
-                  hook.unlink()
+                  removed = set()
+                  for relative, interpreter in (
+                      ("data/data/de.agentcodi.pkg/files/usr/share/git-core/templates/hooks/fsmonitor-watchman.sample", b"perl"),
+                      ("data/data/de.agentcodi.pkg/files/usr/libexec/git-core/git-p4", b"python"),
+                  ):
+                      hook = Path(temporary) / relative
+                      assert hook.is_file() and hook.stat().st_mode & 0o111
+                      assert hook.read_bytes().splitlines()[0] == b"#!/data/data/de.agentcodi.pkg/files/usr/bin/" + interpreter
+                      hook.unlink()
+                      removed.add(relative)
                   sums = Path(temporary) / "DEBIAN/md5sums"
                   if sums.exists():
-                      sums.write_text("\n".join(line for line in sums.read_text().splitlines() if line.split(maxsplit=1)[-1].lstrip("./") != relative) + "\n")
+                      sums.write_text("\n".join(line for line in sums.read_text().splitlines() if line.split(maxsplit=1)[-1].lstrip("./") not in removed) + "\n")
                   subprocess.run(["dpkg-deb", "--root-owner-group", "-b", temporary, str(deb)], check=True)
-                  print("Diagnostic fixture: removed optional Perl Watchman hook")
+                  print("Diagnostic fixture: removed optional Perl/Python integrations")
           PY
           python3 -B scripts/package-edition/audit-catalog.py --debs "$root/extracted/output" --output "$RUNNER_TEMP/git-audit-report" --group git
       - uses: actions/upload-artifact@v4

@@ -48,7 +48,7 @@
       "replacements": [
         {
           "old": "NO_NSEC=1",
-          "new": "NO_PERL=1\nNO_TCLTK=1\nNO_NSEC=1"
+          "new": "NO_PERL=1\nNO_PYTHON=1\nNO_TCLTK=1\nNO_NSEC=1"
         },
         {
           "old": "--with-tcltk=$TERMUX_PREFIX/bin/wish",
@@ -60,7 +60,7 @@
         },
         {
           "old": "termux_step_post_make_install() {\n",
-          "new": "termux_step_post_make_install() {\n\t# The minimal catalog has no Perl runtime; omit its optional Watchman hook.\n\trm -f \"$TERMUX_PREFIX/share/git-core/templates/hooks/fsmonitor-watchman.sample\"\n"
+          "new": "termux_step_post_make_install() {\n\t# The minimal Git runtime omits optional Perl/Python integrations.\n\trm -f \"$TERMUX_PREFIX/share/git-core/templates/hooks/fsmonitor-watchman.sample\" \\\n\t\t\"$TERMUX_PREFIX/libexec/git-core/git-p4\"\n"
         }
       ]
     },

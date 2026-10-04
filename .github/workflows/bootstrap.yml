@@ -1,0 +1,68 @@
+name: Package bootstrap
+on:
+  workflow_call:
+permissions:
+  contents: read
+jobs:
+  build:
+    name: Build ARM64 package bootstrap
+    if: github.ref == 'refs/heads/Mcpasi/package-edition'
+    runs-on: ubuntu-latest
+    timeout-minutes: 180
+    steps:
+      - uses: actions/checkout@v4
+      - name: Prepare the pinned source recipes
+        run: |
+          build_root="$RUNNER_TEMP/package-bootstrap"
+          mkdir -p "$build_root"
+          git init -q "$build_root/source"
+          git -C "$build_root/source" remote add origin https://github.com/termux/termux-packages.git
+          git -C "$build_root/source" fetch --depth=1 origin "$(jq -r .source.commit scripts/package-edition/lock.json)"
+          git -C "$build_root/source" checkout --detach FETCH_HEAD
+          python3 -B scripts/package-edition/prepare.py --source "$build_root/source" --output "$build_root/prepared"
+          mkdir -p "$build_root/output"
+          sudo chown -R 1001:1001 "$build_root/prepared" "$build_root/output"
+      - name: Build source dependencies and assemble the minimal bootstrap
+        run: |
+          build_root="$RUNNER_TEMP/package-bootstrap"
+          docker run --rm --platform linux/amd64 \
+            --device /dev/fuse --cap-add SYS_ADMIN --security-opt apparmor=unconfined \
+            -v "$GITHUB_WORKSPACE":/audit:ro \
+            -v "$build_root/prepared":/home/builder/termux-packages \
+            -v "$build_root/output":/bootstrap \
+            "$(jq -r .builder.image scripts/package-edition/lock.json)" \
+            bash /audit/scripts/package-edition/build-bootstrap.sh
+      - name: Upload bootstrap and package evidence
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: agentcodi-package-bootstrap
+          path: ${{ runner.temp }}/package-bootstrap/output/
+          if-no-files-found: error
+  runtime:
+    name: Bootstrap ARM64 Bionic smoke
+    needs: build
+    runs-on: ubuntu-24.04-arm
+    timeout-minutes: 20
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/download-artifact@v4
+        with:
+          name: agentcodi-package-bootstrap
+          path: bootstrap
+      - uses: actions/setup-java@v4
+        with:
+          distribution: temurin
+          java-version: '17'
+      - name: Install with the app initializer and check recovery on the host
+        run: |
+          .github/ci/run-java-tests.sh
+          javac -cp "$RUNNER_TEMP/agentcodi-ci-java/classes" -d "$RUNNER_TEMP/agentcodi-ci-java/classes" .github/ci/BootstrapInstall.java
+          mkdir -p bootstrap/root
+          java -cp "$RUNNER_TEMP/agentcodi-ci-java/classes" BootstrapInstall bootstrap
+      - name: Configure and execute the actual Android bootstrap
+        run: |
+          docker run --rm --user 0 --entrypoint /system/bin/sh \
+            -v "$GITHUB_WORKSPACE/bootstrap":/audit \
+            termux/termux-docker:aarch64@sha256:e19ea56dd687563849826cbda57da714ae23277ee463e21f39917dbc0a59bab4 \
+            /audit/smoke.sh

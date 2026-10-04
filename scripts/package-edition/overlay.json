@@ -82,6 +82,76 @@
           "new": "\tcase \"$TERMUX_PKG_NAME\" in\n\t\ttermux-core|termux-exec|termux-tools|termux-api|termux-keyring|root-repo|x11-repo) termux_error_exit \"Package $TERMUX_PKG_NAME requires a separate AGENTCODI adaptation\";;\n\tesac\n\t# shellcheck source=/dev/null\n\tsource \"$TERMUX_PKG_BUILDER_SCRIPT\""
         }
       ]
+    },
+    {
+      "path": "packages/dpkg/build.sh",
+      "upstream_blob": "777bb133512313d95ee64de1c1c8828881f33a55",
+      "replacements": [
+        {
+          "old": "TERMUX_PKG_SRCURL=git+https://salsa.debian.org/dpkg-team/dpkg.git",
+          "new": "TERMUX_PKG_SRCURL=git+https://github.com/guillemj/dpkg.git"
+        },
+        {
+          "old": "TERMUX_PKG_GIT_BRANCH=\"${TERMUX_PKG_VERSION}\"",
+          "new": "TERMUX_PKG_GIT_BRANCH=\"${TERMUX_PKG_VERSION}\"\nTERMUX_PKG_GIT_COMMIT=b2f9600ead232a2dd3c27f8b52807a9ca5854d17"
+        }
+      ]
+    },
+    {
+      "path": "scripts/build/get_source/termux_git_clone_src.sh",
+      "upstream_blob": "5be1fb25f2e3b30eec21aa749914d07f5af66f06",
+      "replacements": [
+        {
+          "old": "\trm -rf \"$TERMUX_PKG_SRCDIR\"\n\tcp -rf \"$TMP_CHECKOUT\" \"$TERMUX_PKG_SRCDIR\"",
+          "new": "\tif [[ -n \"${TERMUX_PKG_GIT_COMMIT-}\" && \"$(git -C \"$TMP_CHECKOUT\" rev-parse HEAD)\" != \"$TERMUX_PKG_GIT_COMMIT\" ]]; then\n\t\ttermux_error_exit \"Pinned package Git source mismatch\"\n\tfi\n\trm -rf \"$TERMUX_PKG_SRCDIR\"\n\tcp -rf \"$TMP_CHECKOUT\" \"$TERMUX_PKG_SRCDIR\""
+        }
+      ]
+    },
+    {
+      "path": "packages/libgnutls/build.sh",
+      "upstream_blob": "54a364c56be0ecd0d5dfa34762fcae1c0ab38581",
+      "replacements": [
+        {
+          "old": "libtasn1, libunbound, libunistring",
+          "new": "libtasn1, libunistring"
+        },
+        {
+          "old": "--with-unbound-root-key-file=$TERMUX_PREFIX/etc/unbound/root.key",
+          "new": "--without-unbound"
+        }
+      ]
+    },
+    {
+      "path": "packages/gnupg/build.sh",
+      "upstream_blob": "86c4ab8469014c48d4c51c380a2719712d80598c",
+      "replacements": [
+        {
+          "old": "TERMUX_PKG_DEPENDS=\"libassuan, libbz2, libgcrypt, libgnutls, libgpg-error, libksba, libnpth, libsqlite, readline, pinentry, resolv-conf, zlib\"",
+          "new": "TERMUX_PKG_DEPENDS=\"libassuan, libbz2, libgcrypt, libgpg-error, libnpth, zlib\""
+        },
+        {
+          "old": "--disable-ldap\n--enable-sqlite\n--enable-tofu",
+          "new": "--enable-gpgv-only\n--disable-ldap\n--disable-scdaemon\n--disable-dirmngr\n--disable-doc"
+        },
+        {
+          "old": "\tcd $TERMUX_PREFIX/bin\n\tln -sf gpg gpg2",
+          "new": "\t: # The bootstrap variant installs only the signature verifier."
+        }
+      ]
+    }
+  ],
+  "removals": [
+    {
+      "path": "packages/dpkg/dpkg-perl.subpackage.sh",
+      "upstream_blob": "609bff9637db1ccc8e62416901bd651fc563cd01"
+    },
+    {
+      "path": "packages/dpkg/dpkg-scanpackages.subpackage.sh",
+      "upstream_blob": "69b2e42bd9eee9c27af04925bc9d1ff8680cea44"
+    },
+    {
+      "path": "packages/gnupg/scdaemon.subpackage.sh",
+      "upstream_blob": "5d601accbd44105fdef06709fe58041f80434dfb"
     }
   ]
 }

@@ -42,7 +42,10 @@ concurrency:
   cancel-in-progress: true
 
 jobs:
+  bootstrap:
+    uses: ./.github/workflows/bootstrap.yml
   apk:
+    needs: bootstrap
     name: Debug APK
     runs-on: ubuntu-24.04-arm
     timeout-minutes: 120
@@ -56,6 +59,11 @@ jobs:
       # The mirror is a private backup, so this needs a token with read access
       # to it; the default workflow token cannot reach another repository.
       # Inputs that are still available upstream are fetched without it.
+      - uses: actions/download-artifact@v4
+        with:
+          name: agentcodi-package-bootstrap
+          path: output/package-bootstrap
+
       - name: Restore the pinned build inputs
         env:
           GH_TOKEN: ${{ secrets.AGENTCODI_INPUTS_TOKEN }}

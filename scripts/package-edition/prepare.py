@@ -76,6 +76,10 @@ def prepare(source, output):
             text = replace_exact(text, replacement["old"], replacement["new"])
         edited[path] = text
 
+    for removal in overlay.get("removals", []):
+        if git(source, "rev-parse", "HEAD:" + removal["path"]).decode().strip() != removal["upstream_blob"]:
+            raise ValueError("Unexpected removal blob: " + removal["path"])
+
     output.mkdir(parents=True)
     try:
         for item in git(source, "ls-files", "-z").decode().split("\0"):
@@ -87,6 +91,8 @@ def prepare(source, output):
                 dest.symlink_to(os.readlink(src))
             else:
                 shutil.copy2(src, dest)
+        for removal in overlay.get("removals", []):
+            (output / removal["path"]).unlink()
         for path, text in edited.items():
             (output / path).write_text(text)
         repo = lock["repository"]

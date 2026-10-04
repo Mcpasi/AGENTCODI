@@ -152,10 +152,11 @@ jobs:
           printf '#!%s/bin/sh\nprintf "bootstrap-ok\\n"\n' "$prefix" > "$fixture$prefix/bin/bootstrap-fixture"
           chmod 755 "$fixture$prefix/bin/bootstrap-fixture"
           dpkg-deb --build "$fixture" bootstrap/bootstrap-fixture.deb
-          chmod -R a+rX bootstrap
+          # The pinned image owns its Bionic system files as UID 1000.
+          sudo chown -R 1000:1000 bootstrap
       - name: Configure and execute the actual Android bootstrap
         run: |
-          docker run --rm --user 1001:1001 \
+          docker run --rm --user 1000:1000 \
             --entrypoint /data/data/de.agentcodi.pkg/files/usr/bin/dash \
             -e LD_LIBRARY_PATH=/data/data/de.agentcodi.pkg/files/usr/lib \
             -v "$GITHUB_WORKSPACE/bootstrap":/audit \

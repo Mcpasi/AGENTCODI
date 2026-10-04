@@ -6,6 +6,7 @@ export PREFIX="$prefix" TERMUX_PREFIX="$prefix"
 export HOME=/data/data/de.agentcodi.pkg/files/agentcodi/home
 export PATH="$prefix/bin:/system/bin" LD_LIBRARY_PATH="$prefix/lib" TMPDIR="$prefix/tmp"
 mkdir -p "$HOME" "$TMPDIR"
+/audit/ci-compat/bootstrap-api29-compat-test
 "$prefix/bin/dpkg" --configure -a
 "$prefix/bin/dpkg" --audit
 "$prefix/bin/dpkg-query" -W -f='${Conffiles}\n' apt > /audit/apt-conffiles.txt

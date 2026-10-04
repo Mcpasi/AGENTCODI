@@ -178,6 +178,13 @@ configures it with the actual Android dpkg, checks shell/APT/gpgv/certificates a
 and installs, executes and removes a local fixture package. Host regression
 tests cover extraction failure, checksum/ZIP/link rejection, rename recovery,
 configuration retry, existing-file preservation and APK-update persistence.
+The pinned reference image uses Android 9 / API 28. A CI-only library supplies
+API-29 reallocarray, adapting the overflow-checked AOSP implementation at
+`290c0cb5044b643e5d6cbcb1a5b275541ca3a89e`; allocation, resize, preserved data
+and overflow/ENOMEM behavior are tested on ARM64/Bionic before package installation.
+It is built with the pinned NDK for API 28, hashed in a separate CI artifact,
+and preloaded only in the smoke container. It is not part of the bootstrap or APK;
+real Android 10+ provides reallocarray itself. Package builds remain API 29.
 Real Android hardware tests remain skipped.
 
 The signed repository, trust key, pkg frontend and public package catalog are

@@ -153,7 +153,7 @@ Das Termux-Buildsystem dokumentiert anpassbare App- und Präfixvariablen in [scr
 - [x] Separate Application-ID endgültig festlegen und in der App umsetzen, bevor Pakete mit absoluten Pfaden gebaut werden: `de.agentcodi.pkg`; zukünftiger verwalteter Präfix `/data/data/de.agentcodi.pkg/files/usr`.
 - [x] Verwalteten Präfix auf `files/usr` außerhalb des Benutzer-Homes umstellen. Bestehende Dateien in `$HOME/.local` erhalten; Übergang/Migration und Suchreihenfolge dokumentieren und testen.
 - [x] Reproduzierbaren Stand von `termux-packages` und Toolchain festlegen; gezielte Build-Anpassungen für App-ID, Präfix und Repository-URLs versionieren. Bootstrap, Paketmetadaten, Shebangs, RPATH/RUNPATH und Konfigurationen auf denselben finalen Pfad ausrichten.
-- [ ] Minimalen ARM64-Bootstrap mit Shell, APT, dpkg, Zertifikaten und Abhängigkeiten bauen; Initialisierung sowie Reparatur nach abgebrochener Installation integrieren.
+- [x] Minimalen ARM64-Bootstrap mit Shell, APT, dpkg, Zertifikaten und Abhängigkeiten bauen; Initialisierung sowie Reparatur nach abgebrochener Installation integrieren.
 - [ ] Eigene CI für Paket- und Abhängigkeitsbuilds aufsetzen; zuerst Bootstrap und einen kleinen Katalog wie Python, Node.js/npm, Git und ripgrep prüfen, danach erweitern.
 - [ ] Eigenes signiertes APT-Repository mit Vertrauensschlüssel, HTTPS, Veröffentlichungsablauf und Aktualisierungsstrategie einrichten.
 - [ ] Schlanken `pkg`-Befehl beziehungsweise dokumentierte APT-Bedienung für Installation, Aktualisierung und Entfernung bereitstellen.
@@ -235,6 +235,101 @@ Die [Build-Dokumentation](scripts/package-edition/README.md) beschreibt Pins,
 Anpassungen, Prüfungen und den Aktualisierungsablauf. Gerätetests werden
 gemäß Nutzeranweisung übersprungen.
 
+### Minimaler ARM64-Bootstrap und Wiederherstellung — 2026-10-04
+
+Der Editions-Bootstrap wird aus den gepinnten Termux-Rezepten vollständig für
+ARM64/Bionic/API 29 und `/data/data/de.agentcodi.pkg/files/usr` gebaut.
+Dash stellt `sh` bereit; Bash wird für Paket-Konfigurationsskripte mitgeliefert.
+APT, dpkg, CA-Zertifikate und ihre Laufzeitabhängigkeiten ergeben 47 Pakete.
+Build-Abhängigkeiten werden ebenfalls aus Quellen gebaut und anschließend nicht
+in den Laufzeit-Bootstrap übernommen. Die libc++-Compilerlaufzeit stammt wie
+im gepinnten Rezept vorgesehen aus der festgelegten NDK. Termux-App-/API-/Exec-/Tools-/Keyring-
+Komponenten und fremde Binärrepositories bleiben ausgeschlossen.
+
+`assemble-bootstrap.py` prüft Depends/Pre-Depends samt Versionen, Skript-
+Interpreter und ELF-Abhängigkeiten. Paketpfade, Shebangs, RUNPATH, Symlinks,
+Konfigurationsdateien und ARM64/Bionic werden vor dem Packen geprüft.
+Die dpkg-Datenbank enthält vollständige Dateilisten einschließlich gemeinsam
+registrierter Elternverzeichnisse, Prüfsummen, Konfigurationsdatei-MD5
+und den Zustand „unpacked“. Die gemeinsamen Verzeichniseinträge verhindern
+Entfernungsversuche geschützter Eltern beim Deinstallieren späterer Pakete;
+Änderungen an Konfigurationsdateien können damit
+bei späteren Paketupdates erkannt werden. ZIP-Reihenfolge und Zeitstempel
+sind fest. Das Artefakt enthält die ausgewählten DEBs, ZIP, Größen-/SHA-256-
+Manifest, Versions-/ELF-Bericht, SHA256SUMS und das zugehörige Quellenarchiv
+mit Rezepten, Patches und Editions-Buildskripten.
+
+Das APK enthält ZIP, Manifest und Bericht als Assets. `PackageBootstrap`
+installiert vor dem App-Server-Start in ein privates Staging-Verzeichnis und
+prüft jede Datei gegen Größe, SHA-256 und Dateimodus. Bestehende nicht
+kollidierende Präfixdateien bleiben erhalten; Kollisionen werden gemeldet.
+Veröffentlichung erfolgt über atomare Umbenennungen mit Backup.
+Ein Abbruch beim Entpacken wird beim nächsten Start erneut versucht; ein
+Abbruch zwischen Umbenennungen stellt zuerst den bisherigen Präfix wieder her.
+Der native Initialisierungsschritt führt `dpkg --configure -a` mit expliziter
+Paketumgebung, Zeitlimit und privatem Log aus. Erst nach Erfolg entsteht der
+Ready-Marker. Fehler oder Abbruch lassen die Konfiguration beim nächsten Start
+fortsetzen. Log: `files/agentcodi/logs/package-bootstrap.log`.
+
+Ein bereits initialisierter Präfix wird bei App-Neustart und APK-Update nicht
+erneut entpackt. Installierte Pakete, APT-/dpkg-Zustand und Benutzeränderungen
+bleiben erhalten; HOME, CODEX_HOME und der alte HOME/.local-Präfix ebenso.
+Eine Bootstrap-Version wird nicht über eine bestehende Installation kopiert;
+spätere Aktualisierungen erfolgen über den noch einzurichtenden signierten
+Paketkanal.
+
+Die CI-Ursachen wurden behoben: unbenötigte APT-Dokumentations-/Archiver-
+Buildabhängigkeiten, der nicht mehr unterstützte GnuPG-gpgv-only-Schalter,
+verbliebene Perl-Helfer, fehlende dpkg-Prüfsummen sowie der Laufzeitvertrag
+des Testcontainers. libandroid-selinux behält die Editions-CFLAGS in seinem
+Makefile und validiert den Quellcommit
+`1cbcdf624c248c66cd6153311d3e681ba1f9ff2a`; das Quellenarchiv enthält
+seinen sauberen Git-Snapshot. Die Paket-Toolchain nutzt einheitlich `-femulated-tls`:
+Das gepinnte Bionic-CI-Image basiert auf Android 9 und unterstützt die ab
+Compile-API 29 standardmäßig erzeugten nativen TLS-Relokationen nicht.
+API 29 bleibt das Mindestniveau. Der CI-Harness lädt zusätzlich eine ausschließlich
+für Tests gebaute reallocarray-Bibliothek für das API-28-Referenzimage vor.
+Sie entspricht der überlaufgeprüften API-29-Implementierung aus AOSP-Commit
+`290c0cb5044b643e5d6cbcb1a5b275541ca3a89e` und wird auf ARM64/Bionic
+auf Allokation, Vergrößerung, Bestandserhaltung und ENOMEM bei Überlauf geprüft.
+Bibliothek und Quellen liegen in einem separaten CI-Artefakt und werden nicht
+im Bootstrap oder APK installiert; Android 10+ stellt die Funktion selbst bereit. Ein echter NDK-Thread-local-Test und die
+Ablehnung nativer AArch64-TLS-Relokationen sichern den Vertrag ab.
+
+Der erfolgreiche [Quellbuild](https://github.com/Mcpasi/AGENTCODI/actions/runs/37215181811/job/111474115967)
+liefert die quellgebauten DEBs und das ursprüngliche Quellenarchiv. Die aktuelle
+Assembly liefert das [Bootstrap- und Quellenartefakt](https://github.com/Mcpasi/AGENTCODI/actions/runs/37219054636/artifacts/11309996366).
+ZIP-SHA-256: `d875abf8f90fe7e70494ce8b268da826e575031275f75ca611e89ae64512041a`.
+Manifest-SHA-256: `275ef6dad15d6cdcfa8a5e7765bc697b5923da1e7400f637bb022f44cd18eccd`.
+Die nachfolgenden Builds dürfen diese DEBs nur bei identischen Paket-
+Buildinputs und geprüftem Artefakt wiederverwenden; aktuelle Assembly- und
+ELF-Prüfungen werden erneut ausgeführt.
+
+Verifikation: [Tests-Lauf 37219054346](https://github.com/Mcpasi/AGENTCODI/actions/runs/37219054346)
+und [APK-Lauf 37219054636](https://github.com/Mcpasi/AGENTCODI/actions/runs/37219054636)
+für Implementierungscommit `070c37845e19931501d692ad0eb081da16296663` sind erfolgreich.
+Der ARM64/Bionic-Smoke installiert die echte ZIP über den Java-Installer,
+konfiguriert alle 47 Pakete mit Android-dpkg, startet Shell/APT/gpgv, prüft
+die registrierte APT-Version über apt-cache policy, Zertifikate und Konfigurationsdatei-Metadaten und installiert, startet sowie
+entfernt ein lokales Testpaket. Die 313 Java-Tests enthalten
+Wiederherstellung nach Entpack-/Konfigurationsabbruch, Umbenennungsabbruch,
+Integritäts-/Pfadfehler und Bestandserhaltung über APK-Updates.
+15 Präfix-/TLS-Prüfungen und 9 Bootstrap-Assembly-Tests sind erfolgreich,
+ebenso die acht portablen C++-Suites, Android-Kompilierung und Community-Runtime.
+Der vollständige Debug-APK-Build prüft die eingebetteten Bootstrap-Assets,
+native Kompilierung, Full-access-/PTY-/App-Server-Smokes sowie APK-Identität,
+Signatur und Alignment. Das [Debug-APK-Artefakt](https://github.com/Mcpasi/AGENTCODI/actions/runs/37219054636/artifacts/11309621629)
+enthält die geprüfte Package Edition (
+`AGENTCODI-Package-0.1.0-package.1-arm64-v8a-debug.apk`, 169 MiB;
+SHA-256 `3f395698a6100003854b5884efcb7b58288e9a9216f31f8abc46b1078c9ea987`).
+Gerätetests wurden wie angeordnet übersprungen und bleiben offen.
+
+Das signierte Online-Repository, der Vertrauensschlüssel, `pkg`, der größere
+Paketkatalog und die APK-Verkleinerung bleiben die nächsten Roadmap-Schritte.
+Die geplante HTTPS-Quelle kann ohne veröffentlichten Schlüssel noch nicht
+authentifiziert werden; es gibt keinen unsicheren Fallback. Kein PR, Merge
+oder Release wurde erstellt. `main` bleibt unverändert.
+
 ## 4. Build verkleinern und veröffentlichbare Edition erstellen
 
 Erst nach funktionierendem Bootstrap die bisher enthaltenen nutzerinstallierbaren Pakete entfernen.
@@ -260,7 +355,7 @@ Erfolgreicher [GitHub-Actions-Lauf](https://github.com/Mcpasi/AGENTCODI/actions/
 
 Zusätzlich deckt ein Terminal-Shell-Test den Vorrang selbst installierter Programme gegenüber früheren festen Shell-Funktionen ab.
 
-Alle Repository-Zugriffe und Änderungen erfolgen ausschließlich über den GitHub Connector. Die Community-Anbindung aus Abschnitt 2 ist umgesetzt; Paketmanager, verkleinerter Build und echte Gerätetests folgen in Abschnitt 3/4. Die ursprünglichen Verifikationsangaben oben beschreiben den vorausgehenden Grundlagenabschnitt.
+Alle Repository-Zugriffe und Änderungen erfolgen ausschließlich über den GitHub Connector. Die Community-Anbindung aus Abschnitt 2 und der minimale Paket-Bootstrap aus Abschnitt 3 sind umgesetzt. Signiertes Paketrepository, Paketkatalog, verkleinerter Build und echte Gerätetests folgen in Abschnitt 3/4. Die ursprünglichen Verifikationsangaben oben beschreiben den vorausgehenden Grundlagenabschnitt.
 
 ## Verifikation der Community-Anbindung
 

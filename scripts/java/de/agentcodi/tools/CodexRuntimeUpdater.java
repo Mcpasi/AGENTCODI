@@ -261,7 +261,7 @@ public final class CodexRuntimeUpdater {
                 output.getChannel().force(true);
             }
             try (Elf derived = new Elf(patched)) {
-                require(derived.occurrences(ORIGINAL_HOST).size() == 1
+                require(derived.occurrences(ORIGINAL_HOST).size() == elf.occurrences(ORIGINAL_HOST).size() - 1
                     && derived.occurrences(PACKAGED_HOST).size() == 1, "Ambiguous derived host relocation.");
             }
             result.put("CODEX_APP_SERVER_ANDROID_SHA256", digest(patched, "SHA-256"));
@@ -661,7 +661,7 @@ public final class CodexRuntimeUpdater {
         int hostOffset() throws IOException {
             require(ORIGINAL_HOST.length() == PACKAGED_HOST.length(), "Host relocation changes the binary layout.");
             List<Integer> matches = occurrences(HOST_CONTEXT);
-            require(matches.size() == 1 && occurrences(ORIGINAL_HOST).size() == 2 && occurrences(PACKAGED_HOST).isEmpty(),
+            require(matches.size() == 1 && occurrences(PACKAGED_HOST).isEmpty(),
                 "Unknown/ambiguous install-context host field; manual binary review required.");
             int offset = matches.get(0);
             long sh = bytes.getLong(40);

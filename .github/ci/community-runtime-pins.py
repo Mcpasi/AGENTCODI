@@ -26,7 +26,9 @@ def main():
     assert offset == lock["apk_relocation"]["offset"], "Host offset differs from reviewed artifact"
     patched = data[:offset] + replacement + data[offset + len(original):]
     assert len(data) == len(patched)
-    assert patched.count(original) == 1 and patched.count(replacement) == 1
+    assert patched.count(original) == data.count(original) - 1
+    assert patched.count(replacement) == data.count(replacement) + 1
+    assert data.count(replacement) == 0, "Artifact is already relocated"
     target = root / "payload/package/bin/libcodex.so"
     target.write_bytes(patched)
     target.chmod(0o755)

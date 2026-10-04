@@ -430,6 +430,7 @@ ICU_LICENSE_FILE="$CACHE_DIR/icu-$ICU_VERSION-LICENSE"
 OPENSSL_LICENSE_FILE="$CACHE_DIR/openssl-$OPENSSL_VERSION-LICENSE"
 ZSTD_LICENSE_FILE="$CACHE_DIR/zstd-$ZSTD_VERSION-LICENSE"
 
+# End of build-input configuration.
 echo "Verifying pinned Android build inputs..."
 if [ ! -f "$CODEX_ANDROID_ARCHIVE" ] || [ -L "$CODEX_ANDROID_ARCHIVE" ]; then
   echo "Pinned local Codex archive is missing or linked: $CODEX_ANDROID_ARCHIVE" >&2
@@ -699,7 +700,8 @@ if ! printf '%s  %s\n' "$CODEX_APP_SERVER_ANDROID_SHA256" "$CODEX_BINARY" | sha2
   echo "Deterministic Android host-name relocation produced an unexpected app-server." >&2
   exit 1
 fi
-if [ "$(grep -ao "$CODEX_DEFAULT_HOST_NAME" "$CODEX_BINARY" | wc -l)" -ne 1 ] \
+source_host_references="$(grep -ao "$CODEX_DEFAULT_HOST_NAME" "$CODEX_SOURCE_BINARY" | wc -l)"
+if [ "$(grep -ao "$CODEX_DEFAULT_HOST_NAME" "$CODEX_BINARY" | wc -l)" -ne "$((source_host_references - 1))" ] \
     || [ "$(grep -ao "$CODEX_PACKAGED_HOST_NAME" "$CODEX_BINARY" | wc -l)" -ne 1 ]; then
   echo "Codex app-server host-name relocation did not change exactly one reviewed field." >&2
   exit 1

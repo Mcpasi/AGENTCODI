@@ -24,6 +24,9 @@ def collect(recipes, build, output):
         for path in sorted(HERE.iterdir()):
             if path.is_file():
                 archive.add(path, arcname="agentcodi/" + path.name)
+        for name in ("build-package.sh", "repo.json", "agentcodi.env",
+                     "agentcodi-build-package.sh", "agentcodi-preparation.json"):
+            archive.add(recipes / name, arcname="termux-packages/" + name)
         archive.add(recipes / "scripts", arcname="termux-packages/scripts")
         archive.add(recipes / "ndk-patches", arcname="termux-packages/ndk-patches")
         for name in selected:
@@ -37,7 +40,7 @@ def collect(recipes, build, output):
                                           "sha256": hashlib.sha256(path.read_bytes()).hexdigest()})
                     elif path.name == "tmp-checkout":
                         archive.add(path, arcname="git-sources/" + name,
-                                    filter=lambda member: None if "/.git" in member.name else member)
+                                    filter=lambda member: None if "/.git/" in member.name or member.name.endswith("/.git") else member)
     report["corresponding_sources"] = {
         "archive": "bootstrap-corresponding-sources.tar.xz",
         "sha256": hashlib.sha256((output / "bootstrap-corresponding-sources.tar.xz").read_bytes()).hexdigest(),

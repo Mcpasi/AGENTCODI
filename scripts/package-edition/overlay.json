@@ -36,6 +36,22 @@
         {
           "old": "\t{\n\t\techo \"# The main termux repository, with cloudflare cache\"\n\t\techo \"deb https://packages-cf.termux.dev/apt/termux-main/ stable main\"\n\t\techo \"# The main termux repository, without cloudflare cache\"\n\t\techo \"# deb https://packages.termux.dev/apt/termux-main/ stable main\"\n\t} > $TERMUX_PREFIX/etc/apt/sources.list",
           "new": "\tmkdir -p \"$TERMUX_PREFIX/etc/apt/keyrings\"\n\tprintf '%s\\n' 'deb [arch=aarch64 signed-by=/data/data/de.agentcodi.pkg/files/usr/etc/apt/keyrings/agentcodi-package.gpg] https://mcpasi.github.io/AGENTCODI/apt/package-edition stable main' > \"$TERMUX_PREFIX/etc/apt/sources.list\""
+        },
+        {
+          "old": "TERMUX_PKG_BUILD_DEPENDS=\"docbook-xsl,libdb\"",
+          "new": "TERMUX_PKG_BUILD_DEPENDS=\"libdb\""
+        },
+        {
+          "old": "-DWITH_DOC_MANPAGES=ON",
+          "new": "-DWITH_DOC_MANPAGES=OFF\n-DWITH_TESTS=OFF"
+        },
+        {
+          "old": "\t# for manpage build\n\tlocal docbook_xsl_version=$(. $TERMUX_SCRIPTDIR/packages/docbook-xsl/build.sh; echo $TERMUX_PKG_VERSION)\n\tTERMUX_PKG_EXTRA_CONFIGURE_ARGS+=\" -DDOCBOOK_XSL=$TERMUX_PREFIX/share/xml/docbook/xsl-stylesheets-$docbook_xsl_version-nons\"",
+          "new": "\t# The minimal package manager does not build DocBook manuals."
+        },
+        {
+          "old": "bin/apt-cdrom\nbin/apt-extracttemplates",
+          "new": "bin/apt-cdrom\nbin/apt-ftparchive\nbin/apt-extracttemplates"
         }
       ]
     },
@@ -190,6 +206,10 @@
     {
       "path": "packages/ca-certificates/ca-certificates-java.subpackage.sh",
       "upstream_blob": "1d2b7655be21702fc4377f20ef47e36f5005b5d9"
+    },
+    {
+      "path": "packages/apt/apt-ftparchive.subpackage.sh",
+      "upstream_blob": "e326ea35ce6a49d2c7360d40c20f41d09fba7923"
     }
   ]
 }

@@ -119,7 +119,8 @@ runtime dependencies in fresh storage with the pinned builder. Its FUSE capabili
 is needed only by the cross-build sysroot; it is unrelated to app permissions.
 No official Termux binary dependencies, PRoot or Termux app components are used.
 
-The overlay removes unused dpkg Perl/development subpackages and Java certificate
+The overlay disables APT manpage/HTML and apt-ftparchive builds, avoiding the
+DocBook/Python/X11 build dependency tree. It removes unused dpkg Perl/development subpackages and Java certificate
 generation, builds GnuPG's gpgv-only variant and disables GnuTLS's optional Unbound
 integration. dpkg's Git tag must resolve to
 b2f9600ead232a2dd3c27f8b52807a9ca5854d17. p11-kit's host ASN.1 generator is rebuilt from the checksum-pinned libtasn1

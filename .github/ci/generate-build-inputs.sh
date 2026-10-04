@@ -25,7 +25,7 @@ if [ ! -r "$BUILD_SCRIPT" ]; then
 fi
 
 # The explicit marker includes assignments after the early Codex archive download.
-config_end="$(grep -n '^# End of build-input configuration\.
+config_end="$(grep -n '^# End of build-input configuration\.$' "$BUILD_SCRIPT" | cut -d: -f1)"
 if [ -z "$config_end" ]; then
   echo "The build-input configuration marker is missing." >&2
   exit 1

@@ -46,7 +46,9 @@ jobs:
       # build and test scripts it runs unchanged on a hosted runner.
       - name: Check architecture contracts
         run: |
-          bash -n scripts/build-debug-apk.sh scripts/check-architecture.sh .github/ci/generate-build-inputs.sh
+          for script in scripts/build-debug-apk.sh scripts/check-architecture.sh .github/ci/generate-build-inputs.sh; do
+            bash -n "$script"
+          done
           ./scripts/check-architecture.sh
           diff -u .github/ci/build-inputs.tsv <(.github/ci/generate-build-inputs.sh)
 

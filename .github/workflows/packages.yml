@@ -19,7 +19,7 @@ permissions:
   contents: read
   actions: read
 env:
-  CATALOG_SOURCE_RUN_ID: ${{ github.event_name == 'workflow_dispatch' && format('{0}', inputs.source_run_id) || '37224140220' }}
+  CATALOG_SOURCE_RUN_ID: ${{ github.event_name == 'workflow_dispatch' && format('{0}', inputs.source_run_id) || '37238397922' }}
 concurrency:
   group: package-catalog-${{ github.ref }}-${{ github.sha }}
   cancel-in-progress: true
@@ -29,81 +29,7 @@ jobs:
     uses: ./.github/workflows/bootstrap.yml
     with:
       source_run_id: 37215181811
-  git-audit-regression:
-    name: Audit previous Git DEBs
-    if: github.ref == 'refs/heads/Mcpasi/package-edition'
-    runs-on: ubuntu-latest
-    timeout-minutes: 15
-    steps:
-      - uses: actions/checkout@v4
-      - name: Verify the exact diagnostic producer
-        env:
-          GH_TOKEN: ${{ github.token }}
-        run: |
-          gh api "repos/$GITHUB_REPOSITORY/actions/runs/37234682673" | jq -e --arg repo "$GITHUB_REPOSITORY" '.head_branch == "Mcpasi/package-edition" and .event == "push" and .head_sha == "2aed30b02bcfe1ab1366ac0bcebb35027a9ce9c8" and .head_repository.full_name == $repo' >/dev/null
-      - uses: actions/download-artifact@v4
-        with:
-          name: agentcodi-catalog-git
-          run-id: 37234682673
-          github-token: ${{ github.token }}
-          path: ${{ runner.temp }}/git-audit-input
-      - name: Check the library template mode and verify the Git recipe fix on diagnostic DEBs
-        run: |
-          set -euo pipefail
-          root="$RUNNER_TEMP/git-audit-input"
-          mkdir -p "$root/extracted"
-          tar -C "$root/extracted" -xf "$root/source-built-debs.tar"
-          python3 - "$root/extracted/output" <<'PY'
-          from pathlib import Path
-          import subprocess, sys, tempfile
-          for deb in Path(sys.argv[1]).glob("*.deb"):
-              if subprocess.check_output(["dpkg-deb", "-f", str(deb), "Package"], text=True).strip() != "perl":
-                  continue
-              with tempfile.TemporaryDirectory() as temporary:
-                  subprocess.run(["dpkg-deb", "-x", str(deb), temporary], check=True)
-                  modules = list(Path(temporary).glob("data/data/de.agentcodi.pkg/files/usr/lib/perl5/*/ExtUtils/Miniperl.pm"))
-                  assert len(modules) == 1
-                  mode = modules[0].stat().st_mode & 0o777
-                  print("Miniperl.pm mode:", oct(mode), "first line:", modules[0].read_text().splitlines()[0])
-                  assert mode & 0o111 == 0
-          PY
-          # These modified legacy DEBs are diagnostic fixtures, never deliverables.
-          # Apply exactly the hook removal from the new source recipe and audit it.
-          python3 - "$root/extracted/output" <<'PY'
-          from pathlib import Path
-          import subprocess, sys, tempfile
-          for deb in Path(sys.argv[1]).glob("*.deb"):
-              if subprocess.check_output(["dpkg-deb", "-f", str(deb), "Package"], text=True).strip() != "git":
-                  continue
-              with tempfile.TemporaryDirectory() as temporary:
-                  subprocess.run(["dpkg-deb", "-R", str(deb), temporary], check=True)
-                  removed = set()
-                  for relative, interpreter in (
-                      ("data/data/de.agentcodi.pkg/files/usr/share/git-core/templates/hooks/fsmonitor-watchman.sample", b"perl"),
-                      ("data/data/de.agentcodi.pkg/files/usr/libexec/git-core/git-p4", b"python"),
-                  ):
-                      hook = Path(temporary) / relative
-                      assert hook.is_file() and hook.stat().st_mode & 0o111
-                      assert hook.read_bytes().splitlines()[0] == b"#!/data/data/de.agentcodi.pkg/files/usr/bin/" + interpreter
-                      hook.unlink()
-                      removed.add(relative)
-                  sums = Path(temporary) / "DEBIAN/md5sums"
-                  if sums.exists():
-                      sums.write_text("\n".join(line for line in sums.read_text().splitlines() if line.split(maxsplit=1)[-1].lstrip("./") not in removed) + "\n")
-                  subprocess.run(["dpkg-deb", "--root-owner-group", "-b", temporary, str(deb)], check=True)
-                  print("Diagnostic fixture: removed optional Perl/Python integrations")
-          PY
-          python3 -B scripts/package-edition/audit-catalog.py --debs "$root/extracted/output" --output "$RUNNER_TEMP/git-audit-report" --group git
-      - uses: actions/upload-artifact@v4
-        if: always()
-        with:
-          name: agentcodi-git-audit-regression
-          path: |
-            ${{ runner.temp }}/git-audit-report/all-built-packages.json
-            ${{ runner.temp }}/git-audit-report/bootstrap-report.json
-          if-no-files-found: warn
   build:
-    needs: git-audit-regression
     name: Source build (${{ matrix.group }})
     if: github.ref == 'refs/heads/Mcpasi/package-edition'
     runs-on: ubuntu-latest

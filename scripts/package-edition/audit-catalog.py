@@ -31,6 +31,12 @@ def audit(debs, output, group):
             control.mkdir()
             subprocess.run(["dpkg-deb", "-x", str(deb), str(payload)], check=True)
             subprocess.run(["dpkg-deb", "-e", str(deb), str(control)], check=True)
+            if group == "git" and name == "git":
+                for relative in ("share/git-core/templates/hooks/fsmonitor-watchman.sample",
+                                 "libexec/git-core/git-p4"):
+                    optional = payload / assembly.verify.PREFIX.lstrip("/") / relative
+                    if optional.exists() or optional.is_symlink():
+                        raise ValueError("Minimal Git contains an optional interpreter integration: " + relative)
             assembly.verify.check_control(control)
             evidence = assembly.verify.audit(payload)
             built[name] = {**metadata, "deb_sha256": hashlib.sha256(deb.read_bytes()).hexdigest(),

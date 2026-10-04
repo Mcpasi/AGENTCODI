@@ -68,8 +68,9 @@ package list and second-stage installer are not the AGENTCODI initializer.
 Termux core/exec/tools/API/keyring and root/X11 repositories are unsupported
 until separately adapted. Ordinary upstream package names and license
 recipes remain unchanged. The minimal bootstrap below now builds and records its runtime dependency
-closure, source pins, binary hashes and installation/repair. The broader
-package catalog and its independent rebuild checks remain upcoming steps.
+closure, source pins, binary hashes and installation/repair. The initial source-built
+catalog and its ARM64/Bionic checks are described below; expansion remains a
+separate step.
 
 ## Dedicated repository configuration
 
@@ -155,8 +156,8 @@ BOOTSTRAP-MANIFEST, complete package/ELF report, corresponding-source archive an
 The separate agentcodi-package-build-debs artifact retains all source-built DEBs
 for diagnosing assembly failures; build-only DEBs are not installed in the app. ZIP order and
 timestamps are fixed. This does not claim that every package's compiler output
-is independently bit-for-bit reproducible; real rebuild comparison remains part
-of the later package-catalog CI step.
+is independently bit-for-bit reproducible; independent compiler rebuild comparison remains future hardening beyond
+the source-build and runtime checks in the catalog CI.
 
 PackageBootstrap checks every file's size, SHA-256 and mode while extracting into
 a sibling staging directory. It preserves existing nonconflicting prefix files
@@ -181,15 +182,16 @@ and installs, executes and removes a local fixture package. Host regression
 tests cover extraction failure, checksum/ZIP/link rejection, rename recovery,
 configuration retry, existing-file preservation and APK-update persistence.
 The pinned reference image uses Android 9 / API 28. A CI-only library supplies
-API-29 reallocarray, adapting the overflow-checked AOSP implementation at
+API-29 reallocarray and getloadavg, adapting the overflow-checked AOSP implementation at
 `290c0cb5044b643e5d6cbcb1a5b275541ca3a89e`; allocation, resize, preserved data
-and overflow/ENOMEM behavior are tested on ARM64/Bionic before package installation.
+and overflow/ENOMEM behavior, plus getloadavg bounds and results, are tested on
+ARM64/Bionic before package installation.
 It is built with the pinned NDK for API 28, hashed in a separate CI artifact,
 and preloaded only in the smoke container. It is not part of the bootstrap or APK;
-real Android 10+ provides reallocarray itself. Package builds remain API 29.
+real Android 10+ provides both functions itself. Package builds remain API 29.
 Real Android hardware tests remain skipped.
 
-The signed repository, trust key, pkg frontend and public package catalog are
+The signed repository, trust key, pkg frontend and publicly published catalog are
 separate roadmap steps. apt update cannot authenticate the planned source yet.
 No insecure repository fallback is configured.
 
@@ -201,8 +203,18 @@ is rebuilt from the locked sources; no official Termux DEBs, dependency caches
 or binary cycle seeds are restored. Node.js LTS 24.18.0 is the initial Node
 variant. Python 3.14.6, npm 11.20.0, Git 2.56.0 and ripgrep 15.2.0 come from
 the same recipe tree. The separate catalog.json overlay makes Python and Git
-headless (no Tk, Git GUI or optional Perl commands) and pins npm's Git tag to
+headless (no Tk, Git GUI or optional Perl/Python integrations) and pins npm's Git tag to
 d12b9434dd010b5fb7044c3cc149cdda317813f8. Bootstrap recipes are unaffected.
+
+Pushes can reuse a successful same-branch source job from run 37238397922 if
+its artifact is still available and its source-build inputs match. A change
+limited to Git's recipe can be ignored for another group only when that
+producer's audited package list proves Git was never built. SHA256SUMS,
+trusted producer identity and successful source-job status are checked before
+current audits and source packaging run again. source-build.json records
+producer and consumer commits. A missing artifact or changed relevant input
+starts a fresh source build; manual dispatch with source_run_id=0 always
+builds fresh. Builds for different commits can finish independently.
 
 Each agentcodi-catalog-<group> artifact contains the runtime DEBs, dependency
 versions, full prefix/ELF audit, hashes, preparation and corresponding sources

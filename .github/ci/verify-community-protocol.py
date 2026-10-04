@@ -31,7 +31,9 @@ def validate_sources(bundle):
     pattern = re.compile(r'(?:request[A-Za-z]*|sendNotification)\(\s*"([^"]+)"')
     for source in Path("modules").rglob("*.java"):
         used.update(pattern.findall(source.read_text()))
-    used.update(("initialize", "initialized", "account/login/start", "command/exec/write"))
+    used.update(("initialize", "initialized", "account/login/start", "command/exec/write",
+                 "item/commandExecution/requestApproval", "item/fileChange/requestApproval",
+                 "item/tool/requestUserInput"))
     assert used <= available, "Missing source RPCs: " + repr(sorted(used - available))
     print("Source RPC inventory verified:", ", ".join(sorted(used)))
     return used
@@ -224,6 +226,18 @@ def main():
     ]:
         client.validate(message)
         observed.add(message["method"])
+    server_request = validator(bundle, "ServerRequest")
+    scope = {"threadId": "ci-thread", "turnId": "ci-turn", "itemId": "ci-item"}
+    for method, extra in [
+        ("item/commandExecution/requestApproval", {"startedAtMs": 1, "command": "pwd", "cwd": "/probe/workspace"}),
+        ("item/fileChange/requestApproval", {"startedAtMs": 1, "reason": "synthetic fixture"}),
+        ("item/tool/requestUserInput", {"isBlocking": True, "autoResolutionMs": None,
+          "questions": [{"id": "choice", "header": "Choice", "question": "Continue?",
+                         "options": [{"label": "Continue", "description": "Proceed"}]}]}),
+    ]:
+        server_request.validate({"id": 1, "method": method, "params": dict(scope, **extra)})
+        observed.add(method)
+    print("Approval and user-input request shapes match the generated Community schema.")
     print("Generated schemas accepted", count, "actual Java fixture RPCs:", ", ".join(sorted(observed)))
 
     model = ModelFixture()

@@ -137,7 +137,10 @@ The overlay disables APT manpage/HTML and apt-ftparchive builds, avoiding the
 DocBook/Python/X11 build dependency tree. It removes unused dpkg Perl/development subpackages and Java certificate
 generation, explicitly builds and installs only GnuPG's gpgv target (including
 libksba headers as a build-only dependency) and disables GnuTLS's optional Unbound
-integration. dpkg's Git tag must resolve to
+integration. libandroid-selinux preserves the edition CFLAGS in its custom
+Makefile and validates its Git source commit
+`1cbcdf624c248c66cd6153311d3e681ba1f9ff2a`; its clean Git snapshot is retained
+in the corresponding-source archive. dpkg's Git tag must resolve to
 b2f9600ead232a2dd3c27f8b52807a9ca5854d17. p11-kit's host ASN.1 generator is rebuilt from the checksum-pinned libtasn1
 source instead of using a floating Ubuntu package index. Source archive hashes and package recipe
 patches remain pinned by the recipe tree. Assembly selects only the runtime

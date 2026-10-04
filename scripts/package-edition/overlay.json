@@ -206,6 +206,26 @@
           "new": "PATH+=\":${TERMUX_PKG_HOSTBUILD_DIR}/native/bin\""
         }
       ]
+    },
+    {
+      "path": "packages/libandroid-selinux/Makefile-android",
+      "upstream_blob": "4eb35201ea290125592c52b99b0e242d3542a32d",
+      "replacements": [
+        {
+          "old": "CFLAGS := -DNO_PERSISTENTLY_STORED_PATTERNS",
+          "new": "# Preserve the edition TLS and hardening flags, including in libsepol.\nCFLAGS += -DNO_PERSISTENTLY_STORED_PATTERNS"
+        }
+      ]
+    },
+    {
+      "path": "packages/libandroid-selinux/build.sh",
+      "upstream_blob": "de28d16581e79b337afa5357ef6124bacc3939eb",
+      "replacements": [
+        {
+          "old": "\t\t$TERMUX_PKG_SRCURL .\n\tcp -f",
+          "new": "\t\t$TERMUX_PKG_SRCURL .\n\t# Pin this custom clone too; it bypasses the common Git-source hook.\n\ttest \"$(git rev-parse HEAD)\" = 1cbcdf624c248c66cd6153311d3e681ba1f9ff2a || termux_error_exit \"Pinned libandroid-selinux source mismatch\"\n\tcp -f"
+        }
+      ]
     }
   ],
   "removals": [

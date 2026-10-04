@@ -5,6 +5,7 @@ import hashlib
 import json
 import io
 import shutil
+import subprocess
 from pathlib import Path
 import tarfile
 
@@ -22,6 +23,7 @@ def collect(recipes, build, output):
             parents[subpackage.name.removesuffix(".subpackage.sh")] = recipe
     selected = sorted({parents[name].name for name in report["packages"]})
     materials = []
+    git_sources = []
     with tarfile.open(output / "bootstrap-corresponding-sources.tar.xz", "w:xz") as archive:
         for path in sorted(HERE.iterdir()):
             if path.is_file():
@@ -33,6 +35,20 @@ def collect(recipes, build, output):
         archive.add(recipes / "ndk-patches", arcname="termux-packages/ndk-patches")
         for name in selected:
             archive.add(recipes / "packages" / name, arcname="termux-packages/packages/" + name)
+            source = build / name / "src"
+            if (source / ".git").exists():
+                # Custom Git-source recipes (notably libandroid-selinux) clone
+                # directly into src. Retain clean pinned source, not build objects.
+                commit = subprocess.check_output(
+                    ["git", "-C", str(source), "rev-parse", "HEAD"], text=True).strip()
+                data = subprocess.check_output(
+                    ["git", "-C", str(source), "archive", "--format=tar", "HEAD"])
+                with tarfile.open(fileobj=io.BytesIO(data), mode="r:") as snapshot:
+                    for member in snapshot:
+                        member.name = "git-sources/" + name + "/" + member.name
+                        archive.addfile(member, snapshot.extractfile(member) if member.isfile() else None)
+                git_sources.append({"package": name, "commit": commit,
+                                    "archive_sha256": hashlib.sha256(data).hexdigest()})
             cache = build / name / "cache"
             if cache.exists():
                 for path in sorted(cache.iterdir()):
@@ -40,13 +56,13 @@ def collect(recipes, build, output):
                         archive.add(path, arcname="source-downloads/" + name + "/" + path.name)
                         materials.append({"package": name, "file": path.name,
                                           "sha256": hashlib.sha256(path.read_bytes()).hexdigest()})
-                    elif path.name == "tmp-checkout":
+                    elif path.name == "tmp-checkout" and not (source / ".git").exists():
                         archive.add(path, arcname="git-sources/" + name,
                                     filter=lambda member: None if "/.git/" in member.name or member.name.endswith("/.git") else member)
     report["corresponding_sources"] = {
         "archive": "bootstrap-corresponding-sources.tar.xz",
         "sha256": hashlib.sha256((output / "bootstrap-corresponding-sources.tar.xz").read_bytes()).hexdigest(),
-        "recipes": selected, "downloads": materials}
+        "recipes": selected, "downloads": materials, "git_sources": git_sources}
     (output / "bootstrap-report.json").write_text(json.dumps(report, indent=2) + "\n")
     (output / "SHA256SUMS").write_text("".join(
         hashlib.sha256(path.read_bytes()).hexdigest() + "  " + path.name + "\n"

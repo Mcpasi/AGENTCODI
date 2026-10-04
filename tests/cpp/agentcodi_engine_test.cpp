@@ -934,6 +934,7 @@ int main(int argc, char* argv[]) {
   argument_config.tool_binary_directory = "/private/tool-bin";
   argument_config.tool_runtime_directory = "/private/tool-runtime";
   argument_config.home_directory = "/private/home";
+  argument_config.package_prefix = "/private/usr";
   argument_config.state_directory = "/private/state";
   argument_config.temporary_directory = "/private/temporary";
   argument_config.library_directory = "/private/native";
@@ -973,17 +974,17 @@ int main(int argc, char* argv[]) {
          "Codex home excluded from tool environment");
   expect(joined_arguments.find("/private/state") == std::string::npos,
          "materialization proof state excluded from tool arguments");
-  expect(joined_arguments.find("PREFIX=\"/private/home/.local\"") != std::string::npos,
+  expect(joined_arguments.find("PREFIX=\"/private/usr\"") != std::string::npos,
          "Codex commands receive the writable package prefix");
   expect(joined_arguments.find(
-             "LD_LIBRARY_PATH=\"/private/home/.local/lib:/private/native\"")
+             "LD_LIBRARY_PATH=\"/private/usr/lib:/private/home/.local/lib:/private/native\"")
              != std::string::npos,
          "Codex commands can resolve libraries installed with user packages");
   expect(joined_arguments.find("SHELL=\"/system/bin/sh\"")
              != std::string::npos,
          "Codex reports the actual Android system shell");
   expect(joined_arguments.find(
-             "PATH=\"/private/home/.local/bin:/private/tool-bin:/system/bin:/system/xbin\"")
+             "PATH=\"/private/usr/bin:/private/home/.local/bin:/private/tool-bin:/system/bin:/system/xbin\"")
              != std::string::npos,
          "Codex resolves user packages before packaged aliases and system commands");
   expect(
@@ -1267,7 +1268,17 @@ int main(int argc, char* argv[]) {
            "process-test toolchain alias");
     expect(mkdir(codex_home.c_str(), 0700) == 0, "process-test Codex home");
     expect(mkdir(home.c_str(), 0700) == 0, "process-test home");
-    const std::string package_prefix = home + "/.local";
+    const std::string package_prefix = root + "/usr";
+    const std::string legacy_prefix = home + "/.local";
+    expect(mkdir(legacy_prefix.c_str(), 0700) == 0, "legacy package prefix");
+    expect(mkdir((legacy_prefix + "/bin").c_str(), 0700) == 0, "legacy binary directory");
+    const std::string legacy_node = legacy_prefix + "/bin/node";
+    const std::string legacy_tool = legacy_prefix + "/bin/package-check";
+    for (const std::string& program : {legacy_node, legacy_tool}) {
+      expect(write_fixture_file(program, "#!/system/bin/sh\nprintf 'legacy-package-selected\\n'\n"),
+             "preserve an executable in the old prefix");
+      expect(chmod(program.c_str(), 0700) == 0, "make legacy program executable");
+    }
     expect(mkdir(package_prefix.c_str(), 0700) == 0, "process-test package prefix");
     expect(mkdir((package_prefix + "/bin").c_str(), 0700) == 0, "package binary directory");
     const std::string user_node = package_prefix + "/bin/node";
@@ -1706,12 +1717,13 @@ int main(int argc, char* argv[]) {
     config.tool_runtime_directory = tool_runtime;
     config.codex_home = codex_home;
     config.home_directory = home;
+    config.package_prefix = package_prefix;
     config.state_directory = state;
     config.temporary_directory = temporary;
     config.library_directory = "/system/lib64";
     for (const std::string& invalid_library : {
              std::string("/"), root, workspace, codex_home, home, state, temporary,
-             tool_binary, tool_runtime}) {
+             tool_binary, tool_runtime, package_prefix}) {
       agentcodi::ProcessConfig invalid_config = config;
       invalid_config.library_directory = invalid_library;
       expect(agentcodi::AppServerProcess::Start(invalid_config, &error) == nullptr
@@ -1722,13 +1734,21 @@ int main(int argc, char* argv[]) {
                && error.find("share the canonical native library directory")
                    != std::string::npos,
            "reject default profile whose executable is outside the payload grant");
+    for (const std::string& invalid_prefix : {home, workspace, codex_home, state, tool_binary, tool_runtime}) {
+      agentcodi::ProcessConfig invalid_config = config;
+      invalid_config.package_prefix = invalid_prefix;
+      expect(agentcodi::AppServerProcess::Start(invalid_config, &error) == nullptr
+                 && error.find("Managed package prefix must remain separate") != std::string::npos,
+             "reject managed prefix overlapping private runtime data");
+    }
     config.arguments = {
         "-c",
         "printf '%s|%s|%s|%s\\n' \"${AGENTCODI_PARENT_SECRET-unset}\" "
         "\"$CODEX_HOME\" \"$HOME\" \"$(umask)\"; "
         "printf '%s\\n' \"$CODEX_CODE_MODE_HOST_PATH\"; "
         "printf '%s\\n' \"$PATH\"; "
-        "node; "
+        "printf '%s|%s\\n' \"$PREFIX\" \"$LD_LIBRARY_PATH\"; "
+        "node; package-check; "
         "IFS= read -r line; printf '%s\\n' \"$line\"",
     };
     expect(setenv("AGENTCODI_PARENT_SECRET", "must-not-leak", 1) == 0,
@@ -1763,14 +1783,24 @@ int main(int argc, char* argv[]) {
               == agentcodi::LineReadStatus::kLine,
           "read closed app-server PATH");
       expect(
-          child_path == home + "/.local/bin:" + tool_binary + ":/system/bin:/system/xbin"
+          child_path == package_prefix + "/bin:" + legacy_prefix + "/bin:" + tool_binary + ":/system/bin:/system/xbin"
               && child_path.find("/system/lib64") == std::string::npos,
           "app-server PATH gives user packages priority and preserves APK alias fallback");
+      std::string package_environment;
+      expect(process->ReadLine(4096U, &package_environment, &error)
+                 == agentcodi::LineReadStatus::kLine
+                 && package_environment == package_prefix + "|" + package_prefix + "/lib:"
+                     + legacy_prefix + "/lib:/system/lib64",
+             "supervisor exports the managed prefix and both library search paths");
       std::string package_output;
       expect(process->ReadLine(1024U, &package_output, &error)
                  == agentcodi::LineReadStatus::kLine
                  && package_output == "user-package-selected",
-             "a user-installed executable runs through the supervisor PATH");
+             "managed executable wins over legacy and APK aliases");
+      expect(process->ReadLine(1024U, &package_output, &error)
+                 == agentcodi::LineReadStatus::kLine
+                 && package_output == "legacy-package-selected",
+             "legacy-only executable remains reachable through the supervisor");
       const std::string probe = "{\"probe\":\"ok\"}";
       std::vector<unsigned char> mutable_probe(probe.begin(), probe.end());
       expect(
@@ -1794,6 +1824,25 @@ int main(int argc, char* argv[]) {
       expect(process->Stop(500) != INT_MIN, "supervised process stop");
     }
 
+    expect(unlink(user_node.c_str()) == 0, "remove managed override");
+    auto restarted = agentcodi::AppServerProcess::Start(config, &error);
+    expect(restarted != nullptr, "restart with preserved legacy installations");
+    if (restarted != nullptr) {
+      std::string line;
+      for (int index = 0; index < 4; ++index) {
+        expect(restarted->ReadLine(4096U, &line, &error) == agentcodi::LineReadStatus::kLine,
+               "read restarted supervisor environment");
+      }
+      for (int index = 0; index < 2; ++index) {
+        expect(restarted->ReadLine(1024U, &line, &error) == agentcodi::LineReadStatus::kLine
+                   && line == "legacy-package-selected",
+               "legacy fallback survives process restart and managed removal");
+      }
+      expect(restarted->Stop(500) != INT_MIN, "stop restarted supervisor");
+    }
+    expect(write_fixture_file(user_node, "#!/system/bin/sh\nprintf 'user-package-selected\\n'\n")
+               && chmod(user_node.c_str(), 0700) == 0, "restore managed override");
+
     char self_executable[PATH_MAX];
     const char* current_library_path = std::getenv("LD_LIBRARY_PATH");
     std::string test_library_directory = current_library_path == nullptr
@@ -1814,7 +1863,7 @@ int main(int argc, char* argv[]) {
       int shell_exit = -1;
       expect(
           run_toolchain_shell(
-              argv[1], {"-c", "PATH=" + package_prefix + "/bin:/system/bin node"},
+              argv[1], {"-c", "PATH=" + package_prefix + "/bin:" + legacy_prefix + "/bin:/system/bin node"},
               workspace, toolchain, &shell_output, &shell_exit)
               && shell_exit == 0
               && shell_output == "user-package-selected\n",
@@ -2871,6 +2920,10 @@ int main(int argc, char* argv[]) {
     unlink(user_node.c_str());
     rmdir((package_prefix + "/bin").c_str());
     rmdir(package_prefix.c_str());
+    unlink(legacy_node.c_str());
+    unlink(legacy_tool.c_str());
+    rmdir((legacy_prefix + "/bin").c_str());
+    rmdir(legacy_prefix.c_str());
     rmdir(home.c_str());
     rmdir(codex_home.c_str());
     unlink(supervised_node_alias.c_str());

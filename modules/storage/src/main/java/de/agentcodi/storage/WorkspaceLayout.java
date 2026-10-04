@@ -30,6 +30,7 @@ public final class WorkspaceLayout {
     private final File state;
     private final File logs;
     private final File home;
+    private final File packagePrefix;
     private final File codexHome;
 
     private WorkspaceLayout(
@@ -42,6 +43,7 @@ public final class WorkspaceLayout {
         File state,
         File logs,
         File home,
+        File packagePrefix,
         File codexHome
     ) {
         this.root = root;
@@ -53,6 +55,7 @@ public final class WorkspaceLayout {
         this.state = state;
         this.logs = logs;
         this.home = home;
+        this.packagePrefix = packagePrefix;
         this.codexHome = codexHome;
     }
 
@@ -67,12 +70,19 @@ public final class WorkspaceLayout {
         File state = secureChild(root, "state");
         File logs = secureChild(root, "logs");
         File home = secureChild(root, "home");
-        File packagePrefix = secureChild(home, ".local");
-        for (String directory : new String[] {"bin", "lib", "include", "share", "etc", "tmp"}) {
-            secureChild(packagePrefix, directory);
+        File packagePrefix = secureChild(canonicalBase, "usr");
+        // Keep earlier installations in place: native packages may embed this path.
+        File legacyPrefix = secureChild(home, ".local");
+        for (File prefix : new File[] {packagePrefix, legacyPrefix}) {
+            for (String directory : new String[] {"bin", "lib", "include", "share", "etc", "tmp"}) {
+                secureChild(prefix, directory);
+            }
         }
+        ensureSeparated(packagePrefix, home);
+        ensureSeparated(packagePrefix, workspace);
         File codexHome = secureChild(root, "codex-home");
         ensureSeparated(workspace, codexHome);
+        ensureSeparated(packagePrefix, codexHome);
         validateRuntimeConfigurationFiles(codexHome);
         validateCanonicalCredential(codexHome);
         return new WorkspaceLayout(
@@ -85,6 +95,7 @@ public final class WorkspaceLayout {
             state,
             logs,
             home,
+            packagePrefix,
             codexHome
         );
     }
@@ -289,9 +300,9 @@ public final class WorkspaceLayout {
         return home;
     }
 
-    /** Writable installation prefix shared by Codex commands and the terminal. */
+    /** Managed installation prefix in files/usr, outside HOME, workspace and CODEX_HOME. */
     public File getPackagePrefix() {
-        return new File(home, ".local");
+        return packagePrefix;
     }
 
     public File getCodexHome() {

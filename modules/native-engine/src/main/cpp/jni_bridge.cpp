@@ -175,6 +175,7 @@ Java_de_agentcodi_runtime_NativeEngine_nativeStartAppServer(
     jstring tool_runtime_directory,
     jstring codex_home,
     jstring home,
+    jstring package_prefix,
     jstring state_directory,
     jstring temporary_directory,
     jstring native_library_directory,
@@ -225,6 +226,11 @@ Java_de_agentcodi_runtime_NativeEngine_nativeStartAppServer(
           &config.tool_runtime_directory)
       || !from_java_string(environment, codex_home, "Codex home", &config.codex_home)
       || !from_java_string(environment, home, "Home", &config.home_directory)
+      || !from_java_string(
+          environment,
+          package_prefix,
+          "Managed package prefix",
+          &config.package_prefix)
       || !from_java_string(
           environment,
           state_directory,

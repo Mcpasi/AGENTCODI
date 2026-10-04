@@ -173,7 +173,7 @@ int main(int argc, char* argv[]) {
   const std::string root = created;
   const std::vector<std::string> directories = {
       "/workspace", "/workspace/toolchain", "/tool-bin", "/tool-runtime",
-      "/codex-home", "/home", "/state", "/temporary"};
+      "/codex-home", "/home", "/usr", "/state", "/temporary"};
   for (const auto& directory : directories) {
     require(mkdir((root + directory).c_str(), 0700) == 0,
             "create runtime directory");
@@ -197,6 +197,7 @@ int main(int argc, char* argv[]) {
   config.tool_runtime_directory = root + "/tool-runtime";
   config.codex_home = root + "/codex-home";
   config.home_directory = root + "/home";
+  config.package_prefix = root + "/usr";
   config.state_directory = root + "/state";
   config.temporary_directory = root + "/temporary";
   config.library_directory = argv[1];

@@ -51,8 +51,10 @@ if ! rg -q 'android:targetSdkVersion="28"' "$PROJECT_ROOT/app/src/main/AndroidMa
     || ! rg -q '^TARGET_SDK="28"' "$PROJECT_ROOT/scripts/build-debug-apk.sh" \
     || ! rg -q 'TARGET_SDK = 28;' "$PROJECT_ROOT/modules/core/src/main/java/de/agentcodi/core/BuildIdentity.java" \
     || ! rg -q 'getPackagePrefix' "$PROJECT_ROOT/modules/storage/src/main/java/de/agentcodi/storage/WorkspaceLayout.java" \
+    || ! rg -Fq 'secureChild(canonicalBase, "usr")' "$PROJECT_ROOT/modules/storage/src/main/java/de/agentcodi/storage/WorkspaceLayout.java" \
+    || ! rg -Fq 'layout.getPackagePrefix().getAbsolutePath()' "$PROJECT_ROOT/modules/runtime/src/main/java/de/agentcodi/runtime/AgentRuntimeService.java" \
     || ! rg -Fq 'secureChild(home, ".local")' "$PROJECT_ROOT/modules/storage/src/main/java/de/agentcodi/storage/WorkspaceLayout.java" \
-    || ! rg -Fq 'prefix + "/bin:"' "$PROJECT_ROOT/modules/native-engine/src/main/cpp/app_server_process.cpp" \
+    || ! rg -Fq 'package_search_path(config, "bin")' "$PROJECT_ROOT/modules/native-engine/src/main/cpp/app_server_process.cpp" \
     || ! rg -Fq '"PREFIX=" + prefix' "$PROJECT_ROOT/modules/native-engine/src/main/cpp/app_server_process.cpp"; then
   echo "Package Edition target SDK or shared writable package prefix is incomplete." >&2
   exit 1

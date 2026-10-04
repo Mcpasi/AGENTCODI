@@ -27,6 +27,7 @@ struct ProcessConfig {
   std::string tool_runtime_directory;
   std::string codex_home;
   std::string home_directory;
+  std::string package_prefix;
   std::string state_directory;
   std::string temporary_directory;
   std::string library_directory;

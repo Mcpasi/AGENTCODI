@@ -28,6 +28,10 @@ public final class WorkspaceLayoutTest {
     public static int run() throws Exception {
         createsStablePrivateLayout();
         preservesUserInstalledPackages();
+        preservesLegacyPackagesDuringPrefixTransition();
+        rejectsSymbolicManagedPackagePrefix();
+        rejectsSymbolicManagedPackageBin();
+        rejectsFileAsManagedPackagePrefix();
         rejectsSymbolicPackagePrefix();
         preparesPackagedToolAliases();
         rejectsUnexpectedPackagedToolEntries();
@@ -63,7 +67,7 @@ public final class WorkspaceLayoutTest {
         rejectsPngBytesAfterIend();
         rejectsMalformedPngDuringCopy();
         rejectsOversizedWorkspaceImage();
-        return 37;
+        return 41;
     }
 
     private static void createsStablePrivateLayout() throws Exception {
@@ -124,8 +128,15 @@ public final class WorkspaceLayoutTest {
         try {
             WorkspaceLayout first = WorkspaceLayout.create(base.toFile());
             Path prefix = first.getPackagePrefix().toPath();
-            TestSupport.assertEquals(first.getHome().toPath().resolve(".local"),
-                prefix, "package prefix below home");
+            TestSupport.assertEquals(base.toRealPath().resolve("usr"),
+                prefix, "managed package prefix below app files");
+            TestSupport.assertFalse(prefix.startsWith(first.getHome().toPath()),
+                "managed packages stay outside user home");
+            TestSupport.assertFalse(prefix.startsWith(first.getWorkspace().toPath()),
+                "managed packages stay outside the workspace");
+            TestSupport.assertEquals(EnumSet.of(PosixFilePermission.OWNER_READ,
+                PosixFilePermission.OWNER_WRITE, PosixFilePermission.OWNER_EXECUTE),
+                Files.getPosixFilePermissions(prefix), "managed prefix is owner-only");
             for (String name : new String[] {"bin", "lib", "include", "share", "etc", "tmp"}) {
                 TestSupport.assertTrue(Files.isDirectory(prefix.resolve(name)),
                     "package prefix directory " + name);
@@ -145,6 +156,80 @@ public final class WorkspaceLayoutTest {
                 "startup preserves executable permissions");
             TestSupport.assertFalse(prefix.startsWith(first.getCodexHome().toPath()),
                 "packages stay outside account storage");
+        } finally {
+            deleteRecursively(base);
+        }
+    }
+
+    private static void preservesLegacyPackagesDuringPrefixTransition() throws Exception {
+        Path base = Files.createTempDirectory("agentcodi-legacy-prefix-");
+        try {
+            Path legacy = Files.createDirectories(base.resolve("agentcodi/home/.local"));
+            byte[] contents = "#!/system/bin/sh\nprintf legacy-package\\n"
+                .getBytes(java.nio.charset.StandardCharsets.US_ASCII);
+            for (String name : new String[] {"bin", "lib", "include", "share", "etc", "tmp"}) {
+                Path directory = Files.createDirectories(legacy.resolve(name));
+                Files.write(directory.resolve("user-file"), contents);
+            }
+            Path program = legacy.resolve("bin/user-file");
+            program.toFile().setExecutable(true, true);
+            Set<PosixFilePermission> permissions = Files.getPosixFilePermissions(program);
+            for (int restart = 0; restart < 2; restart++) {
+                WorkspaceLayout layout = WorkspaceLayout.create(base.toFile());
+                TestSupport.assertEquals(base.toRealPath().resolve("usr"),
+                    layout.getPackagePrefix().toPath(), "new prefix without moving old files");
+                for (String name : new String[] {"bin", "lib", "include", "share", "etc", "tmp"}) {
+                    TestSupport.assertTrue(Arrays.equals(contents,
+                        Files.readAllBytes(legacy.resolve(name).resolve("user-file"))),
+                        "legacy contents retained in " + name);
+                    TestSupport.assertFalse(Files.exists(layout.getPackagePrefix().toPath()
+                        .resolve(name).resolve("user-file")), "no unsafe automatic relocation");
+                }
+                TestSupport.assertEquals(permissions, Files.getPosixFilePermissions(program),
+                    "legacy executable permissions retained");
+            }
+        } finally {
+            deleteRecursively(base);
+        }
+    }
+
+    private static void rejectsSymbolicManagedPackagePrefix() throws Exception {
+        rejectManagedPackageLink("usr");
+    }
+
+    private static void rejectsSymbolicManagedPackageBin() throws Exception {
+        rejectManagedPackageLink("usr/bin");
+    }
+
+    private static void rejectManagedPackageLink(String relativePath) throws Exception {
+        Path base = Files.createTempDirectory("agentcodi-managed-prefix-link-");
+        Path destination = Files.createTempDirectory("agentcodi-managed-destination-");
+        try {
+            Path link = base.resolve(relativePath);
+            Files.createDirectories(link.getParent());
+            Files.createSymbolicLink(link, destination);
+            TestSupport.expectThrows(IOException.class, new TestSupport.ThrowingRunnable() {
+                @Override
+                public void run() throws Exception {
+                    WorkspaceLayout.create(base.toFile());
+                }
+            }, "managed prefix must not follow a symbolic link");
+        } finally {
+            deleteRecursively(base);
+            deleteRecursively(destination);
+        }
+    }
+
+    private static void rejectsFileAsManagedPackagePrefix() throws Exception {
+        Path base = Files.createTempDirectory("agentcodi-managed-prefix-file-");
+        try {
+            Files.write(base.resolve("usr"), new byte[] {1});
+            TestSupport.expectThrows(IOException.class, new TestSupport.ThrowingRunnable() {
+                @Override
+                public void run() throws Exception {
+                    WorkspaceLayout.create(base.toFile());
+                }
+            }, "managed prefix must be a directory");
         } finally {
             deleteRecursively(base);
         }

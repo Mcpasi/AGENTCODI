@@ -2089,11 +2089,17 @@ int decode_wait_status(int status) {
   _exit(127);
 }
 
+// The managed prefix wins; retain earlier HOME/.local installations as fallback.
+std::string package_search_path(const ProcessConfig& config, const char* directory) {
+  return config.package_prefix + "/" + directory + ":"
+      + config.home_directory + "/.local/" + directory + ":";
+}
+
 std::vector<std::string> child_environment(const ProcessConfig& config) {
-  // User-installed commands take precedence over the transitional APK tools.
-  const std::string prefix = config.home_directory + "/.local";
+  const std::string prefix = config.package_prefix;
   const std::string path =
-      prefix + "/bin:" + config.tool_binary_directory + ":/system/bin:/system/xbin";
+      package_search_path(config, "bin") + config.tool_binary_directory
+      + ":/system/bin:/system/xbin";
   return {
       "HOME=" + config.home_directory,
       "PREFIX=" + prefix,
@@ -2103,7 +2109,7 @@ std::vector<std::string> child_environment(const ProcessConfig& config) {
       "TEMP=" + config.temporary_directory,
       "PATH=" + path,
       "SHELL=" + std::string(kSystemShell),
-      "LD_LIBRARY_PATH=" + prefix + "/lib:" + config.library_directory,
+      "LD_LIBRARY_PATH=" + package_search_path(config, "lib") + config.library_directory,
       "HISTFILE=/dev/null",
       "NODE_REPL_HISTORY=/dev/null",
       "SSL_CERT_DIR=/system/etc/security/cacerts",
@@ -2289,9 +2295,10 @@ InboundLineCompactionStatus MaterializeAndCompactInboundImagePayloads(
 }
 
 std::vector<std::string> CodexAppServerArguments(const ProcessConfig& config) {
-  const std::string prefix = config.home_directory + "/.local";
+  const std::string prefix = config.package_prefix;
   const std::string child_path =
-      prefix + "/bin:" + config.tool_binary_directory + ":/system/bin:/system/xbin";
+      package_search_path(config, "bin") + config.tool_binary_directory
+      + ":/system/bin:/system/xbin";
   const std::string shell_environment =
       "shell_environment_policy={inherit=\"none\","
       "ignore_default_excludes=false,set={PATH=" + toml_string(child_path)
@@ -2301,7 +2308,7 @@ std::vector<std::string> CodexAppServerArguments(const ProcessConfig& config) {
       + ",TMPDIR=" + toml_string(config.temporary_directory)
       + ",TMP=" + toml_string(config.temporary_directory)
       + ",TEMP=" + toml_string(config.temporary_directory)
-      + ",LD_LIBRARY_PATH=" + toml_string(prefix + "/lib:" + config.library_directory)
+      + ",LD_LIBRARY_PATH=" + toml_string(package_search_path(config, "lib") + config.library_directory)
       + ",HISTFILE=\"/dev/null\""
       + ",NODE_REPL_HISTORY=\"/dev/null\""
       + ",SSL_CERT_DIR=\"/system/etc/security/cacerts\""
@@ -2434,6 +2441,11 @@ std::shared_ptr<AppServerProcess> AppServerProcess::Start(
           &config.home_directory,
           error)
       || !canonical_directory(
+          requested_config.package_prefix,
+          "Managed package prefix",
+          &config.package_prefix,
+          error)
+      || !canonical_directory(
           requested_config.state_directory,
           "State",
           &config.state_directory,
@@ -2460,6 +2472,16 @@ std::shared_ptr<AppServerProcess> AppServerProcess::Start(
     *error = "Toolchain must remain below the canonical workspace";
     return nullptr;
   }
+  for (const std::string* separate_directory : {
+           &config.home_directory, &config.working_directory, &config.codex_home,
+           &config.state_directory, &config.tool_binary_directory,
+           &config.tool_runtime_directory}) {
+    if (contains_path(config.package_prefix, *separate_directory)
+        || contains_path(*separate_directory, config.package_prefix)) {
+      *error = "Managed package prefix must remain separate from private runtime data";
+      return nullptr;
+    }
+  }
   const auto overlaps_state = [&config](const std::string& path) {
     return contains_path(config.state_directory, path)
         || contains_path(path, config.state_directory);
@@ -2474,6 +2496,7 @@ std::shared_ptr<AppServerProcess> AppServerProcess::Start(
       || overlaps_state(config.tool_runtime_directory)
       || overlaps_state(config.codex_home)
       || overlaps_state(config.home_directory)
+      || overlaps_state(config.package_prefix)
       || overlaps_state(config.temporary_directory)) {
     *error = "Image materialization state must be private and separate";
     return nullptr;
@@ -2559,7 +2582,7 @@ std::shared_ptr<AppServerProcess> AppServerProcess::Start(
     // Keep managed APK payloads separate from mutable runtime data.
     for (const std::string* private_directory : {
              &config.working_directory, &config.codex_home,
-             &config.home_directory, &config.state_directory,
+             &config.home_directory, &config.package_prefix, &config.state_directory,
              &config.temporary_directory, &config.tool_binary_directory,
              &config.tool_runtime_directory}) {
       if (config.library_directory == "/"

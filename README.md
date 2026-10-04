@@ -35,14 +35,18 @@ The workspace, user home, and `CODEX_HOME` remain separate directories. This org
 
 ## User-installed programs
 
-The current writable installation prefix is `$PREFIX = $HOME/.local`. At startup, AGENTCODI creates `bin`, `lib`, `include`, `share`, `etc`, and `tmp`; existing installations are preserved.
+The managed writable installation prefix is `$PREFIX = <app files>/usr`, normally `/data/data/de.agentcodi.pkg/files/usr` (Android may resolve its equivalent `/data/user/0/...` path). It is separate from the user home, workspace, and `CODEX_HOME`. At startup, AGENTCODI creates `bin`, `lib`, `include`, `share`, `etc`, and `tmp`; existing installations are preserved.
 
 Codex commands and the terminal use the same search order:
 
 ```text
-PATH=$PREFIX/bin:<existing APK tool aliases>:/system/bin:/system/xbin
-LD_LIBRARY_PATH=$PREFIX/lib:<native APK libraries>
+PATH=$PREFIX/bin:$HOME/.local/bin:<existing APK tool aliases>:/system/bin:/system/xbin
+LD_LIBRARY_PATH=$PREFIX/lib:$HOME/.local/lib:<native APK libraries>
 ```
+
+The app-server, Codex commands, terminal, and inherited stdio-MCP environment use these paths. The managed prefix takes precedence over the old `$HOME/.local` prefix, followed by the bundled tools. `HOME`, `CODEX_HOME`, and the existing private temporary directory remain separate; `TMPDIR` does not move into the package prefix.
+
+Upgrading an existing installation leaves all files in `$HOME/.local` in place with their contents and file permissions preserved. Programs and libraries there remain reachable as a fallback, including after app restart. No automatic copy, move, deletion, or symlink replacement occurs: binaries, scripts, and configuration may contain absolute paths. Rebuild or reinstall a package explicitly for the new prefix when migrating it. If both prefixes contain the same command or library, the managed version wins; removing it exposes the legacy version again. Workspace export does not include either prefix.
 
 User-installed programs take precedence over the bundled tools. The terminal shell no longer defines fixed functions for `node`, `npm`, `python`, or `rg` that could override this order.
 
@@ -77,7 +81,7 @@ The Package Edition uses the separate application ID `de.agentcodi.pkg` and star
 
 APK files are named `AGENTCODI-Package-<Version>-arm64-v8a-debug.apk` or `AGENTCODI-Package-<Version>-arm64-v8a-release.apk`. Unversioned copies are `AGENTCODI-Package-debug.apk` and `AGENTCODI-Package-release.apk`; the APK workflow uses the artifact `agentcodi-package-debug-apk`. `scripts/bump-version.sh` increments this edition's version line and version code.
 
-Earlier Package Edition builds with the shared ID remain in the previous installation. Their files are not automatically transferred to the new app; export required workspace files before switching, then import them into the new app. The future managed package prefix is `/data/data/de.agentcodi.pkg/files/usr`; the current prefix remains `$HOME/.local`. Newer Android versions may show a warning about the low target SDK during installation.
+Earlier Package Edition builds with the shared ID remain in the previous installation. Their files are not automatically transferred to the new app; export required workspace files before switching, then import them into the new app. The managed package prefix is `/data/data/de.agentcodi.pkg/files/usr`; earlier `$HOME/.local` installations in the same app are retained as described above. Newer Android versions may show a warning about the low target SDK during installation.
 
 ## License
 

@@ -189,6 +189,58 @@ bool create_private_fixture(const std::string& path, const std::string& contents
   return written == static_cast<ssize_t>(contents.size()) && closed;
 }
 
+bool check_package_prefix(
+    const std::shared_ptr<agentcodi::AppServerProcess>& process,
+    const agentcodi::ProcessConfig& config,
+    std::string* error) {
+  const std::string managed = config.package_prefix + "/bin/package-check";
+  const std::string legacy = config.home_directory + "/.local/bin/package-check";
+  const std::string legacy_only = config.home_directory + "/.local/bin/legacy-package-check";
+  const auto cleanup = [&]() {
+    unlink(managed.c_str());
+    unlink(legacy.c_str());
+    unlink(legacy_only.c_str());
+  };
+  if (!safe_json_path(config.package_prefix)
+      || !safe_json_path(config.home_directory)
+      || !create_private_fixture(managed, "#!/system/bin/sh\nprintf 'managed-package-ok '\n")
+      || !create_private_fixture(legacy, "#!/system/bin/sh\nprintf 'legacy-package-ok '\n")
+      || !create_private_fixture(legacy_only, "#!/system/bin/sh\nprintf legacy-only-ok\n")
+      || chmod(managed.c_str(), 0700) != 0
+      || chmod(legacy.c_str(), 0700) != 0
+      || chmod(legacy_only.c_str(), 0700) != 0) {
+    cleanup();
+    std::cerr << "Package-prefix fixtures could not be prepared\n";
+    return false;
+  }
+  const auto execute = [&](int id, const std::string& shell, const std::string& expected) {
+    return write_request(process,
+        "{\"method\":\"command/exec\",\"id\":" + std::to_string(id) + ",\"params\":{"
+        "\"command\":[\"" + shell + "\",\"-c\","
+        "\"test \\\"$PREFIX\\\" = '" + config.package_prefix + "' && "
+        "test \\\"$HOME\\\" = '" + config.home_directory + "' && "
+        "test \\\"$LD_LIBRARY_PATH\\\" = '" + config.package_prefix + "/lib:"
+        + config.home_directory + "/.local/lib:" + config.library_directory + "' && "
+        "package-check && legacy-package-check\"],"
+        "\"cwd\":\"" + config.working_directory + "\","
+        "\"permissionProfile\":\":danger-full-access\",\"tty\":false,"
+        "\"outputBytesCap\":4096,\"timeoutMs\":" + std::to_string(kCommandTimeoutMs) + "}}",
+        error) && read_command_response(process, id, expected, error);
+  };
+  // Exercise both Codex's system shell and the terminal's packaged shell.
+  bool passed = execute(29, "/system/bin/sh", "managed-package-ok legacy-only-ok")
+      && execute(30, config.shell_executable, "managed-package-ok legacy-only-ok");
+  if (passed) {
+    passed = unlink(managed.c_str()) == 0
+        && execute(31, config.shell_executable, "legacy-package-ok legacy-only-ok");
+  }
+  cleanup();
+  if (!passed) {
+    std::cerr << "Managed precedence or legacy package fallback failed\n";
+  }
+  return passed;
+}
+
 bool check_full_access_runtime(
     const std::shared_ptr<agentcodi::AppServerProcess>& process,
     const agentcodi::ProcessConfig& config,
@@ -594,8 +646,8 @@ bool read_terminated_terminal_completion(
 }  // namespace
 
 int main(int argc, char* argv[]) {
-  if (argc != 16) {
-    std::cerr << "Expected app-server, host, shell, Node, Python, ripgrep, workspace, toolchain, tool-bin, tool-runtime, Codex home, home, state, temp and library paths\n";
+  if (argc != 17) {
+    std::cerr << "Expected app-server, host, shell, Node, Python, ripgrep, workspace, toolchain, tool-bin, tool-runtime, Codex home, home, state, temp, library and managed prefix paths\n";
     return 2;
   }
   const std::string workspace = argv[7];
@@ -621,6 +673,7 @@ int main(int argc, char* argv[]) {
   config.tool_runtime_directory = argv[10];
   config.codex_home = argv[11];
   config.home_directory = argv[12];
+  config.package_prefix = argv[16];
   config.state_directory = argv[13];
   config.temporary_directory = argv[14];
   config.library_directory = argv[15];
@@ -648,7 +701,8 @@ int main(int argc, char* argv[]) {
   }
 
   // Full access must execute the packaged shell and read/write private siblings.
-  if (!check_full_access_runtime(process, config, &error)) {
+  if (!check_full_access_runtime(process, config, &error)
+      || !check_package_prefix(process, config, &error)) {
     process->Stop(2'000);
     return 1;
   }

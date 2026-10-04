@@ -151,7 +151,7 @@ Das Termux-Buildsystem dokumentiert anpassbare App- und Präfixvariablen in [scr
 
 - [x] Architekturentscheidung des Nutzers dokumentieren: eigener Präfix, minimaler Bootstrap und signiertes Repository aus neu gebauten Termux-Paketrezepten.
 - [x] Separate Application-ID endgültig festlegen und in der App umsetzen, bevor Pakete mit absoluten Pfaden gebaut werden: `de.agentcodi.pkg`; zukünftiger verwalteter Präfix `/data/data/de.agentcodi.pkg/files/usr`.
-- [ ] Verwalteten Präfix auf `files/usr` außerhalb des Benutzer-Homes umstellen. Bestehende Dateien in `$HOME/.local` erhalten; Übergang/Migration und Suchreihenfolge dokumentieren und testen.
+- [x] Verwalteten Präfix auf `files/usr` außerhalb des Benutzer-Homes umstellen. Bestehende Dateien in `$HOME/.local` erhalten; Übergang/Migration und Suchreihenfolge dokumentieren und testen.
 - [ ] Reproduzierbaren Stand von `termux-packages` und Toolchain festlegen; gezielte Build-Anpassungen für App-ID, Präfix und Repository-URLs versionieren. Bootstrap, Paketmetadaten, Shebangs, RPATH/RUNPATH und Konfigurationen auf denselben finalen Pfad ausrichten.
 - [ ] Minimalen ARM64-Bootstrap mit Shell, APT, dpkg, Zertifikaten und Abhängigkeiten bauen; Initialisierung sowie Reparatur nach abgebrochener Installation integrieren.
 - [ ] Eigene CI für Paket- und Abhängigkeitsbuilds aufsetzen; zuerst Bootstrap und einen kleinen Katalog wie Python, Node.js/npm, Git und ripgrep prüfen, danach erweitern.
@@ -163,6 +163,26 @@ Das Termux-Buildsystem dokumentiert anpassbare App- und Präfixvariablen in [scr
 - [ ] Paketpfade und installierte Versionen bei Bedarf in Diagnose/Terminal anzeigen; bisherige Aktivierungsanzeigen ersetzen.
 - [ ] Workspace-Browser und Import/Export sinnvoll erweitern, wenn Paketdateien dort zugänglich sein sollen. Kontodaten sollen weiterhin nicht versehentlich exportiert werden.
 - [ ] Android 10 und eine aktuelle Android-Version auf echter ARM64-Hardware prüfen: ELF, Skript/Shebang, dynamische Bibliothek, npm/pip, PTY und stdio-MCP.
+
+### Verwalteter Präfix — 2026-10-04
+
+Die App legt die Paketbasis jetzt als `usr` direkt unter ihrem kanonischen
+Files-Verzeichnis an und übergibt sie ausdrücklich über Java/JNI an den nativen
+Supervisor. `HOME`, Workspace, `CODEX_HOME` und temporäre Dateien bleiben getrennt.
+Die gemeinsame Suchreihenfolge lautet `files/usr/bin`, `$HOME/.local/bin`,
+APK-Aliase, Android-Systempfade; Bibliotheken werden aus `files/usr/lib`,
+`$HOME/.local/lib` und den nativen APK-Bibliotheken gesucht. App-Server und
+Codex-Shell-Konfiguration verwenden dieselbe Pfadfunktion; Terminal und
+geerbte stdio-MCP-Umgebung erhalten denselben Vertrag.
+
+Bestehende Dateien unter `$HOME/.local` bleiben unverändert erhalten. Es gibt
+keine automatische Verschiebung oder Relokation; Pakete mit eingebetteten
+absoluten Pfaden müssen gezielt für den neuen Präfix neu installiert werden.
+README und Regressionen decken Bestandserhaltung, Suchvorrang, Legacy-Fallback,
+Prozess-Neustart und Ablehnung ungeeigneter Präfixverzeichnisse ab. Der echte
+ARM64/Bionic-APK-Smoke prüft den Vertrag über Codex- und Terminal-Shell.
+Bootstrap und Paketrepository sind weiterhin die folgenden offenen Punkte.
+Gerätetests bleiben gemäß Nutzeranweisung offen und werden übersprungen.
 
 ## 4. Build verkleinern und veröffentlichbare Edition erstellen
 

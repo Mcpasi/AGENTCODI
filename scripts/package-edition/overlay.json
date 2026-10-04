@@ -143,15 +143,19 @@
       "replacements": [
         {
           "old": "TERMUX_PKG_DEPENDS=\"libassuan, libbz2, libgcrypt, libgnutls, libgpg-error, libksba, libnpth, libsqlite, readline, pinentry, resolv-conf, zlib\"",
-          "new": "TERMUX_PKG_DEPENDS=\"libassuan, libbz2, libgcrypt, libgpg-error, libnpth, zlib\""
+          "new": "TERMUX_PKG_DEPENDS=\"libassuan, libbz2, libgcrypt, libgpg-error, libnpth, zlib\"\n# configure requires the X.509 headers; the gpgv target does not link libksba.\nTERMUX_PKG_BUILD_DEPENDS=\"libksba\""
         },
         {
           "old": "--disable-ldap\n--enable-sqlite\n--enable-tofu",
-          "new": "--enable-gpgv-only\n--disable-ldap\n--disable-scdaemon\n--disable-dirmngr\n--disable-doc"
+          "new": "--disable-ldap\n--disable-scdaemon\n--disable-dirmngr\n--disable-gpgsm\n--disable-keyboxd\n--disable-tpm2d\n--disable-wks-tools\n--disable-gpgtar\n--disable-doc\n--disable-tests\n--disable-sqlite\n--disable-tofu\n--without-readline"
         },
         {
           "old": "\tcd $TERMUX_PREFIX/bin\n\tln -sf gpg gpg2",
           "new": "\t: # The bootstrap variant installs only the signature verifier."
+        },
+        {
+          "old": "termux_step_post_make_install() {",
+          "new": "# GnuPG 2.5 no longer provides --enable-gpgv-only. Build the explicit\n# verifier target and its static libraries; install no agents or signing tools.\ntermux_step_make() {\n\tmake -j\"$TERMUX_PKG_MAKE_PROCESSES\" -C common libcommon.a libcommonpth.a libgpgrl.a\n\tmake -j\"$TERMUX_PKG_MAKE_PROCESSES\" -C regexp libregexp.a\n\tmake -j\"$TERMUX_PKG_MAKE_PROCESSES\" -C kbx libkeybox.a\n\tmake -j\"$TERMUX_PKG_MAKE_PROCESSES\" -C g10 gpgv\n}\n\ntermux_step_make_install() {\n\tinstall -Dm700 g10/gpgv \"$TERMUX_PREFIX/bin/gpgv\"\n}\n\ntermux_step_post_make_install() {"
         }
       ]
     },

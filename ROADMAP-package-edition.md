@@ -154,7 +154,7 @@ Das Termux-Buildsystem dokumentiert anpassbare App- und Präfixvariablen in [scr
 - [x] Verwalteten Präfix auf `files/usr` außerhalb des Benutzer-Homes umstellen. Bestehende Dateien in `$HOME/.local` erhalten; Übergang/Migration und Suchreihenfolge dokumentieren und testen.
 - [x] Reproduzierbaren Stand von `termux-packages` und Toolchain festlegen; gezielte Build-Anpassungen für App-ID, Präfix und Repository-URLs versionieren. Bootstrap, Paketmetadaten, Shebangs, RPATH/RUNPATH und Konfigurationen auf denselben finalen Pfad ausrichten.
 - [x] Minimalen ARM64-Bootstrap mit Shell, APT, dpkg, Zertifikaten und Abhängigkeiten bauen; Initialisierung sowie Reparatur nach abgebrochener Installation integrieren.
-- [ ] Eigene CI für Paket- und Abhängigkeitsbuilds aufsetzen; zuerst Bootstrap und einen kleinen Katalog wie Python, Node.js/npm, Git und ripgrep prüfen, danach erweitern.
+- [x] Eigene CI für Paket- und Abhängigkeitsbuilds aufsetzen; zuerst Bootstrap und einen kleinen Katalog wie Python, Node.js/npm, Git und ripgrep prüfen, danach erweitern.
 - [ ] Eigenes signiertes APT-Repository mit Vertrauensschlüssel, HTTPS, Veröffentlichungsablauf und Aktualisierungsstrategie einrichten.
 - [ ] Schlanken `pkg`-Befehl beziehungsweise dokumentierte APT-Bedienung für Installation, Aktualisierung und Entfernung bereitstellen.
 - [ ] Gemeinsame Umgebungsdefinition für App-Server, Codex-Kommandos, Terminal und lokale stdio-MCP-Prozesse prüfen; `PATH/PREFIX/LD_LIBRARY_PATH/HOME/TMPDIR` dürfen nicht auseinanderlaufen.
@@ -181,7 +181,7 @@ absoluten Pfaden müssen gezielt für den neuen Präfix neu installiert werden.
 README und Regressionen decken Bestandserhaltung, Suchvorrang, Legacy-Fallback,
 Prozess-Neustart und Ablehnung ungeeigneter Präfixverzeichnisse ab. Der echte
 ARM64/Bionic-APK-Smoke prüft den Vertrag über Codex- und Terminal-Shell.
-Bootstrap und Paketrepository sind weiterhin die folgenden offenen Punkte.
+Bootstrap und Startkatalog-CI sind unten dokumentiert; das signierte Paketrepository bleibt offen.
 Gerätetests bleiben gemäß Nutzeranweisung offen und werden übersprungen.
 
 ### Reproduzierbarer Paket-Buildvertrag — 2026-10-04
@@ -330,6 +330,73 @@ Die geplante HTTPS-Quelle kann ohne veröffentlichten Schlüssel noch nicht
 authentifiziert werden; es gibt keinen unsicheren Fallback. Kein PR, Merge
 oder Release wurde erstellt. `main` bleibt unverändert.
 
+### Paket- und Abhängigkeits-CI mit Startkatalog — 2026-10-04
+
+Die branchgebundene Workflow-Datei `.github/workflows/packages.yml` prüft
+den normalen App-Bootstrap sowie vier getrennte Quellbuild-Gruppen:
+Python 3.14.6, Node.js LTS 24.18.0 mit npm 11.20.0, Git 2.56.0 und
+ripgrep 15.2.0. `catalog.json` ergänzt das Bootstrap-Overlay, ohne dessen
+Paketrezepte zu ändern. Python ist ohne Tk ausgelegt; Git verzichtet auf
+GUI und optionale Perl-/Python-Integrationen. npm verwendet einen festen
+Git-Commit. Alle angebotenen Pakete und ihre Ziel-Buildabhängigkeiten
+werden für ARM64/Bionic/API 29 unter dem Editionspräfix aus Quellen gebaut.
+
+Jedes Katalogartefakt enthält die Laufzeit-DEBs, Paketversionen, Hashes,
+Vorbereitung und zugehörige Quellen einschließlich Build-Abhängigkeiten.
+`all-built-packages.json` dokumentiert die Prüfung aller erzeugten DEBs,
+auch der ausschließlich beim Build benötigten Pakete. Abhängigkeitsversionen,
+Dateikollisionen, ausführbare Skript-Interpreter, ELF-Bibliotheken und
+Präfixpfade werden geprüft. Der ZIP im Katalogartefakt dient ausschließlich
+als CI-Prüfabbild; das APK enthält weiterhin den normalen minimalen Bootstrap.
+
+Erfolgreiche Quellbuild-Artefakte desselben Branches dürfen nur nach Prüfung
+der Herkunft, des erfolgreichen Quelljobs, der Prüfsummen und unveränderter
+relevanter Buildinputs wiederverwendet werden. Eine Änderung ausschließlich
+am Git-Rezept kann eine andere Gruppe nur dann unbeeinflusst lassen, wenn
+deren Paketbericht belegt, dass Git nicht gebaut wurde. Aktuelle Validatoren
+und Quellenarchivierung laufen erneut; Herkunft und Verbraucher-Commit
+stehen in `source-build.json`. Geänderte Buildinputs oder abgelaufene
+Artefakte führen zu einem frischen Quellbuild. Ein manueller Lauf mit
+`source_run_id=0` baut vollständig neu.
+
+Die ARM64/Bionic-Laufzeitjobs installieren den echten App-Bootstrap über
+den Java-Initializer. Anschließend installiert APT die lokal quellgebauten
+Katalog-DEBs mit ihrer Abhängigkeitsauflösung. Geprüft werden Python mit
+nativen Modulen, Node mit Crypto/ICU, npm/npx mit Offline-Pack-/Run-Schritten,
+Git mit Commit/fsck und ripgrep mit PCRE2. Jede Gruppe wird danach entfernt
+und über dieselben lokalen DEBs erneut installiert; Paketstatus und
+Funktionsnachweise werden als Artefakte gespeichert. Onlinequellen und
+unsichere APT-Ausnahmen werden dafür nicht benötigt.
+
+Die aufgetretenen CI-Ursachen sind behoben: vollständiger Rezeptgraph trotz
+nicht angebotener Subpakete, Quellenzuordnung synthetischer `-static`-Pakete,
+Archivierung von DEB-Namen mit Doppelpunkten, kanonische RUNPATH-Unterpfade
+innerhalb des eigenen `lib` sowie die Unterscheidung ausführbarer Skripte
+von nicht ausführbaren Bibliotheksvorlagen. Git liefert keine Hook-Vorlage
+mit fehlendem Perl-Interpreter und kein Python-abhängiges `git-p4` mehr aus.
+Der API-28-Testcontainer erhält zusätzlich `getloadavg` aus der
+AOSP-API-29-Implementierung; Grenzen und Ergebnisse werden vor den Smokes
+geprüft. Diese Kompatibilitätsbibliothek bleibt ausschließlich ein CI-Artefakt
+und wird weder im Bootstrap noch im APK installiert. Das native
+Mindestniveau bleibt API 29.
+
+Verifikation des CI-Implementierungscommits
+`be4219642e31b1899191fea1bf9ae63bc4c30d2c`:
+[Tests](https://github.com/Mcpasi/AGENTCODI/actions/runs/37241404970)
+mit allen sieben Jobs und
+[Paketkatalog mit ARM64/Bionic-Laufzeitprüfungen](https://github.com/Mcpasi/AGENTCODI/actions/runs/37241405136)
+mit allen zehn Jobs sind erfolgreich.
+Der [vollständige APK-Build](https://github.com/Mcpasi/AGENTCODI/actions/runs/37238815700)
+für `0309a3a32d858dd771f89bfed287833ba128befb` ist ebenfalls erfolgreich;
+danach änderten sich ausschließlich Katalog-Workflow und Test-Harness.
+Die abschließende Laufzeitkorrektur bildet das App-Cache-Verzeichnis für
+APT im Container ab und verwendet vorhandene, leere Quellkonfigurationen. Die CI behauptet keine unabhängige bitweise
+Reproduzierbarkeit aller Compiler-Ausgaben; Quellpins und Artefakthashes
+machen Eingaben und Ergebnisse überprüfbar.
+Gerätetests wurden gemäß Nutzeranweisung übersprungen und bleiben offen.
+Der nächste Umsetzungspunkt ist das eigene signierte APT-Repository.
+Kein PR, Merge oder Release wurde erstellt; `main` bleibt unverändert.
+
 ## 4. Build verkleinern und veröffentlichbare Edition erstellen
 
 Erst nach funktionierendem Bootstrap die bisher enthaltenen nutzerinstallierbaren Pakete entfernen.
@@ -355,7 +422,7 @@ Erfolgreicher [GitHub-Actions-Lauf](https://github.com/Mcpasi/AGENTCODI/actions/
 
 Zusätzlich deckt ein Terminal-Shell-Test den Vorrang selbst installierter Programme gegenüber früheren festen Shell-Funktionen ab.
 
-Alle Repository-Zugriffe und Änderungen erfolgen ausschließlich über den GitHub Connector. Die Community-Anbindung aus Abschnitt 2 und der minimale Paket-Bootstrap aus Abschnitt 3 sind umgesetzt. Signiertes Paketrepository, Paketkatalog, verkleinerter Build und echte Gerätetests folgen in Abschnitt 3/4. Die ursprünglichen Verifikationsangaben oben beschreiben den vorausgehenden Grundlagenabschnitt.
+Alle Repository-Zugriffe und Änderungen erfolgen ausschließlich über den GitHub Connector. Die Community-Anbindung aus Abschnitt 2, der minimale Paket-Bootstrap und die Startkatalog-CI aus Abschnitt 3 sind umgesetzt. Signiertes Paketrepository, Katalogerweiterung, verkleinerter Build und echte Gerätetests folgen in Abschnitt 3/4. Die ursprünglichen Verifikationsangaben oben beschreiben den vorausgehenden Grundlagenabschnitt.
 
 ## Verifikation der Community-Anbindung
 

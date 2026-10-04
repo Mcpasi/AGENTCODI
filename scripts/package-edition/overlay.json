@@ -26,6 +26,16 @@
       ]
     },
     {
+      "path": "scripts/build/toolchain/termux_setup_toolchain_30.sh",
+      "upstream_blob": "b2df6ffb8d12f90d2fc710cc6c49053eb63914a3",
+      "replacements": [
+        {
+          "old": "\texport CXXFLAGS=\"$CFLAGS\"",
+          "new": "\t# Keep one TLS ABI across the bootstrap and the Android 9 Bionic CI runtime.\n\t# API 29 remains the compile baseline; Clang emutls also works on API 29+.\n\tCFLAGS+=\" -femulated-tls\"\n\texport CXXFLAGS=\"$CFLAGS\""
+        }
+      ]
+    },
+    {
       "path": "packages/apt/build.sh",
       "upstream_blob": "cb404982091b5c6c22ed46569bd870a1e5d63708",
       "replacements": [

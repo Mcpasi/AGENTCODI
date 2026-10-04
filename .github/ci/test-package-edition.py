@@ -8,6 +8,7 @@ from pathlib import Path
 import subprocess
 import tempfile
 import unittest
+from unittest import mock
 
 REPO = Path(__file__).resolve().parents[2]
 SCRIPTS = REPO / "scripts/package-edition"
@@ -49,6 +50,17 @@ class PrefixTest(unittest.TestCase):
         (self.prefix / "bin/sh").symlink_to("hello")
         report = verify.audit(self.root)
         self.assertIn(verify.PREFIX.lstrip("/") + "/bin/hello", report["files"])
+
+    def test_native_tls_is_rejected(self):
+        report = "Class: ELF64\nMachine: AArch64\n0000 R_AARCH64_TLSDESC\n"
+        with mock.patch.object(verify.subprocess, "check_output", return_value=report):
+            with self.assertRaisesRegex(ValueError, "Native ELF TLS"):
+                verify.check_elf(self.prefix / "bin/fixture", "readelf")
+
+    def test_elf_without_native_tls_is_accepted(self):
+        report = "Class: ELF64\nMachine: AArch64\n0000 R_AARCH64_RELATIVE\n"
+        with mock.patch.object(verify.subprocess, "check_output", return_value=report):
+            self.assertEqual(report, verify.check_elf(self.prefix / "bin/fixture", "readelf"))
 
     def test_foreign_shebang_is_rejected(self):
         (self.prefix / "bin/hello").write_text("#!/usr/bin/python3\n")

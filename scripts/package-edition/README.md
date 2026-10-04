@@ -21,6 +21,11 @@ initializes it before starting the app-server.
   the container check records the installed NDK and compiler versions.
 - Target: aarch64, Bionic, Android API 29, Debian packages. The APK continues
   to target API 28; the compiler's minimum API is a separate setting.
+- TLS: all package C/C++ builds use `-femulated-tls`. The pinned hosted Bionic
+  image uses Android 9 (API 28), which lacks native ELF TLS; Clang switches to
+  native TLS at our API 29 compile baseline. Emutls keeps thread-local storage
+  working in this runtime and on API 29+ without lowering the compile baseline.
+  The audit rejects native AArch64 TLS relocations in every package ELF.
 - App ID: `de.agentcodi.pkg`; rootfs:
   `/data/data/de.agentcodi.pkg/files`; prefix: `files/usr`;
   home: `files/agentcodi/home`. These match WorkspaceLayout. The
@@ -89,7 +94,7 @@ The Tests workflow's Package recipe and toolchain contracts job runs
 real upstream property derivation, bootstrap template rendering, patch and
 shebang substitution, APT configuration and rejected download modes.
 Inside the locked builder it cross-compiles an ARM64 ELF executable and
-shared library with the real upstream linker flags and NDK, creates a DEB
+shared library with a thread-local variable, the real upstream linker flags and NDK, creates a DEB
 using the real Debian metadata hook twice and compares its SHA-256.
 
 This fixture checks the exported toolchain flags using an already-prepared
@@ -98,7 +103,7 @@ That operation is validated when the full bootstrap is built.
 
 `verify-prefix.py` audits extracted DEB/bootstrap roots: payload paths,
 symlinks, embedded foreign prefixes/sources, shebangs, ARM64/ELF64, the
-Bionic interpreter, RUNPATH, conffiles, control scripts and architecture.
+Bionic interpreter, RUNPATH, emulated TLS, conffiles, control scripts and architecture.
 It reports per-file SHA-256 and ELF details and never executes payload files.
 The CI evidence artifact includes the actual compiler/host inventory,
 preparation report, fixture DEB, metadata and SHA-256. This is a build

@@ -28,10 +28,12 @@ def check_runpath(value):
 
 
 def check_elf(path, readelf):
-    report = subprocess.check_output([readelf, "-h", "-l", "-d", str(path)], text=True,
+    report = subprocess.check_output([readelf, "-W", "-h", "-l", "-d", "-r", str(path)], text=True,
                                      env={**os.environ, "LC_ALL": "C"})
     if not re.search(r"Class:\s+ELF64", report) or not re.search(r"Machine:\s+AArch64", report):
         raise ValueError("Not an ARM64 ELF: " + str(path))
+    if re.search(r"R_AARCH64_TLS", report):
+        raise ValueError("Native ELF TLS violates the bootstrap emutls ABI: " + str(path))
     if re.search(r"\(RPATH\)", report):
         raise ValueError("DT_RPATH is not supported by the Android linker")
     for runpath in re.findall(r"\(RUNPATH\).*?\[([^\]]*)\]", report):

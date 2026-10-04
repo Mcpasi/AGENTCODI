@@ -37,6 +37,8 @@ export TERMUX_PKG_DEPENDS="" TERMUX_STANDALONE_TOOLCHAIN="$work/toolchain"
 termux_setup_toolchain_30
 unset -f mountpoint
 test "$TERMUX_PKG_API_LEVEL" = 29
+[[ "$CFLAGS" == *"-femulated-tls"* ]]
+[[ "$CXXFLAGS" == *"-femulated-tls"* ]]
 [[ "$LDFLAGS" == *"-Wl,-rpath=$TERMUX_PREFIX/lib"* ]]
 [[ "$LDFLAGS" == *"-Wl,--enable-new-dtags"* ]]
 root="$work/root"
@@ -46,7 +48,8 @@ cat > "$work/library.c" <<'C'
 #if __ANDROID_API__ != 29
 #error wrong API baseline
 #endif
-int prefix_fixture(void) { return 29; }
+_Thread_local int prefix_fixture_value = 29;
+int prefix_fixture(void) { return prefix_fixture_value; }
 C
 cat > "$work/main.c" <<'C'
 #include <stdio.h>
@@ -111,4 +114,4 @@ cp "$recipe_dir/agentcodi-preparation.json" "$report_dir/"
 cp "$work/control/control" "$report_dir/fixture-control.txt"
 cp "$work/control/conffiles" "$report_dir/fixture-conffiles.txt"
 printf '%s  prefix-fixture_1.0_aarch64.deb\n' "$first_digest" > "$report_dir/SHA256SUMS"
-echo "Pinned NDK ARM64/Bionic compile, RUNPATH, metadata and repeatable DEB assembly passed"
+echo "Pinned NDK ARM64/Bionic compile, emulated TLS, RUNPATH, metadata and repeatable DEB assembly passed"

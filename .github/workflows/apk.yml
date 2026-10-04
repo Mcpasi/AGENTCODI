@@ -48,6 +48,7 @@ jobs:
       - name: Restore the pinned build inputs
         env:
           GH_TOKEN: ${{ secrets.AGENTCODI_INPUTS_TOKEN }}
+          AGENTCODI_INPUTS_TAG: '0.7.6-preview.1'
         run: .github/ci/fetch-build-inputs.sh
 
       - name: Verify the build inputs

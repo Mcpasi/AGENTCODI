@@ -619,8 +619,7 @@ final class CodexTerminalSession implements AutoCloseable {
     }
 
     private static String requiredPermissionProfile(String value) {
-        if (!CodexExecutionMode.PROTECTED_PERMISSION_PROFILE_ID.equals(value)
-            && !CodexExecutionMode.COMPATIBILITY_PERMISSION_PROFILE_ID.equals(value)) {
+        if (!CodexExecutionMode.COMPATIBILITY_PERMISSION_PROFILE_ID.equals(value)) {
             throw new IllegalArgumentException("Unsupported terminal permission profile");
         }
         return value;

@@ -1059,7 +1059,7 @@ if ! rg -Fq 'CODEX_ANDROID_ARCHIVE="$("$PROJECT_ROOT/scripts/update-codex-runtim
     || ! rg -q 'refusesToHideReplacedBuildInputsBehindTheCache' \
       "$PROJECT_ROOT/tests/java/de/agentcodi/tools/CodexRuntimeUpdaterTest.java" \
     || ! rg -Fq 'verify_file_sha256 "$CODEX_ANDROID_ARCHIVE" "$CODEX_ANDROID_SHA256"' "$apk_builder" \
-    || ! rg -Fq 'https://github.com/DioNanos/codex-termux/releases/download/v' "$apk_builder"
+    || ! rg -Fq 'https://github.com/DioNanos/codex-termux/releases/download/v' "$apk_builder" \
     || rg -q 'Mcpasi/codex-termux|-agentcodi' "$PROJECT_ROOT/scripts/java/de/agentcodi/tools/CodexPackageMetadata.java"; then
   echo "Community Codex must remain SHA-256-pinned and reject the previous sandbox channel." >&2
   exit 1

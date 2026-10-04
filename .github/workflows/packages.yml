@@ -18,8 +18,10 @@ on:
 permissions:
   contents: read
   actions: read
+env:
+  CATALOG_SOURCE_RUN_ID: ${{ github.event_name == 'workflow_dispatch' && format('{0}', inputs.source_run_id) || '37224140220' }}
 concurrency:
-  group: package-catalog-${{ github.ref }}
+  group: package-catalog-${{ github.ref }}-${{ github.sha }}
   cancel-in-progress: true
 jobs:
   bootstrap:
@@ -42,7 +44,7 @@ jobs:
         id: reuse
         env:
           GH_TOKEN: ${{ github.token }}
-          SOURCE_RUN_ID: ${{ inputs.source_run_id || 0 }}
+          SOURCE_RUN_ID: ${{ env.CATALOG_SOURCE_RUN_ID }}
           GROUP: ${{ matrix.group }}
         run: |
           set -euo pipefail
@@ -53,7 +55,14 @@ jobs:
           source_sha="$(jq -r .head_sha "$RUNNER_TEMP/source-run.json")"
           git fetch --depth=1 origin "$source_sha"
           git diff --quiet "$source_sha" HEAD -- scripts/package-edition/lock.json scripts/package-edition/overlay.json scripts/package-edition/catalog.json scripts/package-edition/prepare.py scripts/package-edition/prepare-catalog.py scripts/package-edition/build-catalog.sh || exit 0
-          gh api "repos/$GITHUB_REPOSITORY/actions/runs/$SOURCE_RUN_ID/jobs?per_page=100" | jq -e --arg name "Source build ($GROUP)" 'any(.jobs[]; .name == $name and .conclusion == "success")' >/dev/null || exit 0
+          for attempt in $(seq 1 240); do
+            gh api "repos/$GITHUB_REPOSITORY/actions/runs/$SOURCE_RUN_ID/jobs?per_page=100" > "$RUNNER_TEMP/source-jobs.json"
+            state="$(jq -r --arg name "Source build ($GROUP)" '.jobs[] | select(.name == $name) | .status' "$RUNNER_TEMP/source-jobs.json")"
+            [ "$state" = in_progress ] || [ "$state" = queued ] || break
+            echo "Waiting for the identical source build ($GROUP), attempt $attempt."
+            sleep 45
+          done
+          jq -e --arg name "Source build ($GROUP)" 'any(.jobs[]; .name == $name and .conclusion == "success")' "$RUNNER_TEMP/source-jobs.json" >/dev/null || exit 0
           gh api "repos/$GITHUB_REPOSITORY/actions/runs/$SOURCE_RUN_ID/artifacts?per_page=100" | jq -e --arg name "agentcodi-catalog-$GROUP" 'any(.artifacts[]; .name == $name and .expired == false)' >/dev/null || exit 0
           echo 'reuse=true' >> "$GITHUB_OUTPUT"
           echo "source_sha=$source_sha" >> "$GITHUB_OUTPUT"
@@ -61,13 +70,13 @@ jobs:
         if: steps.reuse.outputs.reuse == 'true'
         with:
           name: agentcodi-catalog-${{ matrix.group }}
-          run-id: ${{ inputs.source_run_id }}
+          run-id: ${{ env.CATALOG_SOURCE_RUN_ID }}
           github-token: ${{ github.token }}
           path: ${{ runner.temp }}/package-catalog/input
       - name: Reaudit verified source-built DEBs with current validators
         if: steps.reuse.outputs.reuse == 'true'
         env:
-          SOURCE_RUN_ID: ${{ inputs.source_run_id }}
+          SOURCE_RUN_ID: ${{ env.CATALOG_SOURCE_RUN_ID }}
           SOURCE_SHA: ${{ steps.reuse.outputs.source_sha }}
         run: |
           set -euo pipefail

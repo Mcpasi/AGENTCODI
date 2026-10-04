@@ -99,11 +99,11 @@ class PrefixTest(unittest.TestCase):
             link.unlink()
 
     def test_runpath_accepts_final_prefix_and_local_origin(self):
-        for path in (verify.PREFIX + "/lib", "$ORIGIN", "$ORIGIN/lib"):
+        for path in (verify.PREFIX + "/lib", verify.PREFIX + "/lib/perl5/5.42.2/aarch64-android/CORE", "$ORIGIN", "$ORIGIN/lib"):
             verify.check_runpath(path)
 
     def test_runpath_rejects_empty_foreign_and_parent_entries(self):
-        for path in ("", "/usr/lib", "$ORIGIN/../lib", "$ORIGIN:", ":" + verify.PREFIX + "/lib"):
+        for path in ("", "/usr/lib", verify.PREFIX + "/lib/../bin", verify.PREFIX + "/lib/./perl5", verify.PREFIX + "/lib//perl5", verify.PREFIX + "/library/perl5", "$ORIGIN/../lib", "$ORIGIN:", ":" + verify.PREFIX + "/lib"):
             with self.assertRaisesRegex(ValueError, "ELF search path"):
                 verify.check_runpath(path)
 

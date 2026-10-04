@@ -11,7 +11,9 @@ cc="$ndk_bin/aarch64-linux-android28-clang"
 "$ndk_bin/llvm-readelf" --dyn-syms -W "$ndk_bin/../sysroot/usr/lib/aarch64-linux-android/29/libc.so" > "$output/api29-libc-symbols.txt"
 shim_version="$(sed -n 's/.*reallocarray@\{1,2\}\(LIBC[A-Z_]*\).*/\1/p' "$output/api29-libc-symbols.txt")"
 case "$shim_version" in LIBC|LIBC_Q) ;; *) echo "Unexpected reallocarray ABI: $shim_version" >&2; exit 1;; esac
-echo "API 29 reallocarray symbol version: $shim_version"
+loadavg_version="$(sed -n 's/.*getloadavg@\{1,2\}\(LIBC[A-Z_]*\).*/\1/p' "$output/api29-libc-symbols.txt")"
+test "$loadavg_version" = "$shim_version"
+echo "API 29 reallocarray/getloadavg symbol version: $shim_version"
 sed "s/CI_LIBC_VERSION/$shim_version/" /audit/.github/ci/bootstrap-api29-compat.map > "$output/bootstrap-api29-compat.map"
 "$cc" -Oz -fno-builtin-reallocarray -fPIC -shared -Wl,--no-undefined \
     -Wl,-soname,libagentcodi-ci-api29.so \

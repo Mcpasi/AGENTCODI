@@ -18,6 +18,10 @@ def check_runpath(value):
     for entry in value.split(":"):
         if entry == PREFIX + "/lib":
             continue
+        if entry.startswith(PREFIX + "/lib/"):
+            tail = PurePosixPath(entry[len(PREFIX + "/lib/"):])
+            if tail.parts and ".." not in tail.parts and os.path.normpath(entry) == entry:
+                continue
         if entry == "$ORIGIN":
             continue
         if entry.startswith("$ORIGIN/"):

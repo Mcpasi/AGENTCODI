@@ -1,5 +1,5 @@
 /*
- * Copyright (C) 2009 The Android Open Source Project
+ * Copyright (C) 2009, 2018 The Android Open Source Project
  * All rights reserved.
  *
  * Redistribution and use in source and binary forms, with or without
@@ -26,7 +26,7 @@
  * SUCH DAMAGE.
  */
 /*
- * CI only: API-29 reallocarray for the pinned API-28 Bionic reference image.
+ * CI only: API-29 reallocarray/getloadavg for the pinned API-28 Bionic reference image.
  * Adapted from AOSP malloc_common.cpp at commit
  * 290c0cb5044b643e5d6cbcb1a5b275541ca3a89e; allocator warning logging omitted.
  * This library is never installed in the bootstrap or packaged in the APK.
@@ -42,4 +42,16 @@ void* reallocarray(void* old_mem, size_t item_count, size_t item_size) {
         return NULL;
     }
     return realloc(old_mem, new_size);
+}
+
+/* AOSP getloadavg.cpp at the same commit, translated from C++ casts to C. */
+#include <sys/sysinfo.h>
+int getloadavg(double averages[], int n) {
+    if (n < 0) return -1;
+    if (n > 3) n = 3;
+    struct sysinfo si;
+    if (sysinfo(&si) == -1) return -1;
+    for (int i = 0; i < n; ++i)
+        averages[i] = (double) si.loads[i] / (double) (1 << SI_LOAD_SHIFT);
+    return n;
 }

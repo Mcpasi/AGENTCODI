@@ -5,6 +5,7 @@
 #include <stdlib.h>
 #include <string.h>
 extern void* reallocarray(void*, size_t, size_t);
+extern int getloadavg(double*, int);
 
 int main(void) {
     /* An opaque call also checks allocator errno, without compiler assumptions
@@ -26,6 +27,13 @@ int main(void) {
     if (!grown) return 4;
     for (size_t i = 0; i < 32; ++i) if (grown[i] != 0x5a) return 5;
     free(grown);
-    puts("CI reallocarray allocation, resize and overflow checks passed");
+    double averages[4] = {-1.0, -1.0, -1.0, -1.0};
+    if (getloadavg(averages, -1) != -1 || averages[0] != -1.0) return 6;
+    if (getloadavg(averages, 0) != 0 || averages[0] != -1.0) return 7;
+    if (getloadavg(averages, 4) != 3 || averages[3] != -1.0) return 8;
+    for (int i = 0; i < 3; ++i) if (!(averages[i] >= 0.0)) return 9;
+    averages[2] = -1.0;
+    if (getloadavg(averages, 2) != 2 || averages[2] != -1.0) return 10;
+    puts("CI reallocarray allocation/overflow and getloadavg count/bounds checks passed");
     return 0;
 }

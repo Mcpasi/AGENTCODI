@@ -62,9 +62,9 @@ certificates**, plus their dependency closure. The stock Termux bootstrap
 package list and second-stage installer are not the AGENTCODI initializer.
 Termux core/exec/tools/API/keyring and root/X11 repositories are unsupported
 until separately adapted. Ordinary upstream package names and license
-recipes remain unchanged. The full dependency closure, source archive/git
-pins for that closure, its binary hashes, installation/repair and package
-catalog are the next implementation steps.
+recipes remain unchanged. The minimal bootstrap below now builds and records its runtime dependency
+closure, source pins, binary hashes and installation/repair. The broader
+package catalog and its independent rebuild checks remain upcoming steps.
 
 ## Dedicated repository configuration
 
@@ -121,7 +121,8 @@ No official Termux binary dependencies, PRoot or Termux app components are used.
 
 The overlay disables APT manpage/HTML and apt-ftparchive builds, avoiding the
 DocBook/Python/X11 build dependency tree. It removes unused dpkg Perl/development subpackages and Java certificate
-generation, builds GnuPG's gpgv-only variant and disables GnuTLS's optional Unbound
+generation, explicitly builds and installs only GnuPG's gpgv target (including
+libksba headers as a build-only dependency) and disables GnuTLS's optional Unbound
 integration. dpkg's Git tag must resolve to
 b2f9600ead232a2dd3c27f8b52807a9ca5854d17. p11-kit's host ASN.1 generator is rebuilt from the checksum-pinned libtasn1
 source instead of using a floating Ubuntu package index. Source archive hashes and package recipe
@@ -131,7 +132,9 @@ and rejects foreign prefixes, architectures, shebangs and escaping links.
 Build-only packages are omitted from the installed bootstrap.
 
 The artifact agentcodi-package-bootstrap contains the DEBs, bootstrap ZIP,
-BOOTSTRAP-MANIFEST, complete package/ELF report, corresponding-source archive and SHA256SUMS. ZIP order and
+BOOTSTRAP-MANIFEST, complete package/ELF report, corresponding-source archive and SHA256SUMS.
+The separate agentcodi-package-build-debs artifact retains all source-built DEBs
+for diagnosing assembly failures; build-only DEBs are not installed in the app. ZIP order and
 timestamps are fixed. This does not claim that every package's compiler output
 is independently bit-for-bit reproducible; real rebuild comparison remains part
 of the later package-catalog CI step.

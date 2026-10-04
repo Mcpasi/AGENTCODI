@@ -23,6 +23,8 @@ on:
       - 'tests/**'
       - '.github/workflows/apk.yml'
       - '.github/workflows/bootstrap.yml'
+      - '.github/ci/bootstrap-*'
+      - '.github/ci/BootstrapInstall.java'
       - '.github/ci/Dockerfile'
       - '.github/ci/*build-inputs*'
       - '.github/ci/container-preflight.sh'

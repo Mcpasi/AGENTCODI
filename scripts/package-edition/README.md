@@ -229,8 +229,11 @@ install the catalog without online repositories or authentication exceptions.
 They execute Python native modules, offline ensurepip/user/venv installs, Node crypto/ICU, offline npm pack/run/global-bin/npx checks,
 Git commit/fsck and ripgrep PCRE2, remove the catalog roots and reinstall them.
 Installed versions and command results are uploaded as runtime evidence.
-Physical-device tests remain skipped. The signed publication workflow below
-adds repository authentication and lifecycle checks.
+Physical-device tests remain skipped. The full APK smoke separately exercises the
+same PATH/PREFIX/LD_LIBRARY_PATH/HOME/TMPDIR contract through the real
+Community app-server, Codex and terminal shells, and a local stdio MCP server.
+The signed publication workflow below adds repository authentication and
+lifecycle checks.
 
 Pushes affecting package sources or CI start the workflow automatically on
 Mcpasi/package-edition; workflow_dispatch is also available on that branch.

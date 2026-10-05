@@ -15,6 +15,7 @@ ASCII-armored private signing key. For an encrypted key, also set
 environment-scoped secrets are available to the signing job.
 
 The build exports a binary, scoped keyring and creates the
-`agentcodi-package-keyring` DEB. Including this trust package in a fresh APK
-bootstrap remains part of the repository integration; its availability in the
-online repository alone cannot establish first-install trust.
+`agentcodi-package-keyring` DEB. Fresh APK
+bootstraps include this dpkg-owned trust package. Older configured prefixes
+missing the key receive only the manifest-verified public file on APK update;
+install the keyring package through authenticated APT to register ownership.

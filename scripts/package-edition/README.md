@@ -74,7 +74,7 @@ separate step.
 
 ## Dedicated repository configuration
 
-Both `repo.json` and the APT recipe use the planned HTTPS endpoint:
+Both `repo.json` and the APT recipe use the dedicated HTTPS endpoint:
 
 ```text
 https://mcpasi.github.io/AGENTCODI/apt/package-edition
@@ -84,9 +84,8 @@ stable main
 Only this edition source is enabled. APT uses `arch=aarch64` and
 `signed-by=$PREFIX/etc/apt/keyrings/agentcodi-package.gpg`; its upstream
 Termux keyring dependency is removed. No upstream trusted key, insecure
-APT flag or official Termux binary mirror is substituted. The endpoint and
-public key are **not published yet**. Until the signed-repository roadmap
-step provisions them, updates cannot authenticate this source.
+APT flag or official Termux binary mirror is substituted. The public key is pinned below and installed by the bootstrap. Publication
+and its CI/HTTPS evidence are recorded in ROADMAP-package-edition.md.
 
 ## Verification and updates
 
@@ -174,7 +173,7 @@ A ready prefix is never re-extracted or reset on app restart or APK update:
 package versions, APT/dpkg state and user modifications persist. HOME,
 CODEX_HOME and the legacy HOME/.local prefix are preserved. Do not remove the
 ready marker to upgrade a working installation. Bootstrap upgrades need an
-explicit package update through the future signed repository.
+explicit package update through the signed repository.
 
 The hosted ARM64/Bionic smoke installs the real ZIP with the Java initializer,
 configures it with the actual Android dpkg, checks shell/APT/gpgv/certificates and APT's registered version against dpkg,
@@ -191,9 +190,8 @@ and preloaded only in the smoke container. It is not part of the bootstrap or AP
 real Android 10+ provides both functions itself. Package builds remain API 29.
 Real Android hardware tests remain skipped.
 
-The signed repository, trust key, pkg frontend and publicly published catalog are
-separate roadmap steps. apt update cannot authenticate the planned source yet.
-No insecure repository fallback is configured.
+The scoped trust key and signed repository jobs are described below. The pkg
+frontend remains a separate roadmap step. No insecure repository fallback is configured.
 
 ## Source-built catalog CI
 
@@ -206,7 +204,7 @@ the same recipe tree. The separate catalog.json overlay makes Python and Git
 headless (no Tk, Git GUI or optional Perl/Python integrations) and pins npm's Git tag to
 d12b9434dd010b5fb7044c3cc149cdda317813f8. Bootstrap recipes are unaffected.
 
-Pushes can reuse a successful same-branch source job from run 37238397922 if
+Pushes can reuse a successful same-branch source job from run 37325041330 if
 its artifact is still available and its source-build inputs match. A change
 limited to Git's recipe can be ignored for another group only when that
 producer's audited package list proves Git was never built. SHA256SUMS,
@@ -229,8 +227,8 @@ install the catalog without online repositories or authentication exceptions.
 They execute Python native modules, Node crypto/ICU, offline npm pack/run,
 Git commit/fsck and ripgrep PCRE2, remove the catalog roots and reinstall them.
 Installed versions and command results are uploaded as runtime evidence.
-Physical-device tests remain skipped; online signed publication is a separate
-roadmap step.
+Physical-device tests remain skipped. The signed publication workflow below
+adds repository authentication and lifecycle checks.
 
 Pushes affecting package sources or CI start the workflow automatically on
 Mcpasi/package-edition; workflow_dispatch is also available on that branch.
@@ -240,90 +238,141 @@ and a Bionic lifecycle smoke before publication. These jobs do not assert
 bit-for-bit identity between independent compiler builds; the fixed build
 contract and artifact hashes make inputs and results inspectable.
 
-## Signed APT repository jobs (prepared, not commissioned)
+## Signed APT repository and trust
 
-The `Package catalog` workflow now offers `repository_action` with `none`
-(default), `build` and `publish`. Normal pushes still build and smoke-test
-the catalog without signing or publishing. A requested repository job starts
-only after the bootstrap, all four catalog builds and all four ARM64/Bionic
-catalog lifecycle jobs have passed in that same run. It calls
-`.github/workflows/apt-repository.yml` exclusively on
-`Mcpasi/package-edition`; no branch or PR is created.
+Commissioning status (2026-10-05): the [catalog run](https://github.com/Mcpasi/AGENTCODI/actions/runs/37330895026)
+passes all thirteen signing/build/runtime jobs, including real ARM64/Bionic
+HTTPS installation, removal, reinstallation, upgrade and rejection tests.
+Its [signed site artifact](https://github.com/Mcpasi/AGENTCODI/actions/runs/37330895026/artifacts/11355100942)
+contains 67 packages and complete sources in 587,756,601 bytes.
+The [current host/source tests](https://github.com/Mcpasi/AGENTCODI/actions/runs/37330894503)
+and [full APK build](https://github.com/Mcpasi/AGENTCODI/actions/runs/37328844235)
+also pass.
 
-Provisioning before the first repository job:
+Publication is blocked before runner allocation by this exact GitHub annotation:
+`Branch "Mcpasi/package-edition" is not allowed to deploy to github-pages due to environment protection rules.`
+The [read-only diagnostic](https://github.com/Mcpasi/AGENTCODI/actions/runs/37333246479)
+records it. In repository **Settings → Environments → github-pages →
+Deployment branches and tags**, allow the branch `Mcpasi/package-edition`.
+Pages must use **GitHub Actions**. Then rerun only the failed publication job
+in catalog run 37330895026; rebuilding the passed jobs is unnecessary.
+The public HTTPS commissioning check and signed-repository roadmap checkbox
+remain pending until that deployment succeeds.
 
-1. Commit the armored public key at
-   `scripts/package-edition/keys/agentcodi-package.asc`.
-2. Set `signing_fingerprint` in `repository.json` to its full uppercase
-   primary-key fingerprint and put the same value in `trusted_fingerprints`.
-   Those fields deliberately have no placeholder trust key.
-3. Add repository Actions secret `AGENTCODI_APT_SIGNING_KEY`, containing
-   exactly the active armored private key. For an encrypted private key, add
-   `AGENTCODI_APT_SIGNING_PASSPHRASE`.
-4. For publication, configure GitHub Pages with **GitHub Actions** as its
-   source and allow this branch in the `github-pages` environment. The Pages
-   job needs `pages: write` and `id-token: write`. No `gh-pages` branch is
-   used.
+The pinned `lock.json` retains the original producer's source-build contract,
+including its historical `publication_status=planned` value, so audited
+producer inputs stay comparable. Current publication is tracked by successful
+repository workflow runs and the roadmap.
 
-Run the existing **Package catalog** workflow on `Mcpasi/package-edition`.
-Set `repository_action=build` to retain a signed candidate for review, or
-`repository_action=publish` to deploy it after verification. The
-`source_run_id` input can reuse a successfully checked same-branch source
-run under the existing recipe/provenance checks; `0` builds all sources
-fresh. For example, run `37241405136` contains the already validated catalog,
-subject to artifact availability and unchanged inputs.
+The edition's committed public key is `keys/agentcodi-package.asc`, with
+primary fingerprint `2768291D12B6C3D22CFBAF9EEC79CBDF7E93DC89`.
+`repository.json` pins exact public trust anchors, the active signer,
+keyring version, seven-day Release validity and a 950 MB site budget.
+The bootstrap includes the locally generated `agentcodi-package-keyring`
+DEB, whose scoped binary key is owned by dpkg at
+`$PREFIX/etc/apt/keyrings/agentcodi-package.gpg`.
+No global trust anchor or insecure APT option is added.
 
-The snapshot builder verifies each artifact's lock, catalog configuration,
-DEB metadata/hashes and corresponding-source archive. It combines the
-bootstrap and catalog, checks dependency versions, and reruns the complete
-prefix/ELF/interpreter/file-collision audit on the chosen union. Independently
-rebuilt shared dependencies must have identical control metadata. Their
-different input hashes are recorded; bootstrap bytes take precedence,
-followed by sorted catalog groups. This is not a bitwise-reproducibility claim.
+An older configured prefix missing this key receives only that public file
+from the APK ZIP, checked against its packaged size and SHA-256 manifest.
+Existing keys and package/user data are preserved. An interrupted or corrupt
+key extraction publishes no partial key and can be retried. For earlier
+installations, `apt install agentcodi-package-keyring` registers ownership
+with dpkg; fresh installations already own it.
 
-The output has a content-addressed `pool/main`, corresponding-source archives,
-a signed payload manifest, `Packages`/`Packages.gz`, index `by-hash`,
-`Release`, `InRelease` and `Release.gpg`. Both signatures and every signed
-payload hash are verified before upload. A host APT check authenticates the
-indexes, resolves and downloads the ARM64 runtime closure without executing
-it, and confirms that an untrusted key is rejected. Private key material lives
-only in an isolated temporary GnuPG home, which is removed on exit; it is never
-included in an artifact.
+Repository Actions secrets `AGENTCODI_APT_SIGNING_KEY` and
+`AGENTCODI_APT_SIGNING_PASSPHRASE` hold private material. Jobs import
+through stdin into a temporary private GnuPG home and remove it on exit.
+They verify the configured primary fingerprint and signing capability before
+dependent builds. Neither secret is included in artifacts.
 
-The job also creates an `agentcodi-package-keyring` DEB with the public,
-scoped trust anchors. **Fresh APK bootstrap integration of that trust package
-is still pending.** An online keyring DEB cannot bootstrap its own trust.
-The scripts and jobs are prepared here; their first CI run, authenticated
-ARM64 repository lifecycle test, APK integration and HTTPS commissioning
-remain outstanding. The signed-repository roadmap checkbox stays open.
+The branch-only `Package catalog` workflow builds and runs all bootstrap
+and catalog checks before calling `apt-repository.yml`. Edition pushes
+affecting package scripts, repository CI or its workflow build and publish
+a signed snapshot. A manual `repository_action=none` keeps the
+catalog-only path; `build` retains a signed candidate and tests its runtime;
+`publish` also deploys it. No branch, PR, merge or release is created.
 
-For an update, set `repository_previous_run_id` to the last successfully
-**published** repository workflow run. Use `0` only before the first
-publication. The job checks that run's branch, repository and successful Pages
-job, downloads its retained `agentcodi-apt-repository` artifact, verifies its
-signatures and signed payload hashes, and preserves its old pool, source
-archives and index hashes. Downgrades and changing published bytes without a
-package-version bump are rejected. If that artifact has expired (retention:
-90 days), restore a verified complete previous snapshot before proceeding;
-do not silently replace it with a new first-publication run.
+Each artifact's lock, catalog configuration, metadata, DEB hashes and source
+archive are verified. Shared dependencies must have identical runtime metadata (Installed-Size can differ);
+independent rebuild hashes are recorded, and bootstrap bytes take precedence
+followed by sorted catalog groups. The combined runtime closure is rechecked
+for dependency versions, prefix/ELF/interpreter contracts and file collisions.
+This does not assert bitwise identity between independent compiler builds.
 
-Release metadata expires after seven days by default. Refresh and publish
-before expiry even if package versions are unchanged; clients retain their
-normal APT expiry/signature protections. Key transitions require the old key
-and new key to overlap in the public keyring, a bumped `keyring_version`,
-and distribution under the still-trusted signer before switching the active
-signing key. The configuration supports multiple exact public trust anchors;
-transition validation remains part of commissioning.
+Snapshots contain an immutable, content-addressed `pool/main`,
+complete corresponding sources, a signed payload manifest, `Packages`,
+`Packages.gz`, index `by-hash`, `Release`, `InRelease` and
+`Release.gpg`. Both signatures and all signed payload hashes are verified
+before upload. Source manifests preserve every original tar member, file mode,
+timestamp, link and recipe; identical file contents across groups share compressed
+SHA-256 objects. This keeps complete runtime and build-dependency sources inside
+the Pages budget. The original input archive hashes remain in signed provenance.
+Source storage is also preserved across publications.
 
-The deployment artifact is the complete AGENTCODI Pages site containing
-`apt/package-edition`. Publishing it replaces that site's previous contents.
-If other Pages content exists, incorporate it into the artifact before
-enabling publication. The configured snapshot size budget is 950 MB, below
-the one-GB Pages limit. The build fails instead of omitting sources or old
-packages to fit. Growing past this budget requires an explicit hosting and
-retention plan.
+Use a checkout of these scripts and the committed public key to reconstruct
+a group's complete authenticated source archive:
 
-Job entrypoints can also be run by a trusted build runner:
+```sh
+python3 scripts/package-edition/download-sources.py \
+  --group python --output python-corresponding-sources.tar.xz
+```
+
+Groups are `bootstrap`, `python`, `node`, `git`, `ripgrep` and `keyring`.
+The downloader verifies both Release signatures with the pinned public key,
+then the signed manifest and each compressed and uncompressed source hash.
+It writes an archive without extracting its contents or overwriting an output.
+Round-trip tests check data, rights and links and reject corrupted objects.
+The reconstructed logical archive is complete; its compressed bytes need not
+equal the original input archive.
+
+Host APT authenticates and downloads the runtime closure
+without executing ARM64 binaries and rejects a missing trust key.
+
+The separate ARM64/Bionic repository job installs the real bootstrap through
+the Java initializer. It authenticates a local HTTPS test server with an
+explicit fixture CA and the pinned APT signing key, installs/removes/reinstalls
+Python, Node/npm, Git and ripgrep from signed indexes, and checks versions.
+Separate unpublished signed fixtures test installation, upgrade and removal
+and rejection of invalid signatures, index hashes, DEB hashes, missing trust
+and expired metadata. This uses actual Android APT/dpkg and native package
+execution; physical-device tests remain skipped.
+
+Pages deployment follows these checks and a successful current Tests workflow.
+The branch-scoped `APT publication diagnostics` workflow reads failed
+publication check annotations when GitHub rejects the job before allocating
+a runner, so no job log is available. It has read-only permissions and
+accepts the affected catalog run ID.
+
+GitHub Pages must use **GitHub Actions** and the `github-pages` environment
+must allow this branch. The deploy job has `pages: write` and
+`id-token: write`. Its complete site artifact contains `apt/package-edition`
+and replaces the existing AGENTCODI Pages site; incorporate any other site
+content before enabling publication. No `gh-pages` branch is used.
+
+After deployment, the public HTTPS endpoint is checked against the committed
+key, Release expiry, current run/commit, metadata/by-hash checksums, offered
+root DEBs and corresponding-source availability. The
+`agentcodi-apt-repository` artifact retains the exact site for 90 days.
+
+For updates, `repository_previous_run_id=0` discovers the last successful
+edition publication; a positive value selects that published run explicitly.
+Branch/repository identity and its successful Pages job are checked. The
+previous artifact's signatures and signed payload hashes are verified before
+preserving old pool, sources and index hashes. Downgrades and changing published
+bytes without a version bump are rejected. If the artifact expires, restore a
+verified complete previous snapshot before proceeding.
+
+Refresh and publish before the seven-day Release expiry even when package
+versions are unchanged. The manual workflow is the renewal mechanism on this
+branch. Signing-key transitions require overlapping old/new public anchors,
+a bumped `keyring_version` distributed under the still-trusted signer,
+and only then switching the active signing key. Old installed keyrings remain
+valid during that transition. Growth beyond the 950 MB budget fails the build
+rather than deleting required sources or client-visible packages; review
+retention and hosting explicitly when that limit is reached.
+
+Trusted runner entrypoints:
 
 ```sh
 bash scripts/package-edition/build-apt-repository.sh \
@@ -334,8 +383,7 @@ python3 scripts/package-edition/apt-repository.py verify \
   --keyring site/apt/package-edition/keys/agentcodi-package.gpg
 ```
 
-`repository-input` must contain `agentcodi-package-bootstrap` and the four
-`agentcodi-catalog-<group>` artifact directories. The optional previous
-snapshot argument is omitted for a first build. These commands expect host
-Python 3.11+, GnuPG/gpgv, dpkg/dpkg-deb, readelf and APT, as supplied by the
-Ubuntu Actions runner. Physical-device tests remain skipped.
+`repository-input` contains `agentcodi-package-bootstrap` and the four
+`agentcodi-catalog-<group>` artifact directories. Add a third
+previous-snapshot argument for an update. Host jobs require Python 3.11+,
+GnuPG/gpgv, dpkg/dpkg-deb, readelf and APT.

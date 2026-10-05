@@ -12,6 +12,14 @@ import tarfile
 HERE = Path(__file__).resolve().parent
 
 
+def edition_files():
+    result = {path.name: path for path in HERE.iterdir() if path.is_file()}
+    result.update({path.relative_to(HERE).as_posix(): path
+                   for path in (HERE / "keys").rglob("*") if path.is_file()})
+    result["LICENSE"] = HERE.parents[1] / "LICENSE"
+    return result
+
+
 def collect(recipes, build, output):
     report = json.loads((output / "bootstrap-report.json").read_text())
     parents = {}
@@ -26,13 +34,12 @@ def collect(recipes, build, output):
     names = set(report["packages"])
     if report.get("catalog"):
         names.update(json.loads((output / "all-built-packages.json").read_text()))
-    selected = sorted({parents[name].name for name in names})
+    selected = sorted({parents[name].name for name in names if name != "agentcodi-package-keyring"})
     materials = []
     git_sources = []
     with tarfile.open(output / "bootstrap-corresponding-sources.tar.xz", "w:xz") as archive:
-        for path in sorted(HERE.iterdir()):
-            if path.is_file():
-                archive.add(path, arcname="agentcodi/" + path.name)
+        for name, path in sorted(edition_files().items()):
+            archive.add(path, arcname="agentcodi/" + name)
         for name in ("build-package.sh", "repo.json", "agentcodi.env",
                      "agentcodi-build-package.sh", "agentcodi-preparation.json"):
             archive.add(recipes / name, arcname="termux-packages/" + name)
@@ -78,13 +85,15 @@ def reuse(source, output):
     """Repackage unchanged binary sources with the current assembly/audit scripts."""
     previous = json.loads((source / "bootstrap-report.json").read_text())
     current = json.loads((output / "bootstrap-report.json").read_text())
-    if previous["lock"] != current["lock"] or set(previous["packages"]) != set(current["packages"]):
+    previous_upstream = set(previous["packages"]) - {"agentcodi-package-keyring"}
+    current_upstream = set(current["packages"]) - {"agentcodi-package-keyring"}
+    if previous["lock"] != current["lock"] or previous_upstream != current_upstream:
         raise ValueError("Reused package selection or lock differs; rebuild from source")
-    for name in current["packages"]:
+    for name in current_upstream:
         if previous["packages"][name]["deb_sha256"] != current["packages"][name]["deb_sha256"]:
             raise ValueError("Reused DEB checksum differs: " + name)
     archive_name = previous["corresponding_sources"]["archive"]
-    originals = {path.name: path for path in HERE.iterdir() if path.is_file()}
+    originals = edition_files()
     retained = set()
     with tarfile.open(source / archive_name, "r:xz") as old, tarfile.open(output / archive_name, "w:xz") as new:
         for member in old:

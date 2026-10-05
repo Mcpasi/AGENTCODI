@@ -7,14 +7,33 @@ export PATH="$prefix/bin:/system/bin" LD_LIBRARY_PATH="$prefix/lib" TMPDIR="$pre
 mkdir -p "$HOME" "$TMPDIR" /audit/evidence /audit/apt-empty/sources.list.d
 : > /audit/apt-empty/sources.list
 apt_local() {
+    if [ "${AGENTCODI_CATALOG_REPOSITORY:-0}" = 1 ]; then
+        apt-get -o Dir::Etc::sourcelist=/audit/repository.sources.list \
+            -o Dir::Etc::sourceparts=/audit/apt-empty/sources.list.d \
+            -o Acquire::https::CaInfo=/audit/fixture-ca.pem "$@"
+        return
+    fi
     apt-get -o Dir::Etc::sourcelist=/audit/apt-empty/sources.list \
         -o Dir::Etc::sourceparts=/audit/apt-empty/sources.list.d "$@"
 }
 /audit/ci-compat/bootstrap-api29-compat-test
 dpkg --configure -a
 # Local DEBs require no online source or repository authentication exception.
-apt_local \
-    --no-install-recommends -y install /audit/catalog/*.deb
+install_catalog() {
+    if [ "${AGENTCODI_CATALOG_REPOSITORY:-0}" = 1 ]; then
+        apt_local --no-install-recommends -y install $roots
+    else
+        apt_local --no-install-recommends -y install /audit/catalog/*.deb
+    fi
+}
+case "$1" in
+python) roots=python;;
+node) roots="npm nodejs-lts";;
+git) roots=git;;
+ripgrep) roots=ripgrep;;
+*) exit 64;;
+esac
+install_catalog
 dpkg --audit
 group="$1"
 cd "$HOME"
@@ -85,8 +104,7 @@ apt_local -y remove $roots
 for package in $roots; do
     test "$(dpkg-query -W -f='${db:Status-Status}' "$package" 2>/dev/null || true)" != installed
 done
-apt_local \
-    --no-install-recommends -y install /audit/catalog/*.deb
+install_catalog
 dpkg --audit
 for package in $roots; do
     test "$(dpkg-query -W -f='${db:Status-Status}' "$package")" = installed

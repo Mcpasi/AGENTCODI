@@ -206,6 +206,16 @@ def audit_combined(packages, roots, output):
         assembly.select = original_select
 
 
+def sign_release(release_dir, fingerprint):
+    for target, mode in (("InRelease", "--clearsign"), ("Release.gpg", "--detach-sign")):
+        command = ["gpg", "--batch", "--no-tty", "--pinentry-mode", "loopback",
+                   "--passphrase-fd", "0", "--digest-algo", "SHA256", "--armor",
+                   "--local-user", fingerprint,
+                   "--output", str(release_dir / target), mode, str(release_dir / "Release")]
+        subprocess.run(command, check=True,
+                       input=(os.environ.get("AGENTCODI_APT_SIGNING_PASSPHRASE", "") + "\n").encode())
+
+
 def build(artifacts, output, previous):
     settings, lock = config()
     if output.exists():
@@ -322,13 +332,7 @@ def build(artifacts, output, previous):
                         + " " + path.relative_to(release_dir).as_posix())
     release = release_dir / "Release"
     release.write_text("\n".join(metadata) + "\n")
-    for target, mode in (("InRelease", "--clearsign"), ("Release.gpg", "--detach-sign")):
-        command = ["gpg", "--batch", "--no-tty", "--pinentry-mode", "loopback",
-                   "--passphrase-fd", "0", "--digest-algo", "SHA256", "--armor",
-                   "--local-user", settings["signing_fingerprint"],
-                   "--output", str(release_dir / target), mode, str(release)]
-        subprocess.run(command, check=True,
-                       input=(os.environ.get("AGENTCODI_APT_SIGNING_PASSPHRASE", "") + "\n").encode())
+    sign_release(release_dir, settings["signing_fingerprint"])
     verify(output, keyring)
     size = sum(path.stat().st_size for path in output.rglob("*") if path.is_file())
     if size > settings["max_site_bytes"]:

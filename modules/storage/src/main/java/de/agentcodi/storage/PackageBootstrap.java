@@ -31,6 +31,7 @@ import java.util.zip.ZipInputStream;
 public final class PackageBootstrap {
     private static final String UNPACKED = ".agentcodi-bootstrap-unpacked";
     private static final String READY = ".agentcodi-bootstrap-ready";
+    private static final String TRUST_KEY = "etc/apt/keyrings/agentcodi-package.gpg";
     private static final long MAX_TOTAL = 256L * 1024 * 1024;
 
     public interface Configurator {
@@ -60,6 +61,7 @@ public final class PackageBootstrap {
                 Files.move(backup, target, StandardCopyOption.ATOMIC_MOVE);
             }
             if (marker(target, READY)) {
+                installMissingTrustKey(target, archive, manifest);
                 removeTree(stage);
                 removeTree(backup);
                 return;
@@ -85,6 +87,69 @@ public final class PackageBootstrap {
             writeMarker(target.resolve(READY));
             removeTree(backup);
             removeTree(stage);
+        }
+    }
+
+    /** Add first trust to an earlier configured prefix without replacing its data. */
+    private static void installMissingTrustKey(Path target, InputStream archive, InputStream manifest)
+        throws IOException {
+        Path key = target.resolve(TRUST_KEY);
+        requireRegularOrAbsent(key);
+        if (Files.exists(key, LinkOption.NOFOLLOW_LINKS)) {
+            return;
+        }
+        Entry entry = parse(manifest).get(TRUST_KEY);
+        // Older APK assets and test fixtures can legitimately predate repository trust.
+        if (entry == null) {
+            return;
+        }
+        if (entry.link != null || entry.executable || entry.size > 1024 * 1024) {
+            throw new IOException("Invalid bootstrap trust key");
+        }
+        destination(target, TRUST_KEY);
+        Path temporary = Files.createTempFile(key.getParent(), ".agentcodi-keyring-", ".tmp");
+        try {
+            boolean found = false;
+            MessageDigest digest = sha256();
+            long size = 0;
+            try (ZipInputStream zip = new ZipInputStream(archive);
+                 OutputStream output = Files.newOutputStream(temporary,
+                     StandardOpenOption.WRITE, StandardOpenOption.TRUNCATE_EXISTING)) {
+                ZipEntry zipped;
+                while ((zipped = zip.getNextEntry()) != null) {
+                    if (!TRUST_KEY.equals(zipped.getName())) {
+                        continue;
+                    }
+                    if (zipped.isDirectory() || found) {
+                        throw new IOException("Invalid bootstrap trust ZIP entry");
+                    }
+                    found = true;
+                    byte[] buffer = new byte[8192];
+                    int count;
+                    while ((count = zip.read(buffer)) != -1) {
+                        size += count;
+                        if (size > entry.size) {
+                            throw new IOException("Bootstrap trust key exceeds manifest size");
+                        }
+                        output.write(buffer, 0, count);
+                        digest.update(buffer, 0, count);
+                    }
+                }
+            }
+            if (!found || size != entry.size || !hex(digest.digest()).equals(entry.digest)) {
+                throw new IOException("Bootstrap trust key checksum mismatch");
+            }
+            privateMode(temporary, false);
+            try (FileChannel file = FileChannel.open(temporary, StandardOpenOption.WRITE)) {
+                file.force(true);
+            }
+            requireRegularOrAbsent(key);
+            if (Files.exists(key, LinkOption.NOFOLLOW_LINKS)) {
+                throw new IOException("Existing repository trust key must be preserved");
+            }
+            Files.move(temporary, key, StandardCopyOption.ATOMIC_MOVE);
+        } finally {
+            Files.deleteIfExists(temporary);
         }
     }
 

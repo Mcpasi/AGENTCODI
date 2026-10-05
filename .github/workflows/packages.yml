@@ -5,6 +5,11 @@ on:
     paths:
       - 'scripts/package-edition/**'
       - '.github/workflows/packages.yml'
+      - '.github/workflows/apt-repository.yml'
+      - '.github/ci/apt-*'
+      - '.github/ci/create-apt-fixtures.py'
+      - '.github/ci/check-published-apt.py'
+      - '.github/ci/serve-apt-repository.py'
       - '.github/workflows/bootstrap.yml'
       - '.github/ci/catalog-*'
       - '.github/ci/bootstrap-*'
@@ -21,7 +26,7 @@ on:
         options: [none, build, publish]
         default: none
       repository_previous_run_id:
-        description: 'Last successful published snapshot run; zero only for first publication'
+        description: 'Previous publication run; zero automatically selects the last successful publication'
         type: number
         default: 0
 permissions:
@@ -46,12 +51,14 @@ jobs:
           AGENTCODI_APT_SIGNING_PASSPHRASE: ${{ secrets.AGENTCODI_APT_SIGNING_PASSPHRASE }}
         run: bash scripts/package-edition/check-apt-signing.sh
   bootstrap:
+    needs: signing-prerequisites
     if: github.ref == 'refs/heads/Mcpasi/package-edition'
     uses: ./.github/workflows/bootstrap.yml
     with:
       source_run_id: 37215181811
   build:
     name: Source build (${{ matrix.group }})
+    needs: signing-prerequisites
     if: github.ref == 'refs/heads/Mcpasi/package-edition'
     runs-on: ubuntu-latest
     timeout-minutes: 300
@@ -243,8 +250,8 @@ jobs:
           if-no-files-found: warn
   repository:
     name: Signed repository
-    if: github.ref == 'refs/heads/Mcpasi/package-edition' && github.event_name == 'workflow_dispatch' && inputs.repository_action != 'none'
-    needs: [bootstrap, build, runtime]
+    if: github.ref == 'refs/heads/Mcpasi/package-edition' && (github.event_name == 'push' || inputs.repository_action != 'none')
+    needs: [signing-prerequisites, bootstrap, build, runtime]
     permissions:
       contents: read
       actions: read
@@ -252,8 +259,8 @@ jobs:
       id-token: write
     uses: ./.github/workflows/apt-repository.yml
     with:
-      publish: ${{ inputs.repository_action == 'publish' }}
-      previous_run_id: ${{ inputs.repository_previous_run_id }}
+      publish: ${{ github.event_name == 'push' || inputs.repository_action == 'publish' }}
+      previous_run_id: ${{ inputs.repository_previous_run_id || 0 }}
     secrets:
       AGENTCODI_APT_SIGNING_KEY: ${{ secrets.AGENTCODI_APT_SIGNING_KEY }}
       AGENTCODI_APT_SIGNING_PASSPHRASE: ${{ secrets.AGENTCODI_APT_SIGNING_PASSPHRASE }}

@@ -34,3 +34,7 @@ unset AGENTCODI_APT_SIGNING_KEY
 arguments=(build --artifacts "$1" --output "$2")
 if [ "$#" -eq 3 ]; then arguments+=(--previous "$3"); fi
 python3 "$script_root/apt-repository.py" "${arguments[@]}"
+if [ -n "${AGENTCODI_APT_CI_FIXTURES_DIR:-}" ]; then
+  python3 "$script_root/../../.github/ci/create-apt-fixtures.py" \
+    --output "$AGENTCODI_APT_CI_FIXTURES_DIR"
+fi

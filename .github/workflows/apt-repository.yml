@@ -6,7 +6,7 @@ on:
         type: boolean
         default: false
       previous_run_id:
-        description: 'Last successfully published repository run; zero only for the first publication'
+        description: 'Previous published run; zero discovers the latest successful edition publication'
         type: number
         default: 0
     secrets:
@@ -55,33 +55,50 @@ jobs:
           pattern: agentcodi-catalog-*
           path: repository-input
           merge-multiple: false
-      - name: Validate provenance of the previous published snapshot
-        if: inputs.previous_run_id > 0
+      - name: Select and validate the last published snapshot
+        id: previous
         env:
           GH_TOKEN: ${{ github.token }}
-          PREVIOUS_RUN_ID: ${{ inputs.previous_run_id }}
+          REQUESTED_RUN_ID: ${{ inputs.previous_run_id }}
         run: |
           set -euo pipefail
-          gh api "repos/$GITHUB_REPOSITORY/actions/runs/$PREVIOUS_RUN_ID" > "$RUNNER_TEMP/previous-repository-run.json"
-          jq -e --arg repo "$GITHUB_REPOSITORY" '
-            .head_branch == "Mcpasi/package-edition" and .head_repository.full_name == $repo
-            and (.event == "push" or .event == "workflow_dispatch") and .conclusion == "success"
-          ' "$RUNNER_TEMP/previous-repository-run.json" >/dev/null
-          gh api --paginate "repos/$GITHUB_REPOSITORY/actions/runs/$PREVIOUS_RUN_ID/jobs?per_page=100" \
-            --jq '.jobs[] | select(.name | endswith("Publish signed APT repository")) | .conclusion' \
-            | rg -x success
+          selected="$REQUESTED_RUN_ID"
+          if [ "$selected" -eq 0 ]; then
+            gh api --paginate "repos/$GITHUB_REPOSITORY/actions/runs?branch=Mcpasi%2Fpackage-edition&status=success&per_page=100" \
+              --jq '.workflow_runs[].id' > "$RUNNER_TEMP/prior-runs.txt"
+            while read -r candidate; do
+              if gh api --paginate "repos/$GITHUB_REPOSITORY/actions/runs/$candidate/jobs?per_page=100" \
+                --jq '.jobs[] | select(.name | endswith("Publish signed APT repository")) | .conclusion' \
+                | awk '$0 == "success" { found=1 } END { exit !found }' >/dev/null; then
+                selected="$candidate"
+                break
+              fi
+            done < "$RUNNER_TEMP/prior-runs.txt"
+          fi
+          if [ "$selected" -gt 0 ]; then
+            gh api "repos/$GITHUB_REPOSITORY/actions/runs/$selected" > "$RUNNER_TEMP/previous-repository-run.json"
+            jq -e --arg repo "$GITHUB_REPOSITORY" '
+              .head_branch == "Mcpasi/package-edition" and .head_repository.full_name == $repo
+              and (.event == "push" or .event == "workflow_dispatch") and .conclusion == "success"
+            ' "$RUNNER_TEMP/previous-repository-run.json" >/dev/null
+            gh api --paginate "repos/$GITHUB_REPOSITORY/actions/runs/$selected/jobs?per_page=100" \
+              --jq '.jobs[] | select(.name | endswith("Publish signed APT repository")) | .conclusion' \
+              | awk '$0 == "success" { found=1 } END { exit !found }'
+          fi
+          echo "run_id=$selected" >> "$GITHUB_OUTPUT"
       - uses: actions/download-artifact@v4
-        if: inputs.previous_run_id > 0
+        if: steps.previous.outputs.run_id != '0'
         with:
           name: agentcodi-apt-repository
-          run-id: ${{ inputs.previous_run_id }}
+          run-id: ${{ steps.previous.outputs.run_id }}
           github-token: ${{ github.token }}
           path: previous-site
       - name: Build the immutable pool and sign fresh Release metadata
         env:
           AGENTCODI_APT_SIGNING_KEY: ${{ secrets.AGENTCODI_APT_SIGNING_KEY }}
           AGENTCODI_APT_SIGNING_PASSPHRASE: ${{ secrets.AGENTCODI_APT_SIGNING_PASSPHRASE }}
-          PREVIOUS_RUN_ID: ${{ inputs.previous_run_id }}
+          PREVIOUS_RUN_ID: ${{ steps.previous.outputs.run_id }}
+          AGENTCODI_APT_CI_FIXTURES_DIR: ${{ runner.temp }}/apt-fixtures
         run: |
           set -euo pipefail
           arguments=(repository-input site/apt/package-edition)
@@ -98,24 +115,139 @@ jobs:
           path: site/
           if-no-files-found: error
           retention-days: 90
+      - name: Retain separate signed CI fixtures
+        uses: actions/upload-artifact@v4
+        with:
+          name: agentcodi-apt-ci-fixtures
+          path: ${{ runner.temp }}/apt-fixtures/
+          if-no-files-found: error
       - name: Prepare the Pages deployment artifact
         if: inputs.publish
         uses: actions/upload-pages-artifact@v3
         with:
           path: site/
+  runtime:
+    name: Signed APT ARM64 Bionic runtime
+    needs: snapshot
+    runs-on: ubuntu-24.04-arm
+    timeout-minutes: 35
+    permissions:
+      contents: read
+      actions: read
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/download-artifact@v4
+        with:
+          name: agentcodi-apt-repository
+          path: bootstrap/site
+      - uses: actions/download-artifact@v4
+        with:
+          name: agentcodi-apt-ci-fixtures
+          path: bootstrap/fixtures
+      - uses: actions/download-artifact@v4
+        with:
+          name: agentcodi-package-bootstrap
+          path: bootstrap
+      - uses: actions/download-artifact@v4
+        with:
+          name: agentcodi-bootstrap-ci-compat
+          path: bootstrap/ci-compat
+      - uses: actions/setup-java@v4
+        with:
+          distribution: temurin
+          java-version: '17'
+      - name: Verify the signed candidate and initialize the app prefix
+        run: |
+          set -euo pipefail
+          python3 - <<'PY'
+          import importlib.util, json
+          from pathlib import Path
+          spec = importlib.util.spec_from_file_location("repository", "scripts/package-edition/apt-repository.py")
+          repository = importlib.util.module_from_spec(spec)
+          spec.loader.exec_module(repository)
+          settings, _ = repository.config()
+          ring = Path("configured-public-keyring.gpg")
+          repository.export_keyring(settings, ring)
+          manifest = repository.verify(Path("bootstrap/site/apt/package-edition"), ring)
+          Path("bootstrap/expected-versions.tsv").write_text("".join(
+              name + "\t" + metadata["Version"] + "\n"
+              for name, metadata in sorted(manifest["packages"].items())))
+          PY
+          (cd bootstrap && sha256sum -c SHA256SUMS)
+          (cd bootstrap/ci-compat && sha256sum -c SHA256SUMS)
+          .github/ci/run-java-tests.sh
+          javac -cp "$RUNNER_TEMP/agentcodi-ci-java/classes" -d "$RUNNER_TEMP/agentcodi-ci-java/classes" .github/ci/BootstrapInstall.java
+          mkdir -p bootstrap/root bootstrap/cache/apt/archives/partial
+          java -cp "$RUNNER_TEMP/agentcodi-ci-java/classes" BootstrapInstall bootstrap
+          cp .github/ci/catalog-smoke.sh .github/ci/apt-repository-smoke.sh bootstrap/
+          openssl req -x509 -newkey rsa:2048 -nodes -days 1 \
+            -keyout "$RUNNER_TEMP/apt-fixture-tls.key" -out bootstrap/fixture-ca.pem \
+            -subj /CN=localhost -addext 'subjectAltName=IP:127.0.0.1'
+          sudo chown -R 1000:1000 bootstrap
+      - name: Authenticate HTTPS indexes and exercise the real Android packages
+        run: |
+          set -euo pipefail
+          python3 .github/ci/serve-apt-repository.py --root bootstrap \
+            --certificate bootstrap/fixture-ca.pem --key "$RUNNER_TEMP/apt-fixture-tls.key" \
+            > "$RUNNER_TEMP/apt-fixture-server.log" 2>&1 &
+          server_pid="$!"
+          trap 'kill "$server_pid" 2>/dev/null || true' EXIT
+          for attempt in $(seq 1 30); do
+            if curl --fail --silent --cacert bootstrap/fixture-ca.pem \
+              https://127.0.0.1:8443/site/apt/package-edition/dists/stable/InRelease >/dev/null; then
+              break
+            fi
+            sleep 1
+          done
+          docker run --rm --network host --user 1000:1000 \
+            --entrypoint /data/data/de.agentcodi.pkg/files/usr/bin/dash \
+            -e LD_LIBRARY_PATH=/data/data/de.agentcodi.pkg/files/usr/lib \
+            -e LD_PRELOAD=/audit/ci-compat/libagentcodi-ci-api29.so \
+            -v "$GITHUB_WORKSPACE/bootstrap":/audit \
+            -v "$GITHUB_WORKSPACE/bootstrap/root":/data/data/de.agentcodi.pkg/files \
+            -v "$GITHUB_WORKSPACE/bootstrap/cache":/data/data/de.agentcodi.pkg/cache \
+            termux/termux-docker:aarch64@sha256:e19ea56dd687563849826cbda57da714ae23277ee463e21f39917dbc0a59bab4 \
+            /audit/apt-repository-smoke.sh
+      - uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: agentcodi-apt-runtime
+          path: bootstrap/evidence/
+          if-no-files-found: warn
   deploy:
     name: Publish signed APT repository
     if: inputs.publish
-    needs: snapshot
+    needs: [snapshot, runtime]
     runs-on: ubuntu-latest
     timeout-minutes: 15
     permissions:
+      contents: read
+      actions: read
       pages: write
       id-token: write
     environment:
       name: github-pages
       url: ${{ steps.deployment.outputs.page_url }}
     steps:
+      - uses: actions/checkout@v4
+      - name: Require successful current host and Android source tests
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          set -euo pipefail
+          for attempt in $(seq 1 60); do
+            gh api "repos/$GITHUB_REPOSITORY/actions/runs?head_sha=$GITHUB_SHA&per_page=100" > "$RUNNER_TEMP/current-checks.json"
+            state="$(jq -r '[.workflow_runs[] | select(.name == "Tests")] | sort_by(.created_at) | last | if .status == "completed" then .conclusion else .status end' "$RUNNER_TEMP/current-checks.json")"
+            [ "$state" = success ] && break
+            if [ "$state" = failure ] || [ "$state" = cancelled ]; then
+              echo "Current Tests workflow did not pass: $state" >&2
+              exit 1
+            fi
+            sleep 15
+          done
+          test "$state" = success
       - name: Deploy the complete signed site snapshot
         id: deployment
         uses: actions/deploy-pages@v4
+      - name: Verify the published HTTPS repository against the pinned key
+        run: python3 .github/ci/check-published-apt.py

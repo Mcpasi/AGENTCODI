@@ -65,6 +65,28 @@ def select(packages, roots):
 
 
 def assemble(debs, output, readelf):
+    # The trust package is built locally from committed public bytes. It is
+    # regenerated independently of reusable upstream source-built DEBs.
+    key_spec = importlib.util.spec_from_file_location("repository", HERE / "apt-repository.py")
+    repository = importlib.util.module_from_spec(key_spec)
+    key_spec.loader.exec_module(repository)
+    settings, _ = repository.config()
+    with tempfile.TemporaryDirectory() as directory:
+        work = Path(directory)
+        combined = work / "debs"
+        combined.mkdir()
+        keyring = work / "agentcodi-package.gpg"
+        repository.export_keyring(settings, keyring)
+        key_deb, _ = repository.keyring_package(work, settings, keyring)
+        for deb in sorted(debs.glob("*.deb")):
+            name = fields(command("dpkg-deb", "-f", str(deb)))["Package"]
+            if name != "agentcodi-package-keyring":
+                (combined / deb.name).symlink_to(deb.resolve())
+        (combined / key_deb.name).symlink_to(key_deb)
+        assemble_packages(combined, output, readelf)
+
+
+def assemble_packages(debs, output, readelf):
     lock = json.loads((HERE / "lock.json").read_text())
     packages = {}
     for deb in sorted(debs.glob("*.deb")):
@@ -76,7 +98,7 @@ def assemble(debs, output, readelf):
             raise ValueError("Duplicate package: " + name)
         packages[name] = (deb, metadata)
     # bash is needed by upstream package maintainer scripts; dash provides bin/sh.
-    selected = select(packages, [*lock["bootstrap"]["roots"], "bash"])
+    selected = select(packages, [*lock["bootstrap"]["roots"], "bash", "agentcodi-package-keyring"])
     unsupported = set(lock["bootstrap"]["unsupported_packages"])
     if unsupported.intersection(selected):
         raise ValueError("Unadapted Termux app dependency")
@@ -154,7 +176,7 @@ def assemble(debs, output, readelf):
                           "var/cache/apt/archives/partial", "var/lib/apt/lists/partial",
                           "etc/apt/preferences.d", "tmp"):
             (prefix / directory).mkdir(parents=True, exist_ok=True)
-        # No key is invented: the planned signed source remains unusable until provisioned.
+        # APT trusts only the edition keyring installed and owned by dpkg.
         (prefix / "etc/apt/apt.conf.d").mkdir(parents=True, exist_ok=True)
         (prefix / "etc/apt/apt.conf.d/00agentcodi").write_text(
             'APT::Sandbox::User "";\nAcquire::AllowInsecureRepositories "false";\n')

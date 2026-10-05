@@ -25,7 +25,9 @@ public final class PackageBootstrapTest {
         rejectsCorruptAndUnexpectedPayload();
         rejectsEscapingSymlink();
         preservesConflictingExistingFile();
-        return 6;
+        migratesMissingTrustWithoutReplacingPackageData();
+        rejectsCorruptTrustMigrationAndRetries();
+        return 8;
     }
 
     private static void preservesPrefixAcrossRestartAndApkUpdate() throws Exception {
@@ -110,6 +112,46 @@ public final class PackageBootstrapTest {
         }
     }
 
+    private static void migratesMissingTrustWithoutReplacingPackageData() throws Exception {
+        WorkspaceLayout layout = WorkspaceLayout.create(Files.createTempDirectory("bootstrap-trust").toFile());
+        install(layout, fixture(false), prefix -> { });
+        Path root = layout.getPackagePrefix().toPath();
+        Path key = root.resolve("etc/apt/keyrings/agentcodi-package.gpg");
+        Files.delete(key);
+        Path status = root.resolve("var/lib/dpkg/status");
+        Files.write(status, "user-installed-package\n".getBytes(StandardCharsets.UTF_8));
+        install(layout, fixture(false), prefix -> { throw new AssertionError("Ready prefix reconfigured"); });
+        if (!"public-key-fixture".equals(new String(Files.readAllBytes(key), StandardCharsets.UTF_8))
+            || !"user-installed-package\n".equals(new String(Files.readAllBytes(status), StandardCharsets.UTF_8))) {
+            throw new AssertionError("Trust migration replaced package data");
+        }
+        Files.write(key, "user-managed-trust".getBytes(StandardCharsets.UTF_8));
+        PackageBootstrap.prepare(layout, new ByteArrayInputStream(new byte[0]),
+            new ByteArrayInputStream(new byte[0]), prefix -> { });
+        if (!"user-managed-trust".equals(new String(Files.readAllBytes(key), StandardCharsets.UTF_8))) {
+            throw new AssertionError("Existing trust key overwritten");
+        }
+    }
+
+    private static void rejectsCorruptTrustMigrationAndRetries() throws Exception {
+        WorkspaceLayout layout = WorkspaceLayout.create(Files.createTempDirectory("bootstrap-trust-retry").toFile());
+        install(layout, fixture(false), prefix -> { });
+        Path key = layout.getPackagePrefix().toPath().resolve("etc/apt/keyrings/agentcodi-package.gpg");
+        Files.delete(key);
+        byte[][] corrupt = fixture(false);
+        corrupt[1] = new String(corrupt[1], StandardCharsets.UTF_8).replace(
+            sha("public-key-fixture".getBytes(StandardCharsets.UTF_8)),
+            sha("incorrect".getBytes(StandardCharsets.UTF_8))).getBytes(StandardCharsets.UTF_8);
+        expectFailure(layout, corrupt);
+        if (Files.exists(key)) {
+            throw new AssertionError("Partial trust key published");
+        }
+        install(layout, fixture(false), prefix -> { });
+        if (!Files.isRegularFile(key)) {
+            throw new AssertionError("Trust migration did not recover");
+        }
+    }
+
     private static void expectFailure(WorkspaceLayout layout, byte[][] fixture) throws Exception {
         try {
             install(layout, fixture, prefix -> { throw new AssertionError("Invalid payload published"); });
@@ -129,13 +171,14 @@ public final class PackageBootstrapTest {
         files.put("bin/apt", "apt");
         files.put("bin/dpkg", "dpkg");
         files.put("etc/tls/cert.pem", "certificates");
+        files.put("etc/apt/keyrings/agentcodi-package.gpg", "public-key-fixture");
         files.put("var/lib/dpkg/status", "Package: fixture\nStatus: install ok unpacked\n");
         StringBuilder manifest = new StringBuilder("AGENTCODI_BOOTSTRAP_V1\n");
         ByteArrayOutputStream bytes = new ByteArrayOutputStream();
         try (ZipOutputStream zip = new ZipOutputStream(bytes)) {
             for (Map.Entry<String, String> file : files.entrySet()) {
                 byte[] content = file.getValue().getBytes(StandardCharsets.UTF_8);
-                manifest.append("F\t700\t").append(content.length).append("\t")
+                manifest.append(file.getKey().contains("keyrings/") ? "F\t600\t" : "F\t700\t").append(content.length).append("\t")
                     .append(sha(content)).append("\t").append(file.getKey()).append("\n");
                 zip.putNextEntry(new ZipEntry(file.getKey()));
                 zip.write(content);

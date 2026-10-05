@@ -101,7 +101,7 @@ class AssemblyTest(unittest.TestCase):
         self.assemble(output)
         report = json.loads((output / "bootstrap-report.json").read_text())
         self.assertEqual(set(report["packages"]),
-                         {"dash", "bash", "apt", "dpkg", "ca-certificates", "fixture-lib"})
+                         {"dash", "bash", "apt", "dpkg", "ca-certificates", "fixture-lib", "agentcodi-package-keyring"})
         self.assertFalse(list(output.glob("compiler*.deb")))
         self.assertTrue((output / "ca-certificates_1_1.0_all.deb").is_file())
         self.assertEqual(report["packages"]["ca-certificates"]["Version"], "1:1.0")
@@ -115,7 +115,9 @@ class AssemblyTest(unittest.TestCase):
                     self.assertEqual(len(data), int(fields[2]))
                     self.assertEqual(hashlib.sha256(data).hexdigest(), fields[3])
             status = archive.read("var/lib/dpkg/status").decode()
-            self.assertEqual(status.count("Status: install ok unpacked"), 6)
+            self.assertEqual(status.count("Status: install ok unpacked"), 7)
+            self.assertTrue(archive.read("etc/apt/keyrings/agentcodi-package.gpg"))
+            self.assertIn("var/lib/dpkg/info/agentcodi-package-keyring.list", archive.namelist())
             cert = archive.read("etc/tls/cert.pem")
             self.assertIn("Conffiles:\n " + bootstrap.verify.PREFIX + "/etc/tls/cert.pem " +
                           hashlib.md5(cert, usedforsecurity=False).hexdigest(), status)

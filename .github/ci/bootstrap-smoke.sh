@@ -16,6 +16,8 @@ version=$("$prefix/bin/dpkg-query" -W -f='${Version}' apt)
 LC_ALL=C "$prefix/bin/apt-cache" policy apt > /audit/apt-policy.txt
 grep -Fq "Installed: $version" /audit/apt-policy.txt
 "$prefix/bin/gpgv" --version
+test -s "$prefix/etc/apt/keyrings/agentcodi-package.gpg"
+test "$("$prefix/bin/dpkg-query" -W -f='${db:Status-Status}' agentcodi-package-keyring)" = installed
 "$prefix/bin/sh" -c 'test "$PREFIX" = /data/data/de.agentcodi.pkg/files/usr'
 test -s "$prefix/etc/tls/cert.pem"
 # Exercise the local package lifecycle without any unsigned repository or network.

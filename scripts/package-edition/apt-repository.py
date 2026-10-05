@@ -19,6 +19,9 @@ HERE = Path(__file__).resolve().parent
 spec = importlib.util.spec_from_file_location("assembly", HERE / "assemble-bootstrap.py")
 assembly = importlib.util.module_from_spec(spec)
 spec.loader.exec_module(assembly)
+source_spec = importlib.util.spec_from_file_location("sources", HERE / "source-store.py")
+sources = importlib.util.module_from_spec(source_spec)
+source_spec.loader.exec_module(sources)
 
 
 def digest(path):
@@ -245,11 +248,9 @@ def build(artifacts, output, previous):
                     or report["catalog"]["roots"] != catalog["groups"][group]
                     or report["catalog"]["configuration_sha256"] != digest(HERE / "catalog.json")):
                 raise ValueError("Artifact catalog configuration differs: " + group)
-        source_name = "sources/" + digest(source) + "/" + source.name
-        dest = output / source_name
-        dest.parent.mkdir(parents=True, exist_ok=True)
-        shutil.copyfile(source, dest)
-        provenance[group] = {"source_archive": source_name}
+        source_name = sources.publish(source, output)
+        provenance[group] = {"source_manifest": source_name,
+                             "original_archive_sha256": digest(source)}
         if (directory / "source-build.json").exists():
             provenance[group]["source_build"] = json.loads((directory / "source-build.json").read_text())
         for name, (deb, metadata) in packages.items():
@@ -284,14 +285,13 @@ def build(artifacts, output, previous):
         with tarfile.open(source_temp, "w:xz") as archive:
             for path in (HERE / "apt-repository.py", HERE / "assemble-bootstrap.py",
                          HERE / "verify-prefix.py", HERE / "build-apt-repository.sh",
-                         HERE / "repository.json", HERE / "lock.json", public):
+                         HERE / "repository.json", HERE / "lock.json",
+                         HERE / "source-store.py", HERE / "download-sources.py", public):
                 archive.add(path, arcname="agentcodi/" + path.relative_to(HERE).as_posix())
             archive.add(HERE.parents[1] / "LICENSE", arcname="LICENSE")
-        source_name = "sources/" + digest(source_temp) + "/keyring-source.tar.xz"
-        source_path = output / source_name
-        source_path.parent.mkdir(parents=True, exist_ok=True)
-        shutil.copyfile(source_temp, source_path)
-        provenance["keyring"] = {"source_archive": source_name}
+        source_name = sources.publish(source_temp, output)
+        provenance["keyring"] = {"source_manifest": source_name,
+                                "original_archive_sha256": digest(source_temp)}
         records, package_manifest = [], {}
         for name, (deb, metadata) in sorted(chosen.items()):
             if prior and name in prior["packages"]:

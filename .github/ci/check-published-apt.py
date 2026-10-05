@@ -1,6 +1,7 @@
 #!/usr/bin/env python3
 """Verify deployed HTTPS metadata with the committed key and expected run/commit."""
 from datetime import datetime, timezone
+from concurrent.futures import ThreadPoolExecutor
 from email.utils import parsedate_to_datetime
 import hashlib
 import importlib.util
@@ -63,12 +64,33 @@ def check():
             metadata = manifest["packages"][name]
             if hashlib.sha256(fetch(metadata["filename"])).hexdigest() != metadata["sha256"]:
                 raise ValueError("Published catalog DEB differs: " + name)
+        source_paths = set()
         for item in manifest["provenance"].values():
-            path = item["source_archive"]
+            if "source_manifest" in item:
+                path = item["source_manifest"]
+                data = fetch(path)
+                record = manifest["files"][path]
+                if len(data) != record["size"] or hashlib.sha256(data).hexdigest() != record["sha256"]:
+                    raise ValueError("Published source manifest differs")
+                description = json.loads(data)
+                if description["original_archive_sha256"] != item["original_archive_sha256"]:
+                    raise ValueError("Published source provenance differs")
+                source_paths.update(member["object"] for member in description["members"]
+                                    if "object" in member)
+            else:
+                source_paths.add(item["source_archive"])
+
+        def check_source(path):
+            repository.relative(path)
+            record = manifest["files"][path]
             request = urllib.request.Request(base + "/" + path, method="HEAD")
-            with urllib.request.urlopen(request, timeout=60) as response:
-                if int(response.headers["Content-Length"]) != manifest["files"][path]["size"]:
-                    raise ValueError("Published source archive size differs")
+            with urllib.request.urlopen(request, timeout=30) as response:
+                if (not response.geturl().startswith(base + "/")
+                        or int(response.headers["Content-Length"]) != record["size"]):
+                    raise ValueError("Published source payload differs: " + path)
+
+        with ThreadPoolExecutor(max_workers=16) as executor:
+            list(executor.map(check_source, sorted(source_paths)))
         print("Public HTTPS, pinned signatures, freshness, indexes, catalog DEBs and source availability verified.")
 
 

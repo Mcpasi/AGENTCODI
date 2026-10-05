@@ -85,7 +85,9 @@ jobs:
 
   cpp:
     name: C++ host tests
-    runs-on: ubuntu-latest
+    # The portable driver builds native fixtures and derives its library path
+    # from the compiler; use the ARM64 pool after hosted x64 acquisition failures.
+    runs-on: ubuntu-24.04-arm
     timeout-minutes: 30
     steps:
       - name: Check out the repository

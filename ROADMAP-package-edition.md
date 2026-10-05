@@ -2,7 +2,7 @@
 
 Stand: 2026-10-05. Ausschließlich Branch `Mcpasi/package-edition`; kein Merge nach `main`.
 
-Die Checklisten zeigen den aktuellen Umsetzungsstand. Datierte Ergebnis- und Verifikationsabschnitte dokumentieren frühere Meilensteine; ihre Testzahlen, Artefakte und Prüfsummen gehören zum jeweils genannten Commit. Bootstrap, Startkatalog und öffentliches signiertes APT-Repository sind umgesetzt. Die npm-/Python-Pfade und die gemeinsame Prozessumgebung werden im aktuellen Schritt umgesetzt und anschließend in CI geprüft. Danach folgen Paketdiagnose und die APK-Verkleinerung. Echte Gerätetests bleiben gemäß Nutzeranweisung offen. Die APT-Veröffentlichung ist getrennt von einem GitHub-Release der APK.
+Die Checklisten zeigen den aktuellen Umsetzungsstand. Datierte Ergebnis- und Verifikationsabschnitte dokumentieren frühere Meilensteine; ihre Testzahlen, Artefakte und Prüfsummen gehören zum jeweils genannten Commit. Bootstrap, Startkatalog und öffentliches signiertes APT-Repository sind umgesetzt. Die npm-/Python-Pfade und die gemeinsame Prozessumgebung sind umgesetzt und in CI geprüft; die aktuellen Nachweise stehen im Ergebnisabschnitt „Gemeinsame Paketumgebung und npm-/Python-Pfade“. Als nächster offener Umsetzungspunkt folgt die Paketdiagnose; die APK-Verkleinerung bleibt in Abschnitt 4. Echte Gerätetests bleiben gemäß Nutzeranweisung offen. Die APT-Veröffentlichung ist getrennt von einem GitHub-Release der APK.
 
 ## Ziel und feste Entscheidungen
 
@@ -126,8 +126,9 @@ und prüft Full access statt der alten Workspace-Isolation.
 
 Die Root-README ist vollständig Englisch. Die danach umgesetzte Paketbasis,
 der Startkatalog und das signierte Repository sind in Abschnitt 3 dokumentiert.
-Die verbleibenden Paketpfad-/Umgebungsarbeiten, die APK-Verkleinerung aus
-Abschnitt 4 und echte Android-Gerätetests bleiben offen; Gerätetests wurden
+Die anschließend umgesetzten Paketpfad-/Umgebungsarbeiten sind in Abschnitt 3
+mit ihren CI-Nachweisen dokumentiert. Die APK-Verkleinerung aus Abschnitt 4
+und echte Android-Gerätetests bleiben offen; Gerätetests wurden
 auf ausdrücklichen Nutzerwunsch nicht ausgeführt.
 
 ## 3. Paket-Bootstrap und Workspace vervollständigen
@@ -161,8 +162,8 @@ Das Termux-Buildsystem dokumentiert anpassbare App- und Präfixvariablen in [scr
 - [x] Eigene CI für Paket- und Abhängigkeitsbuilds aufsetzen; zuerst Bootstrap und einen kleinen Katalog wie Python, Node.js/npm, Git und ripgrep prüfen, danach erweitern.
 - [x] Eigenes signiertes APT-Repository mit Vertrauensschlüssel, HTTPS, Veröffentlichungsablauf und Aktualisierungsstrategie einrichten.
 - [x] Dokumentierte APT-Bedienung für Installation, Aktualisierung und Entfernung bereitstellen. Ein zusätzlicher `pkg`-Wrapper ist optional und bisher nicht umgesetzt.
-- [ ] Gemeinsame Umgebungsdefinition für App-Server, Codex-Kommandos, Terminal und lokale stdio-MCP-Prozesse nach den npm-/Python-Pfadanpassungen vollständig prüfen; `PATH/PREFIX/LD_LIBRARY_PATH/HOME/TMPDIR` dürfen nicht auseinanderlaufen. Der gemeinsame Präfix- und Suchpfadvertrag ist bereits umgesetzt und unten dokumentiert.
-- [ ] npm-Global-Prefix/-Cache sowie Python-User-/venv-/pip-Pfade nutzbar machen. Die bisherigen Wrapper erzwingen noch eigene Pfade und deaktivieren Python-User-Site.
+- [x] Gemeinsame Umgebungsdefinition für App-Server, Codex-Kommandos, Terminal und lokale stdio-MCP-Prozesse nach den npm-/Python-Pfadanpassungen vollständig prüfen. Der echte ARM64/Bionic-App-Server prüft identische `PATH/PREFIX/LD_LIBRARY_PATH/HOME/TMPDIR`-Werte in Codex-Shell, Terminal und stdio-MCP, einschließlich der privaten Codex-Sitzungshilfsprogramme im gemeinsamen `PATH`.
+- [x] npm-Global-Prefix/-Cache sowie Python-User-/venv-/pip-Pfade nutzbar machen. Normale Nutzerkonfiguration und Python-User-Site sind aktiv; lokale Global-/User-/venv-Installationen, ausführbare Skripte, npx und Entfernung sind unter ARM64/Bionic geprüft.
 - [x] Installation, Aktualisierung, Entfernung und Status im Terminal dokumentieren; Pakete über App-Neustart und APK-Update erhalten. APT-Bedienung ist in der README dokumentiert, Bestandserhaltung durch Java-Regressionen geprüft; echte Geräte-/Update-Tests bleiben separat offen.
 - [ ] Paketpfade und installierte Versionen bei Bedarf in Diagnose/Terminal anzeigen; bisherige Aktivierungsanzeigen ersetzen.
 - [ ] Workspace-Browser und Import/Export sinnvoll erweitern, wenn Paketdateien dort zugänglich sein sollen. Kontodaten sollen weiterhin nicht versehentlich exportiert werden.
@@ -466,7 +467,7 @@ Index-Hashes. Downgrades und veränderte veröffentlichte Paketbytes ohne
 Versionsanhebung werden abgelehnt. Der manuelle Workflow mit
 `repository_action=publish` erneuert den Snapshot vor Ablauf der sieben
 Tage. Für eine reine Signaturerneuerung wird `source_run_id` auf den
-geprüften Kataloglauf (aktuell `37336548937`) gesetzt, damit unveränderte
+geprüften Kataloglauf aus dem neuesten Ergebnisabschnitt gesetzt, damit unveränderte
 DEBs wiederverwendet werden; `source_run_id=0` baut ausdrücklich neu.
 `repository_previous_run_id=0` ermittelt den letzten abgeschlossenen
 Lauf mit erfolgreichem tatsächlichem Pages-Deployment, auch wenn danach
@@ -521,8 +522,8 @@ die angebotenen Katalog-DEBs sowie die vollständigen Quellen:
 verifiziert; weitere 219 große Quelldateien werden einzeln auf Erreichbarkeit
 und signierte Größe geprüft. Der Startkatalog und das öffentliche signierte Repository
 sind umgesetzt und abgehakt. Die dokumentierte APT-Bedienung ist ebenfalls
-abgehakt; die nachfolgenden Paketpfad-/Umgebungsarbeiten bleiben getrennte
-Roadmap-Schritte.
+abgehakt; der nachfolgende Ergebnisabschnitt dokumentiert die inzwischen
+umgesetzten Paketpfad-/Umgebungsarbeiten.
 
 Gerätetests wurden wie angeordnet übersprungen und bleiben offen.
 Kein PR, Merge oder GitHub-Release der APK wurde erstellt. Alle Zugriffe erfolgten über den
@@ -531,9 +532,9 @@ GitHub Connector; `main` bleibt auf
 
 ### Gemeinsame Paketumgebung und npm-/Python-Pfade — 2026-10-05
 
-Implementierung und CI-Prüfung dieses Schritts laufen ausschließlich auf
-`Mcpasi/package-edition`. Die beiden zugehörigen Checklistenpunkte werden
-nach erfolgreicher Verifikation abgeschlossen.
+Implementierung und erfolgreiche CI-Prüfung dieses Schritts erfolgten ausschließlich
+auf `Mcpasi/package-edition`. Die gemeinsame Prozessumgebung und ihre
+npm-/Python-Pfadvoraussetzung sind umgesetzt; beide Checklistenpunkte sind abgehakt.
 
 Eine gemeinsame native Definition liefert die Umgebung des App-Servers und
 die Codex-Shell-Konfiguration. Codex ergänzt beim Start sein privates
@@ -562,7 +563,7 @@ User-Site; venv/pip verwenden den durch APT installierten Editions-Python.
 npm und das gebündelte Übergangs-npm passen beim Erstellen ihrer ausführbaren
 Links den üblichen Node-Shebang `/usr/bin/env node` auf Androids
 `/system/bin/env node` an. Die restlichen Skriptbytes bleiben erhalten.
-Die Editions-npm-Rezeptrevision wird angehoben, damit bereits veröffentlichte
+Die Editions-npm-Rezeptrevision wurde auf `11.20.0-1` angehoben, damit bereits veröffentlichte
 Paketbytes nicht unter derselben Version ersetzt werden.
 
 Die neuen Laufzeitprüfungen installieren und entfernen reine lokale
@@ -574,12 +575,38 @@ Producer-Bericht alle angeforderten DEBs belegen; aktuelle Assembly und
 Laufzeitprüfungen laufen erneut. Änderungen am npm-Rezept erzwingen für die
 Node-Gruppe einen neuen Quellbuild.
 
+Verifizierter Implementierungscommit: `f1f1ee3ed7e8d918b40e844a4c1729b4a5502a9c`.
+Die [Tests](https://github.com/Mcpasi/AGENTCODI/actions/runs/37362245260)
+haben alle sieben Jobs bestanden, einschließlich 315 Java-Tests und acht
+portablen C++-Testsuiten. Der
+[APK-Build](https://github.com/Mcpasi/AGENTCODI/actions/runs/37362245644)
+hat alle drei Jobs bestanden; der ARM64/Bionic-Smoke prüft echte
+Codex-Shell-, Terminal- und stdio-MCP-Prozesse mit identischen Umgebungswerten
+sowie die Übergangs-npm-/Python-Pfade. Das
+[Debug-APK-Artefakt](https://github.com/Mcpasi/AGENTCODI/actions/runs/37362245644/artifacts/11367960019)
+steht bereit.
+
+Der [Paketkatalog](https://github.com/Mcpasi/AGENTCODI/actions/runs/37362245741)
+hat alle 14 Jobs bestanden. Dazu gehören die erneute Prüfung des neuen Node-/npm-Quellbuilds,
+die geprüfte Python-Wheel-Assembly, reale npm-/pip-Installationen und
+Deinstallationen sowie getrennte venvs unter ARM64/Bionic,
+die signierte APT-Veröffentlichung und ihre öffentliche HTTPS-Endprüfung.
+Der [signierte Repository-Snapshot](https://github.com/Mcpasi/AGENTCODI/actions/runs/37362245741/artifacts/11369690652)
+und sein [ARM64/Bionic-Prüfnachweis](https://github.com/Mcpasi/AGENTCODI/actions/runs/37362245741/artifacts/11370025576)
+sind als CI-Artefakte verfügbar.
+Der [neue Node-/npm-Quellbuild](https://github.com/Mcpasi/AGENTCODI/actions/runs/37346622005/job/111886746281)
+ist als eigener Producer-Job erfolgreich. Der aktuelle Katalog prüft dessen
+unveränderte relevante Build-Eingaben und Paketprüfsummen, stellt die
+aktuelle Assembly zusammen und wiederholt alle Laufzeitprüfungen.
+Alle drei abschließenden Workflows prüfen denselben Implementierungscommit;
+die abschließende Checklistenänderung betrifft ausschließlich die Roadmap.
+
 Gerätetests werden gemäß Nutzeranweisung übersprungen und bleiben offen.
 Kein PR oder Merge; `main` bleibt unverändert.
 
 ## 4. Build verkleinern und veröffentlichbare Edition erstellen
 
-Bootstrap, Startkatalog und signierter Paketkanal funktionieren in CI. Die bisher enthaltenen nutzerinstallierbaren Pakete können im nächsten Build-Schritt nach den noch offenen Paketpfad-/Umgebungsarbeiten entfernt werden.
+Bootstrap, Startkatalog, signierter Paketkanal und die gemeinsame Paketumgebung funktionieren in CI. Die npm-/Python-Pfadvoraussetzungen sind abgeschlossen. Die bisher enthaltenen nutzerinstallierbaren Pakete können im noch offenen Build-Schritt dieses Abschnitts entfernt werden.
 
 - [ ] Bundled Node.js, npm, Python, ripgrep und nur von ihnen benötigte Bibliotheken/Archive/Lizenzen aus dem APK entfernen.
 - [ ] Vorher Abhängigkeiten des App-Servers und Code-mode-Hosts auf diese Werkzeuge prüfen; zwingend notwendige Basiswerkzeuge im Bootstrap behalten.

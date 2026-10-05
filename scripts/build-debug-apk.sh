@@ -1270,12 +1270,12 @@ find "$TOOL_RUNTIME_STAGE" -exec touch -t 202001010000 {} +
   zip -q -X -9 -r "$TOOL_RUNTIME_ARCHIVE" npm python
 )
 actual_tool_runtime_manifest_sha="$(sha256sum "$TOOL_RUNTIME_MANIFEST" | awk '{print $1}')"
+echo "Derived tool runtime manifest SHA-256: $actual_tool_runtime_manifest_sha"
 if [ -n "$TOOL_RUNTIME_MANIFEST_SHA256" ] \
     && [ "$actual_tool_runtime_manifest_sha" != "$TOOL_RUNTIME_MANIFEST_SHA256" ]; then
   echo "Derived npm/Python runtime manifest hash mismatch." >&2
   exit 1
 fi
-echo "Derived tool runtime manifest SHA-256: $actual_tool_runtime_manifest_sha"
 
 if ! file "$NATIVE_DIR/libagentcodi.so" | grep -q 'ARM aarch64'; then
   echo "Native library is not ARM64." >&2

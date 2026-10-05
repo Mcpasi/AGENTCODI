@@ -7,7 +7,7 @@
   <string name="navigation_terminal">Terminal</string>
   <string name="navigation_files">Files</string>
 
-  <string name="browser_title">Workspace files</string>
+  <string name="browser_title">Workspace and package files</string>
   <string name="browser_back">‹ Back</string>
   <string name="browser_refresh">Refresh</string>
   <string name="browser_workspace_root">Workspace</string>
@@ -41,7 +41,7 @@
   <string name="browser_type_image">image preview</string>
   <string name="browser_image_description">Preview of %1$s</string>
   <string name="browser_export">Export this file…</string>
-  <string name="browser_export_checking">Revalidating the selected workspace file before opening Android’s document picker…</string>
+  <string name="browser_export_checking">Revalidating the selected file before opening Android’s document picker…</string>
   <string name="browser_exporting">Copying the selected file to the explicit Android destination…</string>
   <string name="browser_exported">Exported: %1$s</string>
   <string name="browser_export_failed">The selected file could not be revalidated and exported.</string>
@@ -322,8 +322,8 @@
   <string name="language_english">English</string>
   <string name="language_german">German</string>
 
-  <string name="workspace_export_section">WORKSPACE FILES</string>
-  <string name="workspace_export_description">Use the graphical file browser to inspect the private workspace, export any verified regular file byte for byte, or export the currently open folder—including the workspace root—as a bounded ZIP through Android’s document picker.</string>
+  <string name="workspace_export_section">WORKSPACE AND PACKAGE FILES</string>
+  <string name="workspace_export_description">Choose Workspace, APT packages or User packages in the graphical file browser. Preview and export verified files or folders. Import files, including DEBs and archives, into workspace/imports; use the terminal to install them. Package views exclude account storage and known credential paths.</string>
   <string name="workspace_export_ready">Individual files are limited to 512 MiB. Folder ZIPs are limited to 2,048 regular files, 1 GiB of content, 65,536 scanned entries, and 64 directory levels. Unsafe or unavailable children are omitted locally and never make safe siblings unavailable.</string>
 
   <string name="account_section">SIGN-IN</string>
@@ -730,4 +730,14 @@
   <string name="card_field_sender">Sender</string>
   <string name="card_field_receiver">Recipients</string>
   <string name="card_field_agent_status">Agent status</string>
+    <string name="browser_choose_scope">Choose file area</string>
+    <string name="browser_managed_packages">APT packages</string>
+    <string name="browser_user_packages">User packages</string>
+    <string name="browser_import">Import file</string>
+    <string name="browser_workspace_scope_hint">Imports go to workspace/imports, including DEBs and archives. Use the terminal to install them.</string>
+    <string name="browser_package_scope_hint">Read-only package files: preview or export a file/folder. Account storage and known credential files are excluded. ZIPs omit links and do not restore a package installation.</string>
+    <string name="browser_importing">Importing into workspace…</string>
+    <string name="browser_imported">Imported to %1$s. Use this path in the terminal; nothing was installed.</string>
+    <string name="browser_import_failed">Import failed. The file must be readable, within 512 MiB, and not an account credential file.</string>
+    <string name="browser_unavailable_credential">Credential path: preview and export are excluded.</string>
 </resources>

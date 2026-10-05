@@ -4,9 +4,11 @@ import android.content.Context;
 import android.net.Uri;
 
 import de.agentcodi.browser.WorkspaceBrowserPage;
+import de.agentcodi.browser.WorkspaceBrowserArea;
 import de.agentcodi.browser.WorkspaceFilePreview;
 import de.agentcodi.browser.client.WorkspaceFileBrowser;
 import de.agentcodi.storage.WorkspaceLayout;
+import de.agentcodi.storage.WorkspaceFileScope;
 
 import java.io.File;
 import java.io.IOException;
@@ -16,18 +18,32 @@ public final class WorkspaceBrowserRepository {
     private final Context applicationContext;
     private final File workspaceDirectory;
     private final WorkspaceFileBrowser browser;
+    private final WorkspaceFileScope scope;
+    private final WorkspaceBrowserArea area;
 
     private WorkspaceBrowserRepository(
         Context applicationContext,
         File workspaceDirectory,
-        WorkspaceFileBrowser browser
+        WorkspaceFileBrowser browser,
+        WorkspaceFileScope scope,
+        WorkspaceBrowserArea area
     ) {
         this.applicationContext = applicationContext;
         this.workspaceDirectory = workspaceDirectory;
         this.browser = browser;
+        this.scope = scope;
+        this.area = area;
     }
 
     public static WorkspaceBrowserRepository create(Context context) throws IOException {
+        return create(context, WorkspaceBrowserArea.WORKSPACE);
+    }
+
+    public static WorkspaceBrowserRepository create(Context context, WorkspaceBrowserArea area)
+        throws IOException {
+        if (area == null) {
+            throw new IllegalArgumentException("Browser scope is required");
+        }
         if (context == null) {
             throw new IllegalArgumentException("context must not be null");
         }
@@ -35,17 +51,27 @@ public final class WorkspaceBrowserRepository {
         if (applicationContext == null) {
             applicationContext = context;
         }
+        WorkspaceFileScope scope = area == WorkspaceBrowserArea.WORKSPACE
+            ? WorkspaceFileScope.WORKSPACE
+            : area == WorkspaceBrowserArea.MANAGED_PACKAGES
+                ? WorkspaceFileScope.MANAGED_PACKAGES : WorkspaceFileScope.USER_PACKAGES;
         WorkspaceLayout layout = WorkspaceLayout.create(applicationContext.getFilesDir());
         WorkspaceFileBrowser browser = new WorkspaceFileBrowser(
-            layout.getWorkspace(),
-            NativeWorkspaceDirectoryCatalog.reader(),
-            NativeWorkspaceFileAccess.opener()
+            scope.root(layout),
+            scope.reader(NativeWorkspaceDirectoryCatalog.reader()),
+            scope.opener(NativeWorkspaceFileAccess.opener())
         );
         return new WorkspaceBrowserRepository(
             applicationContext,
-            layout.getWorkspace(),
-            browser
+            scope.root(layout),
+            browser,
+            scope,
+            area
         );
+    }
+
+    public WorkspaceBrowserArea getArea() {
+        return area;
     }
 
     public WorkspaceBrowserPage list(String relativeDirectory, int pageIndex)
@@ -62,7 +88,8 @@ public final class WorkspaceBrowserRepository {
         throws IOException {
         return WorkspaceFileExporter.inspect(
             applicationContext,
-            absoluteWorkspacePath(relativePath)
+            absoluteWorkspacePath(relativePath),
+            scope
         );
     }
 
@@ -73,7 +100,8 @@ public final class WorkspaceBrowserRepository {
         return WorkspaceFileExporter.export(
             applicationContext,
             absoluteWorkspacePath(relativePath),
-            destination
+            destination,
+            scope
         );
     }
 
@@ -82,7 +110,8 @@ public final class WorkspaceBrowserRepository {
     ) throws IOException {
         return WorkspaceFileExporter.inspectArchive(
             applicationContext,
-            requireBrowserDirectory(relativeDirectory)
+            requireBrowserDirectory(relativeDirectory),
+            scope
         );
     }
 
@@ -93,7 +122,8 @@ public final class WorkspaceBrowserRepository {
         return WorkspaceFileExporter.exportArchive(
             applicationContext,
             requireBrowserDirectory(relativeDirectory),
-            destination
+            destination,
+            scope
         );
     }
 

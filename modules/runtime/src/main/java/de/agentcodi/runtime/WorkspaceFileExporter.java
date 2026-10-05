@@ -7,6 +7,7 @@ import de.agentcodi.storage.WorkspaceArchive;
 import de.agentcodi.storage.WorkspaceExportFile;
 import de.agentcodi.storage.WorkspaceExportTransaction;
 import de.agentcodi.storage.WorkspaceLayout;
+import de.agentcodi.storage.WorkspaceFileScope;
 
 import java.io.IOException;
 import java.io.OutputStream;
@@ -45,12 +46,18 @@ public final class WorkspaceFileExporter {
     }
 
     public static FileExport inspect(Context context, String sourcePath) throws IOException {
+        return inspect(context, sourcePath, WorkspaceFileScope.WORKSPACE);
+    }
+
+    public static FileExport inspect(
+        Context context, String sourcePath, WorkspaceFileScope scope
+    ) throws IOException {
         WorkspaceLayout layout = layout(context);
         return toFileExport(WorkspaceExportFile.inspect(
-            layout.getWorkspace(),
+            scope.root(layout),
             sourcePath,
             MAXIMUM_FILE_BYTES,
-            NativeWorkspaceFileAccess.opener()
+            scope.opener(NativeWorkspaceFileAccess.opener())
         ));
     }
 
@@ -58,6 +65,13 @@ public final class WorkspaceFileExporter {
         final Context context,
         final String sourcePath,
         Uri destination
+    ) throws IOException {
+        return export(context, sourcePath, destination, WorkspaceFileScope.WORKSPACE);
+    }
+
+    public static FileExport export(
+        final Context context, final String sourcePath, Uri destination,
+        final WorkspaceFileScope scope
     ) throws IOException {
         requireContentDestination(destination);
         requireContext(context);
@@ -71,10 +85,10 @@ public final class WorkspaceFileExporter {
                 public WorkspaceLayout prepare() throws IOException {
                     WorkspaceLayout preparedLayout = layout(context);
                     WorkspaceExportFile.inspect(
-                        preparedLayout.getWorkspace(),
+                        scope.root(preparedLayout),
                         sourcePath,
                         MAXIMUM_FILE_BYTES,
-                        NativeWorkspaceFileAccess.opener()
+                        scope.opener(NativeWorkspaceFileAccess.opener())
                     );
                     return preparedLayout;
                 }
@@ -89,11 +103,11 @@ public final class WorkspaceFileExporter {
                     OutputStream destinationStream
                 ) throws IOException {
                     return WorkspaceExportFile.copyTo(
-                        preparedLayout.getWorkspace(),
+                        scope.root(preparedLayout),
                         sourcePath,
                         MAXIMUM_FILE_BYTES,
                         destinationStream,
-                        NativeWorkspaceFileAccess.opener()
+                        scope.opener(NativeWorkspaceFileAccess.opener())
                     );
                 }
             }
@@ -109,8 +123,14 @@ public final class WorkspaceFileExporter {
         Context context,
         String relativeDirectory
     ) throws IOException {
+        return inspectArchive(context, relativeDirectory, WorkspaceFileScope.WORKSPACE);
+    }
+
+    public static ArchiveExport inspectArchive(
+        Context context, String relativeDirectory, WorkspaceFileScope scope
+    ) throws IOException {
         WorkspaceArchive.Summary summary = WorkspaceArchive.inspect(
-            layout(context).getWorkspace(),
+            scope.root(layout(context)),
             relativeDirectory,
             MAXIMUM_FILES,
             MAXIMUM_SCANNED_ENTRIES,
@@ -118,11 +138,11 @@ public final class WorkspaceFileExporter {
             MAXIMUM_ARCHIVE_BYTES,
             MAXIMUM_RELATIVE_PATH_CHARACTERS,
             MAXIMUM_DIRECTORY_DEPTH,
-            NativeWorkspaceDirectoryCatalog.reader(),
-            NativeWorkspaceFileAccess.opener()
+            scope.reader(NativeWorkspaceDirectoryCatalog.reader()),
+            scope.opener(NativeWorkspaceFileAccess.opener())
         );
         return new ArchiveExport(
-            archiveDisplayName(summary.getRelativeDirectory()),
+            archiveDisplayName(scope, summary.getRelativeDirectory()),
             summary.getRelativeDirectory(),
             summary.getFileCount(),
             summary.getTotalBytes(),
@@ -140,6 +160,13 @@ public final class WorkspaceFileExporter {
         final String relativeDirectory,
         Uri destination
     ) throws IOException {
+        return exportArchive(context, relativeDirectory, destination, WorkspaceFileScope.WORKSPACE);
+    }
+
+    public static ArchiveExport exportArchive(
+        final Context context, final String relativeDirectory, Uri destination,
+        final WorkspaceFileScope scope
+    ) throws IOException {
         requireContentDestination(destination);
         requireContext(context);
         WorkspaceArchive.Summary summary = WorkspaceExportTransaction.execute(
@@ -152,7 +179,7 @@ public final class WorkspaceFileExporter {
                 public WorkspaceLayout prepare() throws IOException {
                     WorkspaceLayout preparedLayout = layout(context);
                     WorkspaceArchive.inspect(
-                        preparedLayout.getWorkspace(),
+                        scope.root(preparedLayout),
                         relativeDirectory,
                         MAXIMUM_FILES,
                         MAXIMUM_SCANNED_ENTRIES,
@@ -160,8 +187,8 @@ public final class WorkspaceFileExporter {
                         MAXIMUM_ARCHIVE_BYTES,
                         MAXIMUM_RELATIVE_PATH_CHARACTERS,
                         MAXIMUM_DIRECTORY_DEPTH,
-                        NativeWorkspaceDirectoryCatalog.reader(),
-                        NativeWorkspaceFileAccess.opener()
+                        scope.reader(NativeWorkspaceDirectoryCatalog.reader()),
+                        scope.opener(NativeWorkspaceFileAccess.opener())
                     );
                     return preparedLayout;
                 }
@@ -176,7 +203,7 @@ public final class WorkspaceFileExporter {
                     OutputStream destinationStream
                 ) throws IOException {
                     return WorkspaceArchive.write(
-                        preparedLayout.getWorkspace(),
+                        scope.root(preparedLayout),
                         relativeDirectory,
                         destinationStream,
                         MAXIMUM_FILES,
@@ -185,14 +212,14 @@ public final class WorkspaceFileExporter {
                         MAXIMUM_ARCHIVE_BYTES,
                         MAXIMUM_RELATIVE_PATH_CHARACTERS,
                         MAXIMUM_DIRECTORY_DEPTH,
-                        NativeWorkspaceDirectoryCatalog.reader(),
-                        NativeWorkspaceFileAccess.opener()
+                        scope.reader(NativeWorkspaceDirectoryCatalog.reader()),
+                        scope.opener(NativeWorkspaceFileAccess.opener())
                     );
                 }
             }
         );
         return new ArchiveExport(
-            archiveDisplayName(summary.getRelativeDirectory()),
+            archiveDisplayName(scope, summary.getRelativeDirectory()),
             summary.getRelativeDirectory(),
             summary.getFileCount(),
             summary.getTotalBytes(),
@@ -222,6 +249,16 @@ public final class WorkspaceFileExporter {
         return detected == null || detected.trim().isEmpty()
             ? "application/octet-stream"
             : detected;
+    }
+
+    private static String archiveDisplayName(
+        WorkspaceFileScope scope, String relativeDirectory
+    ) {
+        String name = archiveDisplayName(relativeDirectory);
+        return scope == WorkspaceFileScope.WORKSPACE ? name
+            : "AGENTCODI-" + (scope == WorkspaceFileScope.MANAGED_PACKAGES
+                ? "apt-packages-" : "user-packages-")
+                + name.substring("AGENTCODI-".length());
     }
 
     private static String archiveDisplayName(String relativeDirectory) {

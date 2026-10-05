@@ -36,6 +36,7 @@ public final class WorkspaceImportTest {
     public static int run() throws Exception {
         validatesTransientResultReadGrant();
         importsAndVerifiesArbitraryBytes();
+        importsPackageArtifactsWithoutInstalling();
         sanitizesUntrustedMetadata();
         createsDistinctCopiesWithoutOverwriting();
         rejectsFinalNameRaceWithoutOverwriting();
@@ -48,7 +49,7 @@ public final class WorkspaceImportTest {
         keepsVerifiedHandlesOpenThroughTheSendScope();
         rejectsChangesAcrossThePreparedBatchWindow();
         validatesBoundedImmutableSelections();
-        return 14;
+        return 15;
     }
 
     private static void validatesTransientResultReadGrant() throws Exception {
@@ -158,6 +159,30 @@ public final class WorkspaceImportTest {
                 Integer.valueOf(imported.getSha256().length()),
                 "imported content carries a bounded SHA-256 binding"
             );
+        } finally {
+            deleteRecursively(base);
+        }
+    }
+
+    private static void importsPackageArtifactsWithoutInstalling() throws Exception {
+        Path base = Files.createTempDirectory("agentcodi-import-package-");
+        try {
+            WorkspaceLayout layout = WorkspaceLayout.create(base.toFile());
+            byte[] content = new byte[] {0, (byte) 0xff, 42, 13};
+            for (String name : new String[] {"local-package.deb", "package-files.zip"}) {
+                ImportedWorkspaceFile imported = newImporter().importDocument(
+                    layout.getWorkspace(), layout.getImports(), name,
+                    "application/octet-stream", content.length,
+                    new ByteArrayInputStream(content)
+                );
+                TestSupport.assertTrue(imported.getRelativePath().endsWith(
+                    name.substring(name.lastIndexOf('.'))), "package extension is retained");
+                TestSupport.assertTrue(Arrays.equals(content, Files.readAllBytes(
+                    layout.getWorkspace().toPath().resolve(imported.getRelativePath()))),
+                    "artifact bytes remain unchanged");
+                TestSupport.assertTrue(layout.getPackagePrefix().toPath().resolve("bin")
+                    .toFile().list().length == 0, "import never installs or executes a package");
+            }
         } finally {
             deleteRecursively(base);
         }

@@ -705,6 +705,29 @@ if ! rg -q 'WorkspaceExportFile\.list' "$workspace_exporter" \
   exit 1
 fi
 
+
+# Package Edition keeps explicit file areas and stages imports only in workspace.
+package_file_scope="$PROJECT_ROOT/modules/storage/src/main/java/de/agentcodi/storage/WorkspaceFileScope.java"
+package_file_scope_test="$PROJECT_ROOT/tests/java/de/agentcodi/tests/WorkspaceFileScopeTest.java"
+if ! rg -q 'scope\.root\(layout\)' "$PROJECT_ROOT/modules/runtime/src/main/java/de/agentcodi/runtime/WorkspaceBrowserRepository.java" \
+    || ! rg -q 'scope\.reader\(NativeWorkspaceDirectoryCatalog\.reader\(\)\)' "$workspace_exporter" \
+    || ! rg -q 'scope\.opener\(NativeWorkspaceFileAccess\.opener\(\)\)' "$workspace_exporter" \
+    || ! rg -q 'MANAGED_PACKAGES' "$package_file_scope" \
+    || ! rg -q 'USER_PACKAGES' "$package_file_scope" \
+    || ! rg -q 'requireCanonicalRoot' "$package_file_scope" \
+    || ! rg -q '"auth\.conf\.d"' "$package_file_scope" \
+    || ! rg -q 'Intent\.ACTION_OPEN_DOCUMENT' "$browser_activity" \
+    || ! rg -q 'WorkspaceImportGrant\.fromResultIntentFlags' "$browser_activity" \
+    || ! rg -q 'WorkspaceFileImporter\.importDocument' "$browser_activity" \
+    || ! rg -q 'export\.repository' "$browser_activity" \
+    || ! rg -q 'WorkspaceFileScopeTest\.run' "$PROJECT_ROOT/tests/java/de/agentcodi/tests/TestMain.java" \
+    || ! rg -q 'excludesAccountLinksAndCredentialPathsFromArchives' "$package_file_scope_test" \
+    || ! rg -q 'importsPackageArtifactsWithoutInstalling' "$PROJECT_ROOT/tests/java/de/agentcodi/tests/WorkspaceImportTest.java" \
+    || rg -q 'takePersistableUriPermission|ACTION_OPEN_DOCUMENT_TREE' "$browser_activity"; then
+  echo "Explicit package file areas, account exclusions, or workspace-only imports are incomplete." >&2
+  exit 1
+fi
+
 approval_dialog="$PROJECT_ROOT/app/src/main/java/de/agentcodi/app/InteractiveRequestDialog.java"
 if rg -q '\.setItems\(' "$approval_dialog" \
     || ! rg -q 'setPositiveButton\([[:space:]]*$' "$approval_dialog" \

@@ -53,7 +53,7 @@ final class NativeWorkspaceDirectoryCatalog {
                 4
             );
             byte[][] frames = NativeEngine.listWorkspaceDirectory(
-                workspaceDirectory.getCanonicalPath(),
+                workspaceDirectory.getAbsolutePath(),
                 relativeDirectory,
                 maximumEntries,
                 maximumRelativePathBytes,

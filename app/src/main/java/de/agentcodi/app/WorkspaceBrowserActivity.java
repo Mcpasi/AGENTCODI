@@ -1,6 +1,8 @@
 package de.agentcodi.app;
 
 import android.app.Activity;
+import android.app.AlertDialog;
+import android.content.DialogInterface;
 import android.content.Context;
 import android.content.Intent;
 import android.graphics.Bitmap;
@@ -34,6 +36,11 @@ import de.agentcodi.browser.WorkspaceBrowserPage;
 import de.agentcodi.browser.WorkspaceFilePreview;
 import de.agentcodi.runtime.WorkspaceBrowserRepository;
 import de.agentcodi.runtime.WorkspaceFileExporter;
+import de.agentcodi.runtime.WorkspaceFileImporter;
+import de.agentcodi.browser.WorkspaceBrowserArea;
+import de.agentcodi.imports.ImportedWorkspaceFile;
+import de.agentcodi.imports.WorkspaceImportGrant;
+import de.agentcodi.imports.WorkspaceImportLimits;
 
 import java.io.IOException;
 import java.text.DateFormat;
@@ -47,6 +54,7 @@ import java.util.concurrent.Executors;
 import java.util.concurrent.RejectedExecutionException;
 
 public final class WorkspaceBrowserActivity extends Activity {
+    private static final int IMPORT_REQUEST_CODE = 7303;
     private static final int FILE_EXPORT_REQUEST_CODE = 7301;
     private static final int DIRECTORY_EXPORT_REQUEST_CODE = 7302;
 
@@ -65,6 +73,10 @@ public final class WorkspaceBrowserActivity extends Activity {
     private Button nextDirectoryPageButton;
     private TextView directoryPageView;
     private Button directoryExportButton;
+    private Button scopeButton;
+    private Button importButton;
+    private TextView scopeDescriptionView;
+    private boolean pendingImport;
     private LinearLayout previewPanel;
     private TextView previewTitleView;
     private TextView previewDetailsView;
@@ -133,6 +145,20 @@ public final class WorkspaceBrowserActivity extends Activity {
 
     @Override
     protected void onActivityResult(int requestCode, int resultCode, Intent data) {
+        if (requestCode == IMPORT_REQUEST_CODE) {
+            boolean expected = pendingImport;
+            pendingImport = false;
+            updateControls();
+            if (expected && resultCode == RESULT_OK && data != null && data.getData() != null) {
+                WorkspaceImportGrant grant = WorkspaceImportGrant.fromResultIntentFlags(
+                    data.getFlags(), Intent.FLAG_GRANT_READ_URI_PERMISSION
+                );
+                runImport(data.getData(), grant);
+            } else {
+                restoreVisibleStatus();
+            }
+            return;
+        }
         if (requestCode != FILE_EXPORT_REQUEST_CODE
             && requestCode != DIRECTORY_EXPORT_REQUEST_CODE) {
             super.onActivityResult(requestCode, resultCode, data);
@@ -147,9 +173,9 @@ public final class WorkspaceBrowserActivity extends Activity {
             return;
         }
         if (export.directory) {
-            runDirectoryExport(export.relativePath, destination);
+            runDirectoryExport(export.repository, export.relativePath, destination);
         } else {
-            runExport(export.relativePath, destination);
+            runExport(export.repository, export.relativePath, destination);
         }
     }
 
@@ -190,6 +216,28 @@ public final class WorkspaceBrowserActivity extends Activity {
         });
         topBar.addView(refresh);
         root.addView(topBar);
+
+        LinearLayout fileActions = new LinearLayout(this);
+        fileActions.setGravity(Gravity.CENTER_VERTICAL);
+        scopeButton = theme.compactButton(scopeLabel(repository.getArea()));
+        scopeButton.setOnClickListener(new View.OnClickListener() {
+            @Override
+            public void onClick(View view) {
+                chooseScope();
+            }
+        });
+        fileActions.addView(scopeButton);
+        importButton = theme.compactButton(getString(R.string.browser_import));
+        importButton.setOnClickListener(new View.OnClickListener() {
+            @Override
+            public void onClick(View view) {
+                chooseImport();
+            }
+        });
+        fileActions.addView(importButton);
+        theme.addWithTopMargin(root, fileActions, 8);
+        scopeDescriptionView = theme.text(scopeDescription(), 12, theme.secondary);
+        theme.addWithTopMargin(root, scopeDescriptionView, 5);
 
         breadcrumbRow = new LinearLayout(this);
         breadcrumbRow.setOrientation(LinearLayout.HORIZONTAL);
@@ -396,6 +444,130 @@ public final class WorkspaceBrowserActivity extends Activity {
         return panel;
     }
 
+    private String scopeLabel(WorkspaceBrowserArea scope) {
+        return getString(scope == WorkspaceBrowserArea.WORKSPACE
+            ? R.string.browser_workspace_root
+            : scope == WorkspaceBrowserArea.MANAGED_PACKAGES
+                ? R.string.browser_managed_packages : R.string.browser_user_packages);
+    }
+
+    private String scopeDescription() {
+        return getString(repository.getArea() == WorkspaceBrowserArea.WORKSPACE
+            ? R.string.browser_workspace_scope_hint : R.string.browser_package_scope_hint);
+    }
+
+    private void chooseScope() {
+        if (busy || pendingExport != null || pendingImport) {
+            return;
+        }
+        final WorkspaceBrowserArea[] scopes = WorkspaceBrowserArea.values();
+        String[] labels = new String[scopes.length];
+        for (int index = 0; index < scopes.length; index++) {
+            labels[index] = scopeLabel(scopes[index]);
+        }
+        new AlertDialog.Builder(this)
+            .setTitle(R.string.browser_choose_scope)
+            .setSingleChoiceItems(labels, repository.getArea().ordinal(),
+                new DialogInterface.OnClickListener() {
+                    @Override
+                    public void onClick(DialogInterface dialog, int which) {
+                        dialog.dismiss();
+                        switchScope(scopes[which]);
+                    }
+                })
+            .setNegativeButton(android.R.string.cancel, null)
+            .show();
+    }
+
+    private void switchScope(final WorkspaceBrowserArea scope) {
+        if (busy || pendingExport != null || pendingImport) {
+            return;
+        }
+        final long generation = ++operationGeneration;
+        setBusy(true, R.string.browser_loading);
+        if (!submit(new Runnable() {
+            @Override
+            public void run() {
+                try {
+                    final WorkspaceBrowserRepository selected =
+                        WorkspaceBrowserRepository.create(WorkspaceBrowserActivity.this, scope);
+                    final WorkspaceBrowserPage page = selected.list("", 0);
+                    postResult(generation, new Runnable() {
+                        @Override
+                        public void run() {
+                            repository = selected;
+                            scopeButton.setText(scopeLabel(scope));
+                            scopeDescriptionView.setText(scopeDescription());
+                            renderDirectory(page);
+                        }
+                    });
+                } catch (Throwable error) {
+                    postFailure(generation, R.string.browser_directory_failed);
+                }
+            }
+        })) {
+            postFailure(generation, R.string.browser_operation_rejected);
+        }
+    }
+
+    private void chooseImport() {
+        if (busy || pendingExport != null || pendingImport) {
+            return;
+        }
+        Intent intent = new Intent(Intent.ACTION_OPEN_DOCUMENT);
+        intent.addCategory(Intent.CATEGORY_OPENABLE);
+        intent.setType("*/*");
+        intent.addFlags(Intent.FLAG_GRANT_READ_URI_PERMISSION);
+        pendingImport = true;
+        updateControls();
+        try {
+            startActivityForResult(intent, IMPORT_REQUEST_CODE);
+        } catch (RuntimeException error) {
+            pendingImport = false;
+            updateControls();
+            Toast.makeText(this, R.string.document_picker_open_failed, Toast.LENGTH_LONG).show();
+        }
+    }
+
+    private void runImport(final Uri source, final WorkspaceImportGrant grant) {
+        final long generation = ++operationGeneration;
+        setBusy(true, R.string.browser_importing);
+        if (!submit(new Runnable() {
+            @Override
+            public void run() {
+                try {
+                    final ImportedWorkspaceFile imported = WorkspaceFileImporter.importDocument(
+                        WorkspaceBrowserActivity.this, source, grant,
+                        WorkspaceImportLimits.MAXIMUM_FILE_BYTES
+                    );
+                    final WorkspaceBrowserRepository selected = WorkspaceBrowserRepository.create(
+                        WorkspaceBrowserActivity.this, WorkspaceBrowserArea.WORKSPACE
+                    );
+                    final WorkspaceBrowserPage page = selected.list("imports", 0);
+                    postResult(generation, new Runnable() {
+                        @Override
+                        public void run() {
+                            repository = selected;
+                            scopeButton.setText(scopeLabel(selected.getArea()));
+                            scopeDescriptionView.setText(scopeDescription());
+                            renderDirectory(page);
+                            String message = getString(
+                                R.string.browser_imported, imported.getRelativePath()
+                            );
+                            statusView.setText(message);
+                            Toast.makeText(WorkspaceBrowserActivity.this, message,
+                                Toast.LENGTH_LONG).show();
+                        }
+                    });
+                } catch (Throwable error) {
+                    postFailure(generation, R.string.browser_import_failed);
+                }
+            }
+        })) {
+            postFailure(generation, R.string.browser_operation_rejected);
+        }
+    }
+
     private void refreshVisibleContent() {
         if (previewRelativePath.isEmpty()) {
             loadDirectory(currentDirectory, currentDirectoryPageIndex);
@@ -585,7 +757,7 @@ public final class WorkspaceBrowserActivity extends Activity {
                 breadcrumbRow.addView(separator);
             }
             String label = breadcrumb.getRelativePath().isEmpty()
-                ? getString(R.string.browser_workspace_root)
+                ? scopeLabel(repository.getArea())
                 : breadcrumb.getLabel();
             Button button = theme.compactButton(label);
             button.setOnClickListener(new View.OnClickListener() {
@@ -636,7 +808,7 @@ public final class WorkspaceBrowserActivity extends Activity {
         String relativePath,
         WorkspaceFileExporter.FileExport source
     ) {
-        pendingExport = PendingExport.file(relativePath);
+        pendingExport = PendingExport.file(relativePath, repository);
         Intent intent = new Intent(Intent.ACTION_CREATE_DOCUMENT);
         intent.addCategory(Intent.CATEGORY_OPENABLE);
         intent.setType(source.getMimeType());
@@ -652,7 +824,9 @@ public final class WorkspaceBrowserActivity extends Activity {
         }
     }
 
-    private void runExport(final String relativePath, final Uri destination) {
+    private void runExport(
+        final WorkspaceBrowserRepository selected, final String relativePath, final Uri destination
+    ) {
         final long generation = ++operationGeneration;
         setBusy(true, R.string.browser_exporting);
         if (!submit(new Runnable() {
@@ -660,7 +834,7 @@ public final class WorkspaceBrowserActivity extends Activity {
             public void run() {
                 try {
                     final WorkspaceFileExporter.FileExport exported =
-                        repository.export(relativePath, destination);
+                        selected.export(relativePath, destination);
                     postResult(generation, new Runnable() {
                         @Override
                         public void run() {
@@ -717,7 +891,7 @@ public final class WorkspaceBrowserActivity extends Activity {
         String relativeDirectory,
         WorkspaceFileExporter.ArchiveExport archive
     ) {
-        pendingExport = PendingExport.directory(relativeDirectory);
+        pendingExport = PendingExport.directory(relativeDirectory, repository);
         Intent intent = new Intent(Intent.ACTION_CREATE_DOCUMENT);
         intent.addCategory(Intent.CATEGORY_OPENABLE);
         intent.setType("application/zip");
@@ -738,6 +912,7 @@ public final class WorkspaceBrowserActivity extends Activity {
     }
 
     private void runDirectoryExport(
+        final WorkspaceBrowserRepository selected,
         final String relativeDirectory,
         final Uri destination
     ) {
@@ -748,7 +923,7 @@ public final class WorkspaceBrowserActivity extends Activity {
             public void run() {
                 try {
                     final WorkspaceFileExporter.ArchiveExport exported =
-                        repository.exportArchive(relativeDirectory, destination);
+                        selected.exportArchive(relativeDirectory, destination);
                     postResult(generation, new Runnable() {
                         @Override
                         public void run() {
@@ -825,6 +1000,9 @@ public final class WorkspaceBrowserActivity extends Activity {
     }
 
     private void updateControls() {
+        boolean pickerIdle = pendingExport == null && !pendingImport;
+        theme.setEnabled(scopeButton, !busy && pickerIdle);
+        theme.setEnabled(importButton, !busy && pickerIdle);
         boolean directoryVisible = directoryPanel != null
             && directoryPanel.getVisibility() == View.VISIBLE;
         boolean previewVisible = previewPanel != null
@@ -982,6 +1160,9 @@ public final class WorkspaceBrowserActivity extends Activity {
     }
 
     private String unavailableMessage(String reason) {
+        if ("credential".equals(reason)) {
+            return getString(R.string.browser_unavailable_credential);
+        }
         if ("symbolic-link".equals(reason)) {
             return getString(R.string.browser_unavailable_symlink);
         }
@@ -1134,17 +1315,26 @@ public final class WorkspaceBrowserActivity extends Activity {
         final boolean directory;
         final String relativePath;
 
-        private PendingExport(boolean directory, String relativePath) {
+        final WorkspaceBrowserRepository repository;
+
+        private PendingExport(
+            boolean directory, String relativePath, WorkspaceBrowserRepository repository
+        ) {
+            this.repository = repository;
             this.directory = directory;
             this.relativePath = relativePath;
         }
 
-        static PendingExport file(String relativePath) {
-            return new PendingExport(false, relativePath);
+        static PendingExport file(
+            String relativePath, WorkspaceBrowserRepository repository
+        ) {
+            return new PendingExport(false, relativePath, repository);
         }
 
-        static PendingExport directory(String relativePath) {
-            return new PendingExport(true, relativePath);
+        static PendingExport directory(
+            String relativePath, WorkspaceBrowserRepository repository
+        ) {
+            return new PendingExport(true, relativePath, repository);
         }
 
         boolean matchesRequestCode(int requestCode) {

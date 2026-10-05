@@ -7,6 +7,24 @@ on an Android device. Security reports are especially important when they concer
 the boundaries between the private workspace, account data, Android storage,
 packaged runtimes, and hosted services.
 
+## Browser and export areas
+
+The graphical browser exposes only three explicit roots: workspace, the managed
+package prefix and the user package prefix `$HOME/.local`. It does not expose
+the entire home or Codex account directory. Package views reuse bounded,
+descriptor-relative no-follow access, reject hard links, and exclude known
+credential paths, including Codex auth files, SSH directories, npm/pip credential
+configuration and APT auth configuration. Excluded entries are unavailable for
+preview and export, including when selected directly as an archive root.
+
+Imports always create a new, owner-only file below `workspace/imports`; they
+never write into a package prefix, extract an archive or execute a package.
+Exports preserve their selected area across the document picker and roll back
+failed destinations. ZIPs omit links and permissions and are not installation
+backups. Filename checks cannot identify credentials copied under arbitrary
+names; users must review content before sharing it. These UI checks do not
+change the documented Full-access reach of installed programs.
+
 ## Supported versions
 
 AGENTCODI is in active early-access development. Security fixes are made on the

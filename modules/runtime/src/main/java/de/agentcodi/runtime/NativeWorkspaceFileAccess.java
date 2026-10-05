@@ -30,7 +30,7 @@ final class NativeWorkspaceFileAccess {
                 throw new IllegalArgumentException("workspaceDirectory must not be null");
             }
             long handle = NativeEngine.openWorkspaceFile(
-                workspaceDirectory.getCanonicalPath(),
+                workspaceDirectory.getAbsolutePath(),
                 relativePath,
                 maximumBytes
             );

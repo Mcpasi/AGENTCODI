@@ -7,7 +7,7 @@
   <string name="navigation_terminal">Terminal</string>
   <string name="navigation_files">Dateien</string>
 
-  <string name="browser_title">Workspace-Dateien</string>
+  <string name="browser_title">Workspace- und Paketdateien</string>
   <string name="browser_back">‹ Zurück</string>
   <string name="browser_refresh">Aktualisieren</string>
   <string name="browser_workspace_root">Workspace</string>
@@ -41,7 +41,7 @@
   <string name="browser_type_image">Bildvorschau</string>
   <string name="browser_image_description">Vorschau von %1$s</string>
   <string name="browser_export">Diese Datei exportieren…</string>
-  <string name="browser_export_checking">Die gewählte Workspace-Datei wird vor dem Android-Dokumentdialog erneut geprüft…</string>
+  <string name="browser_export_checking">Die gewählte Datei wird vor dem Android-Dokumentdialog erneut geprüft…</string>
   <string name="browser_exporting">Die gewählte Datei wird zum ausdrücklich gewählten Android-Ziel kopiert…</string>
   <string name="browser_exported">Exportiert: %1$s</string>
   <string name="browser_export_failed">Die gewählte Datei konnte nicht erneut geprüft und exportiert werden.</string>
@@ -322,8 +322,8 @@
   <string name="language_english">Englisch</string>
   <string name="language_german">Deutsch</string>
 
-  <string name="workspace_export_section">WORKSPACE-DATEIEN</string>
-  <string name="workspace_export_description">Im grafischen Dateibrowser kannst du den privaten Workspace prüfen, jede verifizierte reguläre Datei bytegenau exportieren oder den aktuell geöffneten Ordner – einschließlich der Workspace-Wurzel – über Androids Dokumentdialog als begrenztes ZIP exportieren.</string>
+  <string name="workspace_export_section">WORKSPACE- UND PAKETDATEIEN</string>
+  <string name="workspace_export_description">Im grafischen Dateibrowser Workspace, APT-Pakete oder Nutzerpakete wählen. Geprüfte Dateien und Ordner ansehen und exportieren. Dateien einschließlich DEBs und Archiven nach workspace/imports importieren; die Installation erfolgt im Terminal. Paketbereiche schließen Kontoverzeichnis und bekannte Zugangsdaten-Pfade aus.</string>
   <string name="workspace_export_ready">Einzeldateien sind auf 512 MiB begrenzt. Ordner-ZIPs sind auf 2.048 reguläre Dateien, 1 GiB Inhalt, 65.536 gescannte Einträge und 64 Verzeichnisebenen begrenzt. Unsichere oder nicht verfügbare Kinder werden lokal ausgelassen und machen sichere Geschwister nie unzugänglich.</string>
 
   <string name="account_section">ANMELDUNG</string>
@@ -730,4 +730,14 @@
   <string name="card_field_sender">Sender</string>
   <string name="card_field_receiver">Empfänger</string>
   <string name="card_field_agent_status">Agentenstatus</string>
+    <string name="browser_choose_scope">Dateibereich auswählen</string>
+    <string name="browser_managed_packages">APT-Pakete</string>
+    <string name="browser_user_packages">Nutzerpakete</string>
+    <string name="browser_import">Datei importieren</string>
+    <string name="browser_workspace_scope_hint">Importe landen unter workspace/imports, auch DEBs und Archive. Die Installation erfolgt gezielt im Terminal.</string>
+    <string name="browser_package_scope_hint">Paketdateien nur lesen: Datei/Ordner ansehen oder exportieren. Kontoverzeichnis und bekannte Zugangsdaten-Dateien sind ausgeschlossen. ZIPs lassen Links aus und stellen keine Paketinstallation wieder her.</string>
+    <string name="browser_importing">Import in den Workspace…</string>
+    <string name="browser_imported">Importiert nach %1$s. Diesen Pfad im Terminal verwenden; es wurde nichts installiert.</string>
+    <string name="browser_import_failed">Import fehlgeschlagen. Die Datei muss lesbar, höchstens 512 MiB groß und frei von Kontodaten-Dateinamen sein.</string>
+    <string name="browser_unavailable_credential">Zugangsdaten-Pfad: Vorschau und Export sind ausgeschlossen.</string>
 </resources>

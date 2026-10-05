@@ -40,6 +40,7 @@ public final class TestMain {
         passed += de.agentcodi.imports.client.WorkspaceImportLifecycleTest.run();
         passed += WorkspaceExportTest.run();
         passed += WorkspaceFileBrowserTest.run();
+        passed += WorkspaceFileScopeTest.run();
         System.out.println("Java tests passed: " + passed);
     }
 }

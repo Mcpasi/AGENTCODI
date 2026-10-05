@@ -2,7 +2,7 @@
 
 Stand: 2026-10-05. Ausschließlich Branch `Mcpasi/package-edition`; kein Merge nach `main`.
 
-Die Checklisten zeigen den aktuellen Umsetzungsstand. Datierte Ergebnis- und Verifikationsabschnitte dokumentieren frühere Meilensteine; ihre Testzahlen, Artefakte und Prüfsummen gehören zum jeweils genannten Commit. Bootstrap, Startkatalog und öffentliches signiertes APT-Repository sind umgesetzt. Die npm-/Python-Pfade und die gemeinsame Prozessumgebung sind umgesetzt und in CI geprüft; die aktuellen Nachweise stehen im Ergebnisabschnitt „Gemeinsame Paketumgebung und npm-/Python-Pfade“. Die Paketdiagnose ist umgesetzt; als nächster offener Umsetzungspunkt folgt die Workspace-Browser-/Import-/Export-Erweiterung; die APK-Verkleinerung bleibt in Abschnitt 4. Echte Gerätetests bleiben gemäß Nutzeranweisung offen. Die APT-Veröffentlichung ist getrennt von einem GitHub-Release der APK.
+Die Checklisten zeigen den aktuellen Umsetzungsstand. Datierte Ergebnis- und Verifikationsabschnitte dokumentieren frühere Meilensteine; ihre Testzahlen, Artefakte und Prüfsummen gehören zum jeweils genannten Commit. Bootstrap, Startkatalog und öffentliches signiertes APT-Repository sind umgesetzt. Die npm-/Python-Pfade und die gemeinsame Prozessumgebung sind umgesetzt und in CI geprüft; die aktuellen Nachweise stehen im Ergebnisabschnitt „Gemeinsame Paketumgebung und npm-/Python-Pfade“. Die Paketdiagnose und die Workspace-Browser-/Import-/Export-Erweiterung sind umgesetzt; als nächster offener Umsetzungspunkt folgt die APK-Verkleinerung in Abschnitt 4. Echte Gerätetests bleiben gemäß Nutzeranweisung offen. Die APT-Veröffentlichung ist getrennt von einem GitHub-Release der APK.
 
 ## Ziel und feste Entscheidungen
 
@@ -166,7 +166,7 @@ Das Termux-Buildsystem dokumentiert anpassbare App- und Präfixvariablen in [scr
 - [x] npm-Global-Prefix/-Cache sowie Python-User-/venv-/pip-Pfade nutzbar machen. Normale Nutzerkonfiguration und Python-User-Site sind aktiv; lokale Global-/User-/venv-Installationen, ausführbare Skripte, npx und Entfernung sind unter ARM64/Bionic geprüft.
 - [x] Installation, Aktualisierung, Entfernung und Status im Terminal dokumentieren; Pakete über App-Neustart und APK-Update erhalten. APT-Bedienung ist in der README dokumentiert, Bestandserhaltung durch Java-Regressionen geprüft; echte Geräte-/Update-Tests bleiben separat offen.
 - [x] Paketpfade und installierte Versionen bei Bedarf in Diagnose/Terminal anzeigen; bisherige Aktivierungsanzeigen ersetzen. Die Terminal-Schaltfläche „Paketdiagnose“ fragt aktuelle Umgebungswerte, Befehlsauflösung und Versions-/Statusdaten der verwalteten dpkg-Datenbank ab.
-- [ ] Workspace-Browser und Import/Export sinnvoll erweitern, wenn Paketdateien dort zugänglich sein sollen. Kontodaten sollen weiterhin nicht versehentlich exportiert werden.
+- [x] Workspace-Browser und Import/Export für ausdrücklich gewählte Paketbereiche erweitern. Kontodaten bleiben außerhalb der zugänglichen Wurzeln; bekannte Zugangsdaten-Pfade und Links sind in Paketbereichen gesperrt.
 - [ ] Android 10 und eine aktuelle Android-Version auf echter ARM64-Hardware prüfen: ELF, Skript/Shebang, dynamische Bibliothek, npm/pip, PTY und stdio-MCP.
 
 ### Verwalteter Präfix — 2026-10-04
@@ -668,6 +668,51 @@ Der Abschlusscommit ergänzt ausschließlich diese Nachweise und Hinweise zu
 den CI-Testvoraussetzungen; der App-Code bleibt unverändert.
 Kein PR, Merge oder APK-Release; `main` bleibt auf
 `ff27ec7c30d373a864e845e9a7ceeae3380dd103`.
+
+### Workspace-Browser und Paketdatei-Import/Export — 2026-10-05
+
+Umgesetzt ausschließlich auf `Mcpasi/package-edition`. Der Browser bietet
+die getrennten Bereiche Workspace, APT-Pakete (`files/usr`) und Nutzerpakete
+(`$HOME/.local`) mit eigener Navigation und Vorschau. Paketbereiche sind
+nur lesbar; sie eröffnen weder das gesamte HOME noch CODEX_HOME. Normale
+Workspace-Exporte enthalten weiterhin keinen Paketpräfix.
+
+Einzeldateien und ausdrücklich gewählte Paketordner lassen sich über den
+Android-Dokumentdialog exportieren. Bestehende Größen-, Datei-, Scan- und
+Tiefengrenzen sowie quellnahe No-follow-/Hardlink-/Änderungsprüfungen und
+Rollback bleiben aktiv. Native Zugriffe erhalten die geprüfte absolute
+Wurzel unverändert, damit ein ausgetauschter Wurzellink nicht vor
+`O_NOFOLLOW` aufgelöst wird. Ausstehende Exporte behalten ihren ursprünglichen
+Bereich. Paket-ZIP-Namen kennzeichnen die Quelle.
+
+Bekannte Zugangsdaten-Pfade einschließlich `auth.json`, `codex-home`,
+`.codex`, `.ssh`, `.npmrc`, `.pypirc`, `.netrc`, `.git-credentials`
+sowie APT-`auth.conf`/`auth.conf.d` sind in Paketbereichen für Vorschau
+und Export gesperrt, auch bei direkter Auswahl. Links und solche Pfade
+werden beim ZIP-Export ausgelassen und gezählt. Unter beliebigen anderen
+Namen kopierte Geheimnisse kann eine Namensprüfung nicht erkennen; README
+und SECURITY erklären diese Grenze ebenso wie den unveränderten Full access.
+
+„Datei importieren“ übernimmt eine einzelne Android-Datei beliebigen Typs,
+einschließlich DEB/ZIP, bytegenau nach `workspace/imports`, mit eigenem
+Zufallsnamen und sicherer Dateiendung. Der Browser zeigt den genauen Pfad.
+Das bestehende Importmodul prüft das temporäre Leserecht, die 512-MiB-Grenze,
+Kontodaten-Dateinamen und den atomaren No-replace-Abschluss; es speichert
+keine URI und installiert, entpackt oder startet nichts. Die Verwendung im
+Terminal erfolgt ausdrücklich durch den Nutzer.
+
+ZIPs sind Dateikopien: Links, leere Ordner und Ausführungsrechte fehlen;
+sie sind keine vollständige Paket- oder dpkg-Wiederherstellung. Verwaltete
+Pakete werden über APT neu installiert. Deutsche/englische Bedienung,
+Settings-Texte, README und SECURITY sind auf diesen Vertrag abgestimmt.
+
+Fünf neue Java-Regressionen prüfen Wurzelauswahl, Vorschau/Einzelexport
+beider Präfixe, Kontodaten-/Link-Ausschluss im tatsächlichen ZIP,
+direkte/unsichere Pfade und ausgetauschte Wurzellinks. Eine zusätzliche
+Importregression prüft DEB-/ZIP-Bytes und Endungen ohne Paketinstallation.
+CI-Nachweise werden nach Abschluss der Implementierungsläufe hier ergänzt.
+Echte Gerätetests werden gemäß Nutzeranweisung übersprungen und bleiben offen.
+Kein PR, Merge oder APK-Release; `main` bleibt unverändert.
 
 ## 4. Build verkleinern und veröffentlichbare Edition erstellen
 

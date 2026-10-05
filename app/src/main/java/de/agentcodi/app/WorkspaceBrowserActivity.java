@@ -166,6 +166,7 @@ public final class WorkspaceBrowserActivity extends Activity {
         }
         final PendingExport export = pendingExport;
         pendingExport = null;
+        updateControls();
         final Uri destination = data == null ? null : data.getData();
         if (resultCode != RESULT_OK || destination == null || export == null
             || !export.matchesRequestCode(requestCode)) {
@@ -1000,6 +1001,9 @@ public final class WorkspaceBrowserActivity extends Activity {
     }
 
     private void updateControls() {
+        if (theme == null || entryList == null) {
+            return;
+        }
         boolean pickerIdle = pendingExport == null && !pendingImport;
         theme.setEnabled(scopeButton, !busy && pickerIdle);
         theme.setEnabled(importButton, !busy && pickerIdle);

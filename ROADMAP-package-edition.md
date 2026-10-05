@@ -2,6 +2,8 @@
 
 Stand: 2026-10-05. Ausschließlich Branch `Mcpasi/package-edition`; kein Merge nach `main`.
 
+Die Checklisten zeigen den aktuellen Umsetzungsstand. Datierte Ergebnis- und Verifikationsabschnitte dokumentieren frühere Meilensteine; ihre Testzahlen, Artefakte und Prüfsummen gehören zum jeweils genannten Commit. Bootstrap, Startkatalog und öffentliches signiertes APT-Repository sind umgesetzt. Als Nächstes stehen die verbleibenden npm-/Python-Pfade und Umgebungsprüfungen an, danach die APK-Verkleinerung. Echte Gerätetests bleiben gemäß Nutzeranweisung offen. Die APT-Veröffentlichung ist getrennt von einem GitHub-Release der APK.
+
 ## Ziel und feste Entscheidungen
 
 Nutzer installieren eigene Pakete, die Codex und das Terminal direkt verwenden können. Diese zweite Entwicklungslinie nutzt `targetSdk 28`, bietet ausschließlich Full access und richtet sich an erfahrene Nutzer. Androids Isolation zwischen Apps bleibt bestehen; eine zusätzliche Workspace-Sandbox wird hier nicht angeboten.
@@ -15,7 +17,7 @@ Ein Target-SDK-Wechsel allein liefert weder einen Paketmanager noch eine passend
 - [x] App-Modus auf Full access beschränken, einschließlich Dienst-Neustart und alter Launch-Intents.
 - [x] Geschützte Modusauswahl und JIT-Schalter aus den Einstellungen entfernen.
 - [x] Deutsche und englische Texte, dauerhafte Chat-Kennzeichnung und README-Warnung aktualisieren.
-- [x] Beschreibbaren Übergangspräfix `$HOME/.local` mit `bin/lib/include/share/etc/tmp` anlegen. Die verwaltete Paketbasis wechselt später gemäß Abschnitt 3 auf ein separates `files/usr`.
+- [x] Beschreibbaren Übergangspräfix `$HOME/.local` mit `bin/lib/include/share/etc/tmp` anlegen. Die verwaltete Paketbasis ist inzwischen gemäß Abschnitt 3 auf `files/usr` umgestellt; bestehende `$HOME/.local`-Dateien bleiben erhalten.
 - [x] Präfix-Binaries und Bibliotheken für App-Server und Codex-Kommandos vor die Übergangswerkzeuge setzen.
 - [x] Shell-Funktionen entfernen, die selbst installierte Programme gleichen Namens überschreiben.
 - [x] Regressionstests für beständige Installationen, Modusvertrag, SDK-Pins und tatsächliche Ausführung eigener Programme ergänzen.
@@ -29,7 +31,7 @@ Die Edition verwendet ausschließlich `:danger-full-access`; das Protected-Modul
 
 ## 2. Community-App-Server anbinden
 
-Der eigene Fork basiert laut GitHub auf `DioNanos/codex-termux`. Geprüftes Community-Release vom 2026-09-24:
+Die aktive Community-Runtime stammt direkt aus dem gepinnten Release von `DioNanos/codex-termux`. Geprüftes Community-Release vom 2026-09-24:
 
 - Repository: https://github.com/DioNanos/codex-termux
 - Release: `v0.156.1-termux.1`, Upstream `rust-v0.156.1`
@@ -54,11 +56,11 @@ Diese Angaben sind die aktive, vollständig angepinnte Community-Runtime. Archiv
 
 Umgesetzt mit `.github/ci/community-codex-release.json`, `inspect-community-codex.py` und dem zusätzlichen Tests-Job `Community Codex release inspection`, ausschließlich auf diesem Branch. Der erfolgreiche [CI-Lauf 37158009969](https://github.com/Mcpasi/AGENTCODI/actions/runs/37158009969) für Commit `5a89b6a3a4e2871b3952d10b2201215527e4ea10` prüft den Release-Asset-Digest, den aufgelösten Tag-Quellcommit und die tatsächlich heruntergeladenen Archivbytes. Das [Prüfartefakt](https://github.com/Mcpasi/AGENTCODI/actions/runs/37158009969/artifacts/11286760213) enthält das vollständige Dateiinventar mit SHA-256, ELF-Berichte, Metadaten, Launcher-Befunde sowie LICENSE/NOTICE.
 
-- Das Archiv enthält 12 reguläre Dateien, darunter `codex.bin`, den separaten `codex-code-mode-host` und `libc++_shared.so`. Der Hostname ist im Codex-Binary vorhanden; seine tatsächliche Auflösung beziehungsweise ein APK-Relokationsoffset ist damit noch nicht bestätigt.
+- Das Archiv enthält 12 reguläre Dateien, darunter `codex.bin`, den separaten `codex-code-mode-host` und `libc++_shared.so`. Der Hostname ist im Codex-Binary vorhanden; dieser statische Prüfschritt bestätigte noch keine tatsächliche Auflösung oder APK-Relokation. Beides wurde beim anschließend dokumentierten Abschluss der Community-Anbindung geprüft.
 - Beide ausführbaren ELF-Dateien sind ARM64/ELF64 mit Interpreter `/system/bin/linker64` und RUNPATH `$ORIGIN:$ORIGIN`. Die zwei identischen Einträge sind gleichwertig zum selben Bibliotheksordner; fremde oder leere Suchpfade werden abgelehnt.
 - `codex.bin` benötigt dynamisch `libdl.so/libm.so/libc.so`, der Code-mode-Host zusätzlich `liblog.so`. Die mitgelieferte `libc++_shared.so` benötigt `libc.so/libm.so/libdl.so`; die beiden Programme haben in diesem Release keinen direkten DT_NEEDED-Eintrag für libc++. Alle ermittelten dynamischen Abhängigkeiten sind Android-Systembibliotheken.
-- Keine npm-Paketabhängigkeiten sind deklariert. Die JavaScript-Launcher deklarieren Node.js `>=18.0.0`; das Postinstall-Skript passt Shebangs anhand des laufenden Node-Interpreters an. Shell- und JavaScript-Launcher enthalten weiterhin den Termux-Standardpräfix `/data/data/com.termux/files/usr`. Sie werden bei der späteren Integration an die Editions-Umgebung angepasst.
-- Paketlizenz und LICENSE sind Apache-2.0; NOTICE nennt OpenAI, Davide A. Guglielmi und Ratatui/MIT. Separate Lizenztexte für libc++ und statisch eingebundene Rust-/V8-Abhängigkeiten sind im Archiv nicht enthalten. Ihre vollständigen Notices bleiben vor der späteren Auslieferung zu prüfen.
+- Keine npm-Paketabhängigkeiten sind deklariert. Die JavaScript-Launcher deklarieren Node.js `>=18.0.0`; das Postinstall-Skript passt Shebangs anhand des laufenden Node-Interpreters an. Shell- und JavaScript-Launcher enthalten weiterhin den Termux-Standardpräfix `/data/data/com.termux/files/usr`. Die spätere Integration verwendet die ELF-Dateien direkt; diese npm-/JavaScript-Launcher werden weder installiert noch ausgeführt.
+- Paketlizenz und LICENSE sind Apache-2.0; NOTICE nennt OpenAI, Davide A. Guglielmi und Ratatui/MIT. Separate Lizenztexte für libc++ und statisch eingebundene Rust-/V8-Abhängigkeiten sind im Archiv nicht enthalten. LICENSE/NOTICE werden unverändert ins APK übernommen; die Prüfung vollständiger Drittanbieter-Notices bleibt Teil des offenen Lizenzabgleichs in Abschnitt 4.
 - Das archivierte README nennt veraltet `rust-v0.155.0`; Release und Paketbeschreibung nennen `rust-v0.156.1`. Die Prüfung dokumentiert diese Abweichung und verwendet die gepinnten Release-/Quellangaben.
 
 Neu ermittelte ELF-Prüfsummen, ausschließlich für dieses unveränderte Release-Archiv:
@@ -71,7 +73,7 @@ Neu ermittelte ELF-Prüfsummen, ausschließlich für dieses unveränderte Releas
 
 Architekturchecks, 309 Java-Tests, alle 8 portablen C++-Suites, Android-Quellen/Ressourcen gegen API 35 und die Release-Prüfung einschließlich 8 neuer Archiv-/Suchpfadtests sind erfolgreich. Die anfänglichen CI-Ursachen (anonymes GitHub-API-Ratenlimit und zu strenger Vergleich der doppelten ORIGIN-Einträge) sind behoben.
 
-Kein npm-Install/Postinstall und kein Community-ELF wurden ausgeführt; diese statische Prüfung verändert keine APK-Runtime. Schema-Erzeugung und -Prüfsummen, RPC-/Startkompatibilität, Host-Relokation und der aktive Kanalwechsel bleiben die nächsten offenen Schritte. Geräte-Tests bleiben offen und wurden gemäß Nutzeranweisung übersprungen.
+In diesem statischen Prüfschritt wurden weder npm-Install/Postinstall noch Community-ELFs ausgeführt und keine APK-Runtime verändert. Schema-Erzeugung und -Prüfsummen, RPC-/Startkompatibilität, Host-Relokation und Kanalwechsel wurden anschließend umgesetzt; der folgende Abschnitt dokumentiert den Abschluss. Gerätetests bleiben offen und wurden gemäß Nutzeranweisung übersprungen.
 
 ### Abschluss der Community-Anbindung — 2026-10-04
 
@@ -122,20 +124,22 @@ Full-access-Vertragsprüfungen ersetzt; die übrigen Regressionen bleiben erhalt
 Der Edition-APK-Build benötigt keine besonderen seccomp-/ptrace-/AppArmor-Optionen
 und prüft Full access statt der alten Workspace-Isolation.
 
-Die Root-README ist vollständig Englisch. Abschnitt 3 und 4 sowie echte
-Android-Gerätetests bleiben offen; Gerätetests wurden auf ausdrücklichen
-Nutzerwunsch nicht ausgeführt.
+Die Root-README ist vollständig Englisch. Die danach umgesetzte Paketbasis,
+der Startkatalog und das signierte Repository sind in Abschnitt 3 dokumentiert.
+Die verbleibenden Paketpfad-/Umgebungsarbeiten, die APK-Verkleinerung aus
+Abschnitt 4 und echte Android-Gerätetests bleiben offen; Gerätetests wurden
+auf ausdrücklichen Nutzerwunsch nicht ausgeführt.
 
 ## 3. Paket-Bootstrap und Workspace vervollständigen
 
 ### Beschlossene Paketarchitektur — 2026-10-03
 
-Der Nutzer hat diese Lösung ausdrücklich gewählt. Sie ist die Grundlage für die spätere Umsetzung; die Architekturentscheidung muss nicht erneut erfragt werden. In diesem Schritt wird nur die Entscheidung dokumentiert, noch kein Bootstrap oder Paketrepository implementiert.
+Der Nutzer hat diese Lösung ausdrücklich gewählt. Am 2026-10-03 wurde zunächst die Architekturentscheidung dokumentiert; Bootstrap und Paketrepository wurden anschließend wie unten beschrieben umgesetzt. Die Entscheidung muss nicht erneut erfragt werden.
 
 - **Termux-Paketrezepte wiederverwenden:** Die benötigten Pakete einschließlich ihrer Abhängigkeiten aus [termux/termux-packages](https://github.com/termux/termux-packages) für Android ARM64/Bionic, die eigene AGENTCODI-Application-ID und den eigenen Installationspräfix neu bauen. Die Termux-App selbst wird weder eingebunden noch als vollständige App-Version gepinnt.
-- **Eigener Präfix außerhalb des Benutzer-Homes:** Für die Paketbasis `files/usr` verwenden, beispielsweise `/data/data/de.agentcodi.pkg/files/usr`. Die separate Application-ID ist endgültig auf `de.agentcodi.pkg` festgelegt und in Manifest sowie Build-Konfiguration umgesetzt. Benutzer-Home, Workspace und `CODEX_HOME` bleiben separate Verzeichnisse. Der vorhandene Präfix `$HOME/.local` ist eine Übergangslösung und wird für die verwaltete Paketbasis abgelöst.
+- **Eigener Präfix außerhalb des Benutzer-Homes:** Für die Paketbasis `files/usr` verwenden, beispielsweise `/data/data/de.agentcodi.pkg/files/usr`. Die separate Application-ID ist endgültig auf `de.agentcodi.pkg` festgelegt und in Manifest sowie Build-Konfiguration umgesetzt. Benutzer-Home, Workspace und `CODEX_HOME` bleiben separate Verzeichnisse. Der frühere Präfix `$HOME/.local` bleibt als Legacy-Fallback erhalten; die verwaltete Paketbasis liegt inzwischen in `files/usr`.
 - **Minimaler Bootstrap:** Nur Shell, APT, dpkg, Zertifikate und die dazu notwendigen Abhängigkeiten als Anfangsbasis bereitstellen. AGENTCODI übernimmt Installation und Initialisierung dieses Bootstraps.
-- **Eigenes signiertes Paketrepository:** Eine eigene CI baut die angebotenen Pakete aus den Termux-Rezepten. Das Repository liefert Installation, Aktualisierung und Abhängigkeitsauflösung; ein schlanker `pkg`-Befehl kann APT bedienen, etwa `pkg install python`, `pkg install nodejs` oder `pkg install git`.
+- **Eigenes signiertes Paketrepository:** Eine eigene CI baut die angebotenen Pakete aus den Termux-Rezepten. Das Repository liefert Installation, Aktualisierung und Abhängigkeitsauflösung. Die umgesetzte Bedienung nutzt APT, etwa `apt install python nodejs-lts npm git ripgrep`; ein zusätzlicher `pkg`-Befehl bleibt optional.
 - **Gezielte reproduzierbare Pins:** Stand der Paketrezepte, Build-Toolchain, Paketversionen und Artefaktprüfsummen festhalten. Aktualisierungen bewusst testen und veröffentlichen. Ein kontrollierter Satz an Build-Anpassungen reicht; die komplette Termux-App muss dafür nicht übernommen werden.
 - **Einheitliche Laufzeit:** Codex-Kommandos, Terminal, App-Server und lokale stdio-MCP-Prozesse verwenden dieselbe Paketinstallation und abgestimmte `PATH/PREFIX/LD_LIBRARY_PATH/HOME/TMPDIR`-Werte.
 
@@ -150,16 +154,16 @@ Das Termux-Buildsystem dokumentiert anpassbare App- und Präfixvariablen in [scr
 ### Umsetzungsschritte
 
 - [x] Architekturentscheidung des Nutzers dokumentieren: eigener Präfix, minimaler Bootstrap und signiertes Repository aus neu gebauten Termux-Paketrezepten.
-- [x] Separate Application-ID endgültig festlegen und in der App umsetzen, bevor Pakete mit absoluten Pfaden gebaut werden: `de.agentcodi.pkg`; zukünftiger verwalteter Präfix `/data/data/de.agentcodi.pkg/files/usr`.
+- [x] Separate Application-ID endgültig festlegen und in der App umsetzen, bevor Pakete mit absoluten Pfaden gebaut werden: `de.agentcodi.pkg`; verwalteter Präfix `/data/data/de.agentcodi.pkg/files/usr`.
 - [x] Verwalteten Präfix auf `files/usr` außerhalb des Benutzer-Homes umstellen. Bestehende Dateien in `$HOME/.local` erhalten; Übergang/Migration und Suchreihenfolge dokumentieren und testen.
 - [x] Reproduzierbaren Stand von `termux-packages` und Toolchain festlegen; gezielte Build-Anpassungen für App-ID, Präfix und Repository-URLs versionieren. Bootstrap, Paketmetadaten, Shebangs, RPATH/RUNPATH und Konfigurationen auf denselben finalen Pfad ausrichten.
 - [x] Minimalen ARM64-Bootstrap mit Shell, APT, dpkg, Zertifikaten und Abhängigkeiten bauen; Initialisierung sowie Reparatur nach abgebrochener Installation integrieren.
 - [x] Eigene CI für Paket- und Abhängigkeitsbuilds aufsetzen; zuerst Bootstrap und einen kleinen Katalog wie Python, Node.js/npm, Git und ripgrep prüfen, danach erweitern.
 - [x] Eigenes signiertes APT-Repository mit Vertrauensschlüssel, HTTPS, Veröffentlichungsablauf und Aktualisierungsstrategie einrichten.
-- [x] Schlanken `pkg`-Befehl beziehungsweise dokumentierte APT-Bedienung für Installation, Aktualisierung und Entfernung bereitstellen.
-- [ ] Gemeinsame Umgebungsdefinition für App-Server, Codex-Kommandos, Terminal und lokale stdio-MCP-Prozesse prüfen; `PATH/PREFIX/LD_LIBRARY_PATH/HOME/TMPDIR` dürfen nicht auseinanderlaufen.
+- [x] Dokumentierte APT-Bedienung für Installation, Aktualisierung und Entfernung bereitstellen. Ein zusätzlicher `pkg`-Wrapper ist optional und bisher nicht umgesetzt.
+- [ ] Gemeinsame Umgebungsdefinition für App-Server, Codex-Kommandos, Terminal und lokale stdio-MCP-Prozesse nach den npm-/Python-Pfadanpassungen vollständig prüfen; `PATH/PREFIX/LD_LIBRARY_PATH/HOME/TMPDIR` dürfen nicht auseinanderlaufen. Der gemeinsame Präfix- und Suchpfadvertrag ist bereits umgesetzt und unten dokumentiert.
 - [ ] npm-Global-Prefix/-Cache sowie Python-User-/venv-/pip-Pfade nutzbar machen. Die bisherigen Wrapper erzwingen noch eigene Pfade und deaktivieren Python-User-Site.
-- [ ] Installation, Aktualisierung, Entfernung und Status im Terminal dokumentieren; Pakete über App-Neustart und APK-Update erhalten.
+- [x] Installation, Aktualisierung, Entfernung und Status im Terminal dokumentieren; Pakete über App-Neustart und APK-Update erhalten. APT-Bedienung ist in der README dokumentiert, Bestandserhaltung durch Java-Regressionen geprüft; echte Geräte-/Update-Tests bleiben separat offen.
 - [ ] Paketpfade und installierte Versionen bei Bedarf in Diagnose/Terminal anzeigen; bisherige Aktivierungsanzeigen ersetzen.
 - [ ] Workspace-Browser und Import/Export sinnvoll erweitern, wenn Paketdateien dort zugänglich sein sollen. Kontodaten sollen weiterhin nicht versehentlich exportiert werden.
 - [ ] Android 10 und eine aktuelle Android-Version auf echter ARM64-Hardware prüfen: ELF, Skript/Shebang, dynamische Bibliothek, npm/pip, PTY und stdio-MCP.
@@ -208,12 +212,13 @@ Paketbasis. Rekursive Builds erhalten dieselben Pins und
 Binärabhängigkeiten einschließlich automatischer zyklischer Seeds werden
 abgelehnt; solche Zyklen benötigen später explizit geprüfte Editions-Seeds.
 
-`repo.json` und das APT-Rezept verwenden ausschließlich die geplante
+`repo.json` und das APT-Rezept verwenden ausschließlich die eigene
 HTTPS-Quelle `https://mcpasi.github.io/AGENTCODI/apt/package-edition`
 mit `stable main` und `signed-by=$PREFIX/etc/apt/keyrings/agentcodi-package.gpg`.
-Der upstream Termux-Keyring wird nicht eingebunden. Veröffentlichung und
-Vertrauensschlüssel sind weiterhin der offene Repository-Schritt; bis dahin
-ist die Quelle nicht benutzbar. Es wurde kein Repository veröffentlicht.
+Der upstream Termux-Keyring wird nicht eingebunden. Zum Stand dieses
+Buildvertrags war die Quelle noch nicht veröffentlicht; Vertrauensschlüssel
+und öffentliche Veröffentlichung wurden anschließend im unten beschriebenen
+signierten Repository-Schritt umgesetzt.
 
 Der neue Tests-Job „Package recipe and toolchain contracts“ prüft die
 Vorbereitung zweimal, echte Upstream-Pfadableitungen, Bootstrap-Vorlagen,
@@ -223,14 +228,15 @@ und eine Bibliothek, verwendet den echten Debian-Metadaten-/Archiv-Hook,
 vergleicht zwei DEB-Erzeugungen und prüft Interpreter, RUNPATH, Payload-,
 Symlink-, Skript- und Metadatenpfade. Das Artefakt enthält Compiler-/
 Host-Inventar, Vorbereitung, ELF-Berichte, Paketmetadaten, Test-DEB und SHA-256.
-Die FUSE-/Sysroot-Einrichtung und die echten Bootstrap-Pakete werden erst
-beim folgenden vollständigen Build geprüft.
+Die FUSE-/Sysroot-Einrichtung und die echten Bootstrap-Pakete wurden
+anschließend beim folgenden vollständigen Build geprüft.
 
-Die Startpakete für den folgenden Bootstrap sind Dash, APT, dpkg und
-Zertifikate samt Abhängigkeiten. Das Test-DEB ist kein auslieferbarer
-Bootstrap; AGENTCODI-Initialisierung/Reparatur, echte Paketbuilds und
-signierte Veröffentlichung bleiben offen. Termux-App-/API-/Exec-/Tools-
-Komponenten erfordern eigene Anpassungen und werden vorerst abgelehnt.
+Die Startpakete des anschließend umgesetzten Bootstraps sind Dash, APT,
+dpkg und Zertifikate samt Abhängigkeiten. Das Test-DEB dieses Buildvertrags
+war kein auslieferbarer Bootstrap; Initialisierung/Reparatur, echte
+Paketbuilds und signierte Veröffentlichung sind in den folgenden
+Ergebnisabschnitten dokumentiert. Termux-App-/API-/Exec-/Tools-Komponenten
+erfordern eigene Anpassungen und werden weiterhin abgelehnt.
 Die [Build-Dokumentation](scripts/package-edition/README.md) beschreibt Pins,
 Anpassungen, Prüfungen und den Aktualisierungsablauf. Gerätetests werden
 gemäß Nutzeranweisung übersprungen.
@@ -240,7 +246,7 @@ gemäß Nutzeranweisung übersprungen.
 Der Editions-Bootstrap wird aus den gepinnten Termux-Rezepten vollständig für
 ARM64/Bionic/API 29 und `/data/data/de.agentcodi.pkg/files/usr` gebaut.
 Dash stellt `sh` bereit; Bash wird für Paket-Konfigurationsskripte mitgeliefert.
-APT, dpkg, CA-Zertifikate und ihre Laufzeitabhängigkeiten ergeben 47 Pakete.
+Der damalige Bootstrap mit APT, dpkg, CA-Zertifikaten und ihren Laufzeitabhängigkeiten umfasste 47 Pakete, noch ohne das später ergänzte Editions-Keyring-Paket.
 Build-Abhängigkeiten werden ebenfalls aus Quellen gebaut und anschließend nicht
 in den Laufzeit-Bootstrap übernommen. Die libc++-Compilerlaufzeit stammt wie
 im gepinnten Rezept vorgesehen aus der festgelegten NDK. Termux-App-/API-/Exec-/Tools-/Keyring-
@@ -275,8 +281,9 @@ Ein bereits initialisierter Präfix wird bei App-Neustart und APK-Update nicht
 erneut entpackt. Installierte Pakete, APT-/dpkg-Zustand und Benutzeränderungen
 bleiben erhalten; HOME, CODEX_HOME und der alte HOME/.local-Präfix ebenso.
 Eine Bootstrap-Version wird nicht über eine bestehende Installation kopiert;
-spätere Aktualisierungen erfolgen über den noch einzurichtenden signierten
-Paketkanal.
+Paketaktualisierungen erfolgen über den inzwischen veröffentlichten signierten
+APT-Kanal. Die begrenzte Migration eines fehlenden Vertrauensschlüssels ist
+im Repository-Abschnitt beschrieben.
 
 Die CI-Ursachen wurden behoben: unbenötigte APT-Dokumentations-/Archiver-
 Buildabhängigkeiten, der nicht mehr unterstützte GnuPG-gpgv-only-Schalter,
@@ -297,8 +304,8 @@ im Bootstrap oder APK installiert; Android 10+ stellt die Funktion selbst bereit
 Ablehnung nativer AArch64-TLS-Relokationen sichern den Vertrag ab.
 
 Der erfolgreiche [Quellbuild](https://github.com/Mcpasi/AGENTCODI/actions/runs/37215181811/job/111474115967)
-liefert die quellgebauten DEBs und das ursprüngliche Quellenarchiv. Die aktuelle
-Assembly liefert das [Bootstrap- und Quellenartefakt](https://github.com/Mcpasi/AGENTCODI/actions/runs/37219054636/artifacts/11309996366).
+lieferte die quellgebauten DEBs und das ursprüngliche Quellenarchiv. Die damalige
+Assembly lieferte das [Bootstrap- und Quellenartefakt](https://github.com/Mcpasi/AGENTCODI/actions/runs/37219054636/artifacts/11309996366).
 ZIP-SHA-256: `d875abf8f90fe7e70494ce8b268da826e575031275f75ca611e89ae64512041a`.
 Manifest-SHA-256: `275ef6dad15d6cdcfa8a5e7765bc697b5923da1e7400f637bb022f44cd18eccd`.
 Die nachfolgenden Builds dürfen diese DEBs nur bei identischen Paket-
@@ -308,10 +315,11 @@ ELF-Prüfungen werden erneut ausgeführt.
 Verifikation: [Tests-Lauf 37219054346](https://github.com/Mcpasi/AGENTCODI/actions/runs/37219054346)
 und [APK-Lauf 37219054636](https://github.com/Mcpasi/AGENTCODI/actions/runs/37219054636)
 für Implementierungscommit `070c37845e19931501d692ad0eb081da16296663` sind erfolgreich.
-Der ARM64/Bionic-Smoke installiert die echte ZIP über den Java-Installer,
-konfiguriert alle 47 Pakete mit Android-dpkg, startet Shell/APT/gpgv, prüft
-die registrierte APT-Version über apt-cache policy, Zertifikate und Konfigurationsdatei-Metadaten und installiert, startet sowie
-entfernt ein lokales Testpaket. Die 313 Java-Tests enthalten
+Der damalige ARM64/Bionic-Smoke installierte die echte ZIP über den Java-Installer,
+konfigurierte alle 47 Pakete mit Android-dpkg, startete Shell/APT/gpgv und prüfte
+die registrierte APT-Version über apt-cache policy, Zertifikate und
+Konfigurationsdatei-Metadaten. Er installierte, startete und entfernte außerdem
+ein lokales Testpaket. Die 313 Java-Tests enthalten
 Wiederherstellung nach Entpack-/Konfigurationsabbruch, Umbenennungsabbruch,
 Integritäts-/Pfadfehler und Bestandserhaltung über APK-Updates.
 15 Präfix-/TLS-Prüfungen und 9 Bootstrap-Assembly-Tests sind erfolgreich,
@@ -324,11 +332,12 @@ enthält die geprüfte Package Edition (
 SHA-256 `3f395698a6100003854b5884efcb7b58288e9a9216f31f8abc46b1078c9ea987`).
 Gerätetests wurden wie angeordnet übersprungen und bleiben offen.
 
-Das signierte Online-Repository, der Vertrauensschlüssel, `pkg`, der größere
-Paketkatalog und die APK-Verkleinerung bleiben die nächsten Roadmap-Schritte.
-Die geplante HTTPS-Quelle kann ohne veröffentlichten Schlüssel noch nicht
-authentifiziert werden; es gibt keinen unsicheren Fallback. Kein PR, Merge
-oder Release wurde erstellt. `main` bleibt unverändert.
+Startkatalog, Vertrauensschlüssel und signiertes Online-Repository wurden
+anschließend umgesetzt; die folgenden Abschnitte dokumentieren die Nachweise.
+Die Quelle wird ausschließlich mit dem gepinnten Schlüssel authentifiziert;
+es gibt keinen unsicheren Fallback. Weitere Katalogerweiterungen und die
+APK-Verkleinerung stehen noch aus. Ein `pkg`-Wrapper bleibt optional.
+Kein PR, Merge oder GitHub-Release der APK wurde erstellt. `main` bleibt unverändert.
 
 ### Paket- und Abhängigkeits-CI mit Startkatalog — 2026-10-04
 
@@ -395,7 +404,7 @@ Reproduzierbarkeit aller Compiler-Ausgaben; Quellpins und Artefakthashes
 machen Eingaben und Ergebnisse überprüfbar.
 Gerätetests wurden gemäß Nutzeranweisung übersprungen und bleiben offen.
 Das anschließend umgesetzte eigene signierte APT-Repository ist im folgenden Abschnitt dokumentiert.
-Kein PR, Merge oder Release wurde erstellt; `main` bleibt unverändert.
+Kein PR, Merge oder GitHub-Release der APK wurde erstellt; `main` bleibt unverändert.
 
 ### Signiertes Repository für den Startkatalog — 2026-10-05
 
@@ -512,25 +521,25 @@ abgehakt; die nachfolgenden Paketpfad-/Umgebungsarbeiten bleiben getrennte
 Roadmap-Schritte.
 
 Gerätetests wurden wie angeordnet übersprungen und bleiben offen.
-Kein PR, Merge oder Release wurde erstellt. Alle Zugriffe erfolgten über den
+Kein PR, Merge oder GitHub-Release der APK wurde erstellt. Alle Zugriffe erfolgten über den
 GitHub Connector; `main` bleibt auf
 `ff27ec7c30d373a864e845e9a7ceeae3380dd103`.
 
 ## 4. Build verkleinern und veröffentlichbare Edition erstellen
 
-Erst nach funktionierendem Bootstrap die bisher enthaltenen nutzerinstallierbaren Pakete entfernen.
+Bootstrap, Startkatalog und signierter Paketkanal funktionieren in CI. Die bisher enthaltenen nutzerinstallierbaren Pakete können im nächsten Build-Schritt nach den noch offenen Paketpfad-/Umgebungsarbeiten entfernt werden.
 
 - [ ] Bundled Node.js, npm, Python, ripgrep und nur von ihnen benötigte Bibliotheken/Archive/Lizenzen aus dem APK entfernen.
 - [ ] Vorher Abhängigkeiten des App-Servers und Code-mode-Hosts auf diese Werkzeuge prüfen; zwingend notwendige Basiswerkzeuge im Bootstrap behalten.
 - [ ] PackagedToolRuntime, Tool-Alias-/Activation-/ELF-Attestor-Code und Runtime-Startvalidierung an den Paket-Bootstrap anpassen.
 - [ ] Build-Skript, Dockerfile, CI-Input-Manifest, Restore-/Preflight-Prüfungen und Cache-Schlüssel auf die minimalen Edition-Abhängigkeiten reduzieren.
-- [ ] Eigene APK-Artefakte für diesen Branch erzeugen; keine regulären Main-Releases überschreiben.
+- [x] Eigene Debug-APK-Artefakte für diesen Branch erzeugen (`agentcodi-package-debug-apk`); keine regulären Main-Releases überschreiben. Die aktuelle APK enthält noch Übergangswerkzeuge; Verkleinerung und finale Veröffentlichung bleiben die übrigen offenen Schritte dieses Abschnitts.
 - [ ] Architekturchecks und Java-/C++-/Android-Smokes auf den endgültigen Paketvertrag ausrichten.
 - [ ] Notices, README, SECURITY und Build-Dokumentation mit der tatsächlich ausgelieferten Paketbasis abgleichen.
 - [ ] Installations-/Update-Test inklusive niedrigem Target SDK, Foreground Service, Notifications, Login, Dateiauswahl und Backups durchführen.
 - [ ] Finales APK auf Gerät testen und erst danach als Package Edition veröffentlichen.
 
-## Bisherige Verifikation des Grundlagenabschnitts
+## Historische Verifikation des Grundlagenabschnitts
 
 Erfolgreicher [GitHub-Actions-Lauf](https://github.com/Mcpasi/AGENTCODI/actions/runs/37154718553) für Commit `801f44d82fe5aa4398d12395383a0806bb89ec41`:
 
@@ -543,7 +552,7 @@ Zusätzlich deckt ein Terminal-Shell-Test den Vorrang selbst installierter Progr
 
 Alle Repository-Zugriffe und Änderungen erfolgen ausschließlich über den GitHub Connector. Die Community-Anbindung aus Abschnitt 2, der minimale Paket-Bootstrap und die Startkatalog-CI aus Abschnitt 3 sind umgesetzt. Das signierte Paketrepository ist einschließlich öffentlicher HTTPS-Veröffentlichung und ARM64-/APT-Laufzeittests umgesetzt. Katalogerweiterung, verkleinerter Build und echte Gerätetests folgen in Abschnitt 3/4. Die ursprünglichen Verifikationsangaben oben beschreiben den vorausgehenden Grundlagenabschnitt.
 
-## Verifikation der Community-Anbindung
+## Historische Verifikation der Community-Anbindung
 
 Geprüfter Implementierungscommit: `1fed889377c980f66cdd6eabc0dba2dbcce0b9de`.
 
@@ -551,6 +560,6 @@ Geprüfter Implementierungscommit: `1fed889377c980f66cdd6eabc0dba2dbcce0b9de`.
 - [Runtime-Prüfartefakt](https://github.com/Mcpasi/AGENTCODI/actions/runs/37165001117/artifacts/11289216891): erzeugte Schemas, vollständige ELF-/Archivbefunde und Protokollnachweis.
 - [APK-Lauf 37165001114](https://github.com/Mcpasi/AGENTCODI/actions/runs/37165001114): vollständiger Debug-APK-Build einschließlich nativer Full-access-, PTY-, Import-Kontext- und Übergangswerkzeug-Smokes erfolgreich.
 - Geräteabhängige Linker-Tests wurden mit `AGENTCODI_SKIP_DEVICE_LINKER_TESTS=1` übersprungen; echte Installations-/Hardwaretests bleiben offen.
-- `main` bleibt auf `ff27ec7c30d373a864e845e9a7ceeae3380dd103`. Kein PR, Merge oder Release wurde eingereicht.
+- `main` bleibt auf `ff27ec7c30d373a864e845e9a7ceeae3380dd103`. Kein PR, Merge oder GitHub-Release der APK wurde eingereicht.
 
-Das [Debug-APK-Artefakt](https://github.com/Mcpasi/AGENTCODI/actions/runs/37165001114/artifacts/11289032769) enthält `AGENTCODI-Package-0.1.0-package.1-arm64-v8a-debug.apk` (149 MiB; SHA-256 `2ebf610159251aea8caa3766d19ded24399efcd05360f19160aab68833529247`). Signatur, Alignment, Application-ID, ABI und enthaltene Runtime wurden erfolgreich geprüft. Dies ist ein CI-Artefakt; eine öffentliche Release-Veröffentlichung aus Abschnitt 4 wurde nicht vorgenommen.
+Das [Debug-APK-Artefakt](https://github.com/Mcpasi/AGENTCODI/actions/runs/37165001114/artifacts/11289032769) enthält `AGENTCODI-Package-0.1.0-package.1-arm64-v8a-debug.apk` (149 MiB; SHA-256 `2ebf610159251aea8caa3766d19ded24399efcd05360f19160aab68833529247`). Signatur, Alignment, Application-ID, ABI und enthaltene Runtime wurden erfolgreich geprüft. Dies ist ein CI-Artefakt; ein öffentliches GitHub-Release der finalen APK aus Abschnitt 4 wurde nicht erstellt.

@@ -37,14 +37,14 @@ The workspace, user home, and `CODEX_HOME` remain separate directories. This org
 
 The managed writable installation prefix is `$PREFIX = <app files>/usr`, normally `/data/data/de.agentcodi.pkg/files/usr` (Android may resolve its equivalent `/data/user/0/...` path). It is separate from the user home, workspace, and `CODEX_HOME`. At startup, AGENTCODI creates `bin`, `lib`, `include`, `share`, `etc`, and `tmp`; existing installations are preserved.
 
-Codex commands and the terminal use the same search order:
+The app-server, Codex commands, terminal and local stdio MCP servers share the running server's search path:
 
 ```text
-PATH=$PREFIX/bin:$HOME/.local/bin:<existing APK tool aliases>:/system/bin:/system/xbin
+PATH=<Codex session helpers>:$PREFIX/bin:$HOME/.local/bin:<existing APK tool aliases>:/system/bin:/system/xbin
 LD_LIBRARY_PATH=$PREFIX/lib:$HOME/.local/lib:<native APK libraries>
 ```
 
-The app-server, Codex commands, terminal, and inherited stdio-MCP environment use these paths. The managed prefix takes precedence over the old `$HOME/.local` prefix, followed by the bundled tools. `HOME`, `CODEX_HOME`, and the existing private temporary directory remain separate; `TMPDIR` does not move into the package prefix.
+Codex creates its private session helpers when it starts. Commands and the terminal inherit that resulting `PATH`, including the helpers, rather than replacing it with an earlier snapshot; local stdio MCP servers inherit the same value. The other values come from the shared native environment, and the explicit variable allowlist keeps `CODEX_HOME` out of the tool environment. The managed prefix takes precedence over the old `$HOME/.local` prefix, followed by the bundled tools. `HOME`, `CODEX_HOME`, and the existing private temporary directory remain separate; `TMPDIR` does not move into the package prefix.
 
 Upgrading an existing installation leaves all files in `$HOME/.local` in place with their contents and file permissions preserved. Programs and libraries there remain reachable as a fallback, including after app restart. No automatic copy, move, deletion, or symlink replacement occurs: binaries, scripts, and configuration may contain absolute paths. Rebuild or reinstall a package explicitly for the new prefix when migrating it. If both prefixes contain the same command or library, the managed version wins; removing it exposes the legacy version again. Workspace export does not include either prefix.
 

@@ -964,9 +964,9 @@ int main(int argc, char* argv[]) {
          "Codex native approval policy");
   expect(joined_arguments.find("approval_policy=\"never\"") == std::string::npos,
          "obsolete no-prompt policy removed");
-  expect(joined_arguments.find("shell_environment_policy={inherit=\"none\"")
+  expect(joined_arguments.find("shell_environment_policy={inherit=\"core\"")
              != std::string::npos,
-         "Codex tool environment starts empty");
+         "Codex can inherit its actual runtime PATH through the core policy");
   expect(joined_arguments.find("ignore_default_excludes=false")
              != std::string::npos,
          "Codex environment deny patterns remain enabled");
@@ -987,10 +987,11 @@ int main(int argc, char* argv[]) {
   expect(joined_arguments.find("SHELL=\"/system/bin/sh\"")
              != std::string::npos,
          "Codex reports the actual Android system shell");
-  expect(joined_arguments.find(
-             "PATH=\"/private/usr/bin:/private/home/.local/bin:/private/tool-bin:/system/bin:/system/xbin\"")
-             != std::string::npos,
-         "Codex resolves user packages before packaged aliases and system commands");
+  expect(joined_arguments.find("include_only=[") != std::string::npos
+             && joined_arguments.find("\"PATH\"") != std::string::npos
+             && joined_arguments.find(",PATH=") == std::string::npos
+             && joined_arguments.find("{PATH=") == std::string::npos,
+         "Codex inherits the session PATH without a stale explicit override");
   expect(
       joined_arguments.find(
           "PATH=\"/private/tool-bin:/private/native:/system/bin:/system/xbin\"")

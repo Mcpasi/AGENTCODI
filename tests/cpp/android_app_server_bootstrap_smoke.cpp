@@ -201,6 +201,10 @@ bool check_package_prefix(
   const std::string managed = config.package_prefix + "/bin/package-check";
   const std::string legacy = config.home_directory + "/.local/bin/package-check";
   const std::string legacy_only = config.home_directory + "/.local/bin/legacy-package-check";
+  const std::string shared_path = config.home_directory + "/shared-package-path";
+  const std::string package_path = config.package_prefix + "/bin:"
+      + config.home_directory + "/.local/bin:" + config.tool_binary_directory
+      + ":/system/bin:/system/xbin";
   const auto cleanup = [&]() {
     unlink(managed.c_str());
     unlink(legacy.c_str());
@@ -227,9 +231,12 @@ bool check_package_prefix(
         "test \\\"$TMPDIR\\\" = '" + config.temporary_directory + "' && "
         "test \\\"$NPM_CONFIG_PREFIX\\\" = '" + config.home_directory + "/.local' && "
         "test \\\"$XDG_CACHE_HOME\\\" = '" + config.home_directory + "/.cache' && "
-        "test \\\"$PATH\\\" = '" + config.package_prefix + "/bin:"
-        + config.home_directory + "/.local/bin:" + config.tool_binary_directory + ":/system/bin:/system/xbin' && "
-        "test \\\"$LD_LIBRARY_PATH\\\" = '" + config.package_prefix + "/lib:"
+        "case \\\"$PATH\\\" in '" + config.codex_home + "/tmp/arg0/codex-arg0'*:'"
+        + package_path + "') :;; *) exit 12;; esac && "
+        + (id == 29
+            ? "printf '%s' \\\"$PATH\\\" > '" + shared_path + "' && "
+            : "test \\\"$PATH\\\" = \\\"$(/system/bin/cat '" + shared_path + "')\\\" && ")
+        + "test \\\"$LD_LIBRARY_PATH\\\" = '" + config.package_prefix + "/lib:"
         + config.home_directory + "/.local/lib:" + config.library_directory + "' && "
         "package-check && legacy-package-check\"],"
         "\"cwd\":\"" + config.working_directory + "\","
@@ -246,6 +253,7 @@ bool check_package_prefix(
   }
   cleanup();
   if (!passed) {
+    unlink(shared_path.c_str());
     std::cerr << "Managed precedence or legacy package fallback failed\n";
   }
   return passed;
@@ -258,9 +266,7 @@ bool check_stdio_package_environment(
   const std::string fixture = config.package_prefix + "/bin/agentcodi-mcp-env-fixture";
   const std::string proof = config.home_directory + "/mcp-env-proof";
   const std::string diagnostics = config.home_directory + "/mcp-env-diagnostics";
-  const std::string path = config.package_prefix + "/bin:"
-      + config.home_directory + "/.local/bin:" + config.tool_binary_directory
-      + ":/system/bin:/system/xbin";
+  const std::string shared_path = config.home_directory + "/shared-package-path";
   const std::string libraries = config.package_prefix + "/lib:"
       + config.home_directory + "/.local/lib:" + config.library_directory;
   const std::string script =
@@ -269,7 +275,7 @@ bool check_stdio_package_environment(
       "\"${PATH-unset}\" \"${PREFIX-unset}\" \"${LD_LIBRARY_PATH-unset}\" "
       "\"${HOME-unset}\" \"${TMPDIR-unset}\" \"${NPM_CONFIG_PREFIX-unset}\" "
       "\"${XDG_CACHE_HOME-unset}\" \"${TERMUX_VERSION-unset}\" > '" + diagnostics + "'\n"
-      "test \"$PATH\" = '" + path + "'\n"
+      "test \"$PATH\" = \"$(/system/bin/cat '" + shared_path + "')\"\n"
       "test \"$PREFIX\" = '" + config.package_prefix + "'\n"
       "test \"$LD_LIBRARY_PATH\" = '" + libraries + "'\n"
       "test \"$HOME\" = '" + config.home_directory + "'\n"
@@ -292,6 +298,8 @@ bool check_stdio_package_environment(
 done
 )SH";
   if (!create_private_fixture(fixture, script) || chmod(fixture.c_str(), 0700) != 0) {
+    unlink(fixture.c_str());
+    unlink(shared_path.c_str());
     return false;
   }
   const std::string add =
@@ -344,6 +352,7 @@ done
   unlink(fixture.c_str());
   unlink(proof.c_str());
   unlink(diagnostics.c_str());
+  unlink(shared_path.c_str());
   return passed;
 }
 

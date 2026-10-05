@@ -1078,7 +1078,8 @@ if ! rg -q 'containsLikelyCredential' "$core_root/CredentialGuard.java" \
     || ! rg -q 'child_environment\(const ProcessConfig& config\)' "$native_process" \
     || ! rg -q 'execve\(config\.executable\.c_str\(\), arguments\.data\(\), environment\.data\(\)\)' "$native_process" \
     || ! rg -q 'umask\(0077\)' "$native_process" \
-    || ! rg -q 'shell_environment_policy=\{inherit=\\"none\\"' "$native_process" \
+    || ! rg -q 'shell_environment_policy=\{inherit=\\"core\\"' "$native_process" \
+    || ! rg -q 'include_only=\[' "$native_process" \
     || ! rg -q 'analytics\.enabled=false' "$native_process" \
     || ! rg -q 'otel\.exporter=\\"none\\"' "$native_process" \
     || ! rg -q 'feedback\.enabled=false' "$native_process" \

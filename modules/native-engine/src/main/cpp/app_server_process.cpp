@@ -2306,17 +2306,30 @@ InboundLineCompactionStatus MaterializeAndCompactInboundImagePayloads(
 }
 
 std::vector<std::string> CodexAppServerArguments(const ProcessConfig& config) {
+  const auto environment = tool_environment(config);
   std::string shell_environment =
-      "shell_environment_policy={inherit=\"none\",ignore_default_excludes=false,set={";
+      "shell_environment_policy={inherit=\"core\",ignore_default_excludes=false,set={";
   bool first = true;
-  for (const std::string& entry : tool_environment(config)) {
+  for (const std::string& entry : environment) {
     const std::size_t separator = entry.find('=');
+    const std::string key = entry.substr(0U, separator);
+    // Codex adds its session helper directory to PATH before starting threads.
+    // Inherit that actual PATH for commands, terminal and stdio MCP alike.
+    if (key == "PATH") continue;
     if (!first) shell_environment += ',';
     first = false;
-    shell_environment += entry.substr(0U, separator) + "="
-        + toml_string(entry.substr(separator + 1U));
+    shell_environment += key + "=" + toml_string(entry.substr(separator + 1U));
   }
-  shell_environment += "}}";
+  // Keep the same explicit variable allowlist; CODEX_HOME and other launch
+  // context are not exported by the core inheritance needed for PATH.
+  shell_environment += "},include_only=[";
+  first = true;
+  for (const std::string& entry : environment) {
+    if (!first) shell_environment += ',';
+    first = false;
+    shell_environment += toml_string(entry.substr(0U, entry.find('=')));
+  }
+  shell_environment += "]}";
   return {
       "app-server",
       "--stdio",

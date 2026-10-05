@@ -173,11 +173,15 @@ Das Termux-Buildsystem dokumentiert anpassbare App- und Präfixvariablen in [scr
 Die App legt die Paketbasis jetzt als `usr` direkt unter ihrem kanonischen
 Files-Verzeichnis an und übergibt sie ausdrücklich über Java/JNI an den nativen
 Supervisor. `HOME`, Workspace, `CODEX_HOME` und temporäre Dateien bleiben getrennt.
-Die gemeinsame Suchreihenfolge lautet `files/usr/bin`, `$HOME/.local/bin`,
+Codex ergänzt beim Start private Sitzungshilfsprogramme im gemeinsamen `PATH`.
+Danach lautet die Paket-Suchreihenfolge `files/usr/bin`, `$HOME/.local/bin`,
 APK-Aliase, Android-Systempfade; Bibliotheken werden aus `files/usr/lib`,
 `$HOME/.local/lib` und den nativen APK-Bibliotheken gesucht. App-Server und
-Codex-Shell-Konfiguration verwenden dieselbe Pfadfunktion; Terminal und
-geerbte stdio-MCP-Umgebung erhalten denselben Vertrag.
+Codex-Shell-Konfiguration beziehen die Paketwerte aus derselben nativen
+Definition. Codex-Kommandos und Terminal übernehmen den zur Laufzeit um
+Sitzungshilfsprogramme ergänzten Server-`PATH`; geerbte stdio-MCP-Prozesse
+verwenden denselben tatsächlichen Pfad. Der abschließende Abgleich ist im
+Ergebnisabschnitt vom 2026-10-05 beschrieben.
 
 Bestehende Dateien unter `$HOME/.local` bleiben unverändert erhalten. Es gibt
 keine automatische Verschiebung oder Relokation; Pakete mit eingebetteten
@@ -532,7 +536,13 @@ Implementierung und CI-Prüfung dieses Schritts laufen ausschließlich auf
 nach erfolgreicher Verifikation abgeschlossen.
 
 Eine gemeinsame native Definition liefert die Umgebung des App-Servers und
-die Codex-Shell-Konfiguration. Terminal-Kommandos verwenden denselben Vertrag.
+die Codex-Shell-Konfiguration. Codex ergänzt beim Start sein privates
+Sitzungshilfsverzeichnis im `PATH`. Codex-Kommandos und Terminal übernehmen
+diesen tatsächlich laufenden Server-Pfad über `inherit="core"` und eine explizite
+Variablenliste; ein statischer `PATH`-Override würde dagegen von stdio-MCP
+abweichen. Die übrigen Werte kommen weiter aus der gemeinsamen Definition.
+Der Laufzeittest vergleicht die tatsächlichen Pfade von Codex-Shell, Terminal
+und MCP direkt und prüft zugleich den unveränderten Paket-Suchpfad.
 `PATH/PREFIX/LD_LIBRARY_PATH/HOME/TMPDIR` sowie npm-Präfix und Cache-Home
 werden zusätzlich mit einem echten stdio-MCP-Server unter ARM64/Bionic geprüft.
 `TERMUX_VERSION=agentcodi-package-edition` aktiviert dabei ausschließlich die

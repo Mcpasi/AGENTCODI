@@ -7,7 +7,6 @@ import android.os.Build;
 import android.os.Bundle;
 import android.os.Handler;
 import android.os.Looper;
-import android.os.SystemClock;
 import android.text.Editable;
 import android.text.InputType;
 import android.view.Gravity;
@@ -22,7 +21,7 @@ import android.widget.ScrollView;
 import android.widget.TextView;
 import android.widget.Toast;
 
-import de.agentcodi.core.BuildIdentity;
+import de.agentcodi.core.PackageDiagnosticsCommand;
 import de.agentcodi.core.CredentialGuard;
 import de.agentcodi.core.RuntimePhase;
 import de.agentcodi.core.RuntimeSnapshot;
@@ -35,7 +34,6 @@ import java.util.Arrays;
 public final class TerminalActivity extends Activity {
     private static final long ACTIVE_REFRESH_MILLISECONDS = 180L;
     private static final long IDLE_REFRESH_MILLISECONDS = 700L;
-    private static final long TOOL_STATUS_REFRESH_MILLISECONDS = 650L;
     private static final int MAXIMUM_COMMAND_CHARACTERS = 4095;
 
     private final Handler handler = new Handler(Looper.getMainLooper());
@@ -63,19 +61,11 @@ public final class TerminalActivity extends Activity {
     private Button startButton;
     private Button stopButton;
     private Button sendButton;
-    private Button nodeButton;
-    private Button npmButton;
-    private Button pythonButton;
-    private Button ripgrepButton;
+    private Button packageDiagnosticsButton;
     private Button controlCButton;
     private Button tabButton;
     private Button escapeButton;
     private long renderedRevision = Long.MIN_VALUE;
-    private long toolStatusCheckedAt = Long.MIN_VALUE;
-    private boolean renderedNodeEnabled;
-    private boolean renderedNpmEnabled;
-    private boolean renderedPythonEnabled;
-    private boolean renderedRipgrepEnabled;
     private boolean refreshActive;
     private boolean uiReady;
     private boolean destroyed;
@@ -200,59 +190,18 @@ public final class TerminalActivity extends Activity {
             }
         });
         actions.addView(stopButton, weightedButtonParams(1.0f, 6));
-        nodeButton = theme.compactButton(getString(
-            R.string.terminal_enable_node,
-            BuildIdentity.NODE_RUNTIME_VERSION
-        ));
-        nodeButton.setOnClickListener(new View.OnClickListener() {
-            @Override
-            public void onClick(View view) {
-                sendLiteral("agentcodi-toolchain install node\n");
-            }
-        });
         theme.addWithTopMargin(root, actions, 8);
 
-        LinearLayout toolActions = new LinearLayout(this);
-        toolActions.setOrientation(LinearLayout.HORIZONTAL);
-        toolActions.addView(nodeButton, weightedButtonParams(1.0f, 0));
-        npmButton = theme.compactButton(getString(
-            R.string.terminal_enable_npm,
-            BuildIdentity.NPM_RUNTIME_VERSION
-        ));
-        npmButton.setOnClickListener(new View.OnClickListener() {
+        packageDiagnosticsButton = theme.compactButton(
+            getString(R.string.terminal_package_diagnostics)
+        );
+        packageDiagnosticsButton.setOnClickListener(new View.OnClickListener() {
             @Override
             public void onClick(View view) {
-                sendLiteral("agentcodi-toolchain install npm\n");
+                sendLiteral(PackageDiagnosticsCommand.create());
             }
         });
-        toolActions.addView(npmButton, weightedButtonParams(1.0f, 6));
-
-        LinearLayout secondaryToolActions = new LinearLayout(this);
-        secondaryToolActions.setOrientation(LinearLayout.HORIZONTAL);
-        pythonButton = theme.compactButton(getString(
-            R.string.terminal_enable_python,
-            BuildIdentity.PYTHON_RUNTIME_VERSION
-        ));
-        pythonButton.setOnClickListener(new View.OnClickListener() {
-            @Override
-            public void onClick(View view) {
-                sendLiteral("agentcodi-toolchain install python\n");
-            }
-        });
-        secondaryToolActions.addView(pythonButton, weightedButtonParams(1.0f, 0));
-        ripgrepButton = theme.compactButton(getString(
-            R.string.terminal_enable_ripgrep,
-            BuildIdentity.RIPGREP_RUNTIME_VERSION
-        ));
-        ripgrepButton.setOnClickListener(new View.OnClickListener() {
-            @Override
-            public void onClick(View view) {
-                sendLiteral("agentcodi-toolchain install ripgrep\n");
-            }
-        });
-        secondaryToolActions.addView(ripgrepButton, weightedButtonParams(1.0f, 6));
-        theme.addWithTopMargin(root, toolActions, 6);
-        theme.addWithTopMargin(root, secondaryToolActions, 6);
+        theme.addWithTopMargin(root, packageDiagnosticsButton, 6);
 
         outputScroll = new ScrollView(this);
         outputScroll.setFillViewport(true);
@@ -418,19 +367,6 @@ public final class TerminalActivity extends Activity {
         RuntimeSnapshot runtime = AgentRuntimeService.snapshot();
         TerminalSessionSnapshot terminal = AgentRuntimeService.terminalSnapshot();
         boolean runtimeReady = runtime.getPhase() == RuntimePhase.READY;
-        long now = SystemClock.elapsedRealtime();
-        if (toolStatusCheckedAt == Long.MIN_VALUE
-            || now - toolStatusCheckedAt >= TOOL_STATUS_REFRESH_MILLISECONDS) {
-            renderedNodeEnabled = AgentRuntimeService.isNodeRuntimeEnabled();
-            renderedNpmEnabled = AgentRuntimeService.isNpmRuntimeEnabled();
-            renderedPythonEnabled = AgentRuntimeService.isPythonRuntimeEnabled();
-            renderedRipgrepEnabled = AgentRuntimeService.isRipgrepRuntimeEnabled();
-            toolStatusCheckedAt = now;
-        }
-        boolean nodeEnabled = renderedNodeEnabled;
-        boolean npmEnabled = renderedNpmEnabled;
-        boolean pythonEnabled = renderedPythonEnabled;
-        boolean ripgrepEnabled = renderedRipgrepEnabled;
         if (!runtimeReady) {
             statusView.setText(R.string.terminal_status_runtime_required);
             statusView.setTextColor(theme.danger);
@@ -444,15 +380,7 @@ public final class TerminalActivity extends Activity {
             ));
             statusView.setTextColor(theme.danger);
         } else if (terminal.isRunning()) {
-            String enabledTools = enabledTools(
-                nodeEnabled,
-                npmEnabled,
-                pythonEnabled,
-                ripgrepEnabled
-            );
-            statusView.setText(enabledTools.isEmpty()
-                ? getString(R.string.terminal_status_running)
-                : getString(R.string.terminal_status_running_tools_enabled, enabledTools));
+            statusView.setText(R.string.terminal_status_running);
             statusView.setTextColor(theme.accent);
         } else if (terminal.getExitCode() != Integer.MIN_VALUE) {
             statusView.setText(getString(
@@ -466,31 +394,10 @@ public final class TerminalActivity extends Activity {
         }
 
         boolean running = terminal.isRunning();
-        nodeButton.setText(getString(
-            nodeEnabled ? R.string.terminal_node_enabled : R.string.terminal_enable_node,
-            BuildIdentity.NODE_RUNTIME_VERSION
-        ));
-        npmButton.setText(getString(
-            npmEnabled ? R.string.terminal_npm_enabled : R.string.terminal_enable_npm,
-            BuildIdentity.NPM_RUNTIME_VERSION
-        ));
-        pythonButton.setText(getString(
-            pythonEnabled ? R.string.terminal_python_enabled : R.string.terminal_enable_python,
-            BuildIdentity.PYTHON_RUNTIME_VERSION
-        ));
-        ripgrepButton.setText(getString(
-            ripgrepEnabled
-                ? R.string.terminal_ripgrep_enabled
-                : R.string.terminal_enable_ripgrep,
-            BuildIdentity.RIPGREP_RUNTIME_VERSION
-        ));
         theme.setEnabled(startButton, runtimeReady && !running && !terminal.isStarting());
         theme.setEnabled(stopButton, running || terminal.isStarting());
         theme.setEnabled(sendButton, running);
-        theme.setEnabled(nodeButton, running && !nodeEnabled);
-        theme.setEnabled(npmButton, running && !npmEnabled);
-        theme.setEnabled(pythonButton, running && !pythonEnabled);
-        theme.setEnabled(ripgrepButton, running && !ripgrepEnabled);
+        theme.setEnabled(packageDiagnosticsButton, running);
         theme.setEnabled(controlCButton, running);
         theme.setEnabled(tabButton, running);
         theme.setEnabled(escapeButton, running);
@@ -510,35 +417,6 @@ public final class TerminalActivity extends Activity {
                 }
             });
         }
-    }
-
-    private String enabledTools(
-        boolean nodeEnabled,
-        boolean npmEnabled,
-        boolean pythonEnabled,
-        boolean ripgrepEnabled
-    ) {
-        StringBuilder enabled = new StringBuilder();
-        if (nodeEnabled) {
-            enabled.append("Node.js ").append(BuildIdentity.NODE_RUNTIME_VERSION);
-        }
-        if (npmEnabled) {
-            appendEnabledTool(enabled, "npm " + BuildIdentity.NPM_RUNTIME_VERSION);
-        }
-        if (pythonEnabled) {
-            appendEnabledTool(enabled, "Python " + BuildIdentity.PYTHON_RUNTIME_VERSION);
-        }
-        if (ripgrepEnabled) {
-            appendEnabledTool(enabled, "ripgrep " + BuildIdentity.RIPGREP_RUNTIME_VERSION);
-        }
-        return enabled.toString();
-    }
-
-    private static void appendEnabledTool(StringBuilder enabled, String tool) {
-        if (enabled.length() > 0) {
-            enabled.append(", ");
-        }
-        enabled.append(tool);
     }
 
     private void resizeTerminal() {

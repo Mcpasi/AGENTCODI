@@ -124,25 +124,17 @@
 
   <string name="terminal_title">Terminal</string>
   <string name="terminal_back">‹ Chats</string>
-  <string name="terminal_description">Interactive shell with Full access. User-installed commands in $HOME/.local/bin take priority over packaged tools. Terminal output stays in memory. Commands can access workspace and account data reachable by the app.</string>
+  <string name="terminal_description">Interactive shell with Full access. $PREFIX/bin takes priority over $HOME/.local/bin and transitional tools. Package diagnostics shows current paths, command resolution and managed package versions. Terminal output stays in memory. Commands can access workspace and account data reachable by the app.</string>
   <string name="terminal_status_checking">Checking terminal runtime…</string>
   <string name="terminal_status_runtime_required">Start the Codex runtime in Settings before opening a terminal.</string>
   <string name="terminal_status_starting">Starting the bounded PTY shell…</string>
-  <string name="terminal_status_running">Terminal is running · packaged Node.js, npm, Python, and ripgrep are available for explicit activation.</string>
-  <string name="terminal_status_running_tools_enabled">Terminal is running · enabled: %1$s.</string>
+  <string name="terminal_status_running">Terminal is running · shared package environment.</string>
   <string name="terminal_status_failed">Terminal failed: %1$s</string>
   <string name="terminal_status_exited">Terminal exited with code %1$d.</string>
   <string name="terminal_status_stopped">Terminal is stopped.</string>
   <string name="terminal_start">Start</string>
+  <string name="terminal_package_diagnostics">Package diagnostics</string>
   <string name="terminal_stop">Stop</string>
-  <string name="terminal_enable_node">Enable Node %1$s</string>
-  <string name="terminal_node_enabled">Node %1$s enabled</string>
-  <string name="terminal_enable_npm">Enable npm %1$s</string>
-  <string name="terminal_npm_enabled">npm %1$s enabled</string>
-  <string name="terminal_enable_python">Enable Python %1$s</string>
-  <string name="terminal_python_enabled">Python %1$s enabled</string>
-  <string name="terminal_enable_ripgrep">Enable rg %1$s</string>
-  <string name="terminal_ripgrep_enabled">rg %1$s enabled</string>
   <string name="terminal_output_empty">Terminal output will appear here.</string>
   <string name="terminal_clear">Clear</string>
   <string name="terminal_control_c" translatable="false">Ctrl-C</string>

@@ -124,25 +124,17 @@
 
   <string name="terminal_title">Terminal</string>
   <string name="terminal_back">‹ Chats</string>
-  <string name="terminal_description">Interaktive Shell mit Full access. Selbst installierte Programme in $HOME/.local/bin haben Vorrang vor mitgelieferten Tools. Terminalausgabe bleibt im Speicher. Befehle können erreichbare Workspace- und Kontodaten nutzen.</string>
+  <string name="terminal_description">Interaktive Shell mit Full access. $PREFIX/bin hat Vorrang vor $HOME/.local/bin und Übergangswerkzeugen. Paketdiagnose zeigt aktuelle Pfade, Befehlsauflösung und verwaltete Paketversionen. Terminalausgabe bleibt im Speicher. Befehle können erreichbare Workspace- und Kontodaten nutzen.</string>
   <string name="terminal_status_checking">Terminal-Laufzeit wird geprüft…</string>
   <string name="terminal_status_runtime_required">Starte zuerst die Codex-Laufzeit in den Einstellungen.</string>
   <string name="terminal_status_starting">Begrenzte PTY-Shell wird gestartet…</string>
-  <string name="terminal_status_running">Terminal läuft · paketiertes Node.js, npm, Python und ripgrep können ausdrücklich aktiviert werden.</string>
-  <string name="terminal_status_running_tools_enabled">Terminal läuft · aktiviert: %1$s.</string>
+  <string name="terminal_status_running">Terminal läuft · gemeinsame Paketumgebung.</string>
   <string name="terminal_status_failed">Terminal fehlgeschlagen: %1$s</string>
   <string name="terminal_status_exited">Terminal wurde mit Code %1$d beendet.</string>
   <string name="terminal_status_stopped">Terminal ist gestoppt.</string>
   <string name="terminal_start">Starten</string>
+  <string name="terminal_package_diagnostics">Paketdiagnose</string>
   <string name="terminal_stop">Stoppen</string>
-  <string name="terminal_enable_node">Node %1$s aktivieren</string>
-  <string name="terminal_node_enabled">Node %1$s aktiviert</string>
-  <string name="terminal_enable_npm">npm %1$s aktivieren</string>
-  <string name="terminal_npm_enabled">npm %1$s aktiviert</string>
-  <string name="terminal_enable_python">Python %1$s aktivieren</string>
-  <string name="terminal_python_enabled">Python %1$s aktiviert</string>
-  <string name="terminal_enable_ripgrep">rg %1$s aktivieren</string>
-  <string name="terminal_ripgrep_enabled">rg %1$s aktiviert</string>
   <string name="terminal_output_empty">Die Terminalausgabe erscheint hier.</string>
   <string name="terminal_clear">Leeren</string>
   <string name="terminal_control_c" translatable="false">Ctrl-C</string>

@@ -2,7 +2,7 @@
 
 Stand: 2026-10-05. Ausschließlich Branch `Mcpasi/package-edition`; kein Merge nach `main`.
 
-Die Checklisten zeigen den aktuellen Umsetzungsstand. Datierte Ergebnis- und Verifikationsabschnitte dokumentieren frühere Meilensteine; ihre Testzahlen, Artefakte und Prüfsummen gehören zum jeweils genannten Commit. Bootstrap, Startkatalog und öffentliches signiertes APT-Repository sind umgesetzt. Die npm-/Python-Pfade und die gemeinsame Prozessumgebung sind umgesetzt und in CI geprüft; die aktuellen Nachweise stehen im Ergebnisabschnitt „Gemeinsame Paketumgebung und npm-/Python-Pfade“. Als nächster offener Umsetzungspunkt folgt die Paketdiagnose; die APK-Verkleinerung bleibt in Abschnitt 4. Echte Gerätetests bleiben gemäß Nutzeranweisung offen. Die APT-Veröffentlichung ist getrennt von einem GitHub-Release der APK.
+Die Checklisten zeigen den aktuellen Umsetzungsstand. Datierte Ergebnis- und Verifikationsabschnitte dokumentieren frühere Meilensteine; ihre Testzahlen, Artefakte und Prüfsummen gehören zum jeweils genannten Commit. Bootstrap, Startkatalog und öffentliches signiertes APT-Repository sind umgesetzt. Die npm-/Python-Pfade und die gemeinsame Prozessumgebung sind umgesetzt und in CI geprüft; die aktuellen Nachweise stehen im Ergebnisabschnitt „Gemeinsame Paketumgebung und npm-/Python-Pfade“. Die Paketdiagnose ist umgesetzt; als nächster offener Umsetzungspunkt folgt die Workspace-Browser-/Import-/Export-Erweiterung; die APK-Verkleinerung bleibt in Abschnitt 4. Echte Gerätetests bleiben gemäß Nutzeranweisung offen. Die APT-Veröffentlichung ist getrennt von einem GitHub-Release der APK.
 
 ## Ziel und feste Entscheidungen
 
@@ -165,7 +165,7 @@ Das Termux-Buildsystem dokumentiert anpassbare App- und Präfixvariablen in [scr
 - [x] Gemeinsame Umgebungsdefinition für App-Server, Codex-Kommandos, Terminal und lokale stdio-MCP-Prozesse nach den npm-/Python-Pfadanpassungen vollständig prüfen. Der echte ARM64/Bionic-App-Server prüft identische `PATH/PREFIX/LD_LIBRARY_PATH/HOME/TMPDIR`-Werte in Codex-Shell, Terminal und stdio-MCP, einschließlich der privaten Codex-Sitzungshilfsprogramme im gemeinsamen `PATH`.
 - [x] npm-Global-Prefix/-Cache sowie Python-User-/venv-/pip-Pfade nutzbar machen. Normale Nutzerkonfiguration und Python-User-Site sind aktiv; lokale Global-/User-/venv-Installationen, ausführbare Skripte, npx und Entfernung sind unter ARM64/Bionic geprüft.
 - [x] Installation, Aktualisierung, Entfernung und Status im Terminal dokumentieren; Pakete über App-Neustart und APK-Update erhalten. APT-Bedienung ist in der README dokumentiert, Bestandserhaltung durch Java-Regressionen geprüft; echte Geräte-/Update-Tests bleiben separat offen.
-- [ ] Paketpfade und installierte Versionen bei Bedarf in Diagnose/Terminal anzeigen; bisherige Aktivierungsanzeigen ersetzen.
+- [x] Paketpfade und installierte Versionen bei Bedarf in Diagnose/Terminal anzeigen; bisherige Aktivierungsanzeigen ersetzen. Die Terminal-Schaltfläche „Paketdiagnose“ fragt aktuelle Umgebungswerte, Befehlsauflösung und Versions-/Statusdaten der verwalteten dpkg-Datenbank ab.
 - [ ] Workspace-Browser und Import/Export sinnvoll erweitern, wenn Paketdateien dort zugänglich sein sollen. Kontodaten sollen weiterhin nicht versehentlich exportiert werden.
 - [ ] Android 10 und eine aktuelle Android-Version auf echter ARM64-Hardware prüfen: ELF, Skript/Shebang, dynamische Bibliothek, npm/pip, PTY und stdio-MCP.
 
@@ -616,6 +616,36 @@ Der folgende Abschlusscommit ergänzt ausschließlich diesen Roadmap-Nachweis.
 
 Gerätetests werden gemäß Nutzeranweisung übersprungen und bleiben offen.
 Kein PR oder Merge; `main` bleibt unverändert.
+
+### Paketdiagnose im Terminal — 2026-10-05
+
+Die bisherigen Aktivierungsschaltflächen und festen APK-Versionsanzeigen sind
+durch eine Schaltfläche „Paketdiagnose“ ersetzt. Jeder Aufruf liest die aktuelle
+Terminalumgebung und fragt ausschließlich die verwaltete Datenbank
+`$PREFIX/var/lib/dpkg` mit `$PREFIX/bin/dpkg-query` ab. Paketname, tatsächliche
+Version einschließlich Epoch/Revision und dpkg-Status werden angezeigt.
+Befehlsauflösung und Paketstatus stehen getrennt: ein Legacy-/APK-Befehl
+belegt keine APT-Installation; `config-files` kennzeichnet entfernte Pakete
+mit verbliebener Konfiguration. Fehlende Pfade, Datenbank oder Query-Werkzeug
+sowie Query-Fehler werden ausdrücklich ausgegeben.
+
+Die Diagnose installiert oder aktiviert nichts und benötigt keinen Netzzugriff.
+Sie zeigt nur ausgewählte Paketumgebungsvariablen; Kontodaten werden nicht
+gelesen. Ihre Ausgabe bleibt wie die übrige Terminalausgabe im Speicher.
+Die Bedienelemente und Erläuterungen sind Deutsch/Englisch; technische
+Diagnoseüberschriften und dpkg-Statuswerte bleiben Englisch.
+npm-/pip-/venv-Inventare sind separat abzufragen, wie in der README dokumentiert.
+Die Übergangswerkzeuge und ihr internes Aktivierungsverfahren bleiben bis zum
+offenen APK-Verkleinerungsschritt erhalten; die README beschreibt den
+verbleibenden expliziten Legacy-Befehl.
+
+Fünf neue Java-Regressionen führen den tatsächlichen Diagnosebefehl mit dem
+realen `dpkg-query` gegen isolierte Testdaten aus. Sie prüfen aktuelle Pfade,
+verwaltete Versionen und Status, Update/Entfernung mit Legacy-Fallback,
+fehlende Datenbank/Werkzeuge, fehlerhafte Metadaten und einen fehlenden Präfix.
+Architekturprüfungen verlangen jetzt die Diagnose statt der alten
+Aktivierungsanzeige. CI-Nachweise werden nach Abschluss der gestarteten
+GitHub-Actions-Läufe ergänzt. Gerätetests bleiben gemäß Nutzeranweisung offen.
 
 ## 4. Build verkleinern und veröffentlichbare Edition erstellen
 

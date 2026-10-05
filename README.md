@@ -1,6 +1,6 @@
 > **Package Edition — for power users and experienced users only.** This edition offers **Full access** exclusively. Codex and user-installed programs can read, change, or delete every file reachable by the app, including Codex account data. Android's isolation from other apps remains in place; there is no workspace sandbox within this app.
 >
-> **Development status:** The writable package prefix, Full access, and Community app-server integration are implemented. The minimal APT/dpkg bootstrap, signed APT repository and initial Python, Node.js/npm, Git and ripgrep catalog are integrated and CI-verified. The public HTTPS repository passes pinned-signature, package/index checksum and complete source-availability checks. The `pkg` frontend, package diagnostics and a smaller APK remain on the [roadmap](ROADMAP-package-edition.md). This development branch is not merged into `main`.
+> **Development status:** The writable package prefix, Full access, and Community app-server integration are implemented. The minimal APT/dpkg bootstrap, signed APT repository and initial Python, Node.js/npm, Git and ripgrep catalog are integrated and CI-verified. The public HTTPS repository passes pinned-signature, package/index checksum and complete source-availability checks. On-demand terminal package diagnostics is implemented. The optional `pkg` frontend and a smaller APK remain on the [roadmap](ROADMAP-package-edition.md). This development branch is not merged into `main`.
 
 <div align="center">
 
@@ -58,7 +58,7 @@ chmod 700 "$PREFIX/bin/package-check"
 package-check
 ```
 
-Codex can then run `package-check` as a normal command. This checks the installation path. APT and dpkg are initialized from the edition bootstrap on first start. The signed online catalog uses the edition's scoped trust key; the `pkg` frontend remains an upcoming step.
+Codex can then run `package-check` as a normal command. This checks the installation path. APT and dpkg are initialized from the edition bootstrap on first start. The signed online catalog uses the edition's scoped trust key; a `pkg` frontend is optional and not implemented.
 
 Native packages must be built for Android ARM64/Bionic and support the actual prefix. Existing Termux DEBs often contain fixed paths such as `/data/data/com.termux/files/usr`. Extracting them into `$PREFIX` is insufficient. The chosen architecture uses Termux package recipes rebuilt for this edition, a minimal bootstrap, and a dedicated signed repository; implementation is tracked in the roadmap.
 
@@ -82,7 +82,13 @@ The separately packaged ensurepip wheels come from the pinned Python source arch
 
 Both edition npm and the transitional bundled npm adapt npm-managed `#!/usr/bin/env node` scripts to `#!/system/bin/env node` when creating executable links, including local `node_modules/.bin` scripts. Other interpreter requirements remain the package author's responsibility. The shared environment sets `TERMUX_VERSION=agentcodi-package-edition` solely to enable the pinned Community runtime's Android stdio environment allowlist. It forwards `PREFIX`, library paths, npm prefix and cache-home values alongside the normal `HOME/PATH/TMPDIR`; no Termux app or official binary repository is installed. Explicit per-server MCP environment overrides remain user configuration.
 
-The bundled Node.js, npm, Python, and ripgrep runtimes remain during the transition. Their activation and runtime checks still apply. Their npm wrapper preserves user configuration, and bundled Python permits its normal user-site imports; venv/pip package management uses the edition Python installed through APT.
+The bundled Node.js, npm, Python, and ripgrep runtimes remain during the transition. Their internal activation and runtime checks still apply; the old terminal activation buttons and fixed APK-version status labels have been replaced by package diagnostics. The legacy `agentcodi-toolchain install <node|npm|python|ripgrep>` command remains available for explicit fallback activation until the APK is reduced. Their npm wrapper preserves user configuration, and bundled Python permits its normal user-site imports; venv/pip package management uses the edition Python installed through APT.
+
+## Package diagnostics
+
+Start the runtime and terminal, then tap **Package diagnostics**. Each tap evaluates a read-only report in the current terminal environment: `PREFIX`, `HOME`, `TMPDIR`, `PATH`, library search paths, npm prefix, cache home and resolved paths for the usual package commands. It queries `$PREFIX/bin/dpkg-query` against `$PREFIX/var/lib/dpkg` to show managed package names, installed version strings (including epochs/revisions) and dpkg status. A missing prefix, database or query tool, and query errors are reported explicitly. The report does not install, update or activate anything or contact the network; terminal output remains in memory.
+
+Command resolution and managed package state are shown separately: a command from `$HOME/.local` or an APK fallback does not prove an APT package is installed. A `config-files` status means the package was removed but its configuration remains. The technical report uses canonical English headings and dpkg status values; terminal controls and guidance are available in German and English. To inspect packages managed by npm, pip or a particular venv, use `npm list --global --depth=0`, `python -m pip list` or `.venv/bin/python -m pip list` in that environment.
 
 ## Runtime and build
 

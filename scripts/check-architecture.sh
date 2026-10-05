@@ -889,11 +889,9 @@ if ! rg -q 'getToolchain\(\)' "$storage_layout" \
     || ! rg -q 'layout\.preparePackagedToolAliases' "$runtime_service" \
     || ! rg -q 'layout\.preparePackagedToolRuntime' "$runtime_service" \
     || ! rg -q 'layout\.getToolBin\(\)' "$runtime_service" \
-    || ! rg -q 'isNodeRuntimeEnabled' "$terminal_activity" \
-    || ! rg -q 'terminal_node_enabled' "$terminal_activity" \
-    || ! rg -q 'terminal_npm_enabled' "$terminal_activity" \
-    || ! rg -q 'terminal_python_enabled' "$terminal_activity" \
-    || ! rg -q 'terminal_ripgrep_enabled' "$terminal_activity" \
+    || ! rg -Fq 'PackageDiagnosticsCommand.create()' "$terminal_activity" \
+    || ! rg -q 'terminal_package_diagnostics' "$terminal_activity" \
+    || rg -q 'terminal_(enable_(node|npm|python|ripgrep)|(node|npm|python|ripgrep)_enabled)' "$terminal_activity" \
     || ! rg -q 'AGENTCODI_TOOLCHAIN_PACKAGES=node,npm,python,ripgrep' "$native_process" \
     || ! rg -q 'AGENTCODI_TOOL_BIN=' "$native_process" \
     || ! rg -q 'AGENTCODI_TOOL_RUNTIME=' "$native_process" \

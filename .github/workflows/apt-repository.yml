@@ -1,0 +1,121 @@
+name: Signed APT repository
+on:
+  workflow_call:
+    inputs:
+      publish:
+        type: boolean
+        default: false
+      previous_run_id:
+        description: 'Last successfully published repository run; zero only for the first publication'
+        type: number
+        default: 0
+    secrets:
+      AGENTCODI_APT_SIGNING_KEY:
+        required: true
+      AGENTCODI_APT_SIGNING_PASSPHRASE:
+        required: false
+permissions:
+  contents: read
+  actions: read
+# Serialize snapshots and deployment together; never interrupt a publication.
+concurrency:
+  group: agentcodi-apt-repository-${{ github.repository }}
+  cancel-in-progress: false
+jobs:
+  snapshot:
+    name: Build signed APT repository
+    if: github.ref == 'refs/heads/Mcpasi/package-edition'
+    runs-on: ubuntu-latest
+    timeout-minutes: 40
+    permissions:
+      contents: read
+      actions: read
+    steps:
+      - uses: actions/checkout@v4
+      - name: Validate configured public trust anchors
+        run: |
+          set -euo pipefail
+          bash -n scripts/package-edition/build-apt-repository.sh scripts/package-edition/check-apt-repository.sh
+          python3 -m py_compile scripts/package-edition/apt-repository.py
+          python3 - <<'PY'
+          import importlib.util
+          from pathlib import Path
+          spec = importlib.util.spec_from_file_location("repository", "scripts/package-edition/apt-repository.py")
+          repository = importlib.util.module_from_spec(spec)
+          spec.loader.exec_module(repository)
+          settings, _ = repository.config()
+          repository.export_keyring(settings, Path("configured-public-keyring.gpg"))
+          PY
+      - uses: actions/download-artifact@v4
+        with:
+          name: agentcodi-package-bootstrap
+          path: repository-input/agentcodi-package-bootstrap
+      - uses: actions/download-artifact@v4
+        with:
+          pattern: agentcodi-catalog-*
+          path: repository-input
+          merge-multiple: false
+      - name: Validate provenance of the previous published snapshot
+        if: inputs.previous_run_id > 0
+        env:
+          GH_TOKEN: ${{ github.token }}
+          PREVIOUS_RUN_ID: ${{ inputs.previous_run_id }}
+        run: |
+          set -euo pipefail
+          gh api "repos/$GITHUB_REPOSITORY/actions/runs/$PREVIOUS_RUN_ID" > "$RUNNER_TEMP/previous-repository-run.json"
+          jq -e --arg repo "$GITHUB_REPOSITORY" '
+            .head_branch == "Mcpasi/package-edition" and .head_repository.full_name == $repo
+            and (.event == "push" or .event == "workflow_dispatch") and .conclusion == "success"
+          ' "$RUNNER_TEMP/previous-repository-run.json" >/dev/null
+          gh api --paginate "repos/$GITHUB_REPOSITORY/actions/runs/$PREVIOUS_RUN_ID/jobs?per_page=100" \
+            --jq '.jobs[] | select(.name | endswith("Publish signed APT repository")) | .conclusion' \
+            | rg -x success
+      - uses: actions/download-artifact@v4
+        if: inputs.previous_run_id > 0
+        with:
+          name: agentcodi-apt-repository
+          run-id: ${{ inputs.previous_run_id }}
+          github-token: ${{ github.token }}
+          path: previous-site
+      - name: Build the immutable pool and sign fresh Release metadata
+        env:
+          AGENTCODI_APT_SIGNING_KEY: ${{ secrets.AGENTCODI_APT_SIGNING_KEY }}
+          AGENTCODI_APT_SIGNING_PASSPHRASE: ${{ secrets.AGENTCODI_APT_SIGNING_PASSPHRASE }}
+          PREVIOUS_RUN_ID: ${{ inputs.previous_run_id }}
+        run: |
+          set -euo pipefail
+          arguments=(repository-input site/apt/package-edition)
+          if [ "$PREVIOUS_RUN_ID" -gt 0 ]; then
+            arguments+=(previous-site/apt/package-edition)
+          fi
+          bash scripts/package-edition/build-apt-repository.sh "${arguments[@]}"
+      - name: Authenticate and download the runtime closure with host APT
+        run: bash scripts/package-edition/check-apt-repository.sh site/apt/package-edition
+      - name: Retain the signed repository for review and the next update
+        uses: actions/upload-artifact@v4
+        with:
+          name: agentcodi-apt-repository
+          path: site/
+          if-no-files-found: error
+          retention-days: 90
+      - name: Prepare the Pages deployment artifact
+        if: inputs.publish
+        uses: actions/upload-pages-artifact@v3
+        with:
+          path: site/
+  deploy:
+    name: Publish signed APT repository
+    if: inputs.publish
+    needs: snapshot
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    permissions:
+      pages: write
+      id-token: write
+    environment:
+      name: github-pages
+      url: ${{ steps.deployment.outputs.page_url }}
+    steps:
+      - name: Deploy the complete signed site snapshot
+        id: deployment
+        uses: actions/deploy-pages@v4

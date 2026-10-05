@@ -239,3 +239,103 @@ groups must have pinned recipes, a closed dependency graph, prefix/ELF evidence
 and a Bionic lifecycle smoke before publication. These jobs do not assert
 bit-for-bit identity between independent compiler builds; the fixed build
 contract and artifact hashes make inputs and results inspectable.
+
+## Signed APT repository jobs (prepared, not commissioned)
+
+The `Package catalog` workflow now offers `repository_action` with `none`
+(default), `build` and `publish`. Normal pushes still build and smoke-test
+the catalog without signing or publishing. A requested repository job starts
+only after the bootstrap, all four catalog builds and all four ARM64/Bionic
+catalog lifecycle jobs have passed in that same run. It calls
+`.github/workflows/apt-repository.yml` exclusively on
+`Mcpasi/package-edition`; no branch or PR is created.
+
+Provisioning before the first repository job:
+
+1. Commit the armored public key at
+   `scripts/package-edition/keys/agentcodi-package.asc`.
+2. Set `signing_fingerprint` in `repository.json` to its full uppercase
+   primary-key fingerprint and put the same value in `trusted_fingerprints`.
+   Those fields deliberately have no placeholder trust key.
+3. Add repository Actions secret `AGENTCODI_APT_SIGNING_KEY`, containing
+   exactly the active armored private key. For an encrypted private key, add
+   `AGENTCODI_APT_SIGNING_PASSPHRASE`.
+4. For publication, configure GitHub Pages with **GitHub Actions** as its
+   source and allow this branch in the `github-pages` environment. The Pages
+   job needs `pages: write` and `id-token: write`. No `gh-pages` branch is
+   used.
+
+Run the existing **Package catalog** workflow on `Mcpasi/package-edition`.
+Set `repository_action=build` to retain a signed candidate for review, or
+`repository_action=publish` to deploy it after verification. The
+`source_run_id` input can reuse a successfully checked same-branch source
+run under the existing recipe/provenance checks; `0` builds all sources
+fresh. For example, run `37241405136` contains the already validated catalog,
+subject to artifact availability and unchanged inputs.
+
+The snapshot builder verifies each artifact's lock, catalog configuration,
+DEB metadata/hashes and corresponding-source archive. It combines the
+bootstrap and catalog, checks dependency versions, and reruns the complete
+prefix/ELF/interpreter/file-collision audit on the chosen union. Independently
+rebuilt shared dependencies must have identical control metadata. Their
+different input hashes are recorded; bootstrap bytes take precedence,
+followed by sorted catalog groups. This is not a bitwise-reproducibility claim.
+
+The output has a content-addressed `pool/main`, corresponding-source archives,
+a signed payload manifest, `Packages`/`Packages.gz`, index `by-hash`,
+`Release`, `InRelease` and `Release.gpg`. Both signatures and every signed
+payload hash are verified before upload. A host APT check authenticates the
+indexes, resolves and downloads the ARM64 runtime closure without executing
+it, and confirms that an untrusted key is rejected. Private key material lives
+only in an isolated temporary GnuPG home, which is removed on exit; it is never
+included in an artifact.
+
+The job also creates an `agentcodi-package-keyring` DEB with the public,
+scoped trust anchors. **Fresh APK bootstrap integration of that trust package
+is still pending.** An online keyring DEB cannot bootstrap its own trust.
+The scripts and jobs are prepared here; their first CI run, authenticated
+ARM64 repository lifecycle test, APK integration and HTTPS commissioning
+remain outstanding. The signed-repository roadmap checkbox stays open.
+
+For an update, set `repository_previous_run_id` to the last successfully
+**published** repository workflow run. Use `0` only before the first
+publication. The job checks that run's branch, repository and successful Pages
+job, downloads its retained `agentcodi-apt-repository` artifact, verifies its
+signatures and signed payload hashes, and preserves its old pool, source
+archives and index hashes. Downgrades and changing published bytes without a
+package-version bump are rejected. If that artifact has expired (retention:
+90 days), restore a verified complete previous snapshot before proceeding;
+do not silently replace it with a new first-publication run.
+
+Release metadata expires after seven days by default. Refresh and publish
+before expiry even if package versions are unchanged; clients retain their
+normal APT expiry/signature protections. Key transitions require the old key
+and new key to overlap in the public keyring, a bumped `keyring_version`,
+and distribution under the still-trusted signer before switching the active
+signing key. The configuration supports multiple exact public trust anchors;
+transition validation remains part of commissioning.
+
+The deployment artifact is the complete AGENTCODI Pages site containing
+`apt/package-edition`. Publishing it replaces that site's previous contents.
+If other Pages content exists, incorporate it into the artifact before
+enabling publication. The configured snapshot size budget is 950 MB, below
+the one-GB Pages limit. The build fails instead of omitting sources or old
+packages to fit. Growing past this budget requires an explicit hosting and
+retention plan.
+
+Job entrypoints can also be run by a trusted build runner:
+
+```sh
+bash scripts/package-edition/build-apt-repository.sh \
+  repository-input site/apt/package-edition
+bash scripts/package-edition/check-apt-repository.sh site/apt/package-edition
+python3 scripts/package-edition/apt-repository.py verify \
+  --root site/apt/package-edition \
+  --keyring site/apt/package-edition/keys/agentcodi-package.gpg
+```
+
+`repository-input` must contain `agentcodi-package-bootstrap` and the four
+`agentcodi-catalog-<group>` artifact directories. The optional previous
+snapshot argument is omitted for a first build. These commands expect host
+Python 3.11+, GnuPG/gpgv, dpkg/dpkg-deb, readelf and APT, as supplied by the
+Ubuntu Actions runner. Physical-device tests remain skipped.

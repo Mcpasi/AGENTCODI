@@ -1,0 +1,9 @@
+{
+  "format_version": 1,
+  "public_key": "keys/agentcodi-package.asc",
+  "signing_fingerprint": null,
+  "trusted_fingerprints": [],
+  "keyring_version": "1",
+  "valid_for_seconds": 604800,
+  "max_site_bytes": 950000000
+}

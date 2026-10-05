@@ -155,7 +155,7 @@ Das Termux-Buildsystem dokumentiert anpassbare App- und Präfixvariablen in [scr
 - [x] Reproduzierbaren Stand von `termux-packages` und Toolchain festlegen; gezielte Build-Anpassungen für App-ID, Präfix und Repository-URLs versionieren. Bootstrap, Paketmetadaten, Shebangs, RPATH/RUNPATH und Konfigurationen auf denselben finalen Pfad ausrichten.
 - [x] Minimalen ARM64-Bootstrap mit Shell, APT, dpkg, Zertifikaten und Abhängigkeiten bauen; Initialisierung sowie Reparatur nach abgebrochener Installation integrieren.
 - [x] Eigene CI für Paket- und Abhängigkeitsbuilds aufsetzen; zuerst Bootstrap und einen kleinen Katalog wie Python, Node.js/npm, Git und ripgrep prüfen, danach erweitern.
-- [ ] Eigenes signiertes APT-Repository mit Vertrauensschlüssel, HTTPS, Veröffentlichungsablauf und Aktualisierungsstrategie einrichten.
+- [x] Eigenes signiertes APT-Repository mit Vertrauensschlüssel, HTTPS, Veröffentlichungsablauf und Aktualisierungsstrategie einrichten.
 - [x] Schlanken `pkg`-Befehl beziehungsweise dokumentierte APT-Bedienung für Installation, Aktualisierung und Entfernung bereitstellen.
 - [ ] Gemeinsame Umgebungsdefinition für App-Server, Codex-Kommandos, Terminal und lokale stdio-MCP-Prozesse prüfen; `PATH/PREFIX/LD_LIBRARY_PATH/HOME/TMPDIR` dürfen nicht auseinanderlaufen.
 - [ ] npm-Global-Prefix/-Cache sowie Python-User-/venv-/pip-Pfade nutzbar machen. Die bisherigen Wrapper erzwingen noch eigene Pfade und deaktivieren Python-User-Site.
@@ -181,7 +181,7 @@ absoluten Pfaden müssen gezielt für den neuen Präfix neu installiert werden.
 README und Regressionen decken Bestandserhaltung, Suchvorrang, Legacy-Fallback,
 Prozess-Neustart und Ablehnung ungeeigneter Präfixverzeichnisse ab. Der echte
 ARM64/Bionic-APK-Smoke prüft den Vertrag über Codex- und Terminal-Shell.
-Bootstrap und Startkatalog-CI sind unten dokumentiert; das signierte Paketrepository bleibt offen.
+Bootstrap, Startkatalog-CI und das öffentliche signierte Paketrepository sind unten dokumentiert.
 Gerätetests bleiben gemäß Nutzeranweisung offen und werden übersprungen.
 
 ### Reproduzierbarer Paket-Buildvertrag — 2026-10-04
@@ -394,7 +394,7 @@ APT im Container ab und verwendet vorhandene, leere Quellkonfigurationen. Die CI
 Reproduzierbarkeit aller Compiler-Ausgaben; Quellpins und Artefakthashes
 machen Eingaben und Ergebnisse überprüfbar.
 Gerätetests wurden gemäß Nutzeranweisung übersprungen und bleiben offen.
-Der nächste Umsetzungspunkt ist das eigene signierte APT-Repository.
+Das anschließend umgesetzte eigene signierte APT-Repository ist im folgenden Abschnitt dokumentiert.
 Kein PR, Merge oder Release wurde erstellt; `main` bleibt unverändert.
 
 ### Signiertes Repository für den Startkatalog — 2026-10-05
@@ -402,8 +402,8 @@ Kein PR, Merge oder Release wurde erstellt; `main` bleibt unverändert.
 Der Startkatalog mit Python, Node.js LTS/npm, Git und ripgrep ist zusammen
 mit dem Bootstrap und seinen Laufzeitabhängigkeiten für
 `https://mcpasi.github.io/AGENTCODI/apt/package-edition` als eigenes
-ARM64-APT-Repository gebaut, signiert und geprüft. Die öffentliche
-Veröffentlichung ist wegen der unten genannten GitHub-Umgebungsregel noch gesperrt. `repository.json` pinnt den
+ARM64-APT-Repository gebaut, signiert, geprüft und öffentlich veröffentlicht.
+`repository.json` pinnt den
 öffentlichen Primärschlüssel
 `2768291D12B6C3D22CFBAF9EEC79CBDF7E93DC89`, sieben Tage Gültigkeit
 und ein 950-MB-Budget. Die private Signierung erfolgt ausschließlich
@@ -452,8 +452,12 @@ Aktualisierungen bewahren den geprüften vorherigen Pool, Quellen und
 Index-Hashes. Downgrades und veränderte veröffentlichte Paketbytes ohne
 Versionsanhebung werden abgelehnt. Der manuelle Workflow mit
 `repository_action=publish` erneuert den Snapshot vor Ablauf der sieben
-Tage; `repository_previous_run_id=0` ermittelt automatisch den letzten
-erfolgreich veröffentlichten Stand. Schlüsselwechsel verwenden
+Tage. Für eine reine Signaturerneuerung wird `source_run_id` auf den
+geprüften Kataloglauf (aktuell `37336548937`) gesetzt, damit unveränderte
+DEBs wiederverwendet werden; `source_run_id=0` baut ausdrücklich neu.
+`repository_previous_run_id=0` ermittelt den letzten abgeschlossenen
+Lauf mit erfolgreichem tatsächlichem Pages-Deployment, auch wenn danach
+die öffentliche Endprüfung fehlgeschlagen ist. Schlüsselwechsel verwenden
 überlappende öffentliche Vertrauensanker und eine angehobene Keyring-Version.
 
 Die README beschreibt `apt update`, `apt install`, `apt upgrade`,
@@ -461,36 +465,51 @@ Die README beschreibt `apt update`, `apt install`, `apt upgrade`,
 ist optional und wurde in diesem Schritt nicht ergänzt.
 
 Verifikation des Implementierungscommits
-`74f60969ed5c2c274b5b760bfd4238be53b53a04`:
-[Tests](https://github.com/Mcpasi/AGENTCODI/actions/runs/37330894503)
+`d9816fac268b1b113019a5cea1bfab5e46056c6a`:
+[Tests](https://github.com/Mcpasi/AGENTCODI/actions/runs/37336548510)
 mit allen sieben Jobs einschließlich 315 Java-Tests sind erfolgreich.
-Der [Paketkatalog](https://github.com/Mcpasi/AGENTCODI/actions/runs/37330895026)
-hat alle 13 Signier-, Quellbuild-, Bootstrap- und Laufzeitjobs bestanden.
+Der [Paketkatalog](https://github.com/Mcpasi/AGENTCODI/actions/runs/37336548937)
+hat alle 14 Signier-, Quellbuild-, Bootstrap-, Laufzeit- und
+Veröffentlichungsjobs bestanden.
 Der signierte Snapshot umfasst 67 Pakete und vollständige Quellen in
-587.756.601 Bytes; das
-[Repository-Artefakt](https://github.com/Mcpasi/AGENTCODI/actions/runs/37330895026/artifacts/11355100942)
+648.375.829 Bytes; das
+[Repository-Artefakt](https://github.com/Mcpasi/AGENTCODI/actions/runs/37336548937/artifacts/11357750277)
 und der
-[ARM64/Bionic-Prüfnachweis](https://github.com/Mcpasi/AGENTCODI/actions/runs/37330895026/artifacts/11354354669)
+[ARM64/Bionic-Prüfnachweis](https://github.com/Mcpasi/AGENTCODI/actions/runs/37336548937/artifacts/11357495578)
 stehen bereit.
-[APK-Build](https://github.com/Mcpasi/AGENTCODI/actions/runs/37328844235)
-und [Debug-APK-Artefakt](https://github.com/Mcpasi/AGENTCODI/actions/runs/37328844235/artifacts/11353931698)
-für `9e9539b9104fe0f96cc78531faecb9d5007a942e` sind erfolgreich.
-Nach diesem APK-Lauf änderten sich nur CI-/Diagnose-Workflows und
-Dokumentation; APK- und Paketcode blieben unverändert.
+[APK-Build](https://github.com/Mcpasi/AGENTCODI/actions/runs/37336548822)
+und [Debug-APK-Artefakt](https://github.com/Mcpasi/AGENTCODI/actions/runs/37336548822/artifacts/11356239632)
+für `d9816fac268b1b113019a5cea1bfab5e46056c6a` sind erfolgreich.
+Tests, Paket-/Repository-Workflow und APK-Lauf prüfen denselben
+Implementierungscommit; die abschließende Roadmap-Änderung betrifft
+nur die Dokumentation.
 
-**Offener Verwaltungsschritt:** Der Veröffentlichungsjob wurde von GitHub
-vor der Runner-Zuweisung abgelehnt. Die
-[read-only CI-Diagnose](https://github.com/Mcpasi/AGENTCODI/actions/runs/37333246479)
-liefert die genaue Meldung:
-`Branch "Mcpasi/package-edition" is not allowed to deploy to github-pages due to environment protection rules.`
-Unter **Settings → Environments → github-pages → Deployment branches and tags**
-muss dieser Branch zugelassen werden. Pages muss **GitHub Actions** als
-Quelle verwenden. Danach genügt die Wiederholung des fehlgeschlagenen
-Veröffentlichungsjobs im Lauf 37330895026. Der öffentliche HTTPS-Prüfschritt
-ist noch nicht ausgeführt. Der bereits umgesetzte Startkatalog bleibt abgehakt;
-der übergeordnete Punkt für das öffentliche signierte Repository bleibt
-bis zum erfolgreichen Deployment offen. Es wird auf die erforderliche
-Nutzereinstellung gewartet; keine Umgebungsregel wurde umgangen.
+**Öffentliche Veröffentlichung abgeschlossen:** Der Nutzer hat
+`Mcpasi/package-edition` für die Umgebung `github-pages` zugelassen.
+Der wiederholte Veröffentlichungsjob konnte den Snapshot veröffentlichen;
+seine ursprüngliche Endprüfung löste durch Tausende parallele Einzelabfragen
+jedoch HTTP 503/429 bei Pages aus. Die Ursache ist behoben: kleine Quellen
+werden zusätzlich in höchstens 16 signierten ZIP-Dateien angeboten. Die
+CI lädt diese Dateien, prüft jedes enthaltene Quellobjekt gegen den signierten
+Hash und fragt nur die übrigen großen Quellen einzeln ab. HTTP-Anfragen
+sind auf zwei pro Sekunde begrenzt und transiente Antworten werden mit
+Backoff behandelt. Vollständige Quellen und Einzel-URLs bleiben erhalten.
+
+Auch ein tatsächlich veröffentlichter Snapshot mit anschließend
+fehlgeschlagener Endprüfung wird als Vorgänger erkannt und nach erneuter
+Signatur-/Hashprüfung bewahrt. Der korrigierte Kataloglauf
+37336548937 ist vollständig erfolgreich.
+Die öffentliche
+[signierte Release-Datei](https://mcpasi.github.io/AGENTCODI/apt/package-edition/dists/stable/InRelease)
+ist per HTTPS erreichbar. Die CI prüft beide gepinnten Release-Signaturen,
+Gültigkeit, aktuellen Verbraucher-Commit/-Run, Index- und by-hash-Prüfsummen,
+die angebotenen Katalog-DEBs sowie die vollständigen Quellen:
+16 signierte ZIP-Dateien werden einschließlich jedes enthaltenen Objekts
+verifiziert; weitere 219 große Quelldateien werden einzeln auf Erreichbarkeit
+und signierte Größe geprüft. Der Startkatalog und das öffentliche signierte Repository
+sind umgesetzt und abgehakt. Die dokumentierte APT-Bedienung ist ebenfalls
+abgehakt; die nachfolgenden Paketpfad-/Umgebungsarbeiten bleiben getrennte
+Roadmap-Schritte.
 
 Gerätetests wurden wie angeordnet übersprungen und bleiben offen.
 Kein PR, Merge oder Release wurde erstellt. Alle Zugriffe erfolgten über den
@@ -522,7 +541,7 @@ Erfolgreicher [GitHub-Actions-Lauf](https://github.com/Mcpasi/AGENTCODI/actions/
 
 Zusätzlich deckt ein Terminal-Shell-Test den Vorrang selbst installierter Programme gegenüber früheren festen Shell-Funktionen ab.
 
-Alle Repository-Zugriffe und Änderungen erfolgen ausschließlich über den GitHub Connector. Die Community-Anbindung aus Abschnitt 2, der minimale Paket-Bootstrap und die Startkatalog-CI aus Abschnitt 3 sind umgesetzt. Der signierte Repository-Kandidat einschließlich HTTPS-/ARM64-Tests ist umgesetzt; die öffentliche Veröffentlichung wartet auf die Freigabe dieses Branches in `github-pages`. Katalogerweiterung, verkleinerter Build und echte Gerätetests folgen in Abschnitt 3/4. Die ursprünglichen Verifikationsangaben oben beschreiben den vorausgehenden Grundlagenabschnitt.
+Alle Repository-Zugriffe und Änderungen erfolgen ausschließlich über den GitHub Connector. Die Community-Anbindung aus Abschnitt 2, der minimale Paket-Bootstrap und die Startkatalog-CI aus Abschnitt 3 sind umgesetzt. Das signierte Paketrepository ist einschließlich öffentlicher HTTPS-Veröffentlichung und ARM64-/APT-Laufzeittests umgesetzt. Katalogerweiterung, verkleinerter Build und echte Gerätetests folgen in Abschnitt 3/4. Die ursprünglichen Verifikationsangaben oben beschreiben den vorausgehenden Grundlagenabschnitt.
 
 ## Verifikation der Community-Anbindung
 

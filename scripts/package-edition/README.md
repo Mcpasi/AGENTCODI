@@ -240,24 +240,22 @@ contract and artifact hashes make inputs and results inspectable.
 
 ## Signed APT repository and trust
 
-Commissioning status (2026-10-05): the [catalog run](https://github.com/Mcpasi/AGENTCODI/actions/runs/37330895026)
-passes all thirteen signing/build/runtime jobs, including real ARM64/Bionic
+Commissioning status (2026-10-05): the [catalog run](https://github.com/Mcpasi/AGENTCODI/actions/runs/37336548937)
+passes all fourteen signing/build/runtime/publication jobs, including real ARM64/Bionic
 HTTPS installation, removal, reinstallation, upgrade and rejection tests.
-Its [signed site artifact](https://github.com/Mcpasi/AGENTCODI/actions/runs/37330895026/artifacts/11355100942)
-contains 67 packages and complete sources in 587,756,601 bytes.
-The [current host/source tests](https://github.com/Mcpasi/AGENTCODI/actions/runs/37330894503)
-and [full APK build](https://github.com/Mcpasi/AGENTCODI/actions/runs/37328844235)
+Its [signed site artifact](https://github.com/Mcpasi/AGENTCODI/actions/runs/37336548937/artifacts/11357750277)
+contains 67 packages and complete sources in 648,375,829 bytes.
+The [current host/source tests](https://github.com/Mcpasi/AGENTCODI/actions/runs/37336548510)
+and [full APK build](https://github.com/Mcpasi/AGENTCODI/actions/runs/37336548822)
 also pass.
 
-Publication is blocked before runner allocation by this exact GitHub annotation:
-`Branch "Mcpasi/package-edition" is not allowed to deploy to github-pages due to environment protection rules.`
-The [read-only diagnostic](https://github.com/Mcpasi/AGENTCODI/actions/runs/37333246479)
-records it. In repository **Settings → Environments → github-pages →
-Deployment branches and tags**, allow the branch `Mcpasi/package-edition`.
-Pages must use **GitHub Actions**. Then rerun only the failed publication job
-in catalog run 37330895026; rebuilding the passed jobs is unnecessary.
-The public HTTPS commissioning check and signed-repository roadmap checkbox
-remain pending until that deployment succeeds.
+Publication succeeds after the owner allowed
+`Mcpasi/package-edition` in `github-pages` and the HTTPS checker was adjusted
+to avoid flooding Pages with individual source requests. The
+[public signed Release](https://mcpasi.github.io/AGENTCODI/apt/package-edition/dists/stable/InRelease)
+and the pinned HTTPS checks confirm the deployed consumer commit/run,
+Release signatures and expiry, index/by-hash checksums, offered root DEBs
+and all referenced source objects. The repository roadmap item is complete.
 
 The pinned `lock.json` retains the original producer's source-build contract,
 including its historical `publication_status=planned` value, so audited
@@ -308,7 +306,14 @@ before upload. Source manifests preserve every original tar member, file mode,
 timestamp, link and recipe; identical file contents across groups share compressed
 SHA-256 objects. This keeps complete runtime and build-dependency sources inside
 the Pages budget. The original input archive hashes remain in signed provenance.
-Source storage is also preserved across publications.
+Source storage is also preserved across publications. Small objects have
+deterministic, signed ZIP packs in at most sixteen groups, alongside their
+individual URLs. The downloader verifies each pack and the compressed object
+before checking its uncompressed content. The public check reads and hashes
+every packed object, then checks the remaining large payloads' availability and signed sizes individually.
+Requests are serial and limited to two per second; transient Pages responses
+use backoff and respect numeric Retry-After values. Integrity checks remain
+complete without requesting thousands of small files separately.
 
 Use a checkout of these scripts and the committed public key to reconstruct
 a group's complete authenticated source archive:
@@ -355,9 +360,11 @@ key, Release expiry, current run/commit, metadata/by-hash checksums, offered
 root DEBs and corresponding-source availability. The
 `agentcodi-apt-repository` artifact retains the exact site for 90 days.
 
-For updates, `repository_previous_run_id=0` discovers the last successful
-edition publication; a positive value selects that published run explicitly.
-Branch/repository identity and its successful Pages job are checked. The
+For updates, `repository_previous_run_id=0` discovers the last completed
+edition run whose actual Pages deployment step succeeded; a positive value selects that published run explicitly.
+Branch/repository identity and the successful Pages deployment step are checked.
+A failure in the subsequent public check does not undo that deployment, so
+such a snapshot is also preserved by the next update. The
 previous artifact's signatures and signed payload hashes are verified before
 preserving old pool, sources and index hashes. Downgrades and changing published
 bytes without a version bump are rejected. If the artifact expires, restore a
@@ -365,7 +372,12 @@ verified complete previous snapshot before proceeding.
 
 Refresh and publish before the seven-day Release expiry even when package
 versions are unchanged. The manual workflow is the renewal mechanism on this
-branch. Signing-key transitions require overlapping old/new public anchors,
+branch. Select `repository_action=publish` and set `source_run_id` to the
+previous successful catalog run (currently `37336548937`) to reuse its
+verified source-built DEBs when inputs are unchanged. Keep
+`repository_previous_run_id=0` for automatic snapshot selection.
+`source_run_id=0` deliberately performs fresh compiler builds; changing
+published binary bytes requires new package versions. Signing-key transitions require overlapping old/new public anchors,
 a bumped `keyring_version` distributed under the still-trusted signer,
 and only then switching the active signing key. Old installed keyrings remain
 valid during that transition. Growth beyond the 950 MB budget fails the build

@@ -257,6 +257,7 @@ bool check_stdio_package_environment(
     std::string* error) {
   const std::string fixture = config.package_prefix + "/bin/agentcodi-mcp-env-fixture";
   const std::string proof = config.home_directory + "/mcp-env-proof";
+  const std::string diagnostics = config.home_directory + "/mcp-env-diagnostics";
   const std::string path = config.package_prefix + "/bin:"
       + config.home_directory + "/.local/bin:" + config.tool_binary_directory
       + ":/system/bin:/system/xbin";
@@ -264,6 +265,10 @@ bool check_stdio_package_environment(
       + config.home_directory + "/.local/lib:" + config.library_directory;
   const std::string script =
       "#!/system/bin/sh\nset -eu\n"
+      "printf 'PATH=%s\\nPREFIX=%s\\nLD_LIBRARY_PATH=%s\\nHOME=%s\\nTMPDIR=%s\\nNPM_CONFIG_PREFIX=%s\\nXDG_CACHE_HOME=%s\\nTERMUX_VERSION=%s\\n' "
+      "\"${PATH-unset}\" \"${PREFIX-unset}\" \"${LD_LIBRARY_PATH-unset}\" "
+      "\"${HOME-unset}\" \"${TMPDIR-unset}\" \"${NPM_CONFIG_PREFIX-unset}\" "
+      "\"${XDG_CACHE_HOME-unset}\" \"${TERMUX_VERSION-unset}\" > '" + diagnostics + "'\n"
       "test \"$PATH\" = '" + path + "'\n"
       "test \"$PREFIX\" = '" + config.package_prefix + "'\n"
       "test \"$LD_LIBRARY_PATH\" = '" + libraries + "'\n"
@@ -272,8 +277,9 @@ bool check_stdio_package_environment(
       "test \"$NPM_CONFIG_PREFIX\" = \"$HOME/.local\"\n"
       "test \"$XDG_CACHE_HOME\" = \"$HOME/.cache\"\n"
       "printf stdio-package-env-ok > '" + proof + "'\n"
-      R"SH(while IFS= read -r request; do
-  id=$(printf '%s\n' "$request" | /system/bin/sed -n 's/.*"id"[[:space:]]*:[[:space:]]*\([0-9][0-9]*\).*/\1/p')
+      "while IFS= read -r request; do\n"
+      "  printf 'request=%s\\n' \"$request\" >> '" + diagnostics + "'\n"
+      R"SH(  id=$(printf '%s\n' "$request" | /system/bin/sed -n 's/.*"id"[[:space:]]*:[[:space:]]*\([0-9][0-9]*\).*/\1/p')
   test -n "$id" || continue
   case "$request" in
     *'"method":"initialize"'*|*'"method": "initialize"'*)
@@ -323,9 +329,21 @@ done
       "\"keyPath\":\"mcp_servers.agentcodi_environment_ci\",\"value\":null,"
       "\"mergeStrategy\":\"replace\"}],\"reloadUserConfig\":false}}", error)
       && read_response(process, "\"id\":75", "\"status\":\"ok\"", error) && passed;
+  if (!passed) {
+    const int diagnostic_fd = open(diagnostics.c_str(), O_RDONLY | O_CLOEXEC | O_NOFOLLOW);
+    if (diagnostic_fd >= 0) {
+      char data[4096];
+      const ssize_t count = read(diagnostic_fd, data, sizeof(data));
+      if (count > 0) std::cerr.write(data, count);
+      close(diagnostic_fd);
+    } else {
+      std::cerr << "MCP fixture did not record its environment\n";
+    }
+    std::cerr << "Actual stdio-MCP package environment or handshake failed\n";
+  }
   unlink(fixture.c_str());
   unlink(proof.c_str());
-  if (!passed) std::cerr << "Actual stdio-MCP package environment or handshake failed\n";
+  unlink(diagnostics.c_str());
   return passed;
 }
 

@@ -33,6 +33,18 @@ concurrency:
   group: package-catalog-${{ github.ref }}-${{ github.sha }}
   cancel-in-progress: true
 jobs:
+  signing-prerequisites:
+    name: APT signing prerequisites
+    if: github.ref == 'refs/heads/Mcpasi/package-edition'
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    steps:
+      - uses: actions/checkout@v4
+      - name: Check the configured public key and private signing capability
+        env:
+          AGENTCODI_APT_SIGNING_KEY: ${{ secrets.AGENTCODI_APT_SIGNING_KEY }}
+          AGENTCODI_APT_SIGNING_PASSPHRASE: ${{ secrets.AGENTCODI_APT_SIGNING_PASSPHRASE }}
+        run: bash scripts/package-edition/check-apt-signing.sh
   bootstrap:
     if: github.ref == 'refs/heads/Mcpasi/package-edition'
     uses: ./.github/workflows/bootstrap.yml

@@ -200,14 +200,16 @@ Git and ripgrep in four fresh amd64 build containers. Every target dependency
 is rebuilt from the locked sources; no official Termux DEBs, dependency caches
 or binary cycle seeds are restored. Node.js LTS 24.18.0 is the initial Node
 variant. Python 3.14.6, npm 11.20.0, Git 2.56.0 and ripgrep 15.2.0 come from
-the same recipe tree. The separate catalog.json overlay makes Python and Git
-headless (no Tk, Git GUI or optional Perl/Python integrations) and pins npm's Git tag to
+the same recipe tree. The Python group also ships python-ensurepip-wheels from the same Python source archive. The separate catalog.json overlay makes Python and Git
+headless (no Tk, Git GUI or optional Perl/Python integrations), adds Android-compatible Node bin shebangs to npm revision 1, and pins npm's Git tag to
 d12b9434dd010b5fb7044c3cc149cdda317813f8. Bootstrap recipes are unaffected.
 
-Pushes can reuse a successful same-branch source job from run 37325041330 if
+Pushes can reuse a successful same-branch source job from the producer run pinned in the workflow if
 its artifact is still available and its source-build inputs match. A change
-limited to Git's recipe can be ignored for another group only when that
-producer's audited package list proves Git was never built. SHA256SUMS,
+limited to Git's or npm's recipe can be ignored for another group only when
+that producer's audited package list proves the affected recipe was never built.
+A changed root selection additionally requires matching built-DEB hashes and
+retained parent-source recipes; missing requested DEBs cause a fresh source build. SHA256SUMS,
 trusted producer identity and successful source-job status are checked before
 current audits and source packaging run again. source-build.json records
 producer and consumer commits. A missing artifact or changed relevant input
@@ -224,7 +226,7 @@ agentcodi-package-bootstrap.
 Hosted ARM64/Bionic jobs install the normal app bootstrap through its Java
 initializer, configure dpkg, then use APT's local-DEB dependency resolver to
 install the catalog without online repositories or authentication exceptions.
-They execute Python native modules, Node crypto/ICU, offline npm pack/run,
+They execute Python native modules, offline ensurepip/user/venv installs, Node crypto/ICU, offline npm pack/run/global-bin/npx checks,
 Git commit/fsck and ripgrep PCRE2, remove the catalog roots and reinstall them.
 Installed versions and command results are uploaded as runtime evidence.
 Physical-device tests remain skipped. The signed publication workflow below
@@ -240,13 +242,13 @@ contract and artifact hashes make inputs and results inspectable.
 
 ## Signed APT repository and trust
 
-Commissioning status (2026-10-05): the [catalog run](https://github.com/Mcpasi/AGENTCODI/actions/runs/37336548937)
+Initial commissioning status (2026-10-05): the [catalog run](https://github.com/Mcpasi/AGENTCODI/actions/runs/37336548937)
 passes all fourteen signing/build/runtime/publication jobs, including real ARM64/Bionic
 HTTPS installation, removal, reinstallation, upgrade and rejection tests.
 Its [signed site artifact](https://github.com/Mcpasi/AGENTCODI/actions/runs/37336548937/artifacts/11357750277)
 contains 67 packages and complete sources in 648,375,829 bytes.
-The [current host/source tests](https://github.com/Mcpasi/AGENTCODI/actions/runs/37336548510)
-and [full APK build](https://github.com/Mcpasi/AGENTCODI/actions/runs/37336548822)
+The [commissioning host/source tests](https://github.com/Mcpasi/AGENTCODI/actions/runs/37336548510)
+and [commissioning APK build](https://github.com/Mcpasi/AGENTCODI/actions/runs/37336548822)
 also pass.
 
 Publication succeeds after the owner allowed
@@ -373,7 +375,7 @@ verified complete previous snapshot before proceeding.
 Refresh and publish before the seven-day Release expiry even when package
 versions are unchanged. The manual workflow is the renewal mechanism on this
 branch. Select `repository_action=publish` and set `source_run_id` to the
-previous successful catalog run (currently `37336548937`) to reuse its
+previous successful catalog run linked from `ROADMAP-package-edition.md` to reuse its
 verified source-built DEBs when inputs are unchanged. Keep
 `repository_previous_run_id=0` for automatic snapshot selection.
 `source_run_id=0` deliberately performs fresh compiler builds; changing

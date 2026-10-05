@@ -35,6 +35,10 @@ bool report_rpc_failure(const std::string& line) {
   if (request_id == 0) return false;
   std::cerr << "Bootstrap RPC " << request_id << " failed: "
             << agentcodi_test::BootstrapRpcErrorReason(line) << '\n';
+  if (request_id >= 70 && request_id <= 75) {
+    // This fixture uses only synthetic local MCP configuration and paths.
+    std::cerr << "MCP environment fixture error: " << line.substr(0, 4096) << '\n';
+  }
   return true;
 }
 

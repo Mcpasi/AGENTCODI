@@ -1344,11 +1344,12 @@ if grep -Fq 'Terminal forkpty' "$WORK_DIR/native-engine-strings.txt"; then
   echo "Native engine still contains the obsolete direct PTY implementation." >&2
   exit 1
 fi
-if ! grep -Fq 'shell_environment_policy={inherit="none"' "$WORK_DIR/native-engine-strings.txt" \
+if ! grep -Fq 'shell_environment_policy={inherit="core"' "$WORK_DIR/native-engine-strings.txt" \
+    || ! grep -Fq 'include_only=[' "$WORK_DIR/native-engine-strings.txt" \
     || ! grep -Fq 'analytics.enabled=false' "$WORK_DIR/native-engine-strings.txt" \
     || ! grep -Fq 'otel.exporter="none"' "$WORK_DIR/native-engine-strings.txt" \
     || ! grep -Fq 'feedback.enabled=false' "$WORK_DIR/native-engine-strings.txt"; then
-  echo "Native engine is missing the closed environment or telemetry policy." >&2
+  echo "Native engine is missing the explicit tool environment allowlist or telemetry policy." >&2
   exit 1
 fi
 if ! grep -Fq 'generated_images' "$WORK_DIR/native-engine-strings.txt" \

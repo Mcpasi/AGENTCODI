@@ -232,6 +232,10 @@ Installed versions and command results are uploaded as runtime evidence.
 Physical-device tests remain skipped. The full APK smoke separately exercises the
 same PATH/PREFIX/LD_LIBRARY_PATH/HOME/TMPDIR contract through the real
 Community app-server, Codex and terminal shells, and a local stdio MCP server.
+Codex adds private session helpers to PATH during startup. Shell commands inherit
+that actual server PATH through the core policy and an explicit variable
+allowlist; they do not overwrite it with the earlier native seed. The smoke
+compares complete runtime PATH values and verifies the package-search suffix.
 The signed publication workflow below adds repository authentication and
 lifecycle checks.
 

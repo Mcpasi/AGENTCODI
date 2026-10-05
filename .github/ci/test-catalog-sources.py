@@ -43,5 +43,45 @@ class CatalogSourcesTest(unittest.TestCase):
                 self.assertIn("termux-packages/packages/dependency/build.sh", archive.getnames())
                 self.assertIn("source-downloads/dependency/source.tar", archive.getnames())
 
+    def test_reselection_requires_matching_built_deb_and_retained_parent(self):
+        with tempfile.TemporaryDirectory() as directory:
+            root = Path(directory)
+            source, output = root / "source", root / "output"
+            source.mkdir()
+            output.mkdir()
+            archive_name = "bootstrap-corresponding-sources.tar.xz"
+            package = root / "packages" / "python"
+            package.mkdir(parents=True)
+            (package / "build.sh").write_text("# Python source recipe\n")
+            (package / "python-ensurepip-wheels.subpackage.sh").write_text("# wheels subpackage\n")
+            with tarfile.open(source / archive_name, "w:xz") as archive:
+                archive.add(package, arcname="termux-packages/packages/python")
+            previous = {"lock": {"commit": "pinned"}, "catalog": {"group": "python"},
+                        "packages": {"python": {"deb_sha256": "python-hash"}},
+                        "corresponding_sources": {"archive": archive_name, "recipes": ["python"]}}
+            current = {**previous, "packages": {**previous["packages"],
+                       "python-ensurepip-wheels": {"deb_sha256": "wheels-hash"}}}
+            (source / "bootstrap-report.json").write_text(json.dumps(previous))
+            (source / "all-built-packages.json").write_text(json.dumps(current["packages"]))
+            (source / "agentcodi-preparation.json").write_text("{}")
+            (output / "bootstrap-report.json").write_text(json.dumps(current))
+            sources.reuse(source, output)
+            with tarfile.open(output / archive_name) as archive:
+                self.assertIn("termux-packages/packages/python/python-ensurepip-wheels.subpackage.sh",
+                              archive.getnames())
+            for bad_packages, message in (
+                ({**current["packages"], "python-ensurepip-wheels": {"deb_sha256": "changed"}}, "checksum"),
+                ({**current["packages"], "unknown": {"deb_sha256": "unknown"}}, "did not build"),
+            ):
+                (output / "bootstrap-report.json").write_text(json.dumps({**current, "packages": bad_packages}))
+                with self.assertRaisesRegex(ValueError, message):
+                    sources.reuse(source, output)
+            (package / "python-ensurepip-wheels.subpackage.sh").unlink()
+            with tarfile.open(source / archive_name, "w:xz") as archive:
+                archive.add(package, arcname="termux-packages/packages/python")
+            (output / "bootstrap-report.json").write_text(json.dumps(current))
+            with self.assertRaisesRegex(ValueError, "retained source recipe"):
+                sources.reuse(source, output)
+
 if __name__ == "__main__":
     unittest.main()

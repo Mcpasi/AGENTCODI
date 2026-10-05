@@ -753,7 +753,11 @@ if [ ! -f "$PYTHON_STDLIB_SOURCE/encodings/__init__.pyc" ]; then
 fi
 mkdir -p "$TOOL_RUNTIME_STAGE/npm/node_modules" "$TOOL_RUNTIME_STAGE/python/lib"
 cp -R "$NPM_SOURCE_DIRECTORY" "$TOOL_RUNTIME_STAGE/npm/node_modules/npm"
-python3 "$PROJECT_ROOT/scripts/package-edition/patch-npm-bins.py" "$TOOL_RUNTIME_STAGE/npm/node_modules/npm"
+env -i HOME="$PYTHON_COMPILE_HOME" TMPDIR="$PYTHON_COMPILE_HOME" \
+  LD_LIBRARY_PATH="$TERMUX_RUNTIME_PREFIX/lib" PYTHONHOME="$TERMUX_RUNTIME_PREFIX" \
+  PYTHONNOUSERSITE=1 PYTHONUTF8=1 \
+  "$PYTHON_SOURCE_BINARY" "$PROJECT_ROOT/scripts/package-edition/patch-npm-bins.py" \
+  "$TOOL_RUNTIME_STAGE/npm/node_modules/npm"
 cp -R "$PYTHON_STDLIB_SOURCE" "$TOOL_RUNTIME_STAGE/python/lib/python3.14"
 find "$TOOL_RUNTIME_STAGE/python" -type f \( -name '*.py' -o -name '*.pyi' -o -name '*.so' \) -delete
 find "$TOOL_RUNTIME_STAGE/python" -type d -name '__pycache__' -prune -exec rm -rf -- {} +
@@ -1762,6 +1766,14 @@ test "$(toolchain_smoke --npm config get cache)" = "$TOOLCHAIN_SMOKE_HOME/.npm"
 printf 'cache=%s\n' "$TOOLCHAIN_SMOKE_HOME/configured-cache" > "$TOOLCHAIN_SMOKE_HOME/.npmrc"
 test "$(toolchain_smoke --npm config get cache)" = "$TOOLCHAIN_SMOKE_HOME/configured-cache"
 rm "$TOOLCHAIN_SMOKE_HOME/.npmrc"
+mkdir -p "$TOOLCHAIN_SMOKE_HOME/npm-bin-fixture"
+printf '%s\n' '{"name":"agentcodi-bundled-bin","version":"1.0.0","bin":{"agentcodi-bundled-bin":"cli.js"}}' > "$TOOLCHAIN_SMOKE_HOME/npm-bin-fixture/package.json"
+printf '%s\n' '#!/usr/bin/env node' 'console.log("bundled-npm-bin-ok")' > "$TOOLCHAIN_SMOKE_HOME/npm-bin-fixture/cli.js"
+(cd "$TOOLCHAIN_SMOKE_HOME/npm-bin-fixture" && toolchain_smoke --npm --offline --ignore-scripts pack)
+toolchain_smoke --npm --offline --ignore-scripts install -g "$TOOLCHAIN_SMOKE_HOME/npm-bin-fixture/agentcodi-bundled-bin-1.0.0.tgz"
+test "$(head -n 1 "$TOOLCHAIN_SMOKE_HOME/.local/bin/agentcodi-bundled-bin")" = '#!/system/bin/env node'
+test "$(toolchain_smoke -c '"$HOME/.local/bin/agentcodi-bundled-bin"')" = bundled-npm-bin-ok
+toolchain_smoke --npm --offline uninstall -g agentcodi-bundled-bin
 toolchain_smoke --python -c 'import pathlib, site; assert site.ENABLE_USER_SITE; target = pathlib.Path(site.getusersitepackages()); target.mkdir(parents=True, exist_ok=True); (target / "agentcodi_user_fixture.py").write_text("answer = 42\n")'
 test "$(toolchain_smoke --python -c 'import agentcodi_user_fixture; print(agentcodi_user_fixture.answer)')" = 42
 python_dbm_output="$(toolchain_smoke --python -c \

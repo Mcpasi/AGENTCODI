@@ -62,6 +62,8 @@ jobs:
     if: github.ref == 'refs/heads/Mcpasi/package-edition'
     runs-on: ubuntu-latest
     timeout-minutes: 300
+    env:
+      CATALOG_SOURCE_RUN_ID: ${{ github.event_name == 'workflow_dispatch' && format('{0}', inputs.source_run_id) || matrix.group == 'node' && '37346622005' || '37336548937' }}
     strategy:
       fail-fast: false
       matrix:
@@ -121,16 +123,14 @@ jobs:
           run-id: ${{ env.CATALOG_SOURCE_RUN_ID }}
           github-token: ${{ github.token }}
           path: ${{ runner.temp }}/package-catalog/input
-      - name: Reaudit verified source-built DEBs with current validators
+      - name: Check whether the producer contains the requested package closure
+        id: payload
         if: steps.reuse.outputs.reuse == 'true'
-        env:
-          SOURCE_RUN_ID: ${{ env.CATALOG_SOURCE_RUN_ID }}
-          SOURCE_SHA: ${{ steps.reuse.outputs.source_sha }}
         run: |
           set -euo pipefail
           root="$RUNNER_TEMP/package-catalog"
           (cd "$root/input" && sha256sum -c SHA256SUMS)
-          python3 - "$root/input/all-built-packages.json" "${{ matrix.group }}" <<'PY'
+          if python3 - "$root/input/all-built-packages.json" "${{ matrix.group }}" <<'PY'
           import json, sys
           from pathlib import Path
           built = json.loads(Path(sys.argv[1]).read_text())
@@ -139,6 +139,20 @@ jobs:
           assert sys.argv[2] == "git" or "git" not in built, "Cannot ignore a Git recipe that was built"
           assert sys.argv[2] == "node" or "npm" not in built, "Cannot ignore an npm recipe that was built"
           PY
+          then
+            echo 'reuse=true' >> "$GITHUB_OUTPUT"
+          else
+            echo 'reuse=false' >> "$GITHUB_OUTPUT"
+            echo 'The prior producer is insufficient; build from pinned source.'
+          fi
+      - name: Reaudit verified source-built DEBs with current validators
+        if: steps.payload.outputs.reuse == 'true'
+        env:
+          SOURCE_RUN_ID: ${{ env.CATALOG_SOURCE_RUN_ID }}
+          SOURCE_SHA: ${{ steps.reuse.outputs.source_sha }}
+        run: |
+          set -euo pipefail
+          root="$RUNNER_TEMP/package-catalog"
           mkdir -p "$root/unpacked"
           tar -C "$root/unpacked" -xf "$root/input/source-built-debs.tar"
           python3 -B scripts/package-edition/audit-catalog.py --debs "$root/unpacked/output" --output "$root/output" --group "${{ matrix.group }}"
@@ -156,7 +170,7 @@ jobs:
           PY
           (cd "$root/output" && sha256sum source-built-debs.tar source-build.json >> SHA256SUMS)
       - name: Prepare the pinned catalog recipes in fresh storage
-        if: steps.reuse.outputs.reuse != 'true'
+        if: steps.payload.outputs.reuse != 'true'
         run: |
           set -euo pipefail
           python3 -m py_compile scripts/package-edition/prepare-catalog.py scripts/package-edition/audit-catalog.py
@@ -170,7 +184,7 @@ jobs:
           python3 -B scripts/package-edition/prepare-catalog.py --source "$root/source" --output "$root/prepared"
           sudo chown -R 1001:1001 "$root/prepared" "$root/output"
       - name: Build the catalog and all dependencies from sources
-        if: steps.reuse.outputs.reuse != 'true'
+        if: steps.payload.outputs.reuse != 'true'
         run: |
           set -euo pipefail
           root="$RUNNER_TEMP/package-catalog"
@@ -182,7 +196,7 @@ jobs:
             "$(jq -r .builder.image scripts/package-edition/lock.json)" \
             bash /audit/scripts/package-edition/build-catalog.sh "${{ matrix.group }}"
       - name: Archive all source-built DEBs and preparation
-        if: always() && steps.reuse.outputs.reuse != 'true'
+        if: always() && steps.payload.outputs.reuse != 'true'
         run: |
           set -euo pipefail
           root="$RUNNER_TEMP/package-catalog"

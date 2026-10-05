@@ -87,12 +87,39 @@ def reuse(source, output):
     current = json.loads((output / "bootstrap-report.json").read_text())
     previous_upstream = set(previous["packages"]) - {"agentcodi-package-keyring"}
     current_upstream = set(current["packages"]) - {"agentcodi-package-keyring"}
-    if previous["lock"] != current["lock"] or previous_upstream != current_upstream:
-        raise ValueError("Reused package selection or lock differs; rebuild from source")
+    if previous["lock"] != current["lock"]:
+        raise ValueError("Reused package lock differs; rebuild from source")
+    producer = previous["packages"]
+    catalog_reselection = previous_upstream != current_upstream
+    if catalog_reselection:
+        if not previous.get("catalog") or previous["catalog"]["group"] != current.get("catalog", {}).get("group"):
+            raise ValueError("Reused package selection differs outside the same catalog group")
+        producer = json.loads((source / "all-built-packages.json").read_text())
+        if not current_upstream <= set(producer):
+            raise ValueError("Producer did not build every selected package")
     for name in current_upstream:
-        if previous["packages"][name]["deb_sha256"] != current["packages"][name]["deb_sha256"]:
+        if producer[name]["deb_sha256"] != current["packages"][name]["deb_sha256"]:
             raise ValueError("Reused DEB checksum differs: " + name)
     archive_name = previous["corresponding_sources"]["archive"]
+    if catalog_reselection:
+        # collect() archives every built package's parent, including subpackages.
+        # Prove that newly selected DEBs have their recipe in the retained archive.
+        parents = {}
+        with tarfile.open(source / archive_name, "r:xz") as archive:
+            for member in archive:
+                parts = member.name.split("/")
+                if len(parts) != 4 or parts[:2] != ["termux-packages", "packages"] or not member.isfile():
+                    continue
+                parent, filename = parts[2:]
+                if filename == "build.sh":
+                    parents[parent] = parent
+                    parents[parent + "-static"] = parent
+                elif filename.endswith(".subpackage.sh"):
+                    parents[filename.removesuffix(".subpackage.sh")] = parent
+        retained_recipes = set(previous["corresponding_sources"]["recipes"])
+        for name in current_upstream:
+            if parents.get(name) not in retained_recipes:
+                raise ValueError("Selected package has no retained source recipe: " + name)
     originals = edition_files()
     retained = set()
     with tarfile.open(source / archive_name, "r:xz") as old, tarfile.open(output / archive_name, "w:xz") as new:

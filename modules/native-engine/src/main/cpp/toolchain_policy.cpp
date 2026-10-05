@@ -337,7 +337,6 @@ bool PrepareGuardedToolInvocation(
     std::string python_home;
     if (!canonical_python_home(&python_home, error)
         || !set_environment("PYTHONHOME", python_home, error)
-        || !set_environment("PYTHONNOUSERSITE", "1", error)
         || !set_environment("PYTHONDONTWRITEBYTECODE", "1", error)
         || !set_environment("PYTHONSAFEPATH", "1", error)
         || !set_environment("PYTHON_HISTORY", "/dev/null", error)

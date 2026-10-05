@@ -2095,7 +2095,9 @@ std::string package_search_path(const ProcessConfig& config, const char* directo
       + config.home_directory + "/.local/" + directory + ":";
 }
 
-std::vector<std::string> child_environment(const ProcessConfig& config) {
+// One definition for the app-server, Codex commands and terminal. The pinned
+// Community runtime also forwards these Android compatibility variables to MCP.
+std::vector<std::string> tool_environment(const ProcessConfig& config) {
   const std::string prefix = config.package_prefix;
   const std::string path =
       package_search_path(config, "bin") + config.tool_binary_directory
@@ -2103,7 +2105,10 @@ std::vector<std::string> child_environment(const ProcessConfig& config) {
   return {
       "HOME=" + config.home_directory,
       "PREFIX=" + prefix,
-      "CODEX_HOME=" + config.codex_home,
+      // Compatibility marker for codex-termux's Android stdio allowlist; no Termux app is used.
+      "TERMUX_VERSION=agentcodi-package-edition",
+      "NPM_CONFIG_PREFIX=" + config.home_directory + "/.local",
+      "XDG_CACHE_HOME=" + config.home_directory + "/.cache",
       "TMPDIR=" + config.temporary_directory,
       "TMP=" + config.temporary_directory,
       "TEMP=" + config.temporary_directory,
@@ -2123,9 +2128,15 @@ std::vector<std::string> child_environment(const ProcessConfig& config) {
       "AGENTCODI_RIPGREP_VERSION=15.2.0",
       "AGENTCODI_TOOLCHAIN_COMMAND=agentcodi-toolchain",
       "AGENTCODI_TOOLCHAIN_PACKAGES=node,npm,python,ripgrep",
-      "CODEX_SELF_EXE=" + config.executable,
-      "CODEX_CODE_MODE_HOST_PATH=" + config.code_mode_host_executable,
   };
+}
+
+std::vector<std::string> child_environment(const ProcessConfig& config) {
+  auto environment = tool_environment(config);
+  environment.push_back("CODEX_HOME=" + config.codex_home);
+  environment.push_back("CODEX_SELF_EXE=" + config.executable);
+  environment.push_back("CODEX_CODE_MODE_HOST_PATH=" + config.code_mode_host_executable);
+  return environment;
 }
 
 }  // namespace
@@ -2295,33 +2306,17 @@ InboundLineCompactionStatus MaterializeAndCompactInboundImagePayloads(
 }
 
 std::vector<std::string> CodexAppServerArguments(const ProcessConfig& config) {
-  const std::string prefix = config.package_prefix;
-  const std::string child_path =
-      package_search_path(config, "bin") + config.tool_binary_directory
-      + ":/system/bin:/system/xbin";
-  const std::string shell_environment =
-      "shell_environment_policy={inherit=\"none\","
-      "ignore_default_excludes=false,set={PATH=" + toml_string(child_path)
-      + ",SHELL=" + toml_string(kSystemShell)
-      + ",HOME=" + toml_string(config.home_directory)
-      + ",PREFIX=" + toml_string(prefix)
-      + ",TMPDIR=" + toml_string(config.temporary_directory)
-      + ",TMP=" + toml_string(config.temporary_directory)
-      + ",TEMP=" + toml_string(config.temporary_directory)
-      + ",LD_LIBRARY_PATH=" + toml_string(package_search_path(config, "lib") + config.library_directory)
-      + ",HISTFILE=\"/dev/null\""
-      + ",NODE_REPL_HISTORY=\"/dev/null\""
-      + ",SSL_CERT_DIR=\"/system/etc/security/cacerts\""
-      + ",AGENTCODI_WORKSPACE=" + toml_string(config.working_directory)
-      + ",AGENTCODI_TOOLCHAIN=" + toml_string(config.toolchain_directory)
-      + ",AGENTCODI_TOOL_BIN=" + toml_string(config.tool_binary_directory)
-      + ",AGENTCODI_TOOL_RUNTIME=" + toml_string(config.tool_runtime_directory)
-      + ",AGENTCODI_NODE_VERSION=\"24.18.0\""
-      + ",AGENTCODI_NPM_VERSION=\"11.19.0\""
-      + ",AGENTCODI_PYTHON_VERSION=\"3.14.6\""
-      + ",AGENTCODI_RIPGREP_VERSION=\"15.2.0\""
-      + ",AGENTCODI_TOOLCHAIN_COMMAND=\"agentcodi-toolchain\""
-      + ",AGENTCODI_TOOLCHAIN_PACKAGES=\"node,npm,python,ripgrep\"}}";
+  std::string shell_environment =
+      "shell_environment_policy={inherit=\"none\",ignore_default_excludes=false,set={";
+  bool first = true;
+  for (const std::string& entry : tool_environment(config)) {
+    const std::size_t separator = entry.find('=');
+    if (!first) shell_environment += ',';
+    first = false;
+    shell_environment += entry.substr(0U, separator) + "="
+        + toml_string(entry.substr(separator + 1U));
+  }
+  shell_environment += "}}";
   return {
       "app-server",
       "--stdio",

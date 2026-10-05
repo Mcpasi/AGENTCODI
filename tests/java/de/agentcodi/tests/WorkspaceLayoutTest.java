@@ -82,6 +82,8 @@ public final class WorkspaceLayoutTest {
             TestSupport.assertTrue(first.getToolBin().isDirectory(), "tool binary directory");
             TestSupport.assertTrue(first.getToolRuntime().isDirectory(), "tool runtime directory");
             TestSupport.assertTrue(first.getState().isDirectory(), "state directory");
+            TestSupport.assertTrue(new File(first.getHome(), ".npm").isDirectory(), "npm cache directory");
+            TestSupport.assertTrue(new File(first.getHome(), ".cache").isDirectory(), "user cache directory");
             TestSupport.assertTrue(first.getLogs().isDirectory(), "logs directory");
             TestSupport.assertEquals(
                 first.getWorkspace().getCanonicalPath(),

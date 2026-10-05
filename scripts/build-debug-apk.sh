@@ -753,6 +753,7 @@ if [ ! -f "$PYTHON_STDLIB_SOURCE/encodings/__init__.pyc" ]; then
 fi
 mkdir -p "$TOOL_RUNTIME_STAGE/npm/node_modules" "$TOOL_RUNTIME_STAGE/python/lib"
 cp -R "$NPM_SOURCE_DIRECTORY" "$TOOL_RUNTIME_STAGE/npm/node_modules/npm"
+python3 "$PROJECT_ROOT/scripts/package-edition/patch-npm-bins.py" "$TOOL_RUNTIME_STAGE/npm/node_modules/npm"
 cp -R "$PYTHON_STDLIB_SOURCE" "$TOOL_RUNTIME_STAGE/python/lib/python3.14"
 find "$TOOL_RUNTIME_STAGE/python" -type f \( -name '*.py' -o -name '*.pyi' -o -name '*.so' \) -delete
 find "$TOOL_RUNTIME_STAGE/python" -type d -name '__pycache__' -prune -exec rm -rf -- {} +
@@ -896,6 +897,8 @@ for guard_spec in \
   "$LLVM_STRIP" --strip-unneeded "$NATIVE_DIR/$guard_library"
 done
 
+# Inspect every source-built guard before checking the pinned derived hashes.
+sha256sum "$NATIVE_DIR/$NODE_GUARD_LIBRARY_NAME" "$NATIVE_DIR/$PYTHON_GUARD_LIBRARY_NAME" "$NATIVE_DIR/$RIPGREP_GUARD_LIBRARY_NAME"
 verify_file_sha256 "$NATIVE_DIR/$NODE_GUARD_LIBRARY_NAME" "$NODE_GUARD_SHA256"
 verify_file_sha256 "$NATIVE_DIR/$PYTHON_GUARD_LIBRARY_NAME" "$PYTHON_GUARD_SHA256"
 verify_file_sha256 "$NATIVE_DIR/$RIPGREP_GUARD_LIBRARY_NAME" "$RIPGREP_GUARD_SHA256"
@@ -1754,6 +1757,13 @@ if [ "$direct_ripgrep_config_output" != 'agentcodi-ripgrep-config-scrub-proof' ]
   echo "Direct ripgrep ELF did not apply shared configuration cleanup." >&2
   exit 1
 fi
+test "$(toolchain_smoke --npm prefix -g)" = "$TOOLCHAIN_SMOKE_HOME/.local"
+test "$(toolchain_smoke --npm config get cache)" = "$TOOLCHAIN_SMOKE_HOME/.npm"
+printf 'cache=%s\n' "$TOOLCHAIN_SMOKE_HOME/configured-cache" > "$TOOLCHAIN_SMOKE_HOME/.npmrc"
+test "$(toolchain_smoke --npm config get cache)" = "$TOOLCHAIN_SMOKE_HOME/configured-cache"
+rm "$TOOLCHAIN_SMOKE_HOME/.npmrc"
+toolchain_smoke --python -c 'import pathlib, site; assert site.ENABLE_USER_SITE; target = pathlib.Path(site.getusersitepackages()); target.mkdir(parents=True, exist_ok=True); (target / "agentcodi_user_fixture.py").write_text("answer = 42\n")'
+test "$(toolchain_smoke --python -c 'import agentcodi_user_fixture; print(agentcodi_user_fixture.answer)')" = 42
 python_dbm_output="$(toolchain_smoke --python -c \
   'import dbm, importlib.util, os, shelve; assert importlib.util.find_spec("_dbm") is None; assert importlib.util.find_spec("_gdbm") is None; assert importlib.util.find_spec("readline") is None; db_path = os.path.join(os.environ["TMPDIR"], "dbm-smoke"); database = dbm.open(db_path, "n"); assert database.__class__.__module__ == "dbm.sqlite3"; database[b"key"] = b"value"; database.close(); database = dbm.open(db_path, "r"); assert database[b"key"] == b"value"; database.close(); shelf = shelve.open(os.path.join(os.environ["TMPDIR"], "shelve-smoke")); shelf["answer"] = 42; shelf.close(); shelf = shelve.open(os.path.join(os.environ["TMPDIR"], "shelve-smoke")); assert shelf["answer"] == 42; shelf.close(); print("python-sqlite-dbm-shelve-ok")' \
   | tr -d '\r')"

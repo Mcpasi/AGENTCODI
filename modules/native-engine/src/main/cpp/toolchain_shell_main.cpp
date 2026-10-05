@@ -536,26 +536,19 @@ int run_npm(int argc, char* argv[]) {
   }
   std::string node_path;
   std::string npm_cli;
-  std::string workspace;
-  std::string toolchain;
   if (!canonical_packaged_node(&node_path, &error)
-      || !canonical_runtime_file(kNpmCliRelativePath, &npm_cli, &error)
-      || !agentcodi::ResolveToolchainDirectories(
-          &workspace,
-          &toolchain,
-          &error)) {
+      || !canonical_runtime_file(kNpmCliRelativePath, &npm_cli, &error)) {
     std::cerr << error << '\n';
     return 126;
   }
-  if (!set_environment("NPM_CONFIG_CACHE", toolchain + "/npm-cache")
-      || !set_environment("NPM_CONFIG_PREFIX", toolchain + "/npm-prefix")
-      || !set_environment("NPM_CONFIG_USERCONFIG", "/dev/null")
-      || !set_environment("NPM_CONFIG_GLOBALCONFIG", "/system/etc/npmrc")
-      || !set_environment("NPM_CONFIG_UPDATE_NOTIFIER", "false")
-      || !set_environment("NPM_CONFIG_FUND", "false")
-      || !set_environment("NPM_CONFIG_AUDIT", "false")
-      || !set_environment("NPM_CONFIG_LOGS_MAX", "0")) {
-    return 126;
+  // Keep explicit caller configuration. Outside the supervisor use the same
+  // writable global prefix; npm's normal cache and .npmrc discovery stay active.
+  if (std::getenv("NPM_CONFIG_PREFIX") == nullptr) {
+    const char* home = required_environment("HOME");
+    if (home == nullptr
+        || !set_environment("NPM_CONFIG_PREFIX", std::string(home) + "/.local")) {
+      return 126;
+    }
   }
   std::vector<char*> arguments;
   arguments.reserve(static_cast<std::size_t>(argc) + 3U);

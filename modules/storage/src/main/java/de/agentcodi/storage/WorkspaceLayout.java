@@ -74,6 +74,8 @@ public final class WorkspaceLayout {
         File packagePrefix = secureChild(canonicalBase, "usr");
         // Keep earlier installations in place: native packages may embed this path.
         File legacyPrefix = secureChild(home, ".local");
+        secureChild(home, ".npm");
+        secureChild(home, ".cache");
         for (File prefix : new File[] {packagePrefix, legacyPrefix}) {
             for (String directory : new String[] {"bin", "lib", "include", "share", "etc", "tmp"}) {
                 secureChild(prefix, directory);

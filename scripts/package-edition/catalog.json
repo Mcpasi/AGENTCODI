@@ -2,7 +2,8 @@
   "format_version": 1,
   "groups": {
     "python": [
-      "python"
+      "python",
+      "python-ensurepip-wheels"
     ],
     "node": [
       "nodejs-lts",
@@ -75,6 +76,14 @@
         {
           "old": "TERMUX_PKG_DEPENDS=\"nodejs | nodejs-lts\"",
           "new": "TERMUX_PKG_DEPENDS=\"nodejs-lts\""
+        },
+        {
+          "old": "TERMUX_PKG_VERSION=\"11.20.0\"",
+          "new": "TERMUX_PKG_VERSION=\"11.20.0\"\nTERMUX_PKG_REVISION=1"
+        },
+        {
+          "old": "\ntermux_step_create_debscripts() {",
+          "new": "\ntermux_step_post_make_install() {\n\tpython3 /audit/scripts/package-edition/patch-npm-bins.py \"$TERMUX_PREFIX/lib/node_modules/npm\"\n}\n\ntermux_step_create_debscripts() {"
         }
       ]
     }

@@ -2,7 +2,7 @@
 
 Stand: 2026-10-05. Ausschließlich Branch `Mcpasi/package-edition`; kein Merge nach `main`.
 
-Die Checklisten zeigen den aktuellen Umsetzungsstand. Datierte Ergebnis- und Verifikationsabschnitte dokumentieren frühere Meilensteine; ihre Testzahlen, Artefakte und Prüfsummen gehören zum jeweils genannten Commit. Bootstrap, Startkatalog und öffentliches signiertes APT-Repository sind umgesetzt. Als Nächstes stehen die verbleibenden npm-/Python-Pfade und Umgebungsprüfungen an, danach die APK-Verkleinerung. Echte Gerätetests bleiben gemäß Nutzeranweisung offen. Die APT-Veröffentlichung ist getrennt von einem GitHub-Release der APK.
+Die Checklisten zeigen den aktuellen Umsetzungsstand. Datierte Ergebnis- und Verifikationsabschnitte dokumentieren frühere Meilensteine; ihre Testzahlen, Artefakte und Prüfsummen gehören zum jeweils genannten Commit. Bootstrap, Startkatalog und öffentliches signiertes APT-Repository sind umgesetzt. Die npm-/Python-Pfade und die gemeinsame Prozessumgebung werden im aktuellen Schritt umgesetzt und anschließend in CI geprüft. Danach folgen Paketdiagnose und die APK-Verkleinerung. Echte Gerätetests bleiben gemäß Nutzeranweisung offen. Die APT-Veröffentlichung ist getrennt von einem GitHub-Release der APK.
 
 ## Ziel und feste Entscheidungen
 
@@ -524,6 +524,48 @@ Gerätetests wurden wie angeordnet übersprungen und bleiben offen.
 Kein PR, Merge oder GitHub-Release der APK wurde erstellt. Alle Zugriffe erfolgten über den
 GitHub Connector; `main` bleibt auf
 `ff27ec7c30d373a864e845e9a7ceeae3380dd103`.
+
+### Gemeinsame Paketumgebung und npm-/Python-Pfade — 2026-10-05
+
+Implementierung und CI-Prüfung dieses Schritts laufen ausschließlich auf
+`Mcpasi/package-edition`. Die beiden zugehörigen Checklistenpunkte werden
+nach erfolgreicher Verifikation abgeschlossen.
+
+Eine gemeinsame native Definition liefert die Umgebung des App-Servers und
+die Codex-Shell-Konfiguration. Terminal-Kommandos verwenden denselben Vertrag.
+`PATH/PREFIX/LD_LIBRARY_PATH/HOME/TMPDIR` sowie npm-Präfix und Cache-Home
+werden zusätzlich mit einem echten stdio-MCP-Server unter ARM64/Bionic geprüft.
+`TERMUX_VERSION=agentcodi-package-edition` aktiviert dabei ausschließlich die
+Android-Umgebungsweitergabe des gepinnten Community-Releases. Es wird keine
+Termux-App installiert und kein offizielles Termux-Binärrepository verwendet.
+Explizite Umgebungsüberschreibungen eines MCP-Servers bleiben Nutzerkonfiguration.
+
+npm-Global-Installationen verwenden standardmäßig `$HOME/.local`; npm liest
+wieder die normale Nutzerkonfiguration und nutzt `$HOME/.npm` als Standardcache.
+Python-User-Site bleibt aktiviert; Nutzerpakete und Skripte liegen ebenfalls
+unter `$HOME/.local`. pip verwendet `$HOME/.cache/pip`. venvs behalten ihre
+eigenen Installationspfade. Der Katalog bietet die bereits aus dem gepinnten
+Python-Quellarchiv erzeugten `python-ensurepip-wheels` für `ensurepip --user`
+und Offline-venv-Erstellung an. Der gebündelte Übergangs-Python unterstützt
+User-Site; venv/pip verwenden den durch APT installierten Editions-Python.
+
+npm und das gebündelte Übergangs-npm passen beim Erstellen ihrer ausführbaren
+Links den üblichen Node-Shebang `/usr/bin/env node` auf Androids
+`/system/bin/env node` an. Die restlichen Skriptbytes bleiben erhalten.
+Die Editions-npm-Rezeptrevision wird angehoben, damit bereits veröffentlichte
+Paketbytes nicht unter derselben Version ersetzt werden.
+
+Die neuen Laufzeitprüfungen installieren und entfernen reine lokale
+npm-/Python-Testpakete ohne Netz-Zugriff. Sie prüfen Global-Prefix, Cache,
+benutzerdefinierte npm-Konfiguration, npx, User-Site und getrennte venvs.
+Quellbuild-Artefakte dürfen bei geänderter Root-Auswahl nur wiederverwendet
+werden, wenn unveränderte relevante Rezepte und der vollständige
+Producer-Bericht alle angeforderten DEBs belegen; aktuelle Assembly und
+Laufzeitprüfungen laufen erneut. Änderungen am npm-Rezept erzwingen für die
+Node-Gruppe einen neuen Quellbuild.
+
+Gerätetests werden gemäß Nutzeranweisung übersprungen und bleiben offen.
+Kein PR oder Merge; `main` bleibt unverändert.
 
 ## 4. Build verkleinern und veröffentlichbare Edition erstellen
 

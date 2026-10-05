@@ -220,6 +220,11 @@ bool check_package_prefix(
         "\"command\":[\"" + shell + "\",\"-c\","
         "\"test \\\"$PREFIX\\\" = '" + config.package_prefix + "' && "
         "test \\\"$HOME\\\" = '" + config.home_directory + "' && "
+        "test \\\"$TMPDIR\\\" = '" + config.temporary_directory + "' && "
+        "test \\\"$NPM_CONFIG_PREFIX\\\" = '" + config.home_directory + "/.local' && "
+        "test \\\"$XDG_CACHE_HOME\\\" = '" + config.home_directory + "/.cache' && "
+        "test \\\"$PATH\\\" = '" + config.package_prefix + "/bin:"
+        + config.home_directory + "/.local/bin:" + config.tool_binary_directory + ":/system/bin:/system/xbin' && "
         "test \\\"$LD_LIBRARY_PATH\\\" = '" + config.package_prefix + "/lib:"
         + config.home_directory + "/.local/lib:" + config.library_directory + "' && "
         "package-check && legacy-package-check\"],"
@@ -239,6 +244,83 @@ bool check_package_prefix(
   if (!passed) {
     std::cerr << "Managed precedence or legacy package fallback failed\n";
   }
+  return passed;
+}
+
+bool check_stdio_package_environment(
+    const std::shared_ptr<agentcodi::AppServerProcess>& process,
+    const agentcodi::ProcessConfig& config,
+    std::string* error) {
+  const std::string fixture = config.package_prefix + "/bin/agentcodi-mcp-env-fixture";
+  const std::string proof = config.home_directory + "/mcp-env-proof";
+  const std::string path = config.package_prefix + "/bin:"
+      + config.home_directory + "/.local/bin:" + config.tool_binary_directory
+      + ":/system/bin:/system/xbin";
+  const std::string libraries = config.package_prefix + "/lib:"
+      + config.home_directory + "/.local/lib:" + config.library_directory;
+  const std::string script =
+      "#!/system/bin/sh\nset -eu\n"
+      "test \"$PATH\" = '" + path + "'\n"
+      "test \"$PREFIX\" = '" + config.package_prefix + "'\n"
+      "test \"$LD_LIBRARY_PATH\" = '" + libraries + "'\n"
+      "test \"$HOME\" = '" + config.home_directory + "'\n"
+      "test \"$TMPDIR\" = '" + config.temporary_directory + "'\n"
+      "test \"$NPM_CONFIG_PREFIX\" = \"$HOME/.local\"\n"
+      "test \"$XDG_CACHE_HOME\" = \"$HOME/.cache\"\n"
+      "printf stdio-package-env-ok > '" + proof + "'\n"
+      R"SH(while IFS= read -r request; do
+  id=$(printf '%s\n' "$request" | /system/bin/sed -n 's/.*"id"[[:space:]]*:[[:space:]]*\([0-9][0-9]*\).*/\1/p')
+  test -n "$id" || continue
+  case "$request" in
+    *'"method":"initialize"'*|*'"method": "initialize"'*)
+      printf '{"jsonrpc":"2.0","id":%s,"result":{"protocolVersion":"2025-03-26","capabilities":{"tools":{}},"serverInfo":{"name":"agentcodi-env-fixture","version":"1.0"}}}\n' "$id";;
+    *'"method":"tools/list"'*|*'"method": "tools/list"'*)
+      printf '{"jsonrpc":"2.0","id":%s,"result":{"tools":[{"name":"package_environment","description":"CI package environment proof","inputSchema":{"type":"object","properties":{}}}]}}\n' "$id";;
+    *)
+      printf '{"jsonrpc":"2.0","id":%s,"result":{}}\n' "$id";;
+  esac
+done
+)SH";
+  if (!create_private_fixture(fixture, script) || chmod(fixture.c_str(), 0700) != 0) {
+    return false;
+  }
+  const std::string add =
+      "{\"method\":\"config/batchWrite\",\"id\":70,\"params\":{\"edits\":[{"
+      "\"keyPath\":\"mcp_servers.agentcodi_environment_ci\",\"value\":{"
+      "\"command\":\"" + fixture + "\",\"enabled\":true,\"required\":true,"
+      "\"startup_timeout_sec\":20,\"default_tools_approval_mode\":\"prompt\"},"
+      "\"mergeStrategy\":\"replace\"}],\"reloadUserConfig\":false}}";
+  bool passed = write_request(process, add, error)
+      && read_response(process, "\"id\":70", "\"status\":\"ok\"", error)
+      && write_request(process, "{\"method\":\"config/mcpServer/reload\",\"id\":71}", error)
+      && read_response(process, "\"id\":71", "\"result\":{}", error)
+      && write_request(process,
+          "{\"method\":\"thread/start\",\"id\":72,\"params\":{"
+          "\"cwd\":\"" + config.working_directory + "\","
+          "\"runtimeWorkspaceRoots\":[\"" + config.working_directory + "\"],"
+          "\"approvalPolicy\":\"on-request\",\"permissions\":\":danger-full-access\"}}", error)
+      && read_response(process, "\"id\":72", "\"thread\":{", error)
+      && write_request(process,
+          "{\"method\":\"command/exec\",\"id\":73,\"params\":{"
+          "\"command\":[\"/system/bin/sh\",\"-c\","
+          "\"for attempt in 1 2 3 4 5 6 7 8 9 10 11 12 13 14 15; do "
+          "test -f '" + proof + "' && break; sleep 1; done; cat '" + proof + "'\"],"
+          "\"cwd\":\"" + config.working_directory + "\",\"permissionProfile\":\":danger-full-access\","
+          "\"tty\":false,\"outputBytesCap\":4096,\"timeoutMs\":30000}}", error)
+      && read_command_response(process, 73, "stdio-package-env-ok", error)
+      && write_request(process,
+          "{\"method\":\"mcpServerStatus/list\",\"id\":74,\"params\":{\"limit\":50}}", error)
+      && read_response_with_two_markers(process, "\"id\":74",
+          "agentcodi_environment_ci", "package_environment", error);
+  // Remove the synthetic server even if the environment or handshake failed.
+  passed = write_request(process,
+      "{\"method\":\"config/batchWrite\",\"id\":75,\"params\":{\"edits\":[{"
+      "\"keyPath\":\"mcp_servers.agentcodi_environment_ci\",\"value\":null,"
+      "\"mergeStrategy\":\"replace\"}],\"reloadUserConfig\":false}}", error)
+      && read_response(process, "\"id\":75", "\"status\":\"ok\"", error) && passed;
+  unlink(fixture.c_str());
+  unlink(proof.c_str());
+  if (!passed) std::cerr << "Actual stdio-MCP package environment or handshake failed\n";
   return passed;
 }
 
@@ -703,7 +785,8 @@ int main(int argc, char* argv[]) {
 
   // Full access must execute the packaged shell and read/write private siblings.
   if (!check_full_access_runtime(process, config, &error)
-      || !check_package_prefix(process, config, &error)) {
+      || !check_package_prefix(process, config, &error)
+      || !check_stdio_package_environment(process, config, &error)) {
     process->Stop(2'000);
     return 1;
   }

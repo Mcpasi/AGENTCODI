@@ -15,7 +15,7 @@ int main(int argc, char* argv[]) {
     const char* utf8 = std::getenv("PYTHONUTF8");
     if (home == nullptr || std::string(home).find("/tool-runtime/python")
             == std::string::npos
-        || no_user_site == nullptr || std::string(no_user_site) != "1"
+        || no_user_site != nullptr
         || no_bytecode == nullptr || std::string(no_bytecode) != "1"
         || safe_path == nullptr || std::string(safe_path) != "1"
         || history == nullptr || std::string(history) != "/dev/null"

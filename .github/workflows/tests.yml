@@ -205,7 +205,7 @@ jobs:
           AGENTCODI_PACKAGE_REPORT: ${{ runner.temp }}/package-contract-report
         run: |
           bash -n .github/ci/check-package-edition.sh scripts/package-edition/check-toolchain.sh scripts/package-edition/build-apt-repository.sh scripts/package-edition/check-apt-repository.sh scripts/package-edition/check-apt-signing.sh .github/ci/catalog-smoke.sh .github/ci/apt-repository-smoke.sh
-          python3 -m py_compile scripts/package-edition/source-store.py scripts/package-edition/download-sources.py scripts/package-edition/apt-repository.py .github/ci/create-apt-fixtures.py .github/ci/serve-apt-repository.py .github/ci/check-published-apt.py
+          python3 -m py_compile scripts/package-edition/patch-npm-bins.py scripts/package-edition/source-store.py scripts/package-edition/download-sources.py scripts/package-edition/apt-repository.py .github/ci/create-apt-fixtures.py .github/ci/serve-apt-repository.py .github/ci/check-published-apt.py
           python3 -B .github/ci/test-bootstrap-assembly.py
           python3 -B .github/ci/test-catalog-sources.py
           python3 -B .github/ci/test-source-store.py

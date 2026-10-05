@@ -974,6 +974,10 @@ int main(int argc, char* argv[]) {
          "Codex home excluded from tool environment");
   expect(joined_arguments.find("/private/state") == std::string::npos,
          "materialization proof state excluded from tool arguments");
+  expect(joined_arguments.find("NPM_CONFIG_PREFIX=\"/private/home/.local\"") != std::string::npos
+             && joined_arguments.find("XDG_CACHE_HOME=\"/private/home/.cache\"") != std::string::npos
+             && joined_arguments.find("TERMUX_VERSION=\"agentcodi-package-edition\"") != std::string::npos,
+         "Codex uses writable npm and cache paths plus the Community stdio bridge");
   expect(joined_arguments.find("PREFIX=\"/private/usr\"") != std::string::npos,
          "Codex commands receive the writable package prefix");
   expect(joined_arguments.find(
@@ -1748,6 +1752,7 @@ int main(int argc, char* argv[]) {
         "printf '%s\\n' \"$CODEX_CODE_MODE_HOST_PATH\"; "
         "printf '%s\\n' \"$PATH\"; "
         "printf '%s|%s\\n' \"$PREFIX\" \"$LD_LIBRARY_PATH\"; "
+        "printf '%s|%s|%s|%s\\n' \"$TMPDIR\" \"$NPM_CONFIG_PREFIX\" \"$XDG_CACHE_HOME\" \"$TERMUX_VERSION\"; "
         "node; package-check; "
         "IFS= read -r line; printf '%s\\n' \"$line\"",
     };
@@ -1792,6 +1797,12 @@ int main(int argc, char* argv[]) {
                  && package_environment == package_prefix + "|" + package_prefix + "/lib:"
                      + legacy_prefix + "/lib:/system/lib64",
              "supervisor exports the managed prefix and both library search paths");
+      std::string user_environment;
+      expect(process->ReadLine(4096U, &user_environment, &error)
+                 == agentcodi::LineReadStatus::kLine
+                 && user_environment == temporary + "|" + legacy_prefix + "|"
+                     + home + "/.cache|agentcodi-package-edition",
+             "supervisor shares temporary, npm and cache paths with Codex commands");
       std::string package_output;
       expect(process->ReadLine(1024U, &package_output, &error)
                  == agentcodi::LineReadStatus::kLine
@@ -1829,7 +1840,7 @@ int main(int argc, char* argv[]) {
     expect(restarted != nullptr, "restart with preserved legacy installations");
     if (restarted != nullptr) {
       std::string line;
-      for (int index = 0; index < 4; ++index) {
+      for (int index = 0; index < 5; ++index) {
         expect(restarted->ReadLine(4096U, &line, &error) == agentcodi::LineReadStatus::kLine,
                "read restarted supervisor environment");
       }

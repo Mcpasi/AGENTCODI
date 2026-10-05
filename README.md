@@ -1,6 +1,6 @@
 > **Package Edition — for power users and experienced users only.** This edition offers **Full access** exclusively. Codex and user-installed programs can read, change, or delete every file reachable by the app, including Codex account data. Android's isolation from other apps remains in place; there is no workspace sandbox within this app.
 >
-> **Development status:** The writable package prefix, Full access, and Community app-server integration are implemented. The minimal APT/dpkg bootstrap, signed APT repository and initial Python, Node.js/npm, Git and ripgrep catalog are integrated and CI-verified. The public HTTPS repository passes pinned-signature, package/index checksum and complete source-availability checks. The `pkg` frontend, remaining package-path work and a smaller APK remain on the [roadmap](ROADMAP-package-edition.md). This development branch is not merged into `main`.
+> **Development status:** The writable package prefix, Full access, and Community app-server integration are implemented. The minimal APT/dpkg bootstrap, signed APT repository and initial Python, Node.js/npm, Git and ripgrep catalog are integrated and CI-verified. The public HTTPS repository passes pinned-signature, package/index checksum and complete source-availability checks. The `pkg` frontend, package diagnostics and a smaller APK remain on the [roadmap](ROADMAP-package-edition.md). This development branch is not merged into `main`.
 
 <div align="center">
 
@@ -66,7 +66,23 @@ The recipe source, build container, NDK/SDK, and edition prefix configuration ar
 
 The initial catalog contains Python, Node.js LTS/npm, Git and ripgrep with their source-built dependency closure. The signed repository is published at `https://mcpasi.github.io/AGENTCODI/apt/package-edition`. The [roadmap](ROADMAP-package-edition.md#signiertes-repository-für-den-startkatalog--2026-10-05) links the verified snapshot and test evidence. Use `apt update` before `apt install python nodejs-lts npm git ripgrep`; `apt upgrade`, `apt remove <package>` and `dpkg-query -W` provide updates, removal and status. APT rejects missing keys, invalid signatures/checksums and expired Release metadata. The signing fingerprint is `2768291D12B6C3D22CFBAF9EEC79CBDF7E93DC89`; sources and build evidence are linked from the signed repository manifest. The [source download instructions](scripts/package-edition/README.md#signed-apt-repository-and-trust) explain how to reconstruct a complete authenticated source archive for each group.
 
-The bundled Node.js, npm, Python, and ripgrep runtimes remain during the transition. Their activation and runtime checks still apply; the existing npm/Python wrappers do not provide general package management.
+Global npm tools and Python user packages use `$HOME/.local`, whose `bin` directory is already on the shared `PATH`. npm keeps its normal `$HOME/.npm` cache and reads user configuration from `$HOME/.npmrc`; the app sets `NPM_CONFIG_PREFIX=$HOME/.local` as the default. An explicit environment value or `npm --prefix <directory>` can select another prefix. Python uses its normal user-site directory under `$HOME/.local/lib/python<version>/site-packages`; pip caches under `$HOME/.cache/pip`. These directories are outside workspace exports and are preserved on restart and APK update.
+
+```sh
+apt update
+apt install nodejs-lts npm python python-ensurepip-wheels
+npm install -g <npm-package>
+python -m ensurepip --user
+python -m pip install --user <python-package>
+python -m venv .venv
+.venv/bin/python -m pip install <python-package>
+```
+
+The separately packaged ensurepip wheels come from the pinned Python source archive. A venv keeps its packages and scripts inside that environment; use its executable directly or activate it in the terminal. Native extensions still need Android ARM64/Bionic compatibility and appropriate build dependencies.
+
+Both edition npm and the transitional bundled npm adapt npm-managed `#!/usr/bin/env node` scripts to `#!/system/bin/env node` when creating executable links, including local `node_modules/.bin` scripts. Other interpreter requirements remain the package author's responsibility. The shared environment sets `TERMUX_VERSION=agentcodi-package-edition` solely to enable the pinned Community runtime's Android stdio environment allowlist. It forwards `PREFIX`, library paths, npm prefix and cache-home values alongside the normal `HOME/PATH/TMPDIR`; no Termux app or official binary repository is installed. Explicit per-server MCP environment overrides remain user configuration.
+
+The bundled Node.js, npm, Python, and ripgrep runtimes remain during the transition. Their activation and runtime checks still apply. Their npm wrapper preserves user configuration, and bundled Python permits its normal user-site imports; venv/pip package management uses the edition Python installed through APT.
 
 ## Runtime and build
 

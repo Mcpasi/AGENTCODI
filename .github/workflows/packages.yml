@@ -33,7 +33,7 @@ permissions:
   contents: read
   actions: read
 env:
-  CATALOG_SOURCE_RUN_ID: ${{ github.event_name == 'workflow_dispatch' && format('{0}', inputs.source_run_id) || '37325041330' }}
+  CATALOG_SOURCE_RUN_ID: ${{ github.event_name == 'workflow_dispatch' && format('{0}', inputs.source_run_id) || '37336548937' }}
 concurrency:
   group: package-catalog-${{ github.ref }}-${{ github.sha }}
   cancel-in-progress: true
@@ -88,11 +88,19 @@ jobs:
           from pathlib import Path
           previous = json.loads(subprocess.check_output(["git", "show", sys.argv[1] + ":scripts/package-edition/catalog.json"]))
           current = json.loads(Path("scripts/package-edition/catalog.json").read_text())
+          # Root selection changes only assembly when all requested DEBs exist.
+          for configuration in (previous, current):
+              configuration.pop("groups")
+          ignored = []
           if sys.argv[2] != "git":
-              # Changes to an unused Git recipe do not change other source builds.
-              # The downloaded producer report must prove Git was never built.
-              for configuration in (previous, current):
-                  configuration["edits"] = [edit for edit in configuration["edits"] if edit["path"] != "packages/git/build.sh"]
+              ignored.append("packages/git/build.sh")
+          if sys.argv[2] != "node":
+              ignored.append("packages/npm/build.sh")
+          for configuration in (previous, current):
+              configuration["edits"] = [edit for edit in configuration["edits"] if edit["path"] not in ignored]
+          if sys.argv[2] == "node":
+              previous_patch = subprocess.run(["git", "show", sys.argv[1] + ":scripts/package-edition/patch-npm-bins.py"], capture_output=True)
+              assert previous_patch.returncode == 0 and previous_patch.stdout == Path("scripts/package-edition/patch-npm-bins.py").read_bytes(), "npm patch changed"
           assert previous == current, "Source recipe inputs changed"
           PY
           for attempt in $(seq 1 240); do
@@ -126,7 +134,10 @@ jobs:
           import json, sys
           from pathlib import Path
           built = json.loads(Path(sys.argv[1]).read_text())
-          assert sys.argv[2] == "git" or "git" not in built, "Cannot ignore a recipe that was built"
+          catalog = json.loads(Path("scripts/package-edition/catalog.json").read_text())
+          assert set(catalog["groups"][sys.argv[2]]) <= set(built), "Producer did not build every requested root"
+          assert sys.argv[2] == "git" or "git" not in built, "Cannot ignore a Git recipe that was built"
+          assert sys.argv[2] == "node" or "npm" not in built, "Cannot ignore an npm recipe that was built"
           PY
           mkdir -p "$root/unpacked"
           tar -C "$root/unpacked" -xf "$root/input/source-built-debs.tar"
@@ -141,7 +152,7 @@ jobs:
               "source_commit": os.environ["SOURCE_SHA"],
               "consumer_commit": os.environ["GITHUB_SHA"],
               "recipe_inputs_identical": True,
-              "comparison": "All build inputs and catalog configuration match; only an unused Git recipe may differ"}, indent=2) + "\n")
+              "comparison": "Recipe build inputs match and the producer includes every requested root; only unused Git/npm recipes may differ"}, indent=2) + "\n")
           PY
           (cd "$root/output" && sha256sum source-built-debs.tar source-build.json >> SHA256SUMS)
       - name: Prepare the pinned catalog recipes in fresh storage

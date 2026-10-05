@@ -29,12 +29,26 @@ concurrency:
 jobs:
   architecture:
     name: Architecture contracts
+    permissions:
+      contents: read
+      checks: read
     runs-on: ubuntu-latest
     timeout-minutes: 10
     steps:
       - name: Check out the repository
         uses: actions/checkout@v4
 
+      - name: Report previous CI startup failures
+        if: github.event_name == 'push' && github.event.before != '' && github.event.before != '0000000000000000000000000000000000000000'
+        continue-on-error: true
+        env:
+          GH_TOKEN: ${{ github.token }}
+          PREVIOUS_SHA: ${{ github.event.before }}
+        run: |
+          for check_id in $(gh api --method GET "repos/$GITHUB_REPOSITORY/commits/$PREVIOUS_SHA/check-runs?filter=all&per_page=100" --jq '.check_runs[] | select(.conclusion == "cancelled") | .id'); do
+            echo "Startup annotations for previous cancelled check $check_id:"
+            gh api --paginate "repos/$GITHUB_REPOSITORY/check-runs/$check_id/annotations" --jq '.[] | .message'
+          done
       - name: Install ripgrep
         run: |
           if ! command -v rg >/dev/null 2>&1; then

@@ -598,8 +598,21 @@ Der [neue Node-/npm-Quellbuild](https://github.com/Mcpasi/AGENTCODI/actions/runs
 ist als eigener Producer-Job erfolgreich. Der aktuelle Katalog prüft dessen
 unveränderte relevante Build-Eingaben und Paketprüfsummen, stellt die
 aktuelle Assembly zusammen und wiederholt alle Laufzeitprüfungen.
-Alle drei abschließenden Workflows prüfen denselben Implementierungscommit;
-die abschließende Checklistenänderung betrifft ausschließlich die Roadmap.
+Die drei Implementierungsnachweise beziehen sich auf denselben Commit
+`f1f1ee3ed7e8d918b40e844a4c1729b4a5502a9c`. Die anschließend geänderte
+Roadmap und CI-Konfiguration verändern den App-Code nicht.
+
+GitHub brach spätere Dokumentationsprüfungen vor dem Teststart ab:
+„The job was not acquired by Runner of type hosted even after multiple
+attempts“. Ein zusätzlicher Diagnoseschritt liest die Abbruchmeldungen des
+vorherigen Commits in das CI-Log. Die unveränderten acht portablen
+C++-Testsuiten verwenden jetzt den verfügbaren `ubuntu-24.04-arm`-Pool;
+ihr Treiber baut native Fixtures und ermittelt den Host-Bibliothekspfad
+über den Systemcompiler. Der zusätzliche
+[Tests-Lauf](https://github.com/Mcpasi/AGENTCODI/actions/runs/37375227949)
+für `da6dae58dcffc513fefcb221828ac2f03cf934ca` hat alle sieben Jobs
+bestanden, einschließlich der vollständigen acht C++-Suiten auf ARM64.
+Der folgende Abschlusscommit ergänzt ausschließlich diesen Roadmap-Nachweis.
 
 Gerätetests werden gemäß Nutzeranweisung übersprungen und bleiben offen.
 Kein PR oder Merge; `main` bleibt unverändert.

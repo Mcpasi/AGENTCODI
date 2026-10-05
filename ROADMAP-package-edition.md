@@ -816,6 +816,30 @@ Die anschließenden Docker-/Preflight-/Cache- und vollständigen Lizenzabgleiche
 sind weiterhin eigene offene Punkte. Alte entpackte Laufzeitdaten werden
 nicht automatisch gelöscht.
 
-CI-Nachweise werden nach Abschluss der neu gestarteten Tests-/APK-Läufe ergänzt.
+Verifizierter Implementierungscommit: `fc0f62fc3c36408788fcd8a4403efe56153f13de`.
+Der [Tests-Lauf 37389766041](https://github.com/Mcpasi/AGENTCODI/actions/runs/37389766041)
+hat alle sieben Jobs bestanden: 327 Java-Tests, acht portable C++-Suiten,
+Android-Quellen/Ressourcen gegen API 35, Community-Archiv-/ARM64-Bionic-Prüfungen
+und Paket-/Toolchain-Verträge. Der echte Code-mode-Host führte JavaScript bei
+einem eingeschränkten Werkzeug-PATH ohne Node/npm aus; das Protokoll prüft
+auch Runtime-Neustart und persistente Nutzerprogramme.
+Der [APK-Lauf 37389766895](https://github.com/Mcpasi/AGENTCODI/actions/runs/37389766895)
+hat alle drei Jobs bestanden: Bootstrap-Build, Bootstrap-ARM64/Bionic-Smoke
+und vollständiger Debug-APK-Build mit App-Server-/PTY-/Import-/MCP-Laufzeitprüfungen.
+Identität, Signatur, Alignment, ARM64-ABI, 16-KiB-Segmente, genaue ELF-Menge,
+Abhängigkeiten und ausgelieferte native Bytes sind geprüft.
+Das [Debug-APK-Artefakt](https://github.com/Mcpasi/AGENTCODI/actions/runs/37389766895/artifacts/11380802926)
+enthält die separate Package Edition. APK-SHA-256:
+`435d7295a53410cf8aafcbe2bc3c168c9fcdf482c8847bd18c448619eba25c30`.
+Die gerundete `du -h`-Größe sinkt von 169 MiB beim zuvor dokumentierten
+Workspace-Browser-Build (`4949dad012634ef403dae1f03fe72cddcb4ccc2e`)
+auf 123 MiB. Dies bleibt ein CI-Artefakt; eine APK-Veröffentlichung oder
+Geräte-/Installationsprüfung wurde nicht vorgenommen.
+
+Der erste Implementierungslauf fand einen fehlenden `LinkOption`-Import im
+neuen Java-Migrationstest; derselbe Compilerfehler blockierte auch den
+Community-Runtime-Job. Die Ursache ist behoben. Die abschließenden
+Implementierungsläufe haben keine Testfehlschläge. Der Abschlusscommit
+ergänzt ausschließlich Dokumentation; der geprüfte App-Code bleibt unverändert.
 Gerätetests werden gemäß Nutzeranweisung übersprungen und bleiben offen.
 Kein PR, Merge oder APK-Release; `main` bleibt unverändert.

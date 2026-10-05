@@ -44,6 +44,13 @@ installation and parallel-app test on Android hardware.
 `run-cpp-tests.sh` honours `CXX`, `CXXFLAGS` and `LDFLAGS`, so a host whose
 zlib headers are not in the default search path can still build the suite.
 
+The Java package-diagnostics regressions require `sh` and `dpkg-query` on `PATH`,
+in addition to JDK 17. Both are included in the Ubuntu runners and APK build
+container. They execute the actual terminal report against temporary package
+metadata, including update/removal, missing tools and invalid-database cases;
+they do not read or modify the host's package database. The report uses the
+current terminal environment and replaces the old fixed activation display.
+
 On an Android device `setup-system-shim.sh` detects the real `/system/bin/sh`
 and exits without touching anything.
 

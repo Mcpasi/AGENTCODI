@@ -4,7 +4,9 @@
 # scripts/test.sh is the authoritative local runner, but it requires the Termux
 # Android toolchain and rebuilds every C++ target, so it cannot run on a hosted
 # runner. This script compiles and runs the very same Java sources with a stock
-# JDK 17 and nothing else. It never writes into the working tree.
+# JDK 17. Package-diagnostics regressions also use sh and dpkg-query from
+# PATH against isolated temporary metadata; Ubuntu and the build container
+# already provide both tools. It never writes into the working tree.
 set -Eeuo pipefail
 
 SCRIPT_DIR="$(cd -- "$(dirname -- "$0")" && pwd -P)"

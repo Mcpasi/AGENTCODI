@@ -644,8 +644,30 @@ realen `dpkg-query` gegen isolierte Testdaten aus. Sie prüfen aktuelle Pfade,
 verwaltete Versionen und Status, Update/Entfernung mit Legacy-Fallback,
 fehlende Datenbank/Werkzeuge, fehlerhafte Metadaten und einen fehlenden Präfix.
 Architekturprüfungen verlangen jetzt die Diagnose statt der alten
-Aktivierungsanzeige. CI-Nachweise werden nach Abschluss der gestarteten
-GitHub-Actions-Läufe ergänzt. Gerätetests bleiben gemäß Nutzeranweisung offen.
+Aktivierungsanzeige. Die Java-Suite benötigt dafür `sh` und `dpkg-query` auf
+dem Testhost; beide sind in den Ubuntu-Runnern und im APK-Buildcontainer
+vorhanden und werden nur mit isolierten temporären Metadaten verwendet.
+
+Verifizierter Implementierungscommit: `139fb464ee9a2760e0131b6973f6c3a680d591c9`.
+Der [Tests-Lauf 37382642660](https://github.com/Mcpasi/AGENTCODI/actions/runs/37382642660)
+hat alle sieben Jobs bestanden: 320 Java-Tests, alle acht portablen C++-Suiten,
+Android-Quellen/Ressourcen gegen API 35, Community-Archiv-/ARM64-Bionic-Prüfung
+und Paket-/Toolchain-Verträge. Der
+[APK-Lauf 37382642782](https://github.com/Mcpasi/AGENTCODI/actions/runs/37382642782)
+hat alle drei Jobs bestanden, einschließlich Bootstrap-Build, Bootstrap-Smoke
+und vollständigem APK-Build mit echten App-Server-/PTY-/MCP-Laufzeitprüfungen.
+Das [Debug-APK-Artefakt](https://github.com/Mcpasi/AGENTCODI/actions/runs/37382642782/artifacts/11376077909)
+enthält die separate Package Edition; Identität, Signatur, Alignment, ABI und
+Payload sind geprüft. APK-SHA-256:
+`13ccd2acd5468d69ec55e99aad507132cf95d9651181a5a482a29a42b06611d6`.
+
+Die Implementierungsläufe hatten keine Fehlschläge. Geräteabhängige
+Linkerprüfungen wurden mit `AGENTCODI_SKIP_DEVICE_LINKER_TESTS=1`
+übersprungen; echte Geräte-/Installations-/Update-Tests bleiben offen.
+Der Abschlusscommit ergänzt ausschließlich diese Nachweise und Hinweise zu
+den CI-Testvoraussetzungen; der App-Code bleibt unverändert.
+Kein PR, Merge oder APK-Release; `main` bleibt auf
+`ff27ec7c30d373a864e845e9a7ceeae3380dd103`.
 
 ## 4. Build verkleinern und veröffentlichbare Edition erstellen
 

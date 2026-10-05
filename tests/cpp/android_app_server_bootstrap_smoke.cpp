@@ -298,6 +298,7 @@ done
           "{\"method\":\"thread/start\",\"id\":72,\"params\":{"
           "\"cwd\":\"" + config.working_directory + "\","
           "\"runtimeWorkspaceRoots\":[\"" + config.working_directory + "\"],"
+          "\"model\":\"gpt-5.1-codex\",\"modelProvider\":\"agentcodi-openai-http\","
           "\"approvalPolicy\":\"on-request\",\"permissions\":\":danger-full-access\"}}", error)
       && read_response(process, "\"id\":72", "\"thread\":{", error)
       && write_request(process,

@@ -38,9 +38,13 @@ backported.
 | Older releases | No |
 | Modified, repackaged, or unofficial APKs | No |
 
-Install APKs only from the official
+Install released APKs only from the official
 [AGENTCODI GitHub Releases](https://github.com/Mcpasi/AGENTCODI/releases) page and
 update to the latest release before reporting an issue that may already be fixed.
+The Package Edition is still an unreleased development branch: its separate
+debug APKs are official branch CI artifacts, not final releases. When testing
+one, verify its `Mcpasi/package-edition` commit and successful build run and
+include both in a report.
 
 ## Reporting a vulnerability
 

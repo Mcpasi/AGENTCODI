@@ -11,13 +11,13 @@
   <string name="browser_back">‹ Back</string>
   <string name="browser_refresh">Refresh</string>
   <string name="browser_workspace_root">Workspace</string>
-  <string name="browser_loading">Loading workspace directory…</string>
+  <string name="browser_loading">Loading directory…</string>
   <string name="browser_preview_loading">Loading bounded file preview…</string>
-  <string name="browser_preview_ready">Preview is transient and comes from a verified regular workspace file.</string>
-  <string name="browser_directory_failed">This workspace directory could not be cataloged safely. Refresh or return to its parent.</string>
+  <string name="browser_preview_ready">Preview is transient and comes from a verified regular file in the selected area.</string>
+  <string name="browser_directory_failed">This directory could not be cataloged safely. Refresh or return to its parent.</string>
   <string name="browser_preview_failed">This file could not be read as a stable bounded preview.</string>
   <string name="browser_operation_rejected">The file browser is closing and cannot start another operation.</string>
-  <string name="browser_initialization_failed">AGENTCODI could not initialize the workspace file browser.</string>
+  <string name="browser_initialization_failed">AGENTCODI could not initialize the file browser.</string>
   <string name="browser_previous_page">‹ Page</string>
   <string name="browser_next_page">Page ›</string>
   <string name="browser_previous_content">‹ Content</string>
@@ -63,7 +63,7 @@
     <item quantity="other">%1$d unavailable entries were safely omitted.</item>
   </plurals>
   <string name="browser_unavailable_symlink">This symbolic link is shown but is never followed; other directory entries remain available.</string>
-  <string name="browser_unavailable_hardlink">This hard-linked entry is shown but cannot be opened through the private workspace boundary.</string>
+  <string name="browser_unavailable_hardlink">This hard-linked entry is shown but cannot be previewed or exported.</string>
   <string name="browser_unavailable_special">This special filesystem entry is shown but has no regular-file preview.</string>
   <string name="browser_unavailable_name">This entry has a path name that cannot be represented safely for navigation.</string>
   <string name="browser_unavailable_unreadable">This changing or unreadable entry is shown without blocking the rest of the directory.</string>

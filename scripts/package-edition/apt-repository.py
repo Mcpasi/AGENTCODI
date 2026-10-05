@@ -257,9 +257,18 @@ def build(artifacts, output, previous):
                 raise ValueError("Invalid package name")
             if metadata["Architecture"] not in ("aarch64", "all"):
                 raise ValueError("Foreign package architecture: " + name)
-            variants.setdefault(name, []).append({"group": group, "sha256": digest(deb)})
-            if name in chosen and chosen[name][1] != metadata:
-                raise ValueError("Conflicting package versions or dependency metadata: " + name)
+            variants.setdefault(name, []).append({"group": group, "sha256": digest(deb),
+                                                   "installed_size": metadata.get("Installed-Size")})
+            # Installed-Size describes this build's bytes, not dependency identity.
+            # Keep the chosen DEB's actual value in Packages and record all variants.
+            if name in chosen:
+                previous_metadata = {k: v for k, v in chosen[name][1].items() if k != "Installed-Size"}
+                current_metadata = {k: v for k, v in metadata.items() if k != "Installed-Size"}
+                if previous_metadata != current_metadata:
+                    differences = {k: [previous_metadata.get(k), current_metadata.get(k)]
+                                   for k in previous_metadata.keys() | current_metadata.keys()
+                                   if previous_metadata.get(k) != current_metadata.get(k)}
+                    raise ValueError("Conflicting runtime metadata for " + name + ": " + json.dumps(differences))
             # Record non-bit-identical independent builds and prefer bootstrap bytes.
             chosen.setdefault(name, (deb, metadata))
     roots = [*lock["bootstrap"]["roots"], "bash", "agentcodi-package-keyring"]

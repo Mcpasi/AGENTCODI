@@ -13,7 +13,7 @@ The graphical browser exposes only three explicit roots: workspace, the managed
 package prefix and the user package prefix `$HOME/.local`. It does not expose
 the entire home or Codex account directory. Package views reuse bounded,
 descriptor-relative no-follow access, reject hard links, and exclude known
-credential paths, including Codex auth files, SSH directories, npm/pip credential
+credential paths, including Codex auth files, SSH directories, `.npmrc`/`.pypirc` credential
 configuration and APT auth configuration. Excluded entries are unavailable for
 preview and export, including when selected directly as an archive root.
 

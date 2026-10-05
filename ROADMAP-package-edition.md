@@ -710,8 +710,26 @@ Fünf neue Java-Regressionen prüfen Wurzelauswahl, Vorschau/Einzelexport
 beider Präfixe, Kontodaten-/Link-Ausschluss im tatsächlichen ZIP,
 direkte/unsichere Pfade und ausgetauschte Wurzellinks. Eine zusätzliche
 Importregression prüft DEB-/ZIP-Bytes und Endungen ohne Paketinstallation.
-CI-Nachweise werden nach Abschluss der Implementierungsläufe hier ergänzt.
-Echte Gerätetests werden gemäß Nutzeranweisung übersprungen und bleiben offen.
+Verifizierter Implementierungsstand: `4949dad012634ef403dae1f03fe72cddcb4ccc2e`.
+Der [Tests-Lauf 37386821181](https://github.com/Mcpasi/AGENTCODI/actions/runs/37386821181)
+hat alle sieben Jobs bestanden: 326 Java-Tests einschließlich der sechs neuen
+Regressionen, acht portable C++-Suiten, Android-Quellen/Ressourcen gegen API 35,
+Community-Archiv-/ARM64-Bionic-Prüfungen sowie Paket-/Toolchain-Verträge.
+Der [APK-Lauf 37386821299](https://github.com/Mcpasi/AGENTCODI/actions/runs/37386821299)
+hat alle drei Jobs bestanden, einschließlich Bootstrap-Build,
+ARM64/Bionic-Bootstrap-Smoke und vollständigem Debug-APK-Build mit
+App-Server-/PTY-/MCP-Laufzeitprüfungen, Identität, Signatur und Alignment.
+Das [Debug-APK-Artefakt](https://github.com/Mcpasi/AGENTCODI/actions/runs/37386821299/artifacts/11380222721)
+enthält die geprüfte separate Package Edition. APK-SHA-256:
+`4e71d975344a67d53fd073cf0228f5868d7e2e0a04296ad8ad61c6760c7cfb67`.
+
+Die abschließenden Implementierungsläufe hatten keine Testfehlschläge.
+Frühere laufende Versuche wurden bei nachfolgenden Branch-Commits durch
+die bestehende CI-Concurrency-Regel abgebrochen. Geräteabhängige
+Linkerprüfungen wurden mit `AGENTCODI_SKIP_DEVICE_LINKER_TESTS=1`
+übersprungen; echte Geräte-/Installations-/Update-Tests bleiben offen.
+Der Abschlusscommit ergänzt ausschließlich Dokumentation und diese Nachweise;
+der geprüfte App-Code und die Ressourcen bleiben unverändert.
 Kein PR, Merge oder APK-Release; `main` bleibt unverändert.
 
 ## 4. Build verkleinern und veröffentlichbare Edition erstellen

@@ -175,6 +175,7 @@ jobs:
           PY
           (cd bootstrap && sha256sum -c SHA256SUMS)
           (cd bootstrap/ci-compat && sha256sum -c SHA256SUMS)
+          chmod 755 bootstrap/ci-compat/bootstrap-api29-compat-test
           .github/ci/run-java-tests.sh
           javac -cp "$RUNNER_TEMP/agentcodi-ci-java/classes" -d "$RUNNER_TEMP/agentcodi-ci-java/classes" .github/ci/BootstrapInstall.java
           mkdir -p bootstrap/root bootstrap/cache/apt/archives/partial

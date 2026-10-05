@@ -55,9 +55,22 @@ def download(group, output):
             raise ValueError("Signed repository manifest differs")
         manifest = json.loads(path.read_text())
 
+        pack_for_object = {}
+        for pack, names in manifest.get("source_packs", {}).items():
+            for name in names:
+                if name in pack_for_object:
+                    raise ValueError("Source appears in multiple current packs")
+                pack_for_object[name] = pack
+
         def payload(name):
+            repository.relative(name)
             record = manifest["files"][name]
-            path = fetch(name)
+            path = root / name
+            if not path.exists() and name in pack_for_object:
+                pack = payload(pack_for_object[name])
+                sources.packed_object(pack, name, record, path)
+            else:
+                path = fetch(name)
             if repository.digest(path) != record["sha256"] or path.stat().st_size != record["size"]:
                 raise ValueError("Signed source payload differs: " + name)
             return path

@@ -64,11 +64,11 @@ jobs:
           set -euo pipefail
           selected="$REQUESTED_RUN_ID"
           if [ "$selected" -eq 0 ]; then
-            gh api --paginate "repos/$GITHUB_REPOSITORY/actions/runs?branch=Mcpasi%2Fpackage-edition&status=success&per_page=100" \
+            gh api --paginate "repos/$GITHUB_REPOSITORY/actions/runs?branch=Mcpasi%2Fpackage-edition&status=completed&per_page=100" \
               --jq '.workflow_runs[].id' > "$RUNNER_TEMP/prior-runs.txt"
             while read -r candidate; do
               if gh api --paginate "repos/$GITHUB_REPOSITORY/actions/runs/$candidate/jobs?per_page=100" \
-                --jq '.jobs[] | select(.name | endswith("Publish signed APT repository")) | .conclusion' \
+                --jq '.jobs[] | select(.name | endswith("Publish signed APT repository")) | .steps[]? | select(.name == "Deploy the complete signed site snapshot") | .conclusion' \
                 | awk '$0 == "success" { found=1 } END { exit !found }' >/dev/null; then
                 selected="$candidate"
                 break
@@ -79,10 +79,10 @@ jobs:
             gh api "repos/$GITHUB_REPOSITORY/actions/runs/$selected" > "$RUNNER_TEMP/previous-repository-run.json"
             jq -e --arg repo "$GITHUB_REPOSITORY" '
               .head_branch == "Mcpasi/package-edition" and .head_repository.full_name == $repo
-              and (.event == "push" or .event == "workflow_dispatch") and .conclusion == "success"
+              and (.event == "push" or .event == "workflow_dispatch") and .status == "completed"
             ' "$RUNNER_TEMP/previous-repository-run.json" >/dev/null
             gh api --paginate "repos/$GITHUB_REPOSITORY/actions/runs/$selected/jobs?per_page=100" \
-              --jq '.jobs[] | select(.name | endswith("Publish signed APT repository")) | .conclusion' \
+              --jq '.jobs[] | select(.name | endswith("Publish signed APT repository")) | .steps[]? | select(.name == "Deploy the complete signed site snapshot") | .conclusion' \
               | awk '$0 == "success" { found=1 } END { exit !found }'
           fi
           echo "run_id=$selected" >> "$GITHUB_OUTPUT"
@@ -220,7 +220,7 @@ jobs:
     if: inputs.publish
     needs: [snapshot, runtime]
     runs-on: ubuntu-latest
-    timeout-minutes: 15
+    timeout-minutes: 25
     permissions:
       contents: read
       actions: read
@@ -251,4 +251,4 @@ jobs:
         id: deployment
         uses: actions/deploy-pages@v4
       - name: Verify the published HTTPS repository against the pinned key
-        run: python3 .github/ci/check-published-apt.py
+        run: python3 -u .github/ci/check-published-apt.py

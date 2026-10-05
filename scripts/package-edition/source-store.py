@@ -7,6 +7,7 @@ from pathlib import Path, PurePosixPath
 import shutil
 import tarfile
 import tempfile
+import zipfile
 
 
 def checksum(path):
@@ -106,3 +107,45 @@ def reconstruct(manifest, object_path, output):
                 else:
                     archive.addfile(member)
         archive_path.replace(output)
+
+
+def pack_small_objects(root):
+    """Provide bounded-request downloads while retaining direct object URLs."""
+    groups = {}
+    for path in sorted((root / "sources/objects").rglob("*.xz")):
+        if path.stat().st_size <= 65536:
+            name = path.relative_to(root).as_posix()
+            groups.setdefault(path.stem[0], []).append(name)
+    packs = {}
+    with tempfile.TemporaryDirectory() as directory:
+        temporary = Path(directory)
+        for prefix, names in sorted(groups.items()):
+            archive_path = temporary / (prefix + ".zip")
+            with zipfile.ZipFile(archive_path, "w", compression=zipfile.ZIP_STORED) as archive:
+                for name in names:
+                    info = zipfile.ZipInfo(name, date_time=(1980, 1, 1, 0, 0, 0))
+                    info.create_system = 3
+                    info.external_attr = 0o100644 << 16
+                    archive.writestr(info, (root / name).read_bytes())
+            name = "sources/packs/" + checksum(archive_path) + ".zip"
+            target = root / name
+            target.parent.mkdir(parents=True, exist_ok=True)
+            if not target.exists():
+                shutil.copyfile(archive_path, target)
+            packs[name] = names
+    return packs
+
+
+def packed_object(pack, name, record, output):
+    """Check a named compressed object before writing it; never extract a ZIP."""
+    safe_path(name)
+    with zipfile.ZipFile(pack) as archive:
+        matches = [info for info in archive.infolist() if info.filename == name]
+        if len(matches) != 1 or matches[0].file_size != record["size"]:
+            raise ValueError("Source pack entry is missing, duplicated or oversized")
+        data = archive.read(matches[0])
+    if len(data) != record["size"] or hashlib.sha256(data).hexdigest() != record["sha256"]:
+        raise ValueError("Packed source checksum differs")
+    output.parent.mkdir(parents=True, exist_ok=True)
+    output.write_bytes(data)
+    return output

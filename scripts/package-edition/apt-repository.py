@@ -319,6 +319,7 @@ def build(artifacts, output, previous):
         by_hash = binary / "by-hash/SHA256" / digest(path)
         by_hash.parent.mkdir(parents=True, exist_ok=True)
         shutil.copyfile(path, by_hash)
+    source_packs = sources.pack_small_objects(output)
     files = {path.relative_to(output).as_posix(): {"size": path.stat().st_size, "sha256": digest(path)}
              for path in sorted(output.rglob("*")) if path.is_file()}
     manifest = {"format_version": 1, "repository": lock["repository"],
@@ -326,7 +327,7 @@ def build(artifacts, output, previous):
                 "consumer_run": os.environ.get("GITHUB_RUN_ID"),
                 "signing_fingerprint": settings["signing_fingerprint"],
                 "packages": package_manifest, "provenance": provenance,
-                "input_variants": variants, "files": files}
+                "input_variants": variants, "source_packs": source_packs, "files": files}
     release_dir = output / "dists/stable"
     (release_dir / "repository-manifest.json").write_text(json.dumps(manifest, indent=2) + "\n")
     now = datetime.now(timezone.utc).replace(microsecond=0)

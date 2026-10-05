@@ -5,7 +5,11 @@
 AGENTCODI runs a local Codex app-server, development tools, and approved commands
 on an Android device. Security reports are especially important when they concern
 the boundaries between the private workspace, account data, Android storage,
-packaged runtimes, and hosted services.
+packaged runtimes, and hosted services. The Package Edition APK contains the native
+Codex app-server/code-mode host, the app engine and shell bridge, libc++ and zlib,
+plus the minimal package bootstrap. Node.js, npm, Python and ripgrep are installed
+separately through the signed edition APT repository. Retired APK activation
+aliases are excluded from PATH; updates preserve user-installed packages.
 
 ## Browser and export areas
 

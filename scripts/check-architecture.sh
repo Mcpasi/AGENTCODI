@@ -791,9 +791,6 @@ if ! rg -q 'LicensesActivity' "$PROJECT_ROOT/app/src/main/AndroidManifest.xml" \
     || ! rg -q 'license_show_text' "$licenses_activity" "$default_strings" "$german_strings" \
     || ! rg -q 'third-party/codex/LICENSE' "$licenses_activity" \
     || ! rg -q 'third-party/codex/NOTICE' "$licenses_activity" \
-    || ! rg -q 'third-party/ripgrep/DEPENDENCIES' "$licenses_activity" \
-    || ! rg -q 'third-party/ripgrep/LICENSES' "$licenses_activity" \
-    || ! rg -q 'third-party/ripgrep/PROVENANCE' "$licenses_activity" \
     || ! rg -q 'R\.raw\.third_party_notices' "$licenses_activity" \
     || ! rg -q '<string name="license_agentcodi_summary">Copyright 2026 Pascal \(Mc Pasi\) · Apache License 2\.0\.</string>' "$default_strings" \
     || ! rg -q '<string name="license_agentcodi_summary">Copyright 2026 Pascal \(Mc Pasi\) · Apache License 2\.0\.</string>' "$german_strings" \
@@ -842,7 +839,7 @@ terminal_session="$core_root/CodexTerminalSession.java"
 session_controller="$core_root/CodexSessionController.java"
 app_server_client="$core_root/CodexAppServerClient.java"
 runtime_service="$PROJECT_ROOT/modules/runtime/src/main/java/de/agentcodi/runtime/AgentRuntimeService.java"
-toolchain_shell="$PROJECT_ROOT/modules/native-engine/src/main/cpp/toolchain_shell_main.cpp"
+toolchain_shell="$PROJECT_ROOT/modules/native-engine/src/main/cpp/package_shell_main.cpp"
 toolchain_policy="$PROJECT_ROOT/modules/native-engine/src/main/cpp/toolchain_policy.cpp"
 toolchain_elf_guard="$PROJECT_ROOT/modules/native-engine/src/main/cpp/toolchain_elf_guard.cpp"
 toolchain_elf_attestor="$PROJECT_ROOT/modules/native-engine/src/main/cpp/toolchain_elf_attestor_payload.cpp"
@@ -887,74 +884,21 @@ if [ -e "$PROJECT_ROOT/modules/runtime/src/main/java/de/agentcodi/runtime/Termin
   exit 1
 fi
 
-if ! rg -q 'getToolchain\(\)' "$storage_layout" \
-    || ! rg -q 'secureChild\(workspace, "toolchain"\)' "$storage_layout" \
-    || ! rg -q 'getToolBin\(\)' "$storage_layout" \
-    || ! rg -q 'secureChild\(root, "tool-bin"\)' "$storage_layout" \
-    || ! rg -q 'preparePackagedToolAliases' "$storage_layout" \
-    || ! rg -q 'isNodeRuntimeEnabled' "$storage_layout" \
-    || ! rg -q 'isNpmRuntimeEnabled' "$storage_layout" \
-    || ! rg -q 'isPythonRuntimeEnabled' "$storage_layout" \
-    || ! rg -q 'isRipgrepRuntimeEnabled' "$storage_layout" \
-    || ! rg -q 'preparePackagedToolRuntime' "$storage_layout" \
-    || ! rg -q 'install <node|npm|python|ripgrep>' "$toolchain_shell" \
-    || ! rg -q 'Ask the user for permission' "$toolchain_shell" \
-    || ! rg -q 'node-24\.18\.0' "$toolchain_policy" \
-    || ! rg -q 'npm-11\.19\.0' "$toolchain_policy" \
-    || ! rg -q 'python-3\.14\.6' "$toolchain_policy" \
-    || ! rg -q 'ripgrep-15\.2\.0' "$toolchain_policy" \
-    || ! rg -q 'kPackagedNodeName = "libnode\.so"' "$toolchain_shell" \
-    || ! rg -q 'kPackagedRipgrepName = "libripgrep\.so"' "$toolchain_shell" \
-    || ! rg -q 'realpath\("/proc/self/exe"' "$toolchain_shell" \
-    || rg -q 'required_environment\("AGENTCODI_NODE_PATH"\)' "$toolchain_shell" \
-    || rg -q 'AGENTCODI_(SHELL|NODE)_PATH=' "$native_process" \
-    || ! rg -q 'ToolchainCommand\.requestedInstallationPackage' "$approval_dialog" \
-    || ! rg -q 'layout\.preparePackagedToolAliases' "$runtime_service" \
-    || ! rg -q 'layout\.preparePackagedToolRuntime' "$runtime_service" \
-    || ! rg -q 'layout\.getToolBin\(\)' "$runtime_service" \
+# Active Package Edition payload contract. Legacy helpers have focused source
+# tests until the separate API cleanup, but they must not be invoked or shipped.
+if ! rg -q 'package_shell_main\.cpp' "$apk_builder" \
+    || ! rg -q 'retirePackagedToolAliases' "$storage_layout" "$runtime_service" \
+    || rg -q 'layout\.preparePackagedTool(Aliases|Runtime)' "$runtime_service" \
+    || rg -q '(NODE|NPM|PYTHON|RIPGREP)_(VERSION|LIBRARY_NAME|URL|SHA256)|toolchain_elf_(guard|attestor|injector)\.cpp' "$apk_builder" \
+    || rg -q 'AGENTCODI_(TOOLCHAIN|TOOL_BIN|TOOL_RUNTIME|NODE_VERSION|NPM_VERSION|PYTHON_VERSION|RIPGREP_VERSION)=' "$native_process" \
+    || rg -q 'validate_tool_alias' "$native_process" \
+    || ! rg -q 'EXPECTED_NATIVE_FILES' "$apk_builder" \
+    || ! rg -q 'unresolved ELF dependency' "$apk_builder" \
+    || ! rg -q 'retired user-tool assets' "$apk_builder" \
     || ! rg -Fq 'PackageDiagnosticsCommand.create()' "$terminal_activity" \
-    || ! rg -q 'terminal_package_diagnostics' "$terminal_activity" \
-    || rg -q 'terminal_(enable_(node|npm|python|ripgrep)|(node|npm|python|ripgrep)_enabled)' "$terminal_activity" \
-    || ! rg -q 'AGENTCODI_TOOLCHAIN_PACKAGES=node,npm,python,ripgrep' "$native_process" \
-    || ! rg -q 'AGENTCODI_TOOL_BIN=' "$native_process" \
-    || ! rg -q 'AGENTCODI_TOOL_RUNTIME=' "$native_process" \
-    || ! rg -q 'SHELL=" \+ std::string\(kSystemShell\)' "$native_process" \
-    || ! rg -Uq 'config\.tool_binary_directory[[:space:]]*\+ ":/system/bin:/system/xbin"' "$native_process" \
-    || rg -q 'tool_binary_directory \+ ":" \+ config\.library_directory' "$native_process" \
-    || ! rg -q 'PrepareGuardedToolInvocation' "$toolchain_shell" "$toolchain_policy" "$toolchain_elf_guard" \
-    || ! rg -q 'non-canonical executable entry point' "$toolchain_elf_guard" "$toolchain_elf_guard_test" \
-    || ! rg -q 'untrusted policy library' "$toolchain_elf_attestor" "$toolchain_elf_guard_test" \
-    || ! rg -q '/proc/self/maps' "$toolchain_elf_attestor" \
-    || ! rg -q 'PT_NOTE' "$toolchain_elf_injector" \
-    || ! rg -q 'PF_R \| PF_X' "$toolchain_elf_injector" \
-    || ! rg -q 'AgentCodiElfAttestorEntry == 0' "$toolchain_elf_linker_script" \
-    || ! rg -q 'toolchain_elf_attestor_payload\.cpp' "$PROJECT_ROOT/scripts/test.sh" "$apk_builder" \
-    || ! rg -q 'toolchain_elf_attestor_injector\.cpp' "$PROJECT_ROOT/scripts/test.sh" "$apk_builder" \
-    || ! rg -q 'toolchain_fake_guard\.cpp' "$PROJECT_ROOT/scripts/test.sh" "$apk_builder" \
-    || ! rg -q 'substituted policy library' "$toolchain_elf_guard_test" "$apk_builder" \
-    || [ ! -f "$toolchain_fake_guard" ] \
-    || ! rg -q 'validate_tool_alias' "$native_process"; then
-  echo "The user-mediated Node.js, npm, Python, or ripgrep toolchain activation path is incomplete." >&2
-  exit 1
-fi
-
-if [ ! -f "$ripgrep_artifact" ] \
-    || [ ! -f "$ripgrep_dependencies" ] \
-    || [ ! -f "$ripgrep_licenses" ] \
-    || [ ! -f "$ripgrep_provenance" ] \
-    || ! rg -q 'ValidateRipgrepArguments' "$toolchain_policy" "$ripgrep_policy" \
-    || ! rg -q 'PrepareRipgrepEnvironment' "$toolchain_policy" "$ripgrep_policy" \
-    || ! rg -q 'RIPGREP_CONFIG_PATH' "$ripgrep_policy" "$ripgrep_policy_test" \
-    || ! rg -q -- '--pre' "$ripgrep_policy" "$ripgrep_policy_test" \
-    || ! rg -q -- '--search-zip' "$ripgrep_policy" "$ripgrep_policy_test" \
-    || ! rg -q -- '--follow' "$ripgrep_policy" "$ripgrep_policy_test" \
-    || ! rg -q 'ripgrep_bridge_policy_test\.cpp' "$PROJECT_ROOT/scripts/test.sh" \
-    || ! rg -q 'ripgrep_bridge_policy\.cpp' "$PROJECT_ROOT/scripts/test.sh" "$apk_builder" \
-    || ! rg -q 'toolchain_elf_guard\.cpp' "$PROJECT_ROOT/scripts/test.sh" "$apk_builder" \
-    || ! rg -q 'toolchain_elf_attestor_payload\.cpp' "$PROJECT_ROOT/scripts/test.sh" "$apk_builder" \
-    || ! rg -q 'toolchain_elf_attestor_injector\.cpp' "$PROJECT_ROOT/scripts/test.sh" "$apk_builder" \
-    || ! rg -q 'toolchain_elf_guard_test\.cpp' "$PROJECT_ROOT/scripts/test.sh"; then
-  echo "The ripgrep bridge policy or its focused C++ regression coverage is incomplete." >&2
+    || ! rg -q 'third-party/zlib/ZLIB-LICENSE' "$licenses_activity" \
+    || ! rg -q 'SHELL=" \+ std::string\(kSystemShell\)' "$native_process"; then
+  echo "The minimal APK, retired aliases, package diagnostics or legal assets are inconsistent." >&2
   exit 1
 fi
 
@@ -964,82 +908,17 @@ if rg -n 'workspace/console|SharedPreferences|onSaveInstanceState' "$terminal_ac
   exit 1
 fi
 
-if ! rg -q 'NODE_VERSION="24\.18\.0"' "$apk_builder" \
-    || ! rg -q 'NODE_SHA256="6456b78aba9e0007de7a4c580d2b34bb3865145bebe06e75273152f8dcba4236"' "$apk_builder" \
-    || ! rg -q 'NODE_UNGUARDED_RUNTIME_SHA256="e31cd5c7f5db279d638c3ad773e04f12842077f0559f4da4f369440a6f4195c3"' "$apk_builder" \
-    || ! rg -q 'NODE_PREATTESTED_RUNTIME_SHA256="cbf6b5c9aade3efd2127cb610db4a9ab8d54860c26d2c1273f8e3fae0bd6719f"' "$apk_builder" \
-    || ! rg -q 'NODE_RUNTIME_SHA256="6d1e83f6dd9586adaee78d17f6bac23870af6a21ccad58779bac270cc318614c"' "$apk_builder" \
-    || ! rg -q 'NPM_SHA256="385a051111f66c56d0564e6809244f1740427805a78d2e5a5dc470fb420832f8"' "$apk_builder" \
-    || ! rg -q 'PYTHON_SHA256="3166e56c2b6c03fff41191fbb9d736302978e7c484702814d9f6dc99dd6006bd"' "$apk_builder" \
-    || ! rg -q 'AGENTCODI_TOOL_RUNTIME_V1' "$apk_builder" \
-    || ! rg -q 'Compiling packaged terminal shell bridge' "$apk_builder" \
-    || ! rg -q "toolchain_smoke -c 'node --version'" "$apk_builder" \
-    || ! rg -q 'toolchain_model_smoke' "$apk_builder" \
-    || ! rg -q 'command -v agentcodi-toolchain' "$apk_builder" \
-    || ! rg -q 'command/exec/outputDelta' "$PROJECT_ROOT/tests/cpp/android_app_server_bootstrap_smoke.cpp" \
+if ! rg -q 'command/exec/outputDelta' "$PROJECT_ROOT/tests/cpp/android_app_server_bootstrap_smoke.cpp" \
     || ! rg -q 'command/exec/write' "$PROJECT_ROOT/tests/cpp/android_app_server_bootstrap_smoke.cpp" \
     || ! rg -q 'command/exec/resize' "$PROJECT_ROOT/tests/cpp/android_app_server_bootstrap_smoke.cpp" \
     || ! rg -q 'command/exec/terminate' "$PROJECT_ROOT/tests/cpp/android_app_server_bootstrap_smoke.cpp" \
     || ! rg -q 'config/read' "$PROJECT_ROOT/tests/cpp/android_app_server_bootstrap_smoke.cpp" \
     || ! rg -q 'config/batchWrite' "$PROJECT_ROOT/tests/cpp/android_app_server_bootstrap_smoke.cpp" \
     || ! rg -q 'config/mcpServer/reload' "$PROJECT_ROOT/tests/cpp/android_app_server_bootstrap_smoke.cpp" \
-    || ! rg -q 'third-party/node/NODE-LICENSE' "$licenses_activity" \
-    || ! rg -q 'assets/third-party/node/' "$PROJECT_ROOT/app/src/main/res/raw/third_party_notices.txt"; then
-  echo "Pinned Node.js packaging, execution smoke, or legal notices are incomplete." >&2
-  exit 1
-fi
-
-if ! rg -q 'RIPGREP_VERSION="15\.2\.0"' "$apk_builder" \
-    || ! rg -q 'RIPGREP_SOURCE_SHA256="4eb0d0c70d2e3c760cab4f478c7eb715082ae1d8b5f4a23bb14515154348b04d"' "$apk_builder" \
-    || ! rg -q 'RIPGREP_PREATTESTED_RUNTIME_SHA256="a93343b21a76f7ff00dc05c6eddc6317d36f143093e3f7cde795720adede00aa"' "$apk_builder" \
-    || ! rg -q 'RIPGREP_RUNTIME_SHA256="4cfd048c4bac29ac0d494887b519752984f66a449ed4b22bd95cca6fcf540d50"' "$apk_builder" \
-    || ! rg -q 'RIPGREP_LIBRARY_NAME="libripgrep\.so"' "$apk_builder" \
-    || ! rg -q 'features:-pcre2' "$apk_builder" \
-    || ! rg -q 'Normal target package count: 34' "$ripgrep_dependencies" \
-    || rg -iq '^(pcre2|pcre2-sys) [0-9]' "$ripgrep_dependencies" \
-    || ! rg -q 'MIT License' "$ripgrep_licenses" \
-    || ! rg -q 'toolchain_smoke --ripgrep' "$apk_builder" \
-    || ! rg -q 'blocked_ripgrep_option' "$apk_builder" \
-    || ! rg -q 'ripgrep-direct-blocked' "$apk_builder" \
-    || ! rg -q 'NODE_GUARD_LIBRARY_NAME="libagentcodi-node-guard\.so"' "$apk_builder" \
-    || ! rg -q 'PYTHON_GUARD_LIBRARY_NAME="libagentcodi-python-guard\.so"' "$apk_builder" \
-    || ! rg -q 'RIPGREP_GUARD_LIBRARY_NAME="libagentcodi-ripgrep-guard\.so"' "$apk_builder" \
-    || ! rg -q 'NODE_GUARD_SHA256="1d0e8aa17649921530666d561ea86a0a515ae68062029d79def9e08e9e8c4fe5"' "$apk_builder" \
-    || ! rg -q 'PYTHON_GUARD_SHA256="b27b7a2efd704666fac6bf61229e9514ef0a56357d11afd5283923f85d8a809e"' "$apk_builder" \
-    || ! rg -q 'RIPGREP_GUARD_SHA256="8ce866e6ff4d185c98a51aedde80bc76385914e790360f5908200686d764a69f"' "$apk_builder" \
-    || ! rg -q 'NODE_ATTESTOR_SHA256="241c3c157251f94d682da6bad6082079786198d241f63be76a456c8c64f16dfa"' "$apk_builder" \
-    || ! rg -q 'PYTHON_ATTESTOR_SHA256="7e275cc1b169871b100a15f82af1395f384b507234549241ad14c98a94cb762c"' "$apk_builder" \
-    || ! rg -q 'RIPGREP_ATTESTOR_SHA256="206e3f43a6dd1cfa1b81cc901e86be00d19c1584866f864da9ff94e6defcba99"' "$apk_builder" \
-    || ! rg -q -- '--add-needed "\$RIPGREP_GUARD_LIBRARY_NAME"' "$apk_builder" \
-    || rg -q 'PENDING_' "$apk_builder" \
-    || ! rg -q 'RIPGREP_CONFIG_PATH' "$apk_builder" \
-    || ! rg -q 'assets/third-party/ripgrep/' "$PROJECT_ROOT/app/src/main/res/raw/third_party_notices.txt" \
-    || ! rg -q 'third-party/ripgrep/PROVENANCE' "$licenses_activity"; then
-  echo "Pinned ripgrep packaging, dependency inventory, policy smokes, or legal notices are incomplete." >&2
-  exit 1
-fi
-
-if rg -q '^(GDBM|READLINE)_(URL|SHA256|ARCHIVE|SOURCE)' "$apk_builder" \
-    || rg -q 'cp -L .*lib(gdbm|readline)' "$apk_builder"; then
-  echo "The APK builder must not fetch or package GNU dbm/readline runtimes." >&2
-  exit 1
-fi
-if ! rg -q 'PYTHON_SOURCE_EXTENSION_COUNT="75"' "$apk_builder" \
-    || ! rg -q 'PYTHON_PACKAGED_EXTENSION_COUNT="72"' "$apk_builder" \
-    || ! rg -q 'PYTHON_NATIVE_SET_SHA256="cc9e6ea0d0ad967979d8b2763fd32a9a328d589c20401e64035e573877cb2581"' "$apk_builder" \
-    || ! rg -q 'lib-dynload/_dbm\.cpython-314-aarch64-linux-android\.so' "$apk_builder" \
-    || ! rg -q 'lib-dynload/_gdbm\.cpython-314-aarch64-linux-android\.so' "$apk_builder" \
-    || ! rg -q 'lib-dynload/readline\.cpython-314-aarch64-linux-android\.so' "$apk_builder" \
-    || ! rg -q 'database\.__class__\.__module__ == "dbm\.sqlite3"' "$apk_builder" \
-    || ! rg -q 'python-sqlite-dbm-shelve-ok' "$apk_builder" \
-    || ! rg -q '_pyrepl-ok' "$apk_builder" \
-    || ! rg -q 'ZSTD_LICENSE_SHA256="7055266497633c9025b777c78eb7235af13922117480ed5c674677adc381c9d8"' "$apk_builder" \
-    || ! rg -q 'LIBLZMA_0BSD_LICENSE_SHA256="0b01625d853911cd0e2e088dcfb743261034a091bb379246cb25a14cc4c74bf1"' "$apk_builder" \
-    || ! rg -q 'GNU runtime libraries are deliberately excluded' "$apk_builder" \
-    || ! rg -q 'GNU Readline and GNU dbm are not bundled' "$PROJECT_ROOT/app/src/main/res/values/strings.xml" \
-    || ! rg -q 'GNU Readline und GNU dbm sind nicht enthalten' "$PROJECT_ROOT/app/src/main/res/values-de/strings.xml" \
-    || ! rg -q '72 native extension modules' "$PROJECT_ROOT/app/src/main/res/raw/third_party_notices.txt"; then
-  echo "The reduced Python runtime, compatibility smokes, or precise license inventory is incomplete." >&2
+    || ! rg -q 'minimal-package-shell-ok' "$PROJECT_ROOT/tests/cpp/android_app_server_bootstrap_smoke.cpp" \
+    || ! rg -q 'check_package_prefix' "$PROJECT_ROOT/tests/cpp/android_app_server_bootstrap_smoke.cpp" \
+    || ! rg -q 'check_stdio_package_environment' "$PROJECT_ROOT/tests/cpp/android_app_server_bootstrap_smoke.cpp"; then
+  echo "Minimal Package Edition runtime smoke coverage is incomplete." >&2
   exit 1
 fi
 

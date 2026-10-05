@@ -844,35 +844,9 @@ public final class AgentRuntimeService extends Service {
                         nativeLibraryDirectory,
                         BuildIdentity.TERMINAL_SHELL_LIBRARY
                     );
-                    File nodeExecutable = new File(
-                        nativeLibraryDirectory,
-                        BuildIdentity.NODE_RUNTIME_LIBRARY
-                    );
-                    File pythonExecutable = new File(
-                        nativeLibraryDirectory,
-                        BuildIdentity.PYTHON_RUNTIME_LIBRARY
-                    );
-                    File ripgrepExecutable = new File(
-                        nativeLibraryDirectory,
-                        BuildIdentity.RIPGREP_RUNTIME_LIBRARY
-                    );
-                    layout.preparePackagedToolAliases(shellExecutable);
-                    File toolRuntimeDirectory;
-                    try (
-                        InputStream archive = getAssets().open(
-                            BuildIdentity.TOOL_RUNTIME_ARCHIVE_ASSET
-                        );
-                        InputStream manifest = getAssets().open(
-                            BuildIdentity.TOOL_RUNTIME_MANIFEST_ASSET
-                        )
-                    ) {
-                        toolRuntimeDirectory = layout.preparePackagedToolRuntime(
-                            BuildIdentity.TOOL_RUNTIME_NAME,
-                            archive,
-                            manifest,
-                            nativeLibraryDirectory
-                        );
-                    }
+                    // Retire only app-created aliases; preserve user packages and old data.
+                    layout.retirePackagedToolAliases(shellExecutable);
+                    File toolRuntimeDirectory = layout.getToolRuntime();
                     String temporaryDirectory = getCacheDir().getCanonicalPath();
                     String nativeLibraryPath = nativeLibraryDirectory.getCanonicalPath();
                     if (!isCurrentBootstrap(generation)) {
@@ -883,9 +857,7 @@ public final class AgentRuntimeService extends Service {
                         codexExecutable.getAbsolutePath(),
                         codeModeHostExecutable.getAbsolutePath(),
                         shellExecutable.getAbsolutePath(),
-                        nodeExecutable.getAbsolutePath(),
-                        pythonExecutable.getAbsolutePath(),
-                        ripgrepExecutable.getAbsolutePath(),
+                        "", "", "", // Retired parameters; no user-tool APK payload.
                         layout.getWorkspace().getAbsolutePath(),
                         layout.getToolchain().getAbsolutePath(),
                         layout.getToolBin().getAbsolutePath(),

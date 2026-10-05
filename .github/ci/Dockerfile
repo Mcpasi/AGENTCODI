@@ -13,7 +13,7 @@
 #     is pinned here and checked again by the build script itself.
 #   * The Android linker and bionic libraries come from the Termux image, which
 #     ships them as aosp-libs. Without them the build cannot execute the
-#     packaged aapt2, patchelf, Python or Codex app-server, all of which are
+#     build-only aapt2/patchelf and the Codex app-server, all of which are
 #     bionic binaries.
 ARG TERMUX_IMAGE=termux/termux-docker:aarch64@sha256:e19ea56dd687563849826cbda57da714ae23277ee463e21f39917dbc0a59bab4
 ARG UBUNTU_IMAGE=ubuntu:26.04

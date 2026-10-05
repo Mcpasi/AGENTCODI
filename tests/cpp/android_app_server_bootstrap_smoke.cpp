@@ -203,8 +203,7 @@ bool check_package_prefix(
   const std::string legacy_only = config.home_directory + "/.local/bin/legacy-package-check";
   const std::string shared_path = config.home_directory + "/shared-package-path";
   const std::string package_path = config.package_prefix + "/bin:"
-      + config.home_directory + "/.local/bin:" + config.tool_binary_directory
-      + ":/system/bin:/system/xbin";
+      + config.home_directory + "/.local/bin:/system/bin:/system/xbin";
   const auto cleanup = [&]() {
     unlink(managed.c_str());
     unlink(legacy.c_str());
@@ -467,7 +466,7 @@ bool read_interactive_terminal_completion(
                 "{\"method\":\"command/exec/write\",\"id\":8,\"params\":{"
                 "\"processId\":\"agentcodi-build-terminal\","
                 "\"deltaBase64\":"
-                "\"cHJpbnRmIHRlcm1pbmFsLXByb3RvY29sLXNtb2tlCmFnZW50Y29kaS10b29sY2hhaW4gaW5zdGFsbCBub2RlCmFnZW50Y29kaS10b29sY2hhaW4gaW5zdGFsbCByaXBncmVwCm5vZGUgLS12ZXJzaW9uCnJnIC0tdmVyc2lvbgpleGl0Cg==\"}}",
+                "\"cHJpbnRmICd0ZXJtaW5hbC1wcm90b2NvbC1zbW9rZVxuJwpmb3IgdG9vbCBpbiBub2RlIG5wbSBweXRob24gcHl0aG9uMyByZyBhZ2VudGNvZGktdG9vbGNoYWluOyBkbyBjb21tYW5kIC12ICIkdG9vbCIgJiYgZXhpdCAzMTsgZG9uZQpwcmludGYgJ3BhY2thZ2Utc2hlbGwtc21va2VcbicKZXhpdAo=\"}}",
                 error)) {
           return false;
         }
@@ -481,67 +480,6 @@ bool read_interactive_terminal_completion(
         break;
     }
   }
-}
-
-bool read_model_shell_completion(
-    const std::shared_ptr<agentcodi::AppServerProcess>& process,
-    const std::string& expected_node_alias,
-    const std::string& expected_ripgrep_alias,
-    std::string* error) {
-  bool command_completed = false;
-  std::string output;
-  for (int attempt = 0; attempt < 64; ++attempt) {
-    std::string line;
-    const agentcodi::LineReadStatus status = process->ReadLine(
-        kMaximumLineBytes,
-        &line,
-        error);
-    if (status != agentcodi::LineReadStatus::kLine) {
-      std::cerr << "Model shell response failed: " << *error << '\n';
-      return false;
-    }
-    if (line.find("\"method\":\"command/exec/outputDelta\"")
-            != std::string::npos
-        && line.find("\"processId\":\"agentcodi-build-model-shell\"")
-            != std::string::npos) {
-      std::string delta;
-      if (!ExtractBootstrapJsonString(line, "deltaBase64", &delta)
-          || !AppendBootstrapBase64(delta, &output)) {
-        std::cerr << "Model shell output was not bounded Base64\n";
-        return false;
-      }
-    } else if (agentcodi_test::BootstrapResponse(line).id == 9) {
-      std::string inline_output;
-      if (!agentcodi_test::ReadBootstrapCommandOutput(line, &inline_output)) {
-        std::cerr << agentcodi_test::BootstrapCommandFailure(line) << '\n';
-        return false;
-      }
-      if (!inline_output.empty()) {
-        if (inline_output.find(expected_node_alias) == std::string::npos
-            || inline_output.find(expected_ripgrep_alias) == std::string::npos
-            || inline_output.find("v24.18.0") == std::string::npos
-            || inline_output.find("node 24.18.0") == std::string::npos
-            || inline_output.find("ripgrep 15.2.0") == std::string::npos
-            || inline_output.find("enabled") == std::string::npos) {
-          std::cerr << "Inline model shell output omitted the packaged Node contract\n";
-          return false;
-        }
-        return true;
-      }
-      command_completed = true;
-    }
-    if (command_completed
-        && output.find(expected_node_alias) != std::string::npos
-        && output.find(expected_ripgrep_alias) != std::string::npos
-        && output.find("v24.18.0") != std::string::npos
-        && output.find("node 24.18.0") != std::string::npos
-        && output.find("ripgrep 15.2.0") != std::string::npos
-        && output.find("enabled") != std::string::npos) {
-      return true;
-    }
-  }
-  std::cerr << "Model shell could not resolve the activated packaged Node command\n";
-  return false;
 }
 
 bool read_import_content_completion(
@@ -880,25 +818,18 @@ int main(int argc, char* argv[]) {
   const std::string model_shell_request =
       "{\"method\":\"command/exec\",\"id\":9,\"params\":{"
       "\"command\":[\"/system/bin/sh\",\"-c\","
-      "\"test -z \\\"$(command -v libnode.so)\\\" && "
-      "test -z \\\"$(command -v libpython-bin.so)\\\" && "
-      "test -z \\\"$(command -v libripgrep.so)\\\" && "
-      "\\\"${LD_LIBRARY_PATH##*:}/libripgrep.so\\\" "
-      "--pre=/system/bin/sh needle . >/dev/null 2>&1; "
-      "test $? -eq 2 && command -v node && command -v rg && "
-      "command -v agentcodi-toolchain && "
-      "node --version && rg --version && agentcodi-toolchain status\"],"
+      "\"test ! -e \\\"${LD_LIBRARY_PATH##*:}/libnode.so\\\" && "
+      "test ! -e \\\"${LD_LIBRARY_PATH##*:}/libpython-bin.so\\\" && "
+      "test ! -e \\\"${LD_LIBRARY_PATH##*:}/libripgrep.so\\\" && "
+      "test -z \\\"$(command -v node)\\\" && test -z \\\"$(command -v rg)\\\" && "
+      "test -z \\\"$(command -v agentcodi-toolchain)\\\" && "
+      "printf minimal-package-shell-ok\"],"
       "\"cwd\":\"" + workspace + "\","
-      "\"processId\":\"agentcodi-build-model-shell\","
       "\"permissionProfile\":\":danger-full-access\","
       "\"tty\":false,\"outputBytesCap\":65536,\"timeoutMs\":"
-      + std::to_string(kToolchainTimeoutMs) + "}}";
+      + std::to_string(kCommandTimeoutMs) + "}}";
   if (!write_request(process, model_shell_request, &error)
-      || !read_model_shell_completion(
-          process,
-          config.tool_binary_directory + "/node",
-          config.tool_binary_directory + "/rg",
-          &error)) {
+      || !read_command_response(process, 9, "minimal-package-shell-ok", &error)) {
     process->Stop(2'000);
     return 1;
   }

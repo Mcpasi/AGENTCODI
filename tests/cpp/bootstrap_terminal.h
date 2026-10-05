@@ -150,10 +150,7 @@ class BootstrapTerminal {
  private:
   bool HasExpectedOutput() const {
     return output_.find("terminal-protocol-smoke") != std::string::npos
-        && output_.find("Enabled packaged Node.js 24.18.0") != std::string::npos
-        && output_.find("Enabled packaged ripgrep 15.2.0") != std::string::npos
-        && output_.find("v24.18.0") != std::string::npos
-        && output_.find("ripgrep 15.2.0") != std::string::npos;
+        && output_.find("package-shell-smoke") != std::string::npos;
   }
 
   BootstrapTerminalEvent Fail(const std::string& reason) {

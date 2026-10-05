@@ -33,6 +33,7 @@ public final class WorkspaceLayoutTest {
         rejectsSymbolicManagedPackageBin();
         rejectsFileAsManagedPackagePrefix();
         rejectsSymbolicPackagePrefix();
+        retiresOnlyAppCreatedToolAliases();
         preparesPackagedToolAliases();
         rejectsUnexpectedPackagedToolEntries();
         preparesVerifiedPackagedToolRuntime();
@@ -67,7 +68,7 @@ public final class WorkspaceLayoutTest {
         rejectsPngBytesAfterIend();
         rejectsMalformedPngDuringCopy();
         rejectsOversizedWorkspaceImage();
-        return 41;
+        return 42;
     }
 
     private static void createsStablePrivateLayout() throws Exception {
@@ -252,6 +253,40 @@ public final class WorkspaceLayoutTest {
         } finally {
             deleteRecursively(base);
             deleteRecursively(destination);
+        }
+    }
+
+    private static void retiresOnlyAppCreatedToolAliases() throws Exception {
+        Path base = Files.createTempDirectory("agentcodi-retired-aliases-");
+        Path nativeDirectory = Files.createTempDirectory("agentcodi-retired-native-");
+        try {
+            WorkspaceLayout layout = WorkspaceLayout.create(base.toFile());
+            Path shell = nativeDirectory.resolve("libagentcodi-shell.so");
+            Files.write(shell, new byte[] {1});
+            shell.toFile().setExecutable(true, true);
+            Path bin = layout.getToolBin().toPath();
+            // A former install path can be stale after Android replaces the APK.
+            Files.createSymbolicLink(bin.resolve("node"),
+                nativeDirectory.resolve("old-install/libagentcodi-shell.so"));
+            Path foreign = nativeDirectory.resolve("user-tool");
+            Files.write(foreign, new byte[] {2});
+            Files.createSymbolicLink(bin.resolve("rg"), foreign);
+            Files.write(bin.resolve("npm"), new byte[] {3});
+            Path userPackage = layout.getHome().toPath().resolve(".local/bin/node");
+            Files.write(userPackage, new byte[] {4});
+            layout.retirePackagedToolAliases(shell.toFile());
+            layout.retirePackagedToolAliases(shell.toFile());
+            TestSupport.assertTrue(!Files.exists(bin.resolve("node"), LinkOption.NOFOLLOW_LINKS),
+                "stale app alias removed idempotently without following links");
+            TestSupport.assertTrue(Files.isSymbolicLink(bin.resolve("rg")),
+                "user-created alias retained");
+            TestSupport.assertEquals(3, (int) Files.readAllBytes(bin.resolve("npm"))[0],
+                "regular user file retained");
+            TestSupport.assertEquals(4, (int) Files.readAllBytes(userPackage)[0],
+                "user package preserved");
+        } finally {
+            deleteRecursively(base);
+            deleteRecursively(nativeDirectory);
         }
     }
 

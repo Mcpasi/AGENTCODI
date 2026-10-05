@@ -41,8 +41,7 @@ std::string output(const std::string& encoded, const std::string& process = "age
 const std::string kResize = "{\"id\":7,\"result\":{}}";
 const std::string kWrite = "{\"id\":8,\"result\":{}}";
 const std::string kCompleted = "{\"id\":6,\"result\":{\"exitCode\":0,\"stdout\":\"\",\"stderr\":\"\"}}";
-const std::string kOutput = "terminal-protocol-smoke\nEnabled packaged Node.js 24.18.0.\n"
-    "Enabled packaged ripgrep 15.2.0.\nv24.18.0\nripgrep 15.2.0\n";
+const std::string kOutput = "terminal-protocol-smoke\npackage-shell-smoke\n";
 
 }  // namespace
 
@@ -174,7 +173,7 @@ int main() {
     terminal.Consume(kResize);
     terminal.Consume(kWrite);
     terminal.Consume(output(encode("terminal-protocol-smoke\nv24.18.0\nripgrep 15.2.0")));
-    expect(terminal.Consume(kCompleted) == Event::kPending, "tool activation markers remain mandatory");
+    expect(terminal.Consume(kCompleted) == Event::kPending, "package shell completion marker remains mandatory");
   }
   {
     BootstrapTerminal terminal;

@@ -84,8 +84,8 @@ Two C++ suites cannot run on a hosted x86-64 runner. Both stay local-only:
    and arm64 runners are only free for public repositories.
 2. **`tests/cpp/android_app_server_bootstrap_smoke.cpp`.** `scripts/test.sh`
    does not run this either — `scripts/build-debug-apk.sh` drives it against
-   the packaged Codex runtime (`libcodex.so`, the packaged host and the
-   node/python/ripgrep payload libraries), which are downloaded build products
+   the minimal native payload (`libcodex.so`, its matching host, the shell
+   bridge, libc++ and zlib), which are downloaded build products
    rather than repository content.
 
 ## Keeping the Java source list in sync
@@ -105,7 +105,7 @@ live in the cache directory (`AGENTCODI_CACHE_DIR`, by default
 
 | File | Purpose |
 | --- | --- |
-| `build-inputs.tsv` | The 33 pinned inputs: path, SHA-256, origin, source URL. |
+| `build-inputs.tsv` | The 13 pinned inputs: path, SHA-256, origin, source URL. |
 | `generate-build-inputs.sh` | Regenerates the manifest from the build script. |
 | `verify-build-inputs.sh` | Checks a directory against the manifest. |
 | `fetch-build-inputs.sh` | Restores the inputs from the mirror, or upstream. |
@@ -118,7 +118,7 @@ live in the cache directory (`AGENTCODI_CACHE_DIR`, by default
 .github/ci/generate-build-inputs.sh > .github/ci/build-inputs.tsv
 ```
 
-The manifest is derived from all 33 `download_verified` calls in the build
+The manifest is derived from all 13 `download_verified` calls in the build
 script, including the content-addressed Community release archive. The explicit
 configuration marker includes every destination assignment. Regenerate it when
 pins change; architecture CI and `verify-build-inputs.sh` reject drift.
@@ -127,10 +127,9 @@ cached inputs.
 
 The build script also pins the LLVM toolchain through `CLANG_TOOLCHAIN_VERSION`
 and refuses to build when clang, lld, llvm-objcopy or llvm-strip report a
-different version. That toolchain compiles the guard libraries and the ELF
-attestor payload, so its generated code is covered by the derived
-`*_RUNTIME_SHA256` pins; without the check a silent `pkg upgrade` would surface
-much later as an unexplained hash mismatch.
+different version. That toolchain compiles the JNI engine and minimal shell bridge. Historical
+guard/attestor source regressions remain isolated tests until the subsequent
+source cleanup; their outputs are never copied to the Package Edition APK.
 
 ### Why this matters beyond CI
 
@@ -224,22 +223,16 @@ The rolling Termux pool no longer supplies `ndk-sysroot` 29-3.
 SHA-256-pinned Android NDK r29 archive and the matching upstream Termux recipe
 at `e23be59f0cdcb00674821347881182e68a548135`. `ndk-29-inputs.tsv` pins the
 20 patches and compatibility headers separately. The reconstructed package is
-installed in the pinned Termux stage before compilation. The existing derived
-guard/runtime hash checks remain authoritative and reject differing output.
+installed in the pinned Termux stage before compilation. The Codex and zlib artifact pins, exact native payload set, ELF dependency
+closure and shipped-byte comparisons remain authoritative.
 
 ### The device linker checks
 
-Two checks assert that invoking a guarded tool manually through the Android
-dynamic linker cannot bypass its ELF guard — one in `scripts/test.sh` (the
-whole `toolchain_elf_guard_test` suite) and one in `scripts/build-debug-apk.sh`
-(the packaged ripgrep). Both rest on a property of the device's linker: under a
-manual invocation `/proc/self/exe` resolves to the linker itself, so the guard
-sees a non-canonical entry point and refuses.
-
-A container ships a different AOSP linker and cannot be relied on to reproduce
-that. `AGENTCODI_SKIP_DEVICE_LINKER_TESTS=1` therefore opts out of both, and the
-APK workflow sets it. Unset — on a device — nothing changes, so the local runs
-keep the full contract.
+The historical source-only guard/attestor suite in `scripts/test.sh` depends
+on the device linker's `/proc/self/exe` behavior. It remains skipped by
+`AGENTCODI_SKIP_DEVICE_LINKER_TESTS=1` on hosted CI. The reduced APK ships
+no guarded tool and no longer runs the former packaged ripgrep linker test.
+Actual device installation/update tests remain outside hosted CI.
 
 `container-preflight.sh` probes and reports the property, so the container's
 actual behaviour is visible rather than assumed.
@@ -249,8 +242,10 @@ actual behaviour is visible rather than assumed.
 The Edition build uses ordinary Docker process confinement. It adds no
 seccomp profile, ptrace capability or AppArmor override. The bootstrap fixture
 uses Full access and verifies successful reads and writes of synthetic files
-outside the workspace, plus terminal sessions and the packaged
-Node/npm/Python/ripgrep tools. The former protected-only probe is removed.
+outside the workspace, plus terminal sessions, imported files, user programs from both writable
+prefixes and the shared stdio-MCP environment. No Node/npm/Python/ripgrep
+payload is copied into or required to start the APK. Real package-manager
+installations remain covered by the separate Package catalog workflow. The former protected-only probe is removed.
 
 ## Community Codex runtime verification (Package Edition)
 

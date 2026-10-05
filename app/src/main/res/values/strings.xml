@@ -124,7 +124,7 @@
 
   <string name="terminal_title">Terminal</string>
   <string name="terminal_back">‹ Chats</string>
-  <string name="terminal_description">Interactive shell with Full access. $PREFIX/bin takes priority over $HOME/.local/bin and transitional tools. Package diagnostics shows current paths, command resolution and managed package versions. Terminal output stays in memory. Commands can access workspace and account data reachable by the app.</string>
+  <string name="terminal_description">Interactive shell with Full access. $PREFIX/bin takes priority over $HOME/.local/bin and Android system commands. Package diagnostics shows current paths, command resolution and managed package versions. Terminal output stays in memory. Commands can access workspace and account data reachable by the app.</string>
   <string name="terminal_status_checking">Checking terminal runtime…</string>
   <string name="terminal_status_runtime_required">Start the Codex runtime in Settings before opening a terminal.</string>
   <string name="terminal_status_starting">Starting the bounded PTY shell…</string>
@@ -491,14 +491,8 @@
   <string name="license_material_icons_summary">Round interface icons from Google’s Material Design Icons repository · pinned source paths under Apache License 2.0.</string>
   <string name="license_codex_runtime_title">Codex Android community runtime</string>
   <string name="license_codex_runtime_summary">OpenAI Codex 0.156.1-termux.1 and the DioNanos Android/Termux community distribution · Apache License 2.0. This is not an official OpenAI Android APK.</string>
-  <string name="license_node_runtime_title">Packaged Node.js toolchain</string>
-  <string name="license_node_runtime_summary">Node.js LTS 24.18.0 and its pinned Android runtime dependencies · bundled in the APK and enabled only by an explicit user action or approved Codex command. Includes MIT, Unicode-3.0, Apache-2.0, zlib, and public-domain components.</string>
-  <string name="license_npm_runtime_title">Packaged npm toolchain</string>
-  <string name="license_npm_runtime_summary">npm 11.19.0 and its bundled dependency licenses · runs through the pinned Node.js runtime and uses only workspace/toolchain for writable cache and prefix data.</string>
-  <string name="license_python_runtime_title">Packaged Python toolchain</string>
-  <string name="license_python_runtime_summary">Python 3.14.6 with its bytecode standard library and 72 native extension modules · SQLite-backed dbm/shelve and PyREPL remain available; GNU Readline and GNU dbm are not bundled. All retained Android dependencies use permissive terms.</string>
-  <string name="license_ripgrep_runtime_title">Packaged ripgrep toolchain</string>
-  <string name="license_ripgrep_runtime_summary">ripgrep 15.2.0 for Android ARM64, built without PCRE2 · SHA-256 pinned in the APK with its complete statically linked dependency inventory and permissive license texts.</string>
+  <string name="license_zlib_runtime_title">zlib for PNG validation</string>
+  <string name="license_zlib_runtime_summary">zlib 1.3.2 · used by AGENTCODI native PNG validation, under the zlib License.</string>
   <string name="license_third_party_title">Additional third-party notices</string>
   <string name="license_third_party_summary">Includes the LLVM libc++ runtime under the University of Illinois/NCSA Open Source License.</string>
   <string name="license_show_notice">Show LICENSE and NOTICE</string>

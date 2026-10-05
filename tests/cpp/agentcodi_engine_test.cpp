@@ -997,22 +997,10 @@ int main(int argc, char* argv[]) {
           "PATH=\"/private/tool-bin:/private/native:/system/bin:/system/xbin\"")
           == std::string::npos,
       "real packaged tool ELF directory excluded from Codex command search");
-  expect(joined_arguments.find("AGENTCODI_TOOLCHAIN=\"/private/workspace/toolchain\"")
-             != std::string::npos,
-         "Codex tools receive the bounded workspace toolchain path");
-  expect(joined_arguments.find("AGENTCODI_TOOLCHAIN_COMMAND=\"agentcodi-toolchain\"")
-             != std::string::npos,
-         "Codex tools receive the installation interface name");
-  expect(joined_arguments.find("AGENTCODI_TOOL_BIN=\"/private/tool-bin\"")
-             != std::string::npos,
-         "Codex tools receive the dedicated packaged tool path");
-  expect(joined_arguments.find("AGENTCODI_TOOL_RUNTIME=\"/private/tool-runtime\"")
-             != std::string::npos,
-         "Codex tools receive the verified packaged runtime path");
-  expect(joined_arguments.find(
-             "AGENTCODI_TOOLCHAIN_PACKAGES=\"node,npm,python,ripgrep\"")
-             != std::string::npos,
-         "Codex tools receive all packaged tool names");
+  expect(joined_arguments.find("AGENTCODI_TOOLCHAIN") == std::string::npos
+             && joined_arguments.find("AGENTCODI_TOOL_RUNTIME") == std::string::npos
+             && joined_arguments.find("AGENTCODI_NODE_VERSION") == std::string::npos,
+         "retired APK tool paths, activation interface and versions are absent");
   expect(joined_arguments.find("AGENTCODI_SHELL_PATH") == std::string::npos
              && joined_arguments.find("AGENTCODI_NODE_PATH") == std::string::npos,
          "mutable executable path overrides are excluded from tool commands");
@@ -1713,9 +1701,10 @@ int main(int argc, char* argv[]) {
     config.executable = "/system/bin/sh";
     config.code_mode_host_executable = "/system/bin/sh";
     config.shell_executable = "/system/bin/sh";
-    config.node_executable = "/system/bin/sh";
-    config.python_executable = "/system/bin/sh";
-    config.ripgrep_executable = "/system/bin/sh";
+    // Missing retired payloads must never block the supervisor.
+    config.node_executable = "/missing/retired-node";
+    config.python_executable = "/missing/retired-python";
+    config.ripgrep_executable = "/missing/retired-ripgrep";
     config.working_directory = workspace;
     config.toolchain_directory = toolchain;
     config.tool_binary_directory = tool_binary;
@@ -1789,9 +1778,9 @@ int main(int argc, char* argv[]) {
               == agentcodi::LineReadStatus::kLine,
           "read closed app-server PATH");
       expect(
-          child_path == package_prefix + "/bin:" + legacy_prefix + "/bin:" + tool_binary + ":/system/bin:/system/xbin"
+          child_path == package_prefix + "/bin:" + legacy_prefix + "/bin:" + "/system/bin:/system/xbin"
               && child_path.find("/system/lib64") == std::string::npos,
-          "app-server PATH gives user packages priority and preserves APK alias fallback");
+          "app-server PATH uses managed and user packages without retired aliases");
       std::string package_environment;
       expect(process->ReadLine(4096U, &package_environment, &error)
                  == agentcodi::LineReadStatus::kLine

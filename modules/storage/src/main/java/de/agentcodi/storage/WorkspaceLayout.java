@@ -133,6 +133,28 @@ public final class WorkspaceLayout {
         return toolRuntime;
     }
 
+    /**
+     * Removes stale app-created aliases after an APK update. This directory is
+     * no longer on PATH. Never follow a link or remove a user-created file.
+     */
+    public void retirePackagedToolAliases(File shellExecutable) throws IOException {
+        File shell = requirePackagedExecutable(shellExecutable);
+        for (String name : new String[] {
+            NODE_TOOL_ALIAS, NPM_TOOL_ALIAS, PYTHON_TOOL_ALIAS, PYTHON3_TOOL_ALIAS,
+            RIPGREP_TOOL_ALIAS, TOOLCHAIN_TOOL_ALIAS
+        }) {
+            Path alias = toolBin.toPath().resolve(name);
+            if (Files.isSymbolicLink(alias)) {
+                Path target = Files.readSymbolicLink(alias);
+                if (target.getFileName() != null
+                    && shell.getName().equals(target.getFileName().toString())) {
+                    Files.delete(alias);
+                }
+            }
+        }
+    }
+
+    // Legacy helpers retained until the subsequent source/API cleanup step.
     public void preparePackagedToolAliases(File shellExecutable) throws IOException {
         File canonicalShell = requirePackagedExecutable(shellExecutable);
         prepareToolAlias(NODE_TOOL_ALIAS, canonicalShell);

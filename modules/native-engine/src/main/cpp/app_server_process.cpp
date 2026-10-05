@@ -1941,29 +1941,6 @@ bool canonical_directory(
   return true;
 }
 
-bool validate_tool_alias(
-    const std::string& directory,
-    const char* name,
-    const std::string& expected_executable,
-    std::string* error) {
-  const std::string alias = directory + "/" + name;
-  struct stat alias_metadata {};
-  if (lstat(alias.c_str(), &alias_metadata) != 0
-      || !S_ISLNK(alias_metadata.st_mode)
-      || alias_metadata.st_uid != geteuid()
-      || alias_metadata.st_nlink != 1) {
-    *error = std::string("Packaged tool alias is invalid: ") + name;
-    return false;
-  }
-  char resolved[PATH_MAX];
-  if (realpath(alias.c_str(), resolved) == nullptr
-      || expected_executable != resolved) {
-    *error = std::string("Packaged tool alias target is invalid: ") + name;
-    return false;
-  }
-  return true;
-}
-
 bool validate_codex_configuration_files(
     const std::string& codex_home,
     std::string* error) {
@@ -2100,8 +2077,7 @@ std::string package_search_path(const ProcessConfig& config, const char* directo
 std::vector<std::string> tool_environment(const ProcessConfig& config) {
   const std::string prefix = config.package_prefix;
   const std::string path =
-      package_search_path(config, "bin") + config.tool_binary_directory
-      + ":/system/bin:/system/xbin";
+      package_search_path(config, "bin") + "/system/bin:/system/xbin";
   return {
       "HOME=" + config.home_directory,
       "PREFIX=" + prefix,
@@ -2119,15 +2095,6 @@ std::vector<std::string> tool_environment(const ProcessConfig& config) {
       "NODE_REPL_HISTORY=/dev/null",
       "SSL_CERT_DIR=/system/etc/security/cacerts",
       "AGENTCODI_WORKSPACE=" + config.working_directory,
-      "AGENTCODI_TOOLCHAIN=" + config.toolchain_directory,
-      "AGENTCODI_TOOL_BIN=" + config.tool_binary_directory,
-      "AGENTCODI_TOOL_RUNTIME=" + config.tool_runtime_directory,
-      "AGENTCODI_NODE_VERSION=24.18.0",
-      "AGENTCODI_NPM_VERSION=11.19.0",
-      "AGENTCODI_PYTHON_VERSION=3.14.6",
-      "AGENTCODI_RIPGREP_VERSION=15.2.0",
-      "AGENTCODI_TOOLCHAIN_COMMAND=agentcodi-toolchain",
-      "AGENTCODI_TOOLCHAIN_PACKAGES=node,npm,python,ripgrep",
   };
 }
 
@@ -2403,21 +2370,6 @@ std::shared_ptr<AppServerProcess> AppServerProcess::Start(
           "Terminal shell executable",
           &config.shell_executable,
           error)
-      || !canonical_regular_executable(
-          requested_config.node_executable,
-          "Node executable",
-          &config.node_executable,
-          error)
-      || !canonical_regular_executable(
-          requested_config.python_executable,
-          "Python executable",
-          &config.python_executable,
-          error)
-      || !canonical_regular_executable(
-          requested_config.ripgrep_executable,
-          "ripgrep executable",
-          &config.ripgrep_executable,
-          error)
       || !canonical_directory(
           requested_config.working_directory,
           "Workspace",
@@ -2535,54 +2487,13 @@ std::shared_ptr<AppServerProcess> AppServerProcess::Start(
     *error = "Packaged tool runtime must be private and separate";
     return nullptr;
   }
-  if (!validate_tool_alias(
-          config.tool_binary_directory,
-          "node",
-          config.shell_executable,
-          error)
-      || !validate_tool_alias(
-          config.tool_binary_directory,
-          "npm",
-          config.shell_executable,
-          error)
-      || !validate_tool_alias(
-          config.tool_binary_directory,
-          "python",
-          config.shell_executable,
-          error)
-      || !validate_tool_alias(
-          config.tool_binary_directory,
-          "python3",
-          config.shell_executable,
-          error)
-      || !validate_tool_alias(
-          config.tool_binary_directory,
-          "rg",
-          config.shell_executable,
-          error)
-      || !validate_tool_alias(
-          config.tool_binary_directory,
-          "agentcodi-toolchain",
-          config.shell_executable,
-          error)) {
-    return nullptr;
-  }
   if (!validate_codex_configuration_files(config.codex_home, error)) {
     return nullptr;
   }
   if (contains_path(config.working_directory, config.code_mode_host_executable)
       || contains_path(config.codex_home, config.code_mode_host_executable)
       || contains_path(config.working_directory, config.shell_executable)
-      || contains_path(config.codex_home, config.shell_executable)
-      || contains_path(config.working_directory, config.node_executable)
-      || contains_path(config.codex_home, config.node_executable)) {
-    *error = "Packaged executables must remain outside workspace and Codex home";
-    return nullptr;
-  }
-  if (contains_path(config.working_directory, config.python_executable)
-      || contains_path(config.codex_home, config.python_executable)
-      || contains_path(config.working_directory, config.ripgrep_executable)
-      || contains_path(config.codex_home, config.ripgrep_executable)) {
+      || contains_path(config.codex_home, config.shell_executable)) {
     *error = "Packaged executables must remain outside workspace and Codex home";
     return nullptr;
   }
@@ -2602,8 +2513,7 @@ std::shared_ptr<AppServerProcess> AppServerProcess::Start(
     }
     for (const std::string* executable : {
              &config.executable, &config.code_mode_host_executable,
-             &config.shell_executable, &config.node_executable,
-             &config.python_executable, &config.ripgrep_executable}) {
+             &config.shell_executable}) {
       if (executable->substr(0U, executable->find_last_of('/'))
           != config.library_directory) {
         *error = "Packaged executables must share the canonical native library directory";

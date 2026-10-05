@@ -118,63 +118,13 @@ public final class LicensesActivity extends Activity {
         );
         addLicenseCard(
             page,
-            R.string.license_node_runtime_title,
-            R.string.license_node_runtime_summary,
+            R.string.license_zlib_runtime_title,
+            R.string.license_zlib_runtime_summary,
             R.string.license_show_notice,
             new LicenseLoader() {
                 @Override
                 public String load() throws IOException {
-                    return "NODE.JS\n\n"
-                        + readAsset("third-party/node/NODE-LICENSE")
-                        + "\n\nC-ARES\n\n"
-                        + readAsset("third-party/node/CARES-LICENSE")
-                        + "\n\nICU\n\n"
-                        + readAsset("third-party/node/ICU-LICENSE")
-                        + "\n\nOPENSSL\n\n"
-                        + readAsset("third-party/node/OPENSSL-LICENSE")
-                        + "\n\nZLIB\n\n"
-                        + readAsset("third-party/node/ZLIB-LICENSE");
-                }
-            }
-        );
-        addLicenseCard(
-            page,
-            R.string.license_npm_runtime_title,
-            R.string.license_npm_runtime_summary,
-            R.string.license_show_notice,
-            new LicenseLoader() {
-                @Override
-                public String load() throws IOException {
-                    return readAsset("third-party/npm/NPM-LICENSES");
-                }
-            }
-        );
-        addLicenseCard(
-            page,
-            R.string.license_python_runtime_title,
-            R.string.license_python_runtime_summary,
-            R.string.license_show_notice,
-            new LicenseLoader() {
-                @Override
-                public String load() throws IOException {
-                    return readAsset("third-party/python/PYTHON-LICENSES");
-                }
-            }
-        );
-        addLicenseCard(
-            page,
-            R.string.license_ripgrep_runtime_title,
-            R.string.license_ripgrep_runtime_summary,
-            R.string.license_show_notice,
-            new LicenseLoader() {
-                @Override
-                public String load() throws IOException {
-                    return "PROVENANCE\n\n"
-                        + readAsset("third-party/ripgrep/PROVENANCE")
-                        + "\n\nDEPENDENCY INVENTORY\n\n"
-                        + readAsset("third-party/ripgrep/DEPENDENCIES")
-                        + "\n\nLICENSES\n\n"
-                        + readAsset("third-party/ripgrep/LICENSES");
+                    return readAsset("third-party/zlib/ZLIB-LICENSE");
                 }
             }
         );

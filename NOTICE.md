@@ -12,6 +12,20 @@ The local package tarball is accepted only at SHA-256 `44cee2f3a4a110fd79d4f7d61
 
 <!-- END CURRENT CODEX RUNTIME PINS -->
 
+## Current Package Edition payload
+
+Node.js, npm, Python and ripgrep and their exclusive dependency/library,
+runtime-archive, guard and license payloads are no longer bundled. Install
+these programs from the separate signed, source-built edition APT catalog.
+The Codex app-server and code-mode host need only Android system libraries;
+the host includes its own JavaScript engine. AGENTCODI's native engine and
+shell bridge retain LLVM libc++, and its PNG validator retains zlib 1.3.2.
+The complete zlib distributor notice is copied to
+`assets/third-party/zlib/ZLIB-LICENSE`; the libc++ notice remains in the
+packaged third-party notice. The bootstrap and its source/license inventory
+remain unchanged. The historical tool provenance below describes earlier
+regular-edition payloads and does not enumerate the current APK.
+
 ## Historical regular-edition runtime provenance
 
 AGENTCODI 0.7.1 pins the user-supplied Android ARM64 Codex CLI/app-server build `@mmmbuto/codex-cli-termux` `0.153.3-agentcodi.1`, including its matching `codex-code-mode-host` and the local Android sandbox supervisor. The archive is `mmmbuto-codex-cli-termux-0.153.3-agentcodi.1.tgz`, supplied in the adjacent `codex-termux` checkout and retained in the build cache under its SHA-256; `AGENTCODI_CODEX_ARCHIVE` may select another local location for those same pinned bytes. `scripts/update-codex-runtime.sh` verifies a supplied local package and updates its pins, source revisions, version displays and these provenance values together. There is no npm fallback. The reviewed local source snapshot is untagged at commit `a800c309ba36473ccb2097f5b1704914131a5ce5`, based on OpenAI Codex `rust-v0.153.2` at commit `657a993cbee87acf52d14b758ce49dbd46d1b8eb`. Package metadata, the executable version, and the source package metadata agree on `0.153.3-agentcodi.1`; this is an artifact pin, not a claim of an independently reproduced Rust build. OpenAI Codex is Copyright 2025 OpenAI; the original Android/Termux compatibility work is Copyright 2026 Davide A. Guglielmi. This is not an official OpenAI Android APK. The artifact is distributed under Apache License 2.0. Its complete original `LICENSE` and `NOTICE` files remain verbatim in `assets/third-party/codex/`, pinned at SHA-256 `d17f227e4df5da1600391338865ce0f3055211760a36688f816941d58232d8dc` and `8228749dd4dd6026baed0442f80e911308430478449285c865b188d97e6a013c`.

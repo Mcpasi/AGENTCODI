@@ -2,7 +2,7 @@
 
 Stand: 2026-10-05. Ausschließlich Branch `Mcpasi/package-edition`; kein Merge nach `main`.
 
-Die Checklisten zeigen den aktuellen Umsetzungsstand. Datierte Ergebnis- und Verifikationsabschnitte dokumentieren frühere Meilensteine; ihre Testzahlen, Artefakte und Prüfsummen gehören zum jeweils genannten Commit. Bootstrap, Startkatalog und öffentliches signiertes APT-Repository sind umgesetzt. Die npm-/Python-Pfade und die gemeinsame Prozessumgebung sind umgesetzt und in CI geprüft; die aktuellen Nachweise stehen im Ergebnisabschnitt „Gemeinsame Paketumgebung und npm-/Python-Pfade“. Die Paketdiagnose und die Workspace-Browser-/Import-/Export-Erweiterung sind umgesetzt; als nächster offener Umsetzungspunkt folgt die APK-Verkleinerung in Abschnitt 4. Echte Gerätetests bleiben gemäß Nutzeranweisung offen. Die APT-Veröffentlichung ist getrennt von einem GitHub-Release der APK.
+Die Checklisten zeigen den aktuellen Umsetzungsstand. Datierte Ergebnis- und Verifikationsabschnitte dokumentieren frühere Meilensteine; ihre Testzahlen, Artefakte und Prüfsummen gehören zum jeweils genannten Commit. Bootstrap, Startkatalog und öffentliches signiertes APT-Repository sind umgesetzt. Die npm-/Python-Pfade und die gemeinsame Prozessumgebung sind umgesetzt und in CI geprüft; die aktuellen Nachweise stehen im Ergebnisabschnitt „Gemeinsame Paketumgebung und npm-/Python-Pfade“. Die Paketdiagnose und die Workspace-Browser-/Import-/Export-Erweiterung sind umgesetzt; die nutzerinstallierbaren Übergangswerkzeuge sind aus dem APK entfernt. Als nächster offener Umsetzungspunkt folgt die vollständige Bereinigung der verbliebenen Legacy-Helfer und Transportparameter in Abschnitt 4. Echte Gerätetests bleiben gemäß Nutzeranweisung offen. Die APT-Veröffentlichung ist getrennt von einem GitHub-Release der APK.
 
 ## Ziel und feste Entscheidungen
 
@@ -734,13 +734,13 @@ Kein PR, Merge oder APK-Release; `main` bleibt unverändert.
 
 ## 4. Build verkleinern und veröffentlichbare Edition erstellen
 
-Bootstrap, Startkatalog, signierter Paketkanal und die gemeinsame Paketumgebung funktionieren in CI. Die npm-/Python-Pfadvoraussetzungen sind abgeschlossen. Die bisher enthaltenen nutzerinstallierbaren Pakete können im noch offenen Build-Schritt dieses Abschnitts entfernt werden.
+Bootstrap, Startkatalog, signierter Paketkanal und die gemeinsame Paketumgebung funktionieren in CI. Die npm-/Python-Pfadvoraussetzungen sind abgeschlossen. Die bisher enthaltenen nutzerinstallierbaren Pakete sind aus dem APK entfernt. Der aktive Startpfad nutzt ausschließlich die native Codex-Runtime und die installierte Paketbasis. Verbliebene ungenutzte Legacy-Quellen, Identitätskonstanten, Aktivierungs-/Transport-APIs und ihre alten privaten Datenverzeichnisse werden im folgenden Bereinigungsschritt behandelt.
 
-- [ ] Bundled Node.js, npm, Python, ripgrep und nur von ihnen benötigte Bibliotheken/Archive/Lizenzen aus dem APK entfernen.
-- [ ] Vorher Abhängigkeiten des App-Servers und Code-mode-Hosts auf diese Werkzeuge prüfen; zwingend notwendige Basiswerkzeuge im Bootstrap behalten.
+- [x] Bundled Node.js, npm, Python, ripgrep und nur von ihnen benötigte Bibliotheken/Archive/Lizenzen aus dem APK entfernen.
+- [x] Vorher Abhängigkeiten des App-Servers und Code-mode-Hosts auf diese Werkzeuge prüfen; zwingend notwendige Basiswerkzeuge im Bootstrap behalten.
 - [ ] PackagedToolRuntime, Tool-Alias-/Activation-/ELF-Attestor-Code und Runtime-Startvalidierung an den Paket-Bootstrap anpassen.
 - [ ] Build-Skript, Dockerfile, CI-Input-Manifest, Restore-/Preflight-Prüfungen und Cache-Schlüssel auf die minimalen Edition-Abhängigkeiten reduzieren.
-- [x] Eigene Debug-APK-Artefakte für diesen Branch erzeugen (`agentcodi-package-debug-apk`); keine regulären Main-Releases überschreiben. Die aktuelle APK enthält noch Übergangswerkzeuge; Verkleinerung und finale Veröffentlichung bleiben die übrigen offenen Schritte dieses Abschnitts.
+- [x] Eigene Debug-APK-Artefakte für diesen Branch erzeugen (`agentcodi-package-debug-apk`); keine regulären Main-Releases überschreiben. Das APK enthält jetzt keine Übergangswerkzeuge mehr; weitere Bereinigung und finale Veröffentlichung bleiben offen.
 - [ ] Architekturchecks und Java-/C++-/Android-Smokes auf den endgültigen Paketvertrag ausrichten.
 - [ ] Notices, README, SECURITY und Build-Dokumentation mit der tatsächlich ausgelieferten Paketbasis abgleichen.
 - [ ] Installations-/Update-Test inklusive niedrigem Target SDK, Foreground Service, Notifications, Login, Dateiauswahl und Backups durchführen.
@@ -757,7 +757,7 @@ Erfolgreicher [GitHub-Actions-Lauf](https://github.com/Mcpasi/AGENTCODI/actions/
 
 Zusätzlich deckt ein Terminal-Shell-Test den Vorrang selbst installierter Programme gegenüber früheren festen Shell-Funktionen ab.
 
-Alle Repository-Zugriffe und Änderungen erfolgen ausschließlich über den GitHub Connector. Die Community-Anbindung aus Abschnitt 2, der minimale Paket-Bootstrap und die Startkatalog-CI aus Abschnitt 3 sind umgesetzt. Das signierte Paketrepository ist einschließlich öffentlicher HTTPS-Veröffentlichung und ARM64-/APT-Laufzeittests umgesetzt. Katalogerweiterung, verkleinerter Build und echte Gerätetests folgen in Abschnitt 3/4. Die ursprünglichen Verifikationsangaben oben beschreiben den vorausgehenden Grundlagenabschnitt.
+Alle Repository-Zugriffe und Änderungen erfolgen ausschließlich über den GitHub Connector. Die Community-Anbindung aus Abschnitt 2, der minimale Paket-Bootstrap und die Startkatalog-CI aus Abschnitt 3 sind umgesetzt. Das signierte Paketrepository ist einschließlich öffentlicher HTTPS-Veröffentlichung und ARM64-/APT-Laufzeittests umgesetzt. Weitere Katalogerweiterung, vollständige Legacy-Quell-/API-Bereinigung und echte Gerätetests folgen in Abschnitt 3/4. Die ursprünglichen Verifikationsangaben oben beschreiben den vorausgehenden Grundlagenabschnitt.
 
 ## Historische Verifikation der Community-Anbindung
 
@@ -770,3 +770,52 @@ Geprüfter Implementierungscommit: `1fed889377c980f66cdd6eabc0dba2dbcce0b9de`.
 - `main` bleibt auf `ff27ec7c30d373a864e845e9a7ceeae3380dd103`. Kein PR, Merge oder GitHub-Release der APK wurde eingereicht.
 
 Das [Debug-APK-Artefakt](https://github.com/Mcpasi/AGENTCODI/actions/runs/37165001114/artifacts/11289032769) enthält `AGENTCODI-Package-0.1.0-package.1-arm64-v8a-debug.apk` (149 MiB; SHA-256 `2ebf610159251aea8caa3766d19ded24399efcd05360f19160aab68833529247`). Signatur, Alignment, Application-ID, ABI und enthaltene Runtime wurden erfolgreich geprüft. Dies ist ein CI-Artefakt; ein öffentliches GitHub-Release der finalen APK aus Abschnitt 4 wurde nicht erstellt.
+
+## Entfernung der APK-Übergangswerkzeuge — 2026-10-05
+
+Umgesetzt ausschließlich auf `Mcpasi/package-edition`. Node.js, npm, Python
+und ripgrep einschließlich ihrer ausschließlich benötigten Bibliotheken,
+Python-Erweiterungen, npm-/Python-Archive und Lizenzassets werden weder
+heruntergeladen noch im APK ausgeliefert. Die Build-Input-Liste enthält
+jetzt 13 statt 33 Downloads. AAPT2-Abhängigkeiten sind ausschließlich
+Build-Werkzeuge. libc++ bleibt für den nativen App-Code; zlib bleibt für
+die PNG-Prüfung und erhält ein eigenes vollständiges Lizenzasset.
+
+Die Community-ELFs benötigen dynamisch ausschließlich Android-Systembibliotheken;
+der Code-mode-Host enthält seine eigene JavaScript-Laufzeit. Shell, APT/dpkg,
+Zertifikate und ihre Abhängigkeiten bleiben im unveränderten Editions-Bootstrap.
+Die APK-Assembly prüft die genaue Menge von sechs nativen Dateien, löst jede
+ELF-Abhängigkeit gegen diese Menge oder Android-Systembibliotheken auf und
+vergleicht sämtliche ausgelieferten nativen Bytes mit der geprüften Assembly.
+Ausgemusterte Tool-Assets werden ausdrücklich zurückgewiesen.
+
+Die aktive Shell reicht Befehle direkt an Androids Shell weiter. App-Server,
+Codex, Terminal und stdio-MCP verwenden `files/usr/bin`, dann
+`$HOME/.local/bin`, dann Android-Systembefehle; `tool-bin` und frühere
+APK-Versions-/Aktivierungsvariablen entfallen aus der Prozessumgebung.
+Der Supervisor startet ohne Node-/Python-/ripgrep-ELFs oder Tool-Aliase.
+Die Java-Startlogik entpackt keinen alten Tool-Runtime-Asset mehr und entfernt
+nur erkannte app-erzeugte Aliase, auch nach einem geänderten APK-Installationspfad.
+Fremde Links, reguläre Dateien und Nutzerpakete bleiben erhalten.
+Ein neuer Java-Test prüft diese idempotente Migration.
+
+Die aktiven Architekturprüfungen und ARM64/Bionic-Smokes prüfen den minimalen
+APK-Vertrag, PTY, Imports, Präfixvorrang, persistente Nutzerprogramme,
+gemeinsame stdio-MCP-Umgebung und Runtime-Neustart. Reale npm-/Python-
+Paketinstallationen bleiben durch die bereits dokumentierte separate
+Paketkatalog-CI abgedeckt. README und deutsche/englische UI-/Lizenztexte
+beschreiben den neuen Lieferumfang; historische Notices bleiben als historische
+Provenienz getrennt erhalten.
+
+Dieser Schritt entfernt den APK-Payload und passt den notwendigen aktiven
+Startpfad an. Ungenutzter PackagedToolRuntime-/Activation-/ELF-Attestor-Quellcode,
+alte BuildIdentity-Konstanten und reservierte Transportparameter/-verzeichnisse
+bleiben für den nächsten ausdrücklich offenen Bereinigungspunkt erhalten;
+sie werden nicht für die neue Shell gebaut oder als Tool-Payload ausgeliefert.
+Die anschließenden Docker-/Preflight-/Cache- und vollständigen Lizenzabgleiche
+sind weiterhin eigene offene Punkte. Alte entpackte Laufzeitdaten werden
+nicht automatisch gelöscht.
+
+CI-Nachweise werden nach Abschluss der neu gestarteten Tests-/APK-Läufe ergänzt.
+Gerätetests werden gemäß Nutzeranweisung übersprungen und bleiben offen.
+Kein PR, Merge oder APK-Release; `main` bleibt unverändert.

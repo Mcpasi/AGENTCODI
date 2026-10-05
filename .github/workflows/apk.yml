@@ -3,7 +3,7 @@
 # scripts/build-debug-apk.sh runs inside a container that reproduces
 # the build host: Ubuntu arm64 for every required command, the Termux prefix
 # for the pinned LLVM toolchain, and the Android linker so the packaged bionic
-# binaries (aapt2, patchelf, Python, the Codex app-server) can execute.
+# binaries (aapt2, patchelf and the Codex app-server) can execute.
 # See .github/ci/Dockerfile.
 #
 # Manual runs default to a preflight-only run, because the

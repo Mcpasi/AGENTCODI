@@ -9,6 +9,8 @@ public final class BuildIdentity {
     public static final String CODEX_RUNTIME_LIBRARY = "libcodex.so";
     public static final String CODEX_CODE_MODE_HOST_LIBRARY = "libcodex-codehost.so";
     public static final String TERMINAL_SHELL_LIBRARY = "libagentcodi-shell.so";
+    // Retired regular-edition pins; unused by the active Package Edition start.
+    // Kept until the following legacy API/source cleanup.
     public static final String NODE_RUNTIME_VERSION = "24.18.0";
     public static final String NODE_RUNTIME_LIBRARY = "libnode.so";
     public static final String NPM_RUNTIME_VERSION = "11.19.0";

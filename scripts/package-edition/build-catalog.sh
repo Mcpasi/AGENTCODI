@@ -8,14 +8,9 @@ cd /home/builder/termux-packages
 test "$TERMUX_PREFIX" = /data/data/de.agentcodi.pkg/files/usr
 test "$TERMUX_PKG_API_LEVEL" = 29
 export TERMUX_PKG_MAKE_PROCESSES=4
-mapfile -t roots < <(python3 - "$group" <<'PY'
-import json, sys
-from pathlib import Path
-catalog = json.loads(Path("/audit/scripts/package-edition/catalog.json").read_text())
-for name in catalog["groups"][sys.argv[1]]:
-    print(name)
-PY
-)
+roots_text="$(python3 /audit/scripts/package-edition/catalog-build-roots.py --recipes "$PWD" --group "$group")"
+test -n "$roots_text"
+mapfile -t roots <<< "$roots_text"
 (( ${#roots[@]} > 0 ))
 ./agentcodi-build-package.sh dash bash ca-certificates dpkg apt "${roots[@]}"
 python3 /audit/scripts/package-edition/audit-catalog.py --debs ./output --output /catalog --group "$group"

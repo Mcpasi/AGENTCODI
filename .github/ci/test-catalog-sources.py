@@ -12,6 +12,10 @@ spec = importlib.util.spec_from_file_location("sources", HERE / "scripts/package
 sources = importlib.util.module_from_spec(spec)
 spec.loader.exec_module(sources)
 
+roots_spec = importlib.util.spec_from_file_location("roots", HERE / "scripts/package-edition/catalog-build-roots.py")
+roots = importlib.util.module_from_spec(roots_spec)
+roots_spec.loader.exec_module(roots)
+
 class CatalogSourcesTest(unittest.TestCase):
     def test_static_build_dependency_retains_parent_recipe_and_source(self):
         with tempfile.TemporaryDirectory() as directory:
@@ -82,6 +86,33 @@ class CatalogSourcesTest(unittest.TestCase):
             (output / "bootstrap-report.json").write_text(json.dumps(current))
             with self.assertRaisesRegex(ValueError, "retained source recipe"):
                 sources.reuse(source, output)
+
+    def test_selected_subpackage_builds_its_parent_once(self):
+        with tempfile.TemporaryDirectory() as directory:
+            root = Path(directory)
+            for name in ("python", "npm"):
+                package = root / "packages" / name
+                package.mkdir(parents=True)
+                (package / "build.sh").write_text("# source recipe\n")
+            (root / "packages/python/python-ensurepip-wheels.subpackage.sh").write_text("# wheels\n")
+            selected = ["python", "python-ensurepip-wheels", "python-static", "npm"]
+            self.assertEqual(["python", "npm"], roots.resolve(root, selected))
+            self.assertEqual(["python", "python-ensurepip-wheels", "python-static", "npm"], selected)
+
+    def test_unknown_and_ambiguous_packages_cannot_fall_back_to_binary_repositories(self):
+        with tempfile.TemporaryDirectory() as directory:
+            root = Path(directory)
+            for name in ("one", "two"):
+                package = root / "packages" / name
+                package.mkdir(parents=True)
+                (package / "build.sh").write_text("# source recipe\n")
+                (package / "shared.subpackage.sh").write_text("# conflicting parent\n")
+            for selected, message in ((["unknown"], "No source recipe"),
+                                      (["shared"], "Ambiguous source recipe"),
+                                      (["../one"], "Invalid selected package"),
+                                      ([], "Empty catalog")):
+                with self.assertRaisesRegex(ValueError, message):
+                    roots.resolve(root, selected)
 
 if __name__ == "__main__":
     unittest.main()

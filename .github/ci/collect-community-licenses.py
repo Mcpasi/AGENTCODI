@@ -57,6 +57,9 @@ def main():
         candidates = files(root)
         if p.get("license_file"):
             candidates.append(root / p["license_file"])
+        if p.get("source") is None:
+            root = args.codex
+            candidates.extend([root / "LICENSE", root / "NOTICE"])
         package = locked[(p["name"], p["version"])]
         add({"kind": "cargo-normal-closure", "name": p["name"], "version": p["version"],
              "license": p.get("license"), "repository": p.get("repository"),

@@ -170,6 +170,10 @@
         {
           "old": "termux_step_post_make_install() {",
           "new": "# GnuPG 2.5 no longer provides --enable-gpgv-only. Build the explicit\n# verifier target and its static libraries; install no agents or signing tools.\ntermux_step_make() {\n\tmake -j\"$TERMUX_PKG_MAKE_PROCESSES\" -C common libcommon.a libcommonpth.a libgpgrl.a\n\tmake -j\"$TERMUX_PKG_MAKE_PROCESSES\" -C regexp libregexp.a\n\tmake -j\"$TERMUX_PKG_MAKE_PROCESSES\" -C kbx libkeybox.a\n\tmake -j\"$TERMUX_PKG_MAKE_PROCESSES\" -C g10 gpgv\n}\n\ntermux_step_make_install() {\n\tinstall -Dm700 g10/gpgv \"$TERMUX_PREFIX/bin/gpgv\"\n}\n\ntermux_step_post_make_install() {"
+        },
+        {
+          "old": "TERMUX_PKG_VERSION=\"2.5.24\"",
+          "new": "TERMUX_PKG_VERSION=\"2.5.24\"\nTERMUX_PKG_REVISION=1"
         }
       ]
     },
@@ -224,6 +228,36 @@
         {
           "old": "\t\t$TERMUX_PKG_SRCURL .\n\tcp -f",
           "new": "\t\t$TERMUX_PKG_SRCURL .\n\t# Pin this custom clone too; it bypasses the common Git-source hook.\n\ttest \"$(git rev-parse HEAD)\" = 1cbcdf624c248c66cd6153311d3e681ba1f9ff2a || termux_error_exit \"Pinned libandroid-selinux source mismatch\"\n\tcp -f"
+        }
+      ]
+    },
+    {
+      "path": "scripts/build/termux_create_debian_subpackages.sh",
+      "upstream_blob": "47e1c2d49fc99b282e7b18764d37cb3488309c5d",
+      "replacements": [
+        {
+          "old": "\t\tsource \"$subpackage\"\n",
+          "new": "\t\tsource \"$subpackage\"\n\n\t\t# AGENTCODI: executable subpackages retain their parent's original legal files.\n\t\tcase \"$SUB_PKG_NAME\" in\n\t\t\tbzip2|gpgv|xz-utils)\n\t\t\t\tparent_legal=\"share/doc/$TERMUX_PKG_NAME\"\n\t\t\t\ttest -d \"$parent_legal\" || termux_error_exit \"Missing parent legal material: $TERMUX_PKG_NAME\"\n\t\t\t\tmkdir -p \"share/doc/$SUB_PKG_NAME\"\n\t\t\t\tcp -a \"$parent_legal/.\" \"share/doc/$SUB_PKG_NAME/\"\n\t\t\t\tTERMUX_SUBPKG_INCLUDE+=\" share/doc/$SUB_PKG_NAME/\"\n\t\t\t\t;;\n\t\tesac\n"
+        }
+      ]
+    },
+    {
+      "path": "packages/libbz2/build.sh",
+      "upstream_blob": "7f14a127f1bd716589fe5bc0c48c7b6e4b9c6f54",
+      "replacements": [
+        {
+          "old": "TERMUX_PKG_REVISION=8",
+          "new": "TERMUX_PKG_REVISION=9"
+        }
+      ]
+    },
+    {
+      "path": "packages/liblzma/build.sh",
+      "upstream_blob": "e275f47608825751cdfd68b7366df7b2434b09a0",
+      "replacements": [
+        {
+          "old": "TERMUX_PKG_VERSION=\"5.8.4\"",
+          "new": "TERMUX_PKG_VERSION=\"5.8.4\"\nTERMUX_PKG_REVISION=1"
         }
       ]
     }

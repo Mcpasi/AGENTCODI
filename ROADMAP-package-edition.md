@@ -13,9 +13,32 @@ Urheberhinweise und Lizenzdateien bleiben enthalten. Der APK-Vertrag prüft
 Quellen-/Versionsabdeckung, Paketmanifeste, Lizenzdateien und alle Lieferbytes.
 Regressionen verhindern unbemerkten Hinweisverlust und neue MPL-Abhängigkeiten
 ohne aktualisierte Quellen. APT-Rezepte, Bootstrap-Build-Eingaben und Katalogpakete
-werden hierfür nicht verändert. CI-/APK-Nachweise werden nach Abschluss ergänzt.
+werden hierfür nicht verändert.
+
+Für Implementierungscommit `e6303b269c7229d439ae13ad0c073262ad343e31` sind alle
+sieben Jobs des [Tests-Laufs 37533009175](https://github.com/Mcpasi/AGENTCODI/actions/runs/37533009175)
+und alle vier Jobs des [signierten Release-APK-Laufs 37533013532](https://github.com/Mcpasi/AGENTCODI/actions/runs/37533013532)
+erfolgreich. Lokal bestehen die neun MPL-Regressionen, die 22 APK-Vertragstests
+und die Architekturprüfung. Der Release-Build verwendet den vorhandenen,
+geprüften Bootstrap aus Lauf `37493949315`; kein APT-Katalog und keine Pakete
+wie Python, ripgrep, Git oder Node werden neu gebaut.
+
+Der [Vertragsbericht des fertigen APK](https://github.com/Mcpasi/AGENTCODI/actions/runs/37533013532/artifacts/11445870275)
+bestätigt `license_release_ready: true`, keine Lizenzblocker und vollständige
+Abdeckung der zwölf MPL-Komponenten durch elf Originalquellarchive. Die drei
+MPL-Assets im APK stimmen bytegenau mit dem Commit überein. Das
+[signierte APK](https://github.com/Mcpasi/AGENTCODI/actions/runs/37533013532/artifacts/11444709902)
+hat SHA-256 `028679df0ebeb2f1a5f9d8b373320122cba1778e67e0f198ac877c2771bc25ed`;
+`MPL-SOURCES.zip` hat SHA-256
+`cdcc940563e3e267fbca5343f08e118785b21018eda598a957382cb2a310a174`.
+Der Bericht wurde zusätzlich heruntergeladen und seine MPL-Asset-Prüfsummen
+mit den lokalen Dateien abgeglichen. Ein direkter vollständiger APK-Download
+in diese Arbeitsumgebung scheitert an HTTP 403; die Prüfung der tatsächlichen
+APK-Inhalte erfolgte im erfolgreichen Release-Job.
+
 Der Nutzer meldet die bisherigen Release-APK-Gerätetests einschließlich APT bis
-MCP als bestanden; die neue Quellen-Speicherfunktion wurde damit noch nicht geprüft.
+MCP als bestanden. Die neue Quellen-Speicherfunktion ist in CI erfolgreich
+kompiliert, aber noch nicht auf einem Android-Gerät geprüft.
 
 Die Checklisten zeigen den aktuellen Umsetzungsstand. Datierte Ergebnis- und Verifikationsabschnitte dokumentieren frühere Meilensteine; ihre Testzahlen, Artefakte und Prüfsummen gehören zum jeweils genannten Commit. Bootstrap, Startkatalog und öffentliches signiertes APT-Repository sind umgesetzt. Die npm-/Python-Pfade und die gemeinsame Prozessumgebung sind umgesetzt und in CI geprüft; die aktuellen Nachweise stehen im Ergebnisabschnitt „Gemeinsame Paketumgebung und npm-/Python-Pfade“. Die Paketdiagnose und die Workspace-Browser-/Import-/Export-Erweiterung sind umgesetzt; die nutzerinstallierbaren Übergangswerkzeuge sind aus dem APK entfernt. Die verbliebenen Legacy-Helfer und Transportparameter sind bereinigt. Build-Skript, Dockerfile, CI-Inputs, Restore-/Preflight-Prüfungen und Cache-Schlüssel sind auf die aktiven Edition-Abhängigkeiten reduziert. Der endgültige Test-/Payloadvertrag und der Abgleich der gelieferten Lizenzmaterialien sind umgesetzt; die aktuellen Nachweise stehen im Ergebnisabschnitt „Finaler Testvertrag und Lizenzabgleich“. Die Community-Rust-/V8-Abhängigkeitstexte und die drei paketlokalen Bootstrap-Lizenzzuordnungen sind ergänzt; Quellen-, Versions- und Artefaktbindungen werden im APK-Vertrag geprüft. Der neue Ergebnisabschnitt „Ergänzung der fehlenden Lizenzen“ dokumentiert diesen Stand. Der Nutzer meldet erfolgreiche Paketinstallation und -benutzung auf einem Gerät; die vollständige Gerätevalidierung und der Gerätetest des MCP-Freigabefixes bleiben offen. Die APT-Veröffentlichung ist getrennt von einem GitHub-Release der APK.
 

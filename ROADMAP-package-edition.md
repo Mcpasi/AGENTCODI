@@ -1379,8 +1379,7 @@ nicht automatisch private Chats, Zugangsdaten oder installierte Pakete;
 Deinstallation löscht private App-Daten. Spätere APKs mit dem stabilen
 Zertifikat und höherem Versionscode erfüllen die Signaturvoraussetzung.
 Physische Installations-, Update- und Datenerhaltungsprüfungen bleiben gemäß
-Nutzeranweisung übersprungen/offen. CI- und APK-Nachweise dieses Fixes folgen
-nach Abschluss der neuen Läufe. Ausschließlich `Mcpasi/package-edition`,
+Nutzeranweisung übersprungen/offen. Die abgeschlossenen CI- und APK-Nachweise dieses Fixes stehen unten. Ausschließlich `Mcpasi/package-edition`,
 kein PR, kein Merge nach `main`.
 
 Der erste [erweiterte Testlauf 37502585222](https://github.com/Mcpasi/AGENTCODI/actions/runs/37502585222)
@@ -1394,3 +1393,48 @@ Versionscode. Der Test liest beide tatsächlichen APK-Identitäten mit
 Die Korrektur betrifft ausschließlich Test-/Dokumentationsdateien; die
 App-/Signer-/Versions-/Payload-Dateien auf `5f0632e4286823b6b52a73282c305545d589f6b5`
 bleiben unverändert.
+
+### Verifikation der stabilen Debug-Signierung
+
+App-/Signer-/Versions-/Payload-Commit:
+`5f0632e4286823b6b52a73282c305545d589f6b5`.
+Die korrigierte Testfixture und deren Dokumentation liegen auf
+`d92f1ac6f09be5b1b6313d096563ecc48b4df69b`; der Vergleich dieser
+Commits zeigt ausschließlich Test-/Dokumentationsänderungen, keinen
+geänderten APK-Lieferumfang.
+
+[Tests-Lauf 37503097714](https://github.com/Mcpasi/AGENTCODI/actions/runs/37503097714)
+besteht alle sieben Jobs: 325 Java-Tests, sieben portable C++-Suiten,
+Architektur-/Paket-/Toolchain-Verträge, Android-Quellen/Ressourcen gegen
+API 35, Community-Release-Inspektion und echte ARM64/Bionic-Runtime.
+Alle fünf neuen Signierungsregressionen bestehen. Die tatsächlichen
+Fixture-APKs haben dieselbe App-ID und `versionCode 3 → 4`; ihre
+Signaturen sind mit dem SDK-apksigner geprüft und verwenden beide
+`a40da80a59d170caa950cf15c18c454d47a39b26989d8b640ecd745ba71bf5dc`.
+
+[APK-Lauf 37502586391](https://github.com/Mcpasi/AGENTCODI/actions/runs/37502586391)
+ist vollständig erfolgreich: geprüfte Bootstrap-Wiederverwendung,
+ARM64/Bionic-Smoke und vollständiger APK-Bau. Der Build wiederholt alle
+Hosttests (325 Java-Tests, unter anderem 294 Engine- und 674
+Terminal-Bootstrap-Assertions) und die Architekturverträge.
+Die fertige `de.agentcodi.pkg`-APK meldet `versionCode 3`,
+`versionName 0.1.0-package.3` und tatsächlich den gepinnten
+AOSP-Testsignierer
+`a40da80a59d170caa950cf15c18c454d47a39b26989d8b640ecd745ba71bf5dc`.
+Signatur, Alignment, ABI, Payload und ausgelieferte Lizenzbytes sind geprüft;
+der Payload-/Lizenzvertrag meldet innerhalb seines Umfangs null Blocker.
+
+- [APK-Artefakt](https://github.com/Mcpasi/AGENTCODI/actions/runs/37502586391/artifacts/11430427890):
+  `AGENTCODI-Package-0.1.0-package.3-arm64-v8a-debug.apk`.
+- APK-Datei-SHA-256:
+  `3816238666301182bae8d53d4534c67a19ee16442580f111ac971e76b2e6e430`.
+- [Payload-/Lizenzbericht](https://github.com/Mcpasi/AGENTCODI/actions/runs/37502586391/artifacts/11430582818).
+
+Der abschließende Dokumentationsabgleich ändert nur Roadmap, Changelog,
+Security Policy und NOTICE-Provenienz; die geprüfte App und ihr Lieferumfang
+bleiben unverändert. Die Signierungsfixture und dieser Build ersetzen keine
+physische Android-Update-/Datenerhaltungsprüfung. Der Schlüsselwechsel
+von einer früheren zufälligen CI-Identität bleibt ohne Originalschlüssel
+ein einmaliger Wechsel durch gesicherte Neuinstallation.
+Kein PR, Merge oder finales APK-Release. `main` bleibt unverändert auf
+`ff27ec7c30d373a864e845e9a7ceeae3380dd103`.

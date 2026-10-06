@@ -54,6 +54,16 @@ debug APKs are official branch CI artifacts, not final releases. When testing
 one, verify its `Mcpasi/package-edition` commit and successful build run and
 include both in a report.
 
+From `0.1.0-package.3`, development APKs use a
+[public AOSP test signing identity](scripts/debug-signing/README.md) to keep the
+same certificate across cold builds. Its signature does not authenticate an
+official artifact: verify the branch commit, successful CI run and APK SHA-256
+published by that run. The release builder requires an external private key
+and rejects this public certificate. Earlier CI builds used random debug keys
+that were not retained; switching an existing installation requires its original
+private key or a verified data export before removal and reinstallation.
+Physical Android update/data-retention validation remains open.
+
 ## Reporting a vulnerability
 
 Please use GitHub's

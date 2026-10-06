@@ -6,6 +6,8 @@
 - Keep old local debug keystores untouched. Reject the public development certificate in the external private-key release path.
 - Add real APK signing regression coverage for independent cold builds with a higher versionCode, an existing legacy cache key, missing/modified material and the release rejection.
 - Align Java, manifest, build, architecture and native version pins at `0.1.0-package.3` / code 3.
+- Validation: [Tests CI](https://github.com/Mcpasi/AGENTCODI/actions/runs/37503097714) passed all seven jobs, including the five signing regressions. [APK build](https://github.com/Mcpasi/AGENTCODI/actions/runs/37502586391) passed with the pinned actual signer, code 3, and final payload/license checks.
+- [Debug APK artifact](https://github.com/Mcpasi/AGENTCODI/actions/runs/37502586391/artifacts/11430427890); APK SHA-256: `3816238666301182bae8d53d4534c67a19ee16442580f111ac971e76b2e6e430`.
 - Existing randomly signed CI installations cannot upgrade to the new identity without their original private key. Export and verify required data before the one-time removal/reinstallation; private app data is deleted by uninstalling. Future APKs retain the same debug signing identity. Physical device update tests remain open.
 
 

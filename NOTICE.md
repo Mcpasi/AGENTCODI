@@ -6,6 +6,8 @@ Historically, the Android sandbox backend, seccomp/ptrace supervisor and their i
 
 <!-- BEGIN CURRENT CODEX RUNTIME PINS -->
 
+The following Package Edition runtime pin was introduced in `0.1.0-package.1` and applies to later development versions while these pins remain unchanged.
+
 AGENTCODI Package Edition 0.1.0-package.1 pins the Community Android ARM64 Codex CLI/app-server build `@mmmbuto/codex-cli-termux` `0.156.1-termux.1`, including its matching `codex-code-mode-host`. The archive is `mmmbuto-codex-cli-termux-0.156.1-termux.1.tgz`, downloaded from the pinned DioNanos GitHub release or supplied locally, and retained in the build cache under its SHA-256; `AGENTCODI_CODEX_ARCHIVE` may select another local location for those same pinned bytes. `scripts/update-codex-runtime.sh` verifies a supplied local package and updates its pins, source revisions, version displays and these provenance values together. There is no npm fallback. The reviewed Community source snapshot is v0.156.1-termux.1 at commit `ea762071ec4acbf1531fcc7daf47524836f70a09`, based on OpenAI Codex `rust-v0.156.1` at commit `b412ff32c417f855c2b2d1581b77058eed87c84b`. Package and source metadata agree on `0.156.1-termux.1`; the executable reports its upstream version `codex-cli 0.156.1`; this is an artifact pin, not a claim of an independently reproduced Rust build. OpenAI Codex is Copyright 2025 OpenAI; the original Android/Termux compatibility work is Copyright 2026 Davide A. Guglielmi; the historical Mcpasi sandbox fork is not selected by this edition. This is not an official OpenAI Android APK. The artifact is distributed under Apache License 2.0. Its complete original `LICENSE` and `NOTICE` files remain verbatim in `assets/third-party/codex/`, pinned at SHA-256 `d17f227e4df5da1600391338865ce0f3055211760a36688f816941d58232d8dc` and `8228749dd4dd6026baed0442f80e911308430478449285c865b188d97e6a013c`.
 
 The local package tarball is accepted only at SHA-256 `44cee2f3a4a110fd79d4f7d61378d46fd72406f45cffb3163e809d63e86d946a`. Android installs executable APK payloads from the native-library directory under `lib<name>.so` names, while this Codex build expects the sibling name `codex-code-mode-host`. AGENTCODI therefore makes one equal-length data-field substitution in the verified app-server at byte offset `10568364`: `codex-code-mode-host` becomes `libcodex-codehost.so`. The unmodified input app-server, matching unmodified host, and resulting Android app-server are pinned at SHA-256 `6cbfa7f1660095e9cf2df7de242014579a0fb0d42545652fb0e22d1b6c8571a5`, `8afb196579c3fd8ecac558dbebfcba5467f91389b3754e485728ce6904e6ceaf`, and `cf1b406252928b0d68cb0f8f81adde6a02bf357a7fffb762d10cb503a235be06`, respectively. The app-server JSON schema bundle and v2 bundle are expected to retain SHA-256 `eb1ba91bd0fab656523092f6ed7de3ea7aef278921a650f14dc871ae7dcfaf84` and `995fc3b8f8c469f6787e8fc5be4038c4f31359025edd8480b862e83355f3bf3b`; the updater regenerates and verifies these schema bundles from the supplied Android ELF before accepting the update. No other artifact bytes are changed during integration. Original AGENTCODI Java/C++ code remains distinct from this compiled third-party runtime.
@@ -173,3 +175,18 @@ The XZ source summary explicitly identifies liblzma as 0BSD and describes
 the additional GPL/LGPL portions of the toolset. Its original COPYING.0BSD is
 retained alongside COPYING and the GNU GPL/LGPL texts in liblzma/xz-utils. The liblzma and GnuPG revisions
 are 2, distinguishing these original-text payloads from earlier CI builds.
+
+## Development APK signing fixture
+
+Package Edition development APKs from `0.1.0-package.3` use the public AOSP
+`testkey` identity solely for repeatable debug signing. Its certificate is
+embedded in APK signatures; its intentionally public PKCS#8 test key is a
+build input and is not packaged as an app asset. It does not authenticate an
+official release and is explicitly rejected by the private-key release path.
+
+The original pair and development-only instructions are from
+[`aosp-mirror/platform_build`](https://github.com/aosp-mirror/platform_build/tree/045a3d6a3e359633a14853a5a5e1e4f2a11cbdae/target/product/security)
+at `045a3d6a3e359633a14853a5a5e1e4f2a11cbdae`. The source package declares
+`Android-Apache-2.0`. Source blobs, SHA-256 pins, upstream instructions and
+the Apache 2.0 terms are retained under
+[`scripts/debug-signing`](scripts/debug-signing/README.md).

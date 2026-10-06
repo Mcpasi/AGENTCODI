@@ -69,4 +69,15 @@ for component in [application] + list(application):
 assert (build / "classes/de/agentcodi/app/R.class").is_file(), "Java resource namespace"
 print("Package installation identity and all manifest component classes verified.")
 PY
+# A higher versionCode cannot repair a changed signer. Exercise the real signing
+# branch with two valid resource APKs in independent, empty build caches.
+"$AAPT2" link -o "$BUILD_DIR/signing-upgrade.apk" \
+  --manifest "$PROJECT_ROOT/app/src/main/AndroidManifest.xml" \
+  --custom-package de.agentcodi.app --min-sdk-version 29 --target-sdk-version 28 \
+  --version-code 1000001 --version-name signing-fixture \
+  -I "$ANDROID_JAR" "$BUILD_DIR/resources.zip"
+python3 "$PROJECT_ROOT/.github/ci/test-debug-signing.py" \
+  "$BUILD_DIR/resources.apk" "$BUILD_DIR/signing-upgrade.apk" \
+  "$ANDROID_HOME/build-tools/35.0.0/apksigner"
+
 echo "Android sources and resources compiled for Package Edition (target 28, minimum 29)."

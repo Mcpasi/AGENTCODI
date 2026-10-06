@@ -12,7 +12,8 @@ def sha(data):
 def files(root):
     return [p for p in sorted(root.rglob("*")) if p.is_file() and not p.is_symlink()
             and ".git" not in p.parts and "target" not in p.relative_to(root).parts
-            and re.match(r"^(license|licence|copying|copyright|notice)(?:$|[._-])", p.name, re.I)]
+            and (re.match(r"^(license|licence|copying|copyright|notice)(?:$|[._-])", p.name, re.I)
+                 or any(part.lower() in ("licenses", "licences") for part in p.relative_to(root).parts[:-1]))]
 
 
 ROOT_LICENSE_CACHE = {}
@@ -56,6 +57,57 @@ def repository_legal(package, root, output):
         (destination / name).write_bytes(data)
     return destination, files(destination), {"repository": repo, "revision": revision,
         "reason": "Original repository-level terms omitted from the published crate"}
+
+
+def declared_terms(package, root, output, codex):
+    expression = package.get("license", "")
+    allowed_apache = {"Apache-2.0", "MIT OR Apache-2.0", "Apache-2.0 OR MIT",
+                      "Apache-2.0/MIT", "MIT/Apache-2.0"}
+    selected = "Apache-2.0" if expression in allowed_apache else "MIT" if expression == "MIT" else None
+    if selected is None:
+        raise ValueError("No reviewed standard-license selection: " + expression)
+    destination = output / "declared-notices" / (package["name"] + "-" + package["version"])
+    destination.mkdir(parents=True, exist_ok=True)
+    original = []
+    # Preserve supplied notices, including headers when the archive has no legal file.
+    for path in sorted(root.rglob("*")):
+        if not path.is_file() or path.is_symlink() or path.stat().st_size > 1024 * 1024:
+            continue
+        if path.suffix not in (".rs", ".md", ".txt", ".toml"):
+            continue
+        try:
+            lines = path.read_text().splitlines()
+        except UnicodeError:
+            continue
+        mentions = [line for line in lines if re.search("copyright", line, re.I)]
+        if mentions:
+            original.append(path.relative_to(root).as_posix() + "\\n" + "\\n".join(mentions))
+    notice = ("Package: " + package["name"] + " " + package["version"] +
+              "\\nLicense declared by the checksum-verified published Cargo.toml: " + expression +
+              "\\nSelected distribution terms: " + selected +
+              "\\nAuthors declared by the published Cargo metadata: " +
+              (", ".join(package.get("authors") or []) or "(none declared)") +
+              "\\nRepository declared by the package: " + str(package.get("repository")) +
+              "\\nThis is an attribution from published metadata; no copyright date is invented.\\n")
+    (destination / "ATTRIBUTION.txt").write_text(notice)
+    if original:
+        (destination / "ORIGINAL-COPYRIGHT-NOTICES.txt").write_text("\\n\\n".join(original) + "\\n")
+    if selected == "Apache-2.0":
+        data = (codex / "LICENSE").read_text()
+    else:
+        data = (Path(__file__).parent / "license-templates/MIT.txt").read_text()
+        # The SPDX placeholder is not an upstream copyright notice. Supplied
+        # notices/authors are retained separately, without fabricating dates.
+        data = data.replace("Copyright (c) <year> <copyright holders>\\n\\n", "")
+    (destination / ("LICENSE-" + selected + ".txt")).write_text(data)
+    for path in root.glob("README*"):
+        if path.is_file():
+            (destination / path.name).write_bytes(path.read_bytes())
+    return destination, sorted(destination.iterdir()), {
+        "basis": "License declaration in the checksum-verified published crate",
+        "declared_spdx": expression, "selected_spdx": selected,
+        "authors": package.get("authors") or [],
+        "reason": "Publisher omitted a standalone legal file; supplied authors/notices retained"}
 
 def main():
     parser = argparse.ArgumentParser()
@@ -113,7 +165,12 @@ def main():
             try:
                 root, candidates, legal_source = repository_legal(p, root, args.output)
             except Exception as error:
-                legal_source = {"unresolved_reason": str(error)}
+                failure = str(error)
+                try:
+                    root, candidates, legal_source = declared_terms(p, root, args.output, args.codex)
+                    legal_source["repository_lookup_result"] = failure
+                except Exception as fallback_error:
+                    legal_source = {"unresolved_reason": failure + "; " + str(fallback_error)}
         add({"kind": "cargo-normal-and-build-closure", "name": p["name"], "version": p["version"],
              "license": p.get("license"), "authors": p.get("authors"), "repository": p.get("repository"),
              "source": p.get("source"), "checksum": package.get("checksum"),

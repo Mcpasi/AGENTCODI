@@ -81,24 +81,24 @@ def declared_terms(package, root, output, codex):
             continue
         mentions = [line for line in lines if re.search("copyright", line, re.I)]
         if mentions:
-            original.append(path.relative_to(root).as_posix() + "\\n" + "\\n".join(mentions))
+            original.append(path.relative_to(root).as_posix() + "\n" + "\n".join(mentions))
     notice = ("Package: " + package["name"] + " " + package["version"] +
-              "\\nLicense declared by the checksum-verified published Cargo.toml: " + expression +
-              "\\nSelected distribution terms: " + selected +
-              "\\nAuthors declared by the published Cargo metadata: " +
+              "\nLicense declared by the checksum-verified published Cargo.toml: " + expression +
+              "\nSelected distribution terms: " + selected +
+              "\nAuthors declared by the published Cargo metadata: " +
               (", ".join(package.get("authors") or []) or "(none declared)") +
-              "\\nRepository declared by the package: " + str(package.get("repository")) +
-              "\\nThis is an attribution from published metadata; no copyright date is invented.\\n")
+              "\nRepository declared by the package: " + str(package.get("repository")) +
+              "\nThis is an attribution from published metadata; no copyright date is invented.\n")
     (destination / "ATTRIBUTION.txt").write_text(notice)
     if original:
-        (destination / "ORIGINAL-COPYRIGHT-NOTICES.txt").write_text("\\n\\n".join(original) + "\\n")
+        (destination / "ORIGINAL-COPYRIGHT-NOTICES.txt").write_text("\n\n".join(original) + "\n")
     if selected == "Apache-2.0":
         data = (codex / "LICENSE").read_text()
     else:
         data = (Path(__file__).parent / "license-templates/MIT.txt").read_text()
         # The SPDX placeholder is not an upstream copyright notice. Supplied
         # notices/authors are retained separately, without fabricating dates.
-        data = data.replace("Copyright (c) <year> <copyright holders>\\n\\n", "")
+        data = data.replace("Copyright (c) <year> <copyright holders>\n\n", "")
     (destination / ("LICENSE-" + selected + ".txt")).write_text(data)
     for path in root.glob("README*"):
         if path.is_file():

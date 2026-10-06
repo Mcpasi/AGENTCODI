@@ -5,6 +5,8 @@ on:
     paths:
       - '.github/workflows/community-license-research.yml'
       - '.github/ci/collect-community-licenses.py'
+      - '.github/ci/license-templates/**'
+      - '.github/ci/test-community-license-collector.py'
   workflow_dispatch:
 permissions:
   contents: read
@@ -31,6 +33,8 @@ jobs:
           run-id: 37451191641
           github-token: ${{ github.token }}
           path: legal-seed
+      - name: Check license selection and attribution handling
+        run: python3 .github/ci/test-community-license-collector.py
       - name: Collect original license texts and report missing material
         env:
           GH_TOKEN: ${{ github.token }}

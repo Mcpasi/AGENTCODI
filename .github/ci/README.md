@@ -123,9 +123,9 @@ cached inputs.
 
 The build script also pins the LLVM toolchain through `CLANG_TOOLCHAIN_VERSION`
 and refuses to build when clang, lld, llvm-objcopy or llvm-strip report a
-different version. That toolchain compiles the JNI engine and minimal shell bridge. Historical
-guard/attestor source regressions remain isolated tests until the subsequent
-source cleanup; their outputs are never copied to the Package Edition APK.
+different version. That toolchain compiles the JNI engine and minimal shell
+bridge. Historical guard/attestor sources and their obsolete regression
+fixtures are removed.
 
 ### Why this matters beyond CI
 

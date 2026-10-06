@@ -52,7 +52,7 @@ public final class WorkspaceFileScopeTest {
             }
             Files.write(layout.getPackagePrefix().toPath().resolve("bin/tool"), new byte[] {42});
             TestSupport.assertTrue(browser(layout, WorkspaceFileScope.WORKSPACE)
-                .list("", 0).getEntries().size() == 2, "default export area gains no package mount");
+                .list("", 0).getEntries().size() == 1, "workspace contains only imports, without a package mount or retired toolchain");
             TestSupport.assertEquals(Integer.valueOf(0), Integer.valueOf(
                 archive(layout, WorkspaceFileScope.WORKSPACE, new ByteArrayOutputStream())
                     .getFileCount()), "workspace ZIP excludes installed package files");

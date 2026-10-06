@@ -187,9 +187,6 @@ final class InteractiveRequestDialog {
                 ViewGroup.LayoutParams.MATCH_PARENT,
                 ViewGroup.LayoutParams.WRAP_CONTENT
             );
-            if (!requestedPackage.isEmpty()) {
-                detailParams.topMargin = theme.dp(14);
-            }
             content.addView(details, detailParams);
         }
 

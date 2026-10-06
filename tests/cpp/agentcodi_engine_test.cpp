@@ -1801,7 +1801,7 @@ int main(int argc, char* argv[]) {
       expect(
           run_package_shell(argv[1], {"-c", "PATH=" + legacy_prefix + "/bin:/system/bin node"},
                             workspace, &shell_output, &shell_exit)
-              && shell_exit == 0 && shell_output == "legacy-package-selected\\n",
+              && shell_exit == 0 && shell_output == "legacy-package-selected\n",
           "terminal shell retains legacy user packages when the managed command is absent");
       expect(
           run_package_shell(argv[1], {"-c", "PATH=" + package_prefix + "/bin:" + legacy_prefix + "/bin:/system/bin command -v agentcodi-toolchain"},

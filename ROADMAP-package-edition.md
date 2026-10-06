@@ -2,7 +2,7 @@
 
 Stand: 2026-10-06. Ausschließlich Branch `Mcpasi/package-edition`; kein Merge nach `main`.
 
-Die Checklisten zeigen den aktuellen Umsetzungsstand. Datierte Ergebnis- und Verifikationsabschnitte dokumentieren frühere Meilensteine; ihre Testzahlen, Artefakte und Prüfsummen gehören zum jeweils genannten Commit. Bootstrap, Startkatalog und öffentliches signiertes APT-Repository sind umgesetzt. Die npm-/Python-Pfade und die gemeinsame Prozessumgebung sind umgesetzt und in CI geprüft; die aktuellen Nachweise stehen im Ergebnisabschnitt „Gemeinsame Paketumgebung und npm-/Python-Pfade“. Die Paketdiagnose und die Workspace-Browser-/Import-/Export-Erweiterung sind umgesetzt; die nutzerinstallierbaren Übergangswerkzeuge sind aus dem APK entfernt. Die verbliebenen Legacy-Helfer und Transportparameter sind bereinigt. Als nächster offener Umsetzungspunkt folgt die Reduktion von Build-Skript, Dockerfile, CI-Inputs, Restore-/Preflight-Prüfungen und Cache-Schlüsseln in Abschnitt 4. Echte Gerätetests bleiben gemäß Nutzeranweisung offen. Die APT-Veröffentlichung ist getrennt von einem GitHub-Release der APK.
+Die Checklisten zeigen den aktuellen Umsetzungsstand. Datierte Ergebnis- und Verifikationsabschnitte dokumentieren frühere Meilensteine; ihre Testzahlen, Artefakte und Prüfsummen gehören zum jeweils genannten Commit. Bootstrap, Startkatalog und öffentliches signiertes APT-Repository sind umgesetzt. Die npm-/Python-Pfade und die gemeinsame Prozessumgebung sind umgesetzt und in CI geprüft; die aktuellen Nachweise stehen im Ergebnisabschnitt „Gemeinsame Paketumgebung und npm-/Python-Pfade“. Die Paketdiagnose und die Workspace-Browser-/Import-/Export-Erweiterung sind umgesetzt; die nutzerinstallierbaren Übergangswerkzeuge sind aus dem APK entfernt. Die verbliebenen Legacy-Helfer und Transportparameter sind bereinigt. Build-Skript, Dockerfile, CI-Inputs, Restore-/Preflight-Prüfungen und Cache-Schlüssel sind auf die aktiven Edition-Abhängigkeiten reduziert. Als nächster offener Umsetzungspunkt folgt die Ausrichtung der Architekturchecks und Java-/C++-/Android-Smokes auf den endgültigen Paketvertrag in Abschnitt 4. Echte Gerätetests bleiben gemäß Nutzeranweisung offen. Die APT-Veröffentlichung ist getrennt von einem GitHub-Release der APK.
 
 ## Ziel und feste Entscheidungen
 
@@ -734,12 +734,12 @@ Kein PR, Merge oder APK-Release; `main` bleibt unverändert.
 
 ## 4. Build verkleinern und veröffentlichbare Edition erstellen
 
-Bootstrap, Startkatalog, signierter Paketkanal und die gemeinsame Paketumgebung funktionieren in CI. Die npm-/Python-Pfadvoraussetzungen sind abgeschlossen. Die bisher enthaltenen nutzerinstallierbaren Pakete sind aus dem APK entfernt. Der aktive Startpfad nutzt ausschließlich die native Codex-Runtime und die installierte Paketbasis. Ungenutzte Legacy-Quellen, Identitätskonstanten und Aktivierungs-/Transport-APIs sind entfernt. Alte private Tool-Verzeichnisse werden nicht mehr angelegt oder als Startvoraussetzung benötigt; vorhandene Nutzerdaten bleiben erhalten. Die folgenden Schritte behandeln die übrigen Build-Abhängigkeiten, den endgültigen Prüf-/Lizenzvertrag und die Gerätevalidierung.
+Bootstrap, Startkatalog, signierter Paketkanal und die gemeinsame Paketumgebung funktionieren in CI. Die npm-/Python-Pfadvoraussetzungen sind abgeschlossen. Die bisher enthaltenen nutzerinstallierbaren Pakete sind aus dem APK entfernt. Der aktive Startpfad nutzt ausschließlich die native Codex-Runtime und die installierte Paketbasis. Ungenutzte Legacy-Quellen, Identitätskonstanten und Aktivierungs-/Transport-APIs sind entfernt. Alte private Tool-Verzeichnisse werden nicht mehr angelegt oder als Startvoraussetzung benötigt; vorhandene Nutzerdaten bleiben erhalten. Die Build-Abhängigkeiten, ihre Wiederherstellung und die Cache-Auswahl sind reduziert. Die folgenden Schritte behandeln den endgültigen Prüf-/Lizenzvertrag und die Gerätevalidierung.
 
 - [x] Bundled Node.js, npm, Python, ripgrep und nur von ihnen benötigte Bibliotheken/Archive/Lizenzen aus dem APK entfernen.
 - [x] Vorher Abhängigkeiten des App-Servers und Code-mode-Hosts auf diese Werkzeuge prüfen; zwingend notwendige Basiswerkzeuge im Bootstrap behalten.
 - [x] PackagedToolRuntime, Tool-Alias-/Activation-/ELF-Attestor-Code und Runtime-Startvalidierung an den Paket-Bootstrap anpassen. Ausgemusterte Quellen/APIs und feste Tool-Pins entfernt; Startup benötigt nur den aktiven Paketvertrag. Alte Nutzerdaten bleiben erhalten.
-- [ ] Build-Skript, Dockerfile, CI-Input-Manifest, Restore-/Preflight-Prüfungen und Cache-Schlüssel auf die minimalen Edition-Abhängigkeiten reduzieren.
+- [x] Build-Skript, Dockerfile, CI-Input-Manifest, Restore-/Preflight-Prüfungen und Cache-Schlüssel auf die minimalen Edition-Abhängigkeiten reduzieren.
 - [x] Eigene Debug-APK-Artefakte für diesen Branch erzeugen (`agentcodi-package-debug-apk`); keine regulären Main-Releases überschreiben. Das APK enthält jetzt keine Übergangswerkzeuge mehr; weitere Bereinigung und finale Veröffentlichung bleiben offen.
 - [ ] Architekturchecks und Java-/C++-/Android-Smokes auf den endgültigen Paketvertrag ausrichten.
 - [ ] Notices, README, SECURITY und Build-Dokumentation mit der tatsächlich ausgelieferten Paketbasis abgleichen.
@@ -757,7 +757,7 @@ Erfolgreicher [GitHub-Actions-Lauf](https://github.com/Mcpasi/AGENTCODI/actions/
 
 Zusätzlich deckt ein Terminal-Shell-Test den Vorrang selbst installierter Programme gegenüber früheren festen Shell-Funktionen ab.
 
-Alle Repository-Zugriffe und Änderungen erfolgen ausschließlich über den GitHub Connector. Die Community-Anbindung aus Abschnitt 2, der minimale Paket-Bootstrap und die Startkatalog-CI aus Abschnitt 3 sind umgesetzt. Das signierte Paketrepository ist einschließlich öffentlicher HTTPS-Veröffentlichung und ARM64-/APT-Laufzeittests umgesetzt. Die Legacy-Quell-/API-Bereinigung ist inzwischen umgesetzt. Weitere Katalogerweiterung, Build-/Cache-Reduktion, endgültiger Prüf-/Lizenzabgleich und echte Gerätetests bleiben in Abschnitt 3/4 offen. Die ursprünglichen Verifikationsangaben oben beschreiben den vorausgehenden Grundlagenabschnitt.
+Alle Repository-Zugriffe und Änderungen erfolgen ausschließlich über den GitHub Connector. Die Community-Anbindung aus Abschnitt 2, der minimale Paket-Bootstrap und die Startkatalog-CI aus Abschnitt 3 sind umgesetzt. Das signierte Paketrepository ist einschließlich öffentlicher HTTPS-Veröffentlichung und ARM64-/APT-Laufzeittests umgesetzt. Die Legacy-Quell-/API-Bereinigung ist inzwischen umgesetzt. Die Build-/Cache-Reduktion ist ebenfalls umgesetzt. Weitere Katalogerweiterung, endgültiger Architektur-/Smoke-/Lizenzabgleich und echte Gerätetests bleiben in Abschnitt 3/4 offen. Die ursprünglichen Verifikationsangaben oben beschreiben den vorausgehenden Grundlagenabschnitt.
 
 ## Historische Verifikation der Community-Anbindung
 
@@ -812,8 +812,9 @@ aktiven Startpfad an. Ungenutzter PackagedToolRuntime-/Activation-/ELF-Attestor-
 Quellcode, alte BuildIdentity-Konstanten und reservierte Transportparameter
 blieben zunächst für den nachfolgenden Bereinigungspunkt erhalten.
 Dieser ist inzwischen umgesetzt; der folgende Ergebnisabschnitt beschreibt ihn.
-Die anschließenden Docker-/Preflight-/Cache- und vollständigen Lizenzabgleiche
-sind weiterhin eigene offene Punkte. Alte entpackte Laufzeitdaten werden
+Docker-/Preflight-/Cache-Reduktion und vollständiger Lizenzabgleich waren
+damals eigene offene Punkte. Die Build-Reduktion ist inzwischen umgesetzt;
+der vollständige Lizenzabgleich bleibt offen. Alte entpackte Laufzeitdaten werden
 nicht automatisch gelöscht.
 
 Verifizierter Implementierungscommit: `fc0f62fc3c36408788fcd8a4403efe56153f13de`.
@@ -875,10 +876,10 @@ Layout- und Alias-Migrationstests prüfen außerdem fehlende Altverzeichnisse
 und den Erhalt fremder Dateien. Der ARM64/Bionic-APK-Smoke verwendet denselben
 reduzierten Startvertrag ohne alte Werkzeuge oder Aktivierungsverzeichnisse.
 
-README, SECURITY und CI-Dokumentation sind angepasst. Die anschließende
-vollständige Build-/Docker-/Preflight-/Cache-Reduktion, finale Lizenzprüfung
-und die gesonderte Ausrichtung aller Architektur-/Smoke-Verträge bleiben
-eigene Roadmap-Punkte. Gerätetests werden gemäß Nutzeranweisung übersprungen
+README, SECURITY und CI-Dokumentation sind angepasst. Die damals folgende
+vollständige Build-/Docker-/Preflight-/Cache-Reduktion ist inzwischen umgesetzt.
+Die finale Lizenzprüfung und die gesonderte Ausrichtung aller Architektur-/
+Smoke-Verträge bleiben eigene Roadmap-Punkte. Gerätetests werden gemäß Nutzeranweisung übersprungen
 und bleiben offen. Kein PR, Merge oder APK-Release; `main` bleibt unverändert.
 
 Verifizierter Implementierungscommit: `28a79dff30d966a5056ac80f5e67476ed9acafd5`.
@@ -912,3 +913,75 @@ Der folgende Abschlusscommit ergänzt ausschließlich diese Roadmap-Nachweise
 und kennzeichnet den Punkt als umgesetzt; geprüfter App-Code, Ressourcen und
 Build-Konfiguration bleiben unverändert. Kein PR, Merge oder APK-Release;
 `main` bleibt auf `ff27ec7c30d373a864e845e9a7ceeae3380dd103`.
+
+## Reduktion der APK-Build-Abhängigkeiten — 2026-10-06
+
+Umgesetzt ausschließlich auf `Mcpasi/package-edition`. Der APK-Build lädt
+`patchelf` nicht mehr herunter, entpackt es nicht und verlangt dessen
+Versionsprüfung nicht mehr. Die ungenutzte `llvm-objcopy`-Voraussetzung,
+der `script`-Befehl und der unbenutzte allgemeine ELF-Relokationshelfer sind
+entfernt. Die benötigte gezielte Codex-Host-/zlib-Relokation bleibt erhalten.
+Clang, lld und llvm-strip bleiben für Engine, Shell und Bionic-Smokes gepinnt.
+
+Das generierte CI-Input-Manifest enthält 12 statt 13 Downloads: Community-Codex,
+Android-Plattform, R8 und die benötigten AAPT2-/libc++-/zlib-Pakete.
+Der source-gebaute Paket-Bootstrap behält seinen separaten geprüften
+Wiederherstellungspfad. Der Input-Restorer berücksichtigt ausschließlich das
+aktuelle Manifest; die Prüfung bricht jetzt auch dann ab, wenn dessen
+Neuerzeugung fehlschlägt. Alte oder beschädigte Manifeste und fehlende oder
+veränderte Bytes werden zurückgewiesen. Fünf neue Host-Regressionen prüfen
+diese Fälle, die Wiederherstellung nur gelisteter Inputs, den Erhalt fremder
+Cache-Dateien und die sichere Auswahl der Cache-Pfade.
+
+Der APK-Workflow verwendet einen eigenen Editions-Cache mit OS, Architektur
+und dem Hash von Manifest/Cache-Auswahl im Schlüssel. Er enthält nur die
+elf aktuellen Nicht-SDK-Dateien, keine ganzen Alt-Caches oder Build-Ausgaben;
+es gibt keine Fallback-Schlüssel. Die Bytes werden vor Verwendung erneut gegen
+SHA-256 geprüft und erst nach erfolgreicher Manifest-/Input-Prüfung gespeichert.
+Die Android-SDK-Datei bleibt ausschließlich im vorhandenen privaten Mirror
+oder beim Upstream. Der Community-Archivpfad bleibt SHA-256-adressiert.
+
+Docker verlangt Ubuntu gcc/libc6-dev und bsdutils nicht mehr. Das finale Image
+übernimmt ausschließlich den benötigten Termux-Präfix, ohne Home-/Cache-Daten,
+APT-Paketlisten oder das temporäre rekonstruierte Sysroot-DEB.
+Die gepinnten NDK-r29-Header/CRT und ihre Termux-Patches bleiben notwendige
+Compile-/Link-Inputs; sie werden weiterhin aus verifizierten Quellen
+rekonstruiert. Preflight prüft Java 17, ARM64, kanonische System-Shell,
+ausführbaren Android-Linker und die aktive LLVM-Version. Eine temporäre
+API-29-C++/JNI/zlib-Probe prüft Kompilierung und tatsächliche Bionic-Ausführung.
+Die alten manuellen Linker-/Guard-/ptrace-/seccomp-Proben sind entfernt.
+
+README und CI-Build-Dokumentation beschreiben denselben Liefer- und
+Build-Vertrag. Die historische Verifikation bleibt an ihre früheren Commits
+gebunden; ihr damaliger offener Build-Bereinigungspunkt ist jetzt umgesetzt.
+Der vollständige Architektur-/Smoke-Abgleich und die finale Lizenzprüfung
+bleiben die nächsten eigenständigen Roadmap-Punkte. Echte Gerätetests wurden
+gemäß Nutzeranweisung übersprungen und bleiben offen.
+
+Verifizierter Implementierungscommit: `28c77f3444e1c54b741f3a55513fb2125641f10d`.
+Der [Tests-Lauf 37442948418](https://github.com/Mcpasi/AGENTCODI/actions/runs/37442948418)
+hat alle sieben Jobs bestanden: 320 Java-Tests, sieben portable C++-Suiten
+(293 Engine-Assertions), Android-Quellen/Ressourcen gegen API 35,
+Community-Archiv-/ARM64-Bionic-Prüfungen und Paket-/Toolchain-Verträge,
+einschließlich der fünf neuen Build-Input-Regressionen.
+
+Der [APK-Lauf 37442949060](https://github.com/Mcpasi/AGENTCODI/actions/runs/37442949060)
+hat alle drei Jobs bestanden: Bootstrap-Build, Bootstrap-ARM64/Bionic-Smoke
+und vollständiger Debug-APK-Build. Der neue Cache wurde mit genau den
+ausgewählten Dateien gespeichert; alle zwölf Build-Inputs sind SHA-256-geprüft.
+Container-Preflight einschließlich der neuen nativen Probe, App-Server-/PTY-/
+Import-/MCP-Smokes, Runtime-Neustart, Präfixvorrang und persistente Nutzerprogramme
+sind erfolgreich. APK-Identität, Signatur, Alignment, ARM64-ABI,
+16-KiB-Segmente, genaue ELF-Menge, Abhängigkeiten und ausgelieferte native
+Bytes bleiben geprüft.
+Das [Debug-APK-Artefakt](https://github.com/Mcpasi/AGENTCODI/actions/runs/37442949060/artifacts/11402117477)
+enthält die separate Package Edition. APK-SHA-256:
+`723f76120cc70f698b3b146f3f51d2dbf753d1a0be167fb6fe18b7a1d0c7a0dd`.
+Die gerundete APK-Größe bleibt 123 MiB; dieser Schritt reduziert die
+Build-Voraussetzungen und die Container-/Input-/Cache-Daten.
+
+Die Implementierungsläufe hatten keine Fehlschläge. Der Abschlusscommit
+ergänzt ausschließlich diese Roadmap-Nachweise und die Umsetzungsmarkierung;
+geprüfter App-Code, Ressourcen und Build-Konfiguration bleiben unverändert.
+Kein PR, Merge oder APK-Release; `main` bleibt auf
+`ff27ec7c30d373a864e845e9a7ceeae3380dd103`.

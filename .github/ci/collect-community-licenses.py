@@ -28,9 +28,11 @@ def main():
                "-p", "codex-cli", "-p", "codex-code-mode-host", cwd=workspace)
     keys = set()
     for line in tree.splitlines():
-        match = re.match(r"^(\\S+) v(\\S+)", line)
+        match = re.match(r"^(\S+) v(\S+)", line)
         if match:
             keys.add(match.groups())
+    if not keys:
+        raise ValueError("Empty Cargo normal closure")
     metadata = json.loads(run("cargo", "+1.95.0", "metadata", "--locked",
         "--format-version", "1", "--filter-platform", "aarch64-linux-android", cwd=workspace))
     if (workspace / "Cargo.lock").read_bytes() != lock_data:
@@ -58,7 +60,7 @@ def main():
         if p.get("license_file"):
             candidates.append(root / p["license_file"])
         if p.get("source") is None:
-            root = args.codex
+            root = args.codex.resolve()
             candidates.extend([root / "LICENSE", root / "NOTICE"])
         package = locked[(p["name"], p["version"])]
         add({"kind": "cargo-normal-closure", "name": p["name"], "version": p["version"],

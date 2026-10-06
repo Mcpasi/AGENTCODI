@@ -173,7 +173,7 @@
         },
         {
           "old": "TERMUX_PKG_VERSION=\"2.5.24\"",
-          "new": "TERMUX_PKG_VERSION=\"2.5.24\"\nTERMUX_PKG_REVISION=1"
+          "new": "TERMUX_PKG_VERSION=\"2.5.24\"\nTERMUX_PKG_REVISION=2"
         },
         {
           "old": "TERMUX_PKG_LICENSE=\"GPL-3.0\"",
@@ -261,7 +261,15 @@
       "replacements": [
         {
           "old": "TERMUX_PKG_VERSION=\"5.8.4\"",
-          "new": "TERMUX_PKG_VERSION=\"5.8.4\"\nTERMUX_PKG_REVISION=1"
+          "new": "TERMUX_PKG_VERSION=\"5.8.4\"\nTERMUX_PKG_REVISION=2"
+        },
+        {
+          "old": "TERMUX_PKG_LICENSE=\"LGPL-2.1, GPL-2.0, GPL-3.0\"",
+          "new": "TERMUX_PKG_LICENSE=\"0BSD, LGPL-2.1, GPL-2.0, GPL-3.0\""
+        },
+        {
+          "old": "TERMUX_PKG_LICENSE_FILE=\"COPYING, COPYING.GPLv2, COPYING.GPLv3, COPYING.LGPLv2.1\"",
+          "new": "TERMUX_PKG_LICENSE_FILE=\"COPYING, COPYING.0BSD, COPYING.GPLv2, COPYING.GPLv3, COPYING.LGPLv2.1\""
         }
       ]
     },

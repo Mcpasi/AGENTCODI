@@ -699,11 +699,11 @@ bool read_terminated_terminal_completion(
 }  // namespace
 
 int main(int argc, char* argv[]) {
-  if (argc != 17) {
-    std::cerr << "Expected app-server, host, shell, Node, Python, ripgrep, workspace, toolchain, tool-bin, tool-runtime, Codex home, home, state, temp, library and managed prefix paths\n";
+  if (argc != 11) {
+    std::cerr << "Expected app-server, host, shell, workspace, Codex home, home, state, temp, library and managed prefix paths\n";
     return 2;
   }
-  const std::string workspace = argv[7];
+  const std::string workspace = argv[4];
   const std::string shell = argv[3];
   const std::string imported_file =
       workspace + "/imports/0123456789abcdef0123456789abcdef.bin";
@@ -717,19 +717,13 @@ int main(int argc, char* argv[]) {
   config.executable = argv[1];
   config.code_mode_host_executable = argv[2];
   config.shell_executable = argv[3];
-  config.node_executable = argv[4];
-  config.python_executable = argv[5];
-  config.ripgrep_executable = argv[6];
   config.working_directory = workspace;
-  config.toolchain_directory = argv[8];
-  config.tool_binary_directory = argv[9];
-  config.tool_runtime_directory = argv[10];
-  config.codex_home = argv[11];
-  config.home_directory = argv[12];
-  config.package_prefix = argv[16];
-  config.state_directory = argv[13];
-  config.temporary_directory = argv[14];
-  config.library_directory = argv[15];
+  config.codex_home = argv[5];
+  config.home_directory = argv[6];
+  config.package_prefix = argv[10];
+  config.state_directory = argv[7];
+  config.temporary_directory = argv[8];
+  config.library_directory = argv[9];
 
   std::string error;
   std::shared_ptr<agentcodi::AppServerProcess> process =

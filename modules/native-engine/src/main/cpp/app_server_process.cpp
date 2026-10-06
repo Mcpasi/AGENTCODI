@@ -2350,10 +2350,6 @@ std::shared_ptr<AppServerProcess> AppServerProcess::Start(
   }
   error->clear();
 
-  if (requested_config.just_in_time_approvals) {
-    *error = "Package Edition does not support just-in-time permissions";
-    return nullptr;
-  }
   ProcessConfig config = requested_config;
   if (!canonical_regular_executable(
           requested_config.executable,
@@ -2374,21 +2370,6 @@ std::shared_ptr<AppServerProcess> AppServerProcess::Start(
           requested_config.working_directory,
           "Workspace",
           &config.working_directory,
-          error)
-      || !canonical_directory(
-          requested_config.toolchain_directory,
-          "Toolchain",
-          &config.toolchain_directory,
-          error)
-      || !canonical_directory(
-          requested_config.tool_binary_directory,
-          "Packaged tool binary",
-          &config.tool_binary_directory,
-          error)
-      || !canonical_directory(
-          requested_config.tool_runtime_directory,
-          "Packaged tool runtime",
-          &config.tool_runtime_directory,
           error)
       || !canonical_directory(
           requested_config.codex_home,
@@ -2427,15 +2408,9 @@ std::shared_ptr<AppServerProcess> AppServerProcess::Start(
     *error = "Codex home must remain separate from the workspace";
     return nullptr;
   }
-  if (config.toolchain_directory == config.working_directory
-      || !contains_path(config.working_directory, config.toolchain_directory)) {
-    *error = "Toolchain must remain below the canonical workspace";
-    return nullptr;
-  }
   for (const std::string* separate_directory : {
            &config.home_directory, &config.working_directory, &config.codex_home,
-           &config.state_directory, &config.tool_binary_directory,
-           &config.tool_runtime_directory}) {
+           &config.state_directory, &config.temporary_directory}) {
     if (contains_path(config.package_prefix, *separate_directory)
         || contains_path(*separate_directory, config.package_prefix)) {
       *error = "Managed package prefix must remain separate from private runtime data";
@@ -2452,39 +2427,11 @@ std::shared_ptr<AppServerProcess> AppServerProcess::Start(
       || state_metadata.st_uid != geteuid()
       || (state_metadata.st_mode & 0777) != 0700
       || overlaps_state(config.working_directory)
-      || overlaps_state(config.tool_binary_directory)
-      || overlaps_state(config.tool_runtime_directory)
       || overlaps_state(config.codex_home)
       || overlaps_state(config.home_directory)
       || overlaps_state(config.package_prefix)
       || overlaps_state(config.temporary_directory)) {
     *error = "Image materialization state must be private and separate";
-    return nullptr;
-  }
-  struct stat tool_binary_metadata {};
-  if (lstat(config.tool_binary_directory.c_str(), &tool_binary_metadata) != 0
-      || !S_ISDIR(tool_binary_metadata.st_mode)
-      || tool_binary_metadata.st_uid != geteuid()
-      || (tool_binary_metadata.st_mode & 077) != 0
-      || contains_path(config.working_directory, config.tool_binary_directory)
-      || contains_path(config.tool_binary_directory, config.working_directory)
-      || contains_path(config.codex_home, config.tool_binary_directory)
-      || contains_path(config.tool_binary_directory, config.codex_home)) {
-    *error = "Packaged tool directory must be private and separate";
-    return nullptr;
-  }
-  struct stat tool_runtime_metadata {};
-  if (lstat(config.tool_runtime_directory.c_str(), &tool_runtime_metadata) != 0
-      || !S_ISDIR(tool_runtime_metadata.st_mode)
-      || tool_runtime_metadata.st_uid != geteuid()
-      || (tool_runtime_metadata.st_mode & 077) != 0
-      || contains_path(config.working_directory, config.tool_runtime_directory)
-      || contains_path(config.tool_runtime_directory, config.working_directory)
-      || contains_path(config.codex_home, config.tool_runtime_directory)
-      || contains_path(config.tool_runtime_directory, config.codex_home)
-      || contains_path(config.tool_binary_directory, config.tool_runtime_directory)
-      || contains_path(config.tool_runtime_directory, config.tool_binary_directory)) {
-    *error = "Packaged tool runtime must be private and separate";
     return nullptr;
   }
   if (!validate_codex_configuration_files(config.codex_home, error)) {
@@ -2502,8 +2449,7 @@ std::shared_ptr<AppServerProcess> AppServerProcess::Start(
     for (const std::string* private_directory : {
              &config.working_directory, &config.codex_home,
              &config.home_directory, &config.package_prefix, &config.state_directory,
-             &config.temporary_directory, &config.tool_binary_directory,
-             &config.tool_runtime_directory}) {
+             &config.temporary_directory}) {
       if (config.library_directory == "/"
           || contains_path(config.library_directory, *private_directory)
           || contains_path(*private_directory, config.library_directory)) {

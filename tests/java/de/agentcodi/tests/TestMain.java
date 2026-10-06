@@ -25,7 +25,6 @@ public final class TestMain {
         passed += ConnectorCatalogLoaderTest.run();
         passed += CredentialGuardTest.run();
         passed += TerminalOutputBufferTest.run();
-        passed += ToolchainCommandTest.run();
         passed += PackageDiagnosticsCommandTest.run();
         passed += CrashReportFormatterTest.run();
         passed += CrashReportStoreTest.run();

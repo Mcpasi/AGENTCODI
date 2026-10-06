@@ -26,7 +26,6 @@ import de.agentcodi.core.CodexSessionSnapshot;
 import de.agentcodi.core.CodexUserInputOption;
 import de.agentcodi.core.CodexUserInputQuestion;
 import de.agentcodi.core.CredentialGuard;
-import de.agentcodi.core.ToolchainCommand;
 import de.agentcodi.runtime.AgentRuntimeService;
 
 import java.util.ArrayList;
@@ -178,23 +177,6 @@ final class InteractiveRequestDialog {
         LinearLayout content = new LinearLayout(activity);
         content.setOrientation(LinearLayout.VERTICAL);
         content.setPadding(theme.dp(22), theme.dp(8), theme.dp(22), theme.dp(12));
-
-        String requestedPackage = ToolchainCommand.requestedInstallationPackage(
-            request.getCommand()
-        );
-        if (!requestedPackage.isEmpty()) {
-            TextView toolchainWarning = theme.text(
-                activity.getString(
-                    R.string.approval_toolchain_install_detail,
-                    packagedToolDisplayName(requestedPackage),
-                    packagedToolVersion(requestedPackage)
-                ),
-                14,
-                theme.danger
-            );
-            toolchainWarning.setLineSpacing(0.0f, 1.15f);
-            content.addView(toolchainWarning);
-        }
 
         String summary = approvalDetails(request);
         if (!summary.isEmpty()) {
@@ -612,44 +594,12 @@ final class InteractiveRequestDialog {
     }
 
     private String approvalTitle(CodexInteractiveRequest request) {
-        if (ToolchainCommand.requestsPackageInstallation(request.getCommand())) {
-            return activity.getString(R.string.approval_toolchain_install_title);
-        }
         if (!request.getNetworkHost().isEmpty()) {
             return activity.getString(R.string.approval_network_title);
         }
         return request.getKind() == CodexInteractiveRequest.Kind.COMMAND_APPROVAL
             ? activity.getString(R.string.approval_command_title)
             : activity.getString(R.string.approval_file_title);
-    }
-
-    private static String packagedToolDisplayName(String packageName) {
-        if ("node".equals(packageName)) {
-            return "Node.js";
-        }
-        if ("npm".equals(packageName)) {
-            return "npm";
-        }
-        if ("python".equals(packageName)) {
-            return "Python";
-        }
-        return packageName;
-    }
-
-    private static String packagedToolVersion(String packageName) {
-        if ("node".equals(packageName)) {
-            return de.agentcodi.core.BuildIdentity.NODE_RUNTIME_VERSION;
-        }
-        if ("npm".equals(packageName)) {
-            return de.agentcodi.core.BuildIdentity.NPM_RUNTIME_VERSION;
-        }
-        if ("python".equals(packageName)) {
-            return de.agentcodi.core.BuildIdentity.PYTHON_RUNTIME_VERSION;
-        }
-        if ("ripgrep".equals(packageName)) {
-            return de.agentcodi.core.BuildIdentity.RIPGREP_RUNTIME_VERSION;
-        }
-        return "";
     }
 
     /** The textual part of an approval; commands and file changes get their own views. */

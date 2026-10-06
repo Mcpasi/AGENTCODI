@@ -5,8 +5,7 @@ Ubuntu runner. They are additional entry points only:
 
 * The host-test drivers do not invoke `scripts/test.sh` or
   `scripts/build-debug-apk.sh`. These depend on the Termux Android toolchain
-  (`/data/data/com.termux/files/usr/bin/clang++`, `ld.lld`, `llvm-objcopy`,
-  `/system/bin/sh`) and remain the authoritative local runners. The APK job
+  (`/data/data/com.termux/files/usr/bin/clang++`, `/system/bin/sh`) and remain the authoritative local runners. The APK job
   invokes the build script in the Android-enabled container described below.
 * The test sources under `tests/java` and `tests/cpp` are used **unmodified**.
   Nothing here changes how the local suites behave.
@@ -19,7 +18,7 @@ Ubuntu runner. They are additional entry points only:
 | --- | --- | --- |
 | Architecture contracts | `scripts/check-architecture.sh` | Architecture rules, shell syntax, and generated build-input manifest synchronization. |
 | Java host tests | `run-java-tests.sh` | The complete Java suite — the same sources and the same `de.agentcodi.tests.TestMain` entry point that `scripts/test.sh` compiles. |
-| C++ host tests | `run-cpp-tests.sh` | The portable 8 of the 9 C++ host suites. |
+| C++ host tests | `run-cpp-tests.sh` | All seven current portable C++ host suites, using the actual Package Edition shell. |
 | Package recipe and toolchain contracts | `check-package-edition.sh` | Pinned recipe preparation, prefix and APT contracts, NDK ARM64 cross-compile and repeatable fixture DEB with metadata/ELF audit. |
 | Community release inspection | `inspect-community-codex.py` | Verify release, tag, archive, native dependencies and notices. |
 | Community ARM64 Bionic runtime | `community-runtime-pins.py`, `verify-community-protocol.py` | Verify binary relocation and generated schemas, validate actual Java fixture RPCs, and run the real Android app-server. |
@@ -70,23 +69,20 @@ assertions, so the workflow creates three paths before the C++ job:
 
 ## What CI does not cover
 
-Two C++ suites cannot run on a hosted x86-64 runner. Both stay local-only:
+The seven current portable C++ suites run on hosted Linux; the retired
+ripgrep policy and toolchain activation/guard/attestor suites have been removed
+with their unused implementation. The local runner builds the same package
+shell and preserves the supervisor, framing, lifecycle, PNG and file tests.
 
-1. **Toolchain ELF guard/attestor chain** (`tests/cpp/toolchain_elf_guard_test.cpp`
-   plus the guard fixtures built in `scripts/test.sh`).
-   `modules/native-engine/src/main/cpp/toolchain_elf_attestor_payload.cpp` is a
-   freestanding payload written in hand-rolled aarch64 syscall assembly
-   (`svc 0`, `x0`/`x8`) whose entry point uses `__attribute__((naked))`. GCC
-   rejects that attribute on aarch64, so the payload needs clang, and the
-   linked entry segment is then injected into an aarch64 ELF, which an x86-64
-   runner cannot execute. Reproducing it would need an `ubuntu-24.04-arm`
-   runner with `clang`, `lld` and `llvm` installed; that has not been verified
-   and arm64 runners are only free for public repositories.
-2. **`tests/cpp/android_app_server_bootstrap_smoke.cpp`.** `scripts/test.sh`
-   does not run this either — `scripts/build-debug-apk.sh` drives it against
-   the minimal native payload (`libcodex.so`, its matching host, the shell
-   bridge, libc++ and zlib), which are downloaded build products
-   rather than repository content.
+`tests/cpp/android_app_server_bootstrap_smoke.cpp` requires the actual ARM64/Bionic
+payload. `scripts/build-debug-apk.sh` runs it in the APK workflow against the
+minimal native payload (Codex, matching code-mode host, shell bridge, libc++
+and zlib). It receives only the active workspace, account, home, managed prefix,
+state, temporary and library paths. It requires no APK tool aliases, extracted
+tool runtime or activation markers.
+
+Real Android installation, updates and hardware behavior remain device tests;
+hosted CI does not claim to cover them.
 
 ## Keeping the Java source list in sync
 
@@ -198,7 +194,7 @@ the image is:
   the build script pins and checked again by the build itself. The Termux base
   image is pinned by digest; `ndk-sysroot` 29-3 and `libc++` 29 are pinned with
   LLVM's 21.1.8-3 packages for repeatable native builds. The legacy
-  guard/attestor sources remain isolated regression fixtures until cleanup.
+  guard/attestor sources and obsolete fixtures are removed.
 * **The Android linker and bionic libraries**, copied from
   `termux/termux-docker:aarch64`, which ships them as aosp-libs. Without them
   build-only `aapt2`/`patchelf` and the Codex app-server cannot run —
@@ -226,16 +222,13 @@ at `e23be59f0cdcb00674821347881182e68a548135`. `ndk-29-inputs.tsv` pins the
 installed in the pinned Termux stage before compilation. The Codex and zlib artifact pins, exact native payload set, ELF dependency
 closure and shipped-byte comparisons remain authoritative.
 
-### The device linker checks
+### Device coverage
 
-The historical source-only guard/attestor suite in `scripts/test.sh` depends
-on the device linker's `/proc/self/exe` behavior. It remains skipped by
-`AGENTCODI_SKIP_DEVICE_LINKER_TESTS=1` on hosted CI. The reduced APK ships
-no guarded tool and no longer runs the former packaged ripgrep linker test.
-Actual device installation/update tests remain outside hosted CI.
-
-`container-preflight.sh` probes and reports the property, so the container's
-actual behaviour is visible rather than assumed.
+The old source-only toolchain guard/attestor and packaged-ripgrep linker tests
+are removed with the retired implementation; the APK workflow no longer needs
+`AGENTCODI_SKIP_DEVICE_LINKER_TESTS`. The informational linker probe in
+`container-preflight.sh` describes the build container only. Installation,
+updates and runtime checks on actual Android hardware remain outside hosted CI.
 
 ### Full-access bootstrap
 

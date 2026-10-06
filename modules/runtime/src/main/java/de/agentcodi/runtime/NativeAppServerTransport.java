@@ -21,20 +21,13 @@ final class NativeAppServerTransport implements CodexRpcTransport {
         String executable,
         String codeModeHostExecutable,
         String shellExecutable,
-        String nodeExecutable,
-        String pythonExecutable,
-        String ripgrepExecutable,
         String workspace,
-        String toolchain,
-        String toolBinaryDirectory,
-        String toolRuntimeDirectory,
         String codexHome,
         String home,
         String packagePrefix,
         String stateDirectory,
         String temporaryDirectory,
-        String nativeLibraryDirectory,
-        boolean justInTimeApprovalsEnabled
+        String nativeLibraryDirectory
     ) throws IOException {
         if (engine == null) {
             throw new IllegalArgumentException("Native engine is required");
@@ -44,20 +37,13 @@ final class NativeAppServerTransport implements CodexRpcTransport {
             executable,
             codeModeHostExecutable,
             shellExecutable,
-            nodeExecutable,
-            pythonExecutable,
-            ripgrepExecutable,
             workspace,
-            toolchain,
-            toolBinaryDirectory,
-            toolRuntimeDirectory,
             codexHome,
             home,
             packagePrefix,
             stateDirectory,
             temporaryDirectory,
-            nativeLibraryDirectory,
-            justInTimeApprovalsEnabled
+            nativeLibraryDirectory
         );
         if (startedHandle <= 0L) {
             throw new IOException("Native app-server supervisor returned an invalid handle");

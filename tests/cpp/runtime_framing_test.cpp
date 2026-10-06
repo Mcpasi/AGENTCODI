@@ -172,29 +172,17 @@ int main(int argc, char* argv[]) {
   require(created != nullptr, "create private runtime fixture");
   const std::string root = created;
   const std::vector<std::string> directories = {
-      "/workspace", "/workspace/toolchain", "/tool-bin", "/tool-runtime",
+      "/workspace",
       "/codex-home", "/home", "/usr", "/state", "/temporary"};
   for (const auto& directory : directories) {
     require(mkdir((root + directory).c_str(), 0700) == 0,
             "create runtime directory");
   }
-  const std::vector<std::string> aliases = {
-      "node", "npm", "python", "python3", "rg", "agentcodi-toolchain"};
-  for (const auto& alias : aliases) {
-    require(symlink(executable, (root + "/tool-bin/" + alias).c_str()) == 0,
-            "create verified fixture alias");
-  }
   agentcodi::ProcessConfig config;
   config.executable = executable;
   config.code_mode_host_executable = executable;
   config.shell_executable = executable;
-  config.node_executable = executable;
-  config.python_executable = executable;
-  config.ripgrep_executable = executable;
   config.working_directory = root + "/workspace";
-  config.toolchain_directory = root + "/workspace/toolchain";
-  config.tool_binary_directory = root + "/tool-bin";
-  config.tool_runtime_directory = root + "/tool-runtime";
   config.codex_home = root + "/codex-home";
   config.home_directory = root + "/home";
   config.package_prefix = root + "/usr";
@@ -205,10 +193,6 @@ int main(int argc, char* argv[]) {
   nul_byte_corrupts_only_its_own_frame(config);
   in_progress_image_items_pass_through(config);
 
-  for (const auto& alias : aliases) {
-    require(unlink((root + "/tool-bin/" + alias).c_str()) == 0,
-            "remove fixture alias");
-  }
   for (auto directory = directories.rbegin();
        directory != directories.rend();
        ++directory) {

@@ -31,39 +31,25 @@ public final class NativeEngine {
         String executable,
         String codeModeHostExecutable,
         String shellExecutable,
-        String nodeExecutable,
-        String pythonExecutable,
-        String ripgrepExecutable,
         String workspace,
-        String toolchain,
-        String toolBinaryDirectory,
-        String toolRuntimeDirectory,
         String codexHome,
         String home,
         String packagePrefix,
         String stateDirectory,
         String temporaryDirectory,
-        String nativeLibraryDirectory,
-        boolean justInTimeApprovalsEnabled
+        String nativeLibraryDirectory
     ) throws IOException {
         return nativeStartAppServer(
             executable,
             codeModeHostExecutable,
             shellExecutable,
-            nodeExecutable,
-            pythonExecutable,
-            ripgrepExecutable,
             workspace,
-            toolchain,
-            toolBinaryDirectory,
-            toolRuntimeDirectory,
             codexHome,
             home,
             packagePrefix,
             stateDirectory,
             temporaryDirectory,
-            nativeLibraryDirectory,
-            justInTimeApprovalsEnabled
+            nativeLibraryDirectory
         );
     }
 
@@ -158,20 +144,13 @@ public final class NativeEngine {
         String executable,
         String codeModeHostExecutable,
         String shellExecutable,
-        String nodeExecutable,
-        String pythonExecutable,
-        String ripgrepExecutable,
         String workspace,
-        String toolchain,
-        String toolBinaryDirectory,
-        String toolRuntimeDirectory,
         String codexHome,
         String home,
         String packagePrefix,
         String stateDirectory,
         String temporaryDirectory,
-        String nativeLibraryDirectory,
-        boolean justInTimeApprovalsEnabled
+        String nativeLibraryDirectory
     ) throws IOException;
 
     private static native byte[] nativeReadAppServerLine(

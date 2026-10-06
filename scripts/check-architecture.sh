@@ -840,19 +840,6 @@ session_controller="$core_root/CodexSessionController.java"
 app_server_client="$core_root/CodexAppServerClient.java"
 runtime_service="$PROJECT_ROOT/modules/runtime/src/main/java/de/agentcodi/runtime/AgentRuntimeService.java"
 toolchain_shell="$PROJECT_ROOT/modules/native-engine/src/main/cpp/package_shell_main.cpp"
-toolchain_policy="$PROJECT_ROOT/modules/native-engine/src/main/cpp/toolchain_policy.cpp"
-toolchain_elf_guard="$PROJECT_ROOT/modules/native-engine/src/main/cpp/toolchain_elf_guard.cpp"
-toolchain_elf_attestor="$PROJECT_ROOT/modules/native-engine/src/main/cpp/toolchain_elf_attestor_payload.cpp"
-toolchain_elf_injector="$PROJECT_ROOT/modules/native-engine/src/main/cpp/toolchain_elf_attestor_injector.cpp"
-toolchain_elf_linker_script="$PROJECT_ROOT/scripts/toolchain_elf_attestor_payload.ld"
-toolchain_elf_guard_test="$PROJECT_ROOT/tests/cpp/toolchain_elf_guard_test.cpp"
-toolchain_fake_guard="$PROJECT_ROOT/tests/cpp/toolchain_fake_guard.cpp"
-ripgrep_policy="$PROJECT_ROOT/modules/native-engine/src/main/cpp/ripgrep_bridge_policy.cpp"
-ripgrep_policy_test="$PROJECT_ROOT/tests/cpp/ripgrep_bridge_policy_test.cpp"
-ripgrep_artifact="$PROJECT_ROOT/third_party/ripgrep/ripgrep-15.2.0-android-arm64.elf"
-ripgrep_dependencies="$PROJECT_ROOT/third_party/ripgrep/DEPENDENCIES"
-ripgrep_licenses="$PROJECT_ROOT/third_party/ripgrep/LICENSES"
-ripgrep_provenance="$PROJECT_ROOT/third_party/ripgrep/PROVENANCE"
 if ! rg -Uq 'android:name="de\.agentcodi\.app\.TerminalActivity"[[:space:][:print:]]{0,220}android:exported="false"' "$manifest" \
     || ! rg -q 'openTerminal' "$PROJECT_ROOT/app/src/main/java/de/agentcodi/app/MainActivity.java" \
     || ! rg -q 'AgentRuntimeService\.startTerminal' "$terminal_activity" \
@@ -884,10 +871,10 @@ if [ -e "$PROJECT_ROOT/modules/runtime/src/main/java/de/agentcodi/runtime/Termin
   exit 1
 fi
 
-# Active Package Edition payload contract. Legacy helpers have focused source
-# tests until the separate API cleanup, but they must not be invoked or shipped.
+# Active Package Edition payload and start API contract. Retired tool helpers
+# must not return; only the bounded alias migration remains.
 if ! rg -q 'package_shell_main\.cpp' "$apk_builder" \
-    || ! rg -q 'retirePackagedToolAliases' "$storage_layout" "$runtime_service" \
+    || ! rg -q 'retireLegacyToolAliases' "$storage_layout" "$runtime_service" \
     || rg -q 'layout\.preparePackagedTool(Aliases|Runtime)' "$runtime_service" \
     || rg -q '(NODE|NPM|PYTHON|RIPGREP)_(VERSION|LIBRARY_NAME|URL|SHA256)|toolchain_elf_(guard|attestor|injector)\.cpp' "$apk_builder" \
     || rg -q 'AGENTCODI_(TOOLCHAIN|TOOL_BIN|TOOL_RUNTIME|NODE_VERSION|NPM_VERSION|PYTHON_VERSION|RIPGREP_VERSION)=' "$native_process" \
@@ -899,6 +886,23 @@ if ! rg -q 'package_shell_main\.cpp' "$apk_builder" \
     || ! rg -q 'third-party/zlib/ZLIB-LICENSE' "$licenses_activity" \
     || ! rg -q 'SHELL=" \+ std::string\(kSystemShell\)' "$native_process"; then
   echo "The minimal APK, retired aliases, package diagnostics or legal assets are inconsistent." >&2
+  exit 1
+fi
+
+if [ -e "$PROJECT_ROOT/modules/storage/src/main/java/de/agentcodi/storage/PackagedToolRuntime.java" ] \
+    || [ -e "$core_root/ToolchainCommand.java" ] \
+    || find "$PROJECT_ROOT/modules/native-engine/src/main/cpp" -maxdepth 1 \
+         -name 'toolchain_*' -print -quit | rg -q . \
+    || rg -n '(NODE|NPM|PYTHON|RIPGREP)_RUNTIME_|TOOL_RUNTIME_' "$core_root/BuildIdentity.java" \
+    || rg -n 'nodeExecutable|pythonExecutable|ripgrepExecutable|toolBinaryDirectory|toolRuntimeDirectory|String toolchain' \
+         "$PROJECT_ROOT/modules/runtime/src/main/java/de/agentcodi/runtime/NativeEngine.java" \
+         "$PROJECT_ROOT/modules/runtime/src/main/java/de/agentcodi/runtime/NativeAppServerTransport.java" \
+    || rg -n 'node_executable|python_executable|ripgrep_executable|toolchain_directory|tool_binary_directory|tool_runtime_directory|just_in_time_approvals' \
+         "$PROJECT_ROOT/modules/native-engine/src/main/cpp/app_server_process.h" "$native_process" \
+         "$PROJECT_ROOT/modules/native-engine/src/main/cpp/jni_bridge.cpp" \
+    || rg -n 'secureChild\(.*"(tool-bin|tool-runtime|toolchain)"|preparePackagedTool|is(Node|Npm|Python|Ripgrep)RuntimeEnabled' \
+         "$storage_layout" "$runtime_service"; then
+  echo "Retired APK tool sources, activation pins or startup prerequisites remain." >&2
   exit 1
 fi
 

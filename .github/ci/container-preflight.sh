@@ -103,13 +103,8 @@ fi
 
 echo
 echo "== Android linker =="
-# tests/cpp/toolchain_elf_guard_test.cpp asserts that invoking a guarded tool
-# manually through the dynamic linker cannot bypass the guard. That guard reads
-# /proc/self/exe and compares its basename against the expected tool name, so
-# the assertion only holds when a manual linker invocation leaves /proc/self/exe
-# pointing at the linker. This is a property of the specific Android linker, so
-# report what this environment actually does rather than assume it matches a
-# device. Informational: it does not fail the preflight.
+# Informational probe of the container linker. The retired guard/attestor
+# test is removed; this is not a device installation or update test.
 linker="/system/bin/linker64"
 if [ ! -e "$linker" ]; then
   printf '  note    %s is absent\n' "$linker"

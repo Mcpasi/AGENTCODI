@@ -532,8 +532,6 @@
   <string name="approval_decline_cancel">Ablehnen und Turn abbrechen</string>
   <string name="approval_network_title">Netzwerkzugriff freigeben?</string>
   <string name="approval_command_title">Befehl freigeben?</string>
-  <string name="approval_toolchain_install_title">Ausgemusterter Tool-Befehl</string>
-  <string name="approval_toolchain_install_detail">Der angefragte frühere Aktivierungsbefehl (%1$s %2$s) ist in der Package Edition ausgemustert. Installiere das Werkzeug stattdessen aus dem signierten Editions-APT-Repository.</string>
   <string name="approval_file_title">Dateiänderungen freigeben?</string>
   <string name="approval_target">Ziel</string>
   <string name="approval_command">Befehl</string>

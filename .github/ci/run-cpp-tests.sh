@@ -8,10 +8,6 @@
 # unmodified. Nothing is written into the working tree.
 #
 # Not covered here, on purpose:
-#   * the toolchain ELF guard/attestor chain (toolchain_elf_guard_test.cpp).
-#     Its attestor payload is hand-written aarch64 syscall assembly that needs
-#     __attribute__((naked)), clang, ld.lld and llvm-objcopy, and the injected
-#     entry segment only loads on an aarch64 target.
 #   * tests/cpp/android_app_server_bootstrap_smoke.cpp, which scripts/test.sh
 #     does not run either: scripts/build-debug-apk.sh drives it against the
 #     packaged Codex runtime binaries, which are not part of the repository.
@@ -68,33 +64,17 @@ CXXFLAGS_MIN=(-std=c++17 -O2 -Wall -Wextra -Werror
   ${EXTRA_LDFLAGS[@]+"${EXTRA_LDFLAGS[@]}"})
 CXXFLAGS_BASE=("${CXXFLAGS_MIN[@]}" -pthread -I"$NATIVE")
 
-# The engine test routes toolchain commands through a real shell fixture and
-# expects the packaged tool binaries next to it, mirroring scripts/test.sh.
+# Compile the actual Package Edition shell for host supervisor regressions.
 prepare_fixtures() {
   "$CXX" "${CXXFLAGS_BASE[@]}" \
-    "$NATIVE/toolchain_shell_main.cpp" \
-    "$NATIVE/toolchain_policy.cpp" \
-    "$NATIVE/ripgrep_bridge_policy.cpp" \
+    "$NATIVE/package_shell_main.cpp" \
     -o "$BUILD_DIR/fixtures/libagentcodi-shell.so"
-  local tool
-  for tool in libnode.so libpython-bin.so libripgrep.so; do
-    cp -- /system/bin/sh "$BUILD_DIR/fixtures/$tool"
-    chmod 755 "$BUILD_DIR/fixtures/$tool"
-  done
 }
 
 suite_bootstrap_terminal() {
   "$CXX" "${CXXFLAGS_MIN[@]}" \
     "$TESTS/bootstrap_terminal_test.cpp" -o "$BUILD_DIR/bootstrap-terminal-test" \
     && "$BUILD_DIR/bootstrap-terminal-test"
-}
-
-suite_ripgrep_bridge_policy() {
-  "$CXX" "${CXXFLAGS_BASE[@]}" \
-    "$NATIVE/ripgrep_bridge_policy.cpp" \
-    "$TESTS/ripgrep_bridge_policy_test.cpp" \
-    -o "$BUILD_DIR/ripgrep-bridge-policy-test" \
-    && "$BUILD_DIR/ripgrep-bridge-policy-test"
 }
 
 suite_workspace_file_reader() {
@@ -158,7 +138,6 @@ suite_agentcodi_engine() {
 
 SUITES=(
   bootstrap_terminal
-  ripgrep_bridge_policy
   workspace_file_reader
   workspace_directory_reader
   workspace_import_installer
@@ -167,7 +146,7 @@ SUITES=(
   agentcodi_engine
 )
 
-echo "Preparing toolchain fixtures."
+echo "Preparing the Package Edition shell fixture."
 prepare_fixtures
 
 passed=()

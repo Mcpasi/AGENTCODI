@@ -4,7 +4,6 @@ import de.agentcodi.storage.WorkspaceLayout;
 import de.agentcodi.storage.WorkspaceImageFile;
 import de.agentcodi.storage.WorkspaceFileAccess;
 
-import java.io.ByteArrayInputStream;
 import java.io.ByteArrayOutputStream;
 import java.io.File;
 import java.io.IOException;
@@ -13,14 +12,11 @@ import java.nio.file.Files;
 import java.nio.file.LinkOption;
 import java.nio.file.Path;
 import java.nio.file.attribute.PosixFilePermission;
-import java.security.MessageDigest;
 import java.util.Arrays;
 import java.util.EnumSet;
 import java.util.Set;
 import java.util.zip.CRC32;
 import java.util.zip.Deflater;
-import java.util.zip.ZipEntry;
-import java.util.zip.ZipOutputStream;
 
 public final class WorkspaceLayoutTest {
     private WorkspaceLayoutTest() {
@@ -35,14 +31,10 @@ public final class WorkspaceLayoutTest {
         rejectsFileAsManagedPackagePrefix();
         rejectsSymbolicPackagePrefix();
         retiresOnlyAppCreatedToolAliases();
-        preparesPackagedToolAliases();
-        rejectsUnexpectedPackagedToolEntries();
-        preparesVerifiedPackagedToolRuntime();
-        rejectsUnsafePackagedToolManifest();
-        reportsValidatedNodeActivationState();
+        preservesRetiredToolData();
+        ignoresLinkedRetiredToolDirectories();
         rejectsFileAsBaseDirectory();
         rejectsSymbolicWorkspaceRoot();
-        rejectsSymbolicToolchainRoot();
         keepsCodexHomeSeparateAndPrivate();
         rejectsSymbolicCanonicalCredential();
         preservesExistingCanonicalCredential();
@@ -69,7 +61,7 @@ public final class WorkspaceLayoutTest {
         rejectsPngBytesAfterIend();
         rejectsMalformedPngDuringCopy();
         rejectsOversizedWorkspaceImage();
-        return 42;
+        return 38;
     }
 
     private static void createsStablePrivateLayout() throws Exception {
@@ -80,9 +72,6 @@ public final class WorkspaceLayoutTest {
             TestSupport.assertTrue(first.getRoot().isDirectory(), "root directory");
             TestSupport.assertTrue(first.getWorkspace().isDirectory(), "workspace directory");
             TestSupport.assertTrue(first.getImports().isDirectory(), "imports directory");
-            TestSupport.assertTrue(first.getToolchain().isDirectory(), "toolchain directory");
-            TestSupport.assertTrue(first.getToolBin().isDirectory(), "tool binary directory");
-            TestSupport.assertTrue(first.getToolRuntime().isDirectory(), "tool runtime directory");
             TestSupport.assertTrue(first.getState().isDirectory(), "state directory");
             TestSupport.assertTrue(new File(first.getHome(), ".npm").isDirectory(), "npm cache directory");
             TestSupport.assertTrue(new File(first.getHome(), ".cache").isDirectory(), "user cache directory");
@@ -104,24 +93,14 @@ public final class WorkspaceLayoutTest {
                 ),
                 "imports must remain below workspace"
             );
-            TestSupport.assertTrue(
-                first.getToolchain().getCanonicalPath().startsWith(
-                    first.getWorkspace().getCanonicalPath() + File.separator
-                ),
-                "toolchain must remain below workspace"
-            );
-            TestSupport.assertFalse(
-                first.getToolBin().getCanonicalPath().startsWith(
-                    first.getWorkspace().getCanonicalPath() + File.separator
-                ),
-                "tool aliases must remain outside the writable workspace"
-            );
-            TestSupport.assertFalse(
-                first.getToolRuntime().getCanonicalPath().startsWith(
-                    first.getWorkspace().getCanonicalPath() + File.separator
-                ),
-                "packaged tool runtime must remain outside the writable workspace"
-            );
+            for (Path retired : new Path[] {
+                first.getWorkspace().toPath().resolve("toolchain"),
+                first.getRoot().toPath().resolve("tool-bin"),
+                first.getRoot().toPath().resolve("tool-runtime")
+            }) {
+                TestSupport.assertFalse(Files.exists(retired, LinkOption.NOFOLLOW_LINKS),
+                    "fresh startup must not recreate retired tool storage");
+            }
         } finally {
             deleteRecursively(temporary);
         }
@@ -265,7 +244,7 @@ public final class WorkspaceLayoutTest {
             Path shell = nativeDirectory.resolve("libagentcodi-shell.so");
             Files.write(shell, new byte[] {1});
             shell.toFile().setExecutable(true, true);
-            Path bin = layout.getToolBin().toPath();
+            Path bin = Files.createDirectory(layout.getRoot().toPath().resolve("tool-bin"));
             // A former install path can be stale after Android replaces the APK.
             Files.createSymbolicLink(bin.resolve("node"),
                 nativeDirectory.resolve("old-install/libagentcodi-shell.so"));
@@ -275,8 +254,8 @@ public final class WorkspaceLayoutTest {
             Files.write(bin.resolve("npm"), new byte[] {3});
             Path userPackage = layout.getHome().toPath().resolve(".local/bin/node");
             Files.write(userPackage, new byte[] {4});
-            layout.retirePackagedToolAliases(shell.toFile());
-            layout.retirePackagedToolAliases(shell.toFile());
+            layout.retireLegacyToolAliases(shell.toFile());
+            layout.retireLegacyToolAliases(shell.toFile());
             TestSupport.assertTrue(!Files.exists(bin.resolve("node"), LinkOption.NOFOLLOW_LINKS),
                 "stale app alias removed idempotently without following links");
             TestSupport.assertTrue(Files.isSymbolicLink(bin.resolve("rg")),
@@ -291,304 +270,62 @@ public final class WorkspaceLayoutTest {
         }
     }
 
-    private static void preparesPackagedToolAliases() throws Exception {
-        Path base = Files.createTempDirectory("agentcodi-tool-alias-base-");
-        Path firstShell = Files.createTempFile("agentcodi-shell-first-", ".bin");
-        Path secondShell = Files.createTempFile("agentcodi-shell-second-", ".bin");
-        try {
-            TestSupport.assertTrue(firstShell.toFile().setExecutable(true, true), "first shell mode");
-            TestSupport.assertTrue(secondShell.toFile().setExecutable(true, true), "second shell mode");
-            WorkspaceLayout layout = WorkspaceLayout.create(base.toFile());
-            layout.preparePackagedToolAliases(firstShell.toFile());
-            Path node = layout.getToolBin().toPath().resolve(WorkspaceLayout.NODE_TOOL_ALIAS);
-            Path npm = layout.getToolBin().toPath().resolve(WorkspaceLayout.NPM_TOOL_ALIAS);
-            Path python = layout.getToolBin().toPath().resolve(
-                WorkspaceLayout.PYTHON_TOOL_ALIAS
-            );
-            Path python3 = layout.getToolBin().toPath().resolve(
-                WorkspaceLayout.PYTHON3_TOOL_ALIAS
-            );
-            Path ripgrep = layout.getToolBin().toPath().resolve(
-                WorkspaceLayout.RIPGREP_TOOL_ALIAS
-            );
-            Path toolchain = layout.getToolBin().toPath().resolve(
-                WorkspaceLayout.TOOLCHAIN_TOOL_ALIAS
-            );
-            TestSupport.assertTrue(Files.isSymbolicLink(node), "Node tool alias");
-            TestSupport.assertTrue(Files.isSymbolicLink(npm), "npm tool alias");
-            TestSupport.assertTrue(Files.isSymbolicLink(python), "Python tool alias");
-            TestSupport.assertTrue(Files.isSymbolicLink(python3), "Python 3 tool alias");
-            TestSupport.assertTrue(Files.isSymbolicLink(ripgrep), "ripgrep tool alias");
-            TestSupport.assertTrue(Files.isSymbolicLink(toolchain), "toolchain command alias");
-            TestSupport.assertEquals(
-                firstShell.toRealPath(),
-                node.toRealPath(),
-                "Node alias target"
-            );
-            TestSupport.assertEquals(firstShell.toRealPath(), npm.toRealPath(), "npm alias target");
-            TestSupport.assertEquals(
-                firstShell.toRealPath(),
-                python.toRealPath(),
-                "Python alias target"
-            );
-            TestSupport.assertEquals(
-                firstShell.toRealPath(),
-                python3.toRealPath(),
-                "Python 3 alias target"
-            );
-            TestSupport.assertEquals(
-                firstShell.toRealPath(),
-                ripgrep.toRealPath(),
-                "ripgrep alias target"
-            );
-            layout.preparePackagedToolAliases(firstShell.toFile());
-            layout.preparePackagedToolAliases(secondShell.toFile());
-            TestSupport.assertEquals(
-                secondShell.toRealPath(),
-                node.toRealPath(),
-                "stale aliases are replaced during a verified app update"
-            );
-        } finally {
-            deleteRecursively(base);
-            Files.deleteIfExists(firstShell);
-            Files.deleteIfExists(secondShell);
-        }
-    }
-
-    private static void preparesVerifiedPackagedToolRuntime() throws Exception {
-        Path base = Files.createTempDirectory("agentcodi-packaged-runtime-base-");
-        Path nativeDirectory = Files.createTempDirectory("agentcodi-packaged-runtime-native-");
-        try {
-            Path nativeExtension = nativeDirectory.resolve("libpython_ext_000.so");
-            byte[] nativeBytes = "verified-native-extension".getBytes("US-ASCII");
-            Files.write(nativeExtension, nativeBytes);
-            TestSupport.assertTrue(
-                nativeExtension.toFile().setExecutable(true, true),
-                "native extension executable mode"
-            );
-            byte[] npmBytes = "verified npm runtime".getBytes("UTF-8");
-            byte[] pythonBytes = new byte[] {0x42, 0x0d, 0x0d, 0x0a};
-            String manifest = "AGENTCODI_TOOL_RUNTIME_V1\n"
-                + "F\t" + npmBytes.length + "\t" + sha256(npmBytes)
-                + "\tnpm/node_modules/npm/bin/npm-cli.js\n"
-                + "F\t" + pythonBytes.length + "\t" + sha256(pythonBytes)
-                + "\tpython/lib/python3.14/encodings/__init__.pyc\n"
-                + "L\t" + sha256(nativeBytes) + "\tlibpython_ext_000.so"
-                + "\tpython/lib/python3.14/lib-dynload/"
-                + "_ssl.cpython-314-aarch64-linux-android.so\n";
-            byte[] archive = runtimeArchive(npmBytes, pythonBytes);
-            WorkspaceLayout layout = WorkspaceLayout.create(base.toFile());
-            File runtime = layout.preparePackagedToolRuntime(
-                "python-3.14.6-npm-11.19.0",
-                new ByteArrayInputStream(archive),
-                new ByteArrayInputStream(manifest.getBytes("UTF-8")),
-                nativeDirectory.toFile()
-            );
-            Path npmCli = runtime.toPath().resolve("npm/node_modules/npm/bin/npm-cli.js");
-            Path pythonEncoding = runtime.toPath().resolve(
-                "python/lib/python3.14/encodings/__init__.pyc"
-            );
-            Path extension = runtime.toPath().resolve(
-                "python/lib/python3.14/lib-dynload/"
-                    + "_ssl.cpython-314-aarch64-linux-android.so"
-            );
-            TestSupport.assertTrue(Files.isRegularFile(npmCli), "verified npm runtime file");
-            TestSupport.assertTrue(
-                Files.getPosixFilePermissions(npmCli).equals(
-                    EnumSet.of(
-                        PosixFilePermission.OWNER_READ,
-                        PosixFilePermission.OWNER_WRITE
-                    )
-                ),
-                "runtime files are owner-only"
-            );
-            TestSupport.assertTrue(Files.isSymbolicLink(extension), "native extension alias");
-            TestSupport.assertEquals(
-                nativeExtension.toRealPath(),
-                extension.toRealPath(),
-                "native extension target"
-            );
-            Files.setPosixFilePermissions(
-                pythonEncoding,
-                EnumSet.of(
-                    PosixFilePermission.OWNER_READ,
-                    PosixFilePermission.OWNER_WRITE
-                )
-            );
-            Files.write(pythonEncoding, new byte[] {1, 2, 3});
-            File repaired = layout.preparePackagedToolRuntime(
-                "python-3.14.6-npm-11.19.0",
-                new ByteArrayInputStream(archive),
-                new ByteArrayInputStream(manifest.getBytes("UTF-8")),
-                nativeDirectory.toFile()
-            );
-            TestSupport.assertEquals(
-                sha256(pythonBytes),
-                sha256(Files.readAllBytes(repaired.toPath().resolve(
-                    "python/lib/python3.14/encodings/__init__.pyc"
-                ))),
-                "corrupt packaged runtime is replaced from the verified archive"
-            );
-        } finally {
-            deleteRecursively(base);
-            deleteRecursively(nativeDirectory);
-        }
-    }
-
-    private static void rejectsUnsafePackagedToolManifest() throws Exception {
-        final Path base = Files.createTempDirectory("agentcodi-runtime-manifest-base-");
-        final Path nativeDirectory = Files.createTempDirectory(
-            "agentcodi-runtime-manifest-native-"
-        );
-        try {
-            final WorkspaceLayout layout = WorkspaceLayout.create(base.toFile());
-            final byte[] payload = new byte[] {1};
-            final String manifest = "AGENTCODI_TOOL_RUNTIME_V1\nF\t1\t"
-                + sha256(payload) + "\t../escaped\n";
-            TestSupport.expectThrows(
-                IOException.class,
-                new TestSupport.ThrowingRunnable() {
-                    @Override
-                    public void run() throws Exception {
-                        layout.preparePackagedToolRuntime(
-                            "unsafe-runtime",
-                            new ByteArrayInputStream(payload),
-                            new ByteArrayInputStream(manifest.getBytes("UTF-8")),
-                            nativeDirectory.toFile()
-                        );
-                    }
-                },
-                "unsafe packaged runtime manifest path"
-            );
-        } finally {
-            deleteRecursively(base);
-            deleteRecursively(nativeDirectory);
-        }
-    }
-
-    private static byte[] runtimeArchive(byte[] npmBytes, byte[] pythonBytes)
-        throws IOException {
-        ByteArrayOutputStream bytes = new ByteArrayOutputStream();
-        try (ZipOutputStream zip = new ZipOutputStream(bytes)) {
-            zip.putNextEntry(new ZipEntry("npm/node_modules/npm/bin/npm-cli.js"));
-            zip.write(npmBytes);
-            zip.closeEntry();
-            zip.putNextEntry(new ZipEntry(
-                "python/lib/python3.14/encodings/__init__.pyc"
-            ));
-            zip.write(pythonBytes);
-            zip.closeEntry();
-        }
-        return bytes.toByteArray();
-    }
-
-    private static String sha256(byte[] bytes) throws Exception {
-        byte[] digest = MessageDigest.getInstance("SHA-256").digest(bytes);
-        StringBuilder encoded = new StringBuilder(digest.length * 2);
-        for (byte value : digest) {
-            encoded.append(String.format("%02x", Integer.valueOf(value & 0xff)));
-        }
-        return encoded.toString();
-    }
-
-    private static void rejectsUnexpectedPackagedToolEntries() throws Exception {
-        final Path base = Files.createTempDirectory("agentcodi-tool-entry-base-");
-        Path shell = Files.createTempFile("agentcodi-tool-entry-shell-", ".bin");
-        try {
-            TestSupport.assertTrue(shell.toFile().setExecutable(true, true), "tool entry shell mode");
-            final WorkspaceLayout layout = WorkspaceLayout.create(base.toFile());
-            Files.write(layout.getToolBin().toPath().resolve("unexpected"), new byte[] {1});
-            TestSupport.expectThrows(
-                IOException.class,
-                new TestSupport.ThrowingRunnable() {
-                    @Override
-                    public void run() throws Exception {
-                        layout.preparePackagedToolAliases(shell.toFile());
-                    }
-                },
-                "unexpected packaged tool entry"
-            );
-        } finally {
-            deleteRecursively(base);
-            Files.deleteIfExists(shell);
-        }
-    }
-
-    private static void reportsValidatedNodeActivationState() throws Exception {
-        Path base = Files.createTempDirectory("agentcodi-node-state-base-");
+    private static void preservesRetiredToolData() throws Exception {
+        Path base = Files.createTempDirectory("agentcodi-retired-tool-data-");
         try {
             WorkspaceLayout layout = WorkspaceLayout.create(base.toFile());
-            TestSupport.assertFalse(
-                layout.isNodeRuntimeEnabled("24.18.0"),
-                "Node is disabled without marker"
-            );
-            Path installed = layout.getToolchain().toPath().resolve("installed");
-            Files.createDirectory(installed);
-            installed.toFile().setReadable(false, false);
-            installed.toFile().setWritable(false, false);
-            installed.toFile().setExecutable(false, false);
-            installed.toFile().setReadable(true, true);
-            installed.toFile().setWritable(true, true);
-            installed.toFile().setExecutable(true, true);
-            Path marker = installed.resolve("node-24.18.0");
-            Files.write(marker, "enabled 24.18.0\n".getBytes("US-ASCII"));
-            Files.setPosixFilePermissions(marker, EnumSet.of(
-                PosixFilePermission.OWNER_READ,
-                PosixFilePermission.OWNER_WRITE
-            ));
-            TestSupport.assertTrue(
-                layout.isNodeRuntimeEnabled("24.18.0"),
-                "exact private Node marker enables UI state"
-            );
-            Files.write(marker, "not-enabled\n".getBytes("US-ASCII"));
-            TestSupport.assertFalse(
-                layout.isNodeRuntimeEnabled("24.18.0"),
-                "marker content is authoritative"
-            );
-            Files.write(marker, "enabled 24.18.0\n".getBytes("US-ASCII"));
-            Files.setPosixFilePermissions(marker, EnumSet.of(
-                PosixFilePermission.OWNER_READ,
-                PosixFilePermission.OWNER_WRITE,
-                PosixFilePermission.GROUP_READ
-            ));
-            TestSupport.assertFalse(
-                layout.isNodeRuntimeEnabled("24.18.0"),
-                "non-private Node marker is rejected"
-            );
-            Files.setPosixFilePermissions(marker, EnumSet.of(
-                PosixFilePermission.OWNER_READ,
-                PosixFilePermission.OWNER_WRITE,
-                PosixFilePermission.OWNER_EXECUTE
-            ));
-            TestSupport.assertFalse(
-                layout.isNodeRuntimeEnabled("24.18.0"),
-                "Node marker permissions must be exactly 0600"
-            );
+            Path runtime = Files.createDirectories(layout.getRoot().toPath()
+                .resolve("tool-runtime/old-runtime"));
+            Path archive = runtime.resolve("user-file");
+            byte[] bytes = new byte[] {1, 2, 3};
+            Files.write(archive, bytes);
+            Set<PosixFilePermission> permissions = Files.getPosixFilePermissions(archive);
+            Path marker = Files.createDirectories(layout.getWorkspace().toPath()
+                .resolve("toolchain/installed")).resolve("node-24.18.0");
+            Files.write(marker, bytes);
+            // Unexpected legacy content cannot be a Package Edition prerequisite.
+            Path oldBin = layout.getRoot().toPath().resolve("tool-bin");
+            Files.write(oldBin, bytes);
+            for (int restart = 0; restart < 2; restart++) {
+                WorkspaceLayout reopened = WorkspaceLayout.create(base.toFile());
+                reopened.retireLegacyToolAliases(null);
+                TestSupport.assertTrue(Arrays.equals(bytes, Files.readAllBytes(archive)),
+                    "old extracted data preserved");
+                TestSupport.assertTrue(Arrays.equals(bytes, Files.readAllBytes(marker)),
+                    "old markers retained without interpreting them");
+                TestSupport.assertTrue(Arrays.equals(bytes, Files.readAllBytes(oldBin)),
+                    "regular legacy path does not block startup or get deleted");
+                TestSupport.assertEquals(permissions, Files.getPosixFilePermissions(archive),
+                    "retired data permissions preserved");
+            }
         } finally {
             deleteRecursively(base);
         }
     }
 
-    private static void rejectsSymbolicToolchainRoot() throws Exception {
-        final Path base = Files.createTempDirectory("agentcodi-toolchain-base-");
-        Path target = Files.createTempDirectory("agentcodi-toolchain-target-");
+    private static void ignoresLinkedRetiredToolDirectories() throws Exception {
+        Path base = Files.createTempDirectory("agentcodi-retired-tool-links-");
+        Path outside = Files.createTempDirectory("agentcodi-retired-tool-outside-");
         try {
-            Path workspace = base.resolve("agentcodi").resolve("workspace");
-            Files.createDirectories(workspace);
-            Files.createSymbolicLink(workspace.resolve("toolchain"), target);
-            TestSupport.expectThrows(
-                IOException.class,
-                new TestSupport.ThrowingRunnable() {
-                    @Override
-                    public void run() throws Exception {
-                        WorkspaceLayout.create(base.toFile());
-                    }
-                },
-                "symbolic toolchain root should be rejected"
-            );
+            WorkspaceLayout layout = WorkspaceLayout.create(base.toFile());
+            Path foreignAlias = outside.resolve("node");
+            Files.createSymbolicLink(foreignAlias, outside.resolve("libagentcodi-shell.so"));
+            for (Path retired : new Path[] {
+                layout.getWorkspace().toPath().resolve("toolchain"),
+                layout.getRoot().toPath().resolve("tool-bin"),
+                layout.getRoot().toPath().resolve("tool-runtime")
+            }) {
+                Files.createSymbolicLink(retired, outside);
+            }
+            for (int restart = 0; restart < 2; restart++) {
+                WorkspaceLayout reopened = WorkspaceLayout.create(base.toFile());
+                reopened.retireLegacyToolAliases(null);
+                TestSupport.assertTrue(Files.isSymbolicLink(foreignAlias),
+                    "optional migration never follows a linked legacy root");
+            }
         } finally {
             deleteRecursively(base);
-            deleteRecursively(target);
+            deleteRecursively(outside);
         }
     }
 

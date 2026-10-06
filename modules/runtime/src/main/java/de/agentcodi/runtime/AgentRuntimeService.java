@@ -286,54 +286,6 @@ public final class AgentRuntimeService extends Service {
         }
     }
 
-    public static boolean isNodeRuntimeEnabled() {
-        WorkspaceLayout layout = activeWorkspaceLayout;
-        if (layout == null) {
-            return false;
-        }
-        try {
-            return layout.isNodeRuntimeEnabled(BuildIdentity.NODE_RUNTIME_VERSION);
-        } catch (IOException error) {
-            return false;
-        }
-    }
-
-    public static boolean isNpmRuntimeEnabled() {
-        WorkspaceLayout layout = activeWorkspaceLayout;
-        if (layout == null) {
-            return false;
-        }
-        try {
-            return layout.isNpmRuntimeEnabled(BuildIdentity.NPM_RUNTIME_VERSION);
-        } catch (IOException error) {
-            return false;
-        }
-    }
-
-    public static boolean isPythonRuntimeEnabled() {
-        WorkspaceLayout layout = activeWorkspaceLayout;
-        if (layout == null) {
-            return false;
-        }
-        try {
-            return layout.isPythonRuntimeEnabled(BuildIdentity.PYTHON_RUNTIME_VERSION);
-        } catch (IOException error) {
-            return false;
-        }
-    }
-
-    public static boolean isRipgrepRuntimeEnabled() {
-        WorkspaceLayout layout = activeWorkspaceLayout;
-        if (layout == null) {
-            return false;
-        }
-        try {
-            return layout.isRipgrepRuntimeEnabled(BuildIdentity.RIPGREP_RUNTIME_VERSION);
-        } catch (IOException error) {
-            return false;
-        }
-    }
-
     public static void sendTerminalInput(char[] input) throws java.io.IOException {
         CodexSessionController controller = sessionController;
         if (controller == null) {
@@ -845,8 +797,7 @@ public final class AgentRuntimeService extends Service {
                         BuildIdentity.TERMINAL_SHELL_LIBRARY
                     );
                     // Retire only app-created aliases; preserve user packages and old data.
-                    layout.retirePackagedToolAliases(shellExecutable);
-                    File toolRuntimeDirectory = layout.getToolRuntime();
+                    layout.retireLegacyToolAliases(shellExecutable);
                     String temporaryDirectory = getCacheDir().getCanonicalPath();
                     String nativeLibraryPath = nativeLibraryDirectory.getCanonicalPath();
                     if (!isCurrentBootstrap(generation)) {
@@ -857,18 +808,13 @@ public final class AgentRuntimeService extends Service {
                         codexExecutable.getAbsolutePath(),
                         codeModeHostExecutable.getAbsolutePath(),
                         shellExecutable.getAbsolutePath(),
-                        "", "", "", // Retired parameters; no user-tool APK payload.
                         layout.getWorkspace().getAbsolutePath(),
-                        layout.getToolchain().getAbsolutePath(),
-                        layout.getToolBin().getAbsolutePath(),
-                        toolRuntimeDirectory.getAbsolutePath(),
                         layout.getCodexHome().getAbsolutePath(),
                         layout.getHome().getAbsolutePath(),
                         layout.getPackagePrefix().getAbsolutePath(),
                         layout.getState().getAbsolutePath(),
                         temporaryDirectory,
-                        nativeLibraryPath,
-                        justInTimeApprovalsEnabled
+                        nativeLibraryPath
                     );
                     startedController = new CodexSessionController(
                         startedTransport,

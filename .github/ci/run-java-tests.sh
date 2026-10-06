@@ -28,7 +28,7 @@ fi
 echo "Using $("$JAVAC" -version 2>&1)"
 
 # The Java source list is duplicated from scripts/test.sh on purpose: that
-# script stays untouched. Catch the duplication drifting out of sync.
+# both entry points must compile the same sources. Catch any drift.
 if [ "${AGENTCODI_CI_SKIP_SOURCE_SYNC:-0}" != "1" ] && [ -r "$PROJECT_ROOT/scripts/test.sh" ]; then
   local_list="$(awk '/^find \\$/{block=1;next} block && /-type f -name/{block=0} block' \
       "$PROJECT_ROOT/scripts/test.sh" \

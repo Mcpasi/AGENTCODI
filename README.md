@@ -1,6 +1,6 @@
 > **Package Edition — for power users and experienced users only.** This edition offers **Full access** exclusively. Codex and user-installed programs can read, change, or delete every file reachable by the app, including Codex account data. Android's isolation from other apps remains in place; there is no workspace sandbox within this app.
 >
-> **Development status:** The writable package prefix, Full access, and Community app-server integration are implemented. The minimal APT/dpkg bootstrap, signed APT repository and initial Python, Node.js/npm, Git and ripgrep catalog are integrated and CI-verified. The public HTTPS repository passes pinned-signature, package/index checksum and complete source-availability checks. On-demand terminal package diagnostics and explicit workspace/package file areas are implemented. The APK now omits the user-installable Node.js, npm, Python and ripgrep runtimes. Remaining source/API cleanup and device validation are tracked on the [roadmap](ROADMAP-package-edition.md). This development branch is not merged into `main`.
+> **Development status:** The writable package prefix, Full access, and Community app-server integration are implemented. The minimal APT/dpkg bootstrap, signed APT repository and initial Python, Node.js/npm, Git and ripgrep catalog are integrated and CI-verified. The public HTTPS repository passes pinned-signature, package/index checksum and complete source-availability checks. On-demand terminal package diagnostics and explicit workspace/package file areas are implemented. The APK now omits the user-installable Node.js, npm, Python and ripgrep runtimes. Further build/cache reduction, final notice alignment and device validation are tracked on the [roadmap](ROADMAP-package-edition.md). This development branch is not merged into `main`.
 
 <div align="center">
 
@@ -40,7 +40,7 @@ The managed writable installation prefix is `$PREFIX = <app files>/usr`, normall
 The app-server, Codex commands, terminal and local stdio MCP servers share the running server's search path:
 
 ```text
-PATH=<Codex session helpers>:$PREFIX/bin:$HOME/.local/bin:<existing APK tool aliases>:/system/bin:/system/xbin
+PATH=<Codex session helpers>:$PREFIX/bin:$HOME/.local/bin:/system/bin:/system/xbin
 LD_LIBRARY_PATH=$PREFIX/lib:$HOME/.local/lib:<native APK libraries>
 ```
 
@@ -82,7 +82,7 @@ The separately packaged ensurepip wheels come from the pinned Python source arch
 
 Edition npm adapts npm-managed `#!/usr/bin/env node` scripts to `#!/system/bin/env node` when creating executable links, including local `node_modules/.bin` scripts. Other interpreter requirements remain the package author's responsibility. The shared environment sets `TERMUX_VERSION=agentcodi-package-edition` solely to enable the pinned Community runtime's Android stdio environment allowlist. It forwards `PREFIX`, library paths, npm prefix and cache-home values alongside the normal `HOME/PATH/TMPDIR`; no Termux app or official binary repository is installed. Explicit per-server MCP environment overrides remain user configuration.
 
-Node.js, npm, Python and ripgrep are installed through APT; the APK contains none of their executable, standard-library, npm, extension-module or activation-guard payloads. The minimal bootstrap supplies shell, APT/dpkg, certificates and their dependencies. The app-server and code-mode host are standalone native executables; the code-mode host includes its own JavaScript engine. The native app still needs libc++ and zlib for PNG validation. `agentcodi-toolchain` fallback activation is retired. APK updates remove only recognized app-created tool aliases and preserve the managed prefix, user packages, caches and existing legacy data. The remaining unused source helpers and transport parameters are a separate roadmap cleanup step.
+Node.js, npm, Python and ripgrep are installed through APT; the APK contains none of their executable, standard-library, npm, extension-module or activation-guard payloads. The minimal bootstrap supplies shell, APT/dpkg, certificates and their dependencies. The app-server and code-mode host are standalone native executables; the code-mode host includes its own JavaScript engine. The native app still needs libc++ and zlib for PNG validation. `agentcodi-toolchain` fallback activation is retired. APK updates remove only recognized app-created tool aliases and preserve the managed prefix, user packages, caches and existing legacy data. The old archive extraction, activation-marker APIs, fixed APK tool-version pins and ELF guard/attestor sources are removed. Runtime startup uses only the active native payload and package/private roots; new installations do not create `tool-bin`, `tool-runtime` or `workspace/toolchain`. Existing legacy archives, markers and user files are preserved without being interpreted or required for startup. Alias retirement skips linked or non-directory legacy roots and never follows them.
 
 ## Workspace and package files
 

@@ -10,6 +10,10 @@ Codex app-server/code-mode host, the app engine and shell bridge, libc++ and zli
 plus the minimal package bootstrap. Node.js, npm, Python and ripgrep are installed
 separately through the signed edition APT repository. Retired APK activation
 aliases are excluded from PATH; updates preserve user-installed packages.
+The obsolete extraction, activation and guard/attestor APIs are removed. Optional
+alias retirement does not follow linked legacy roots, and runtime startup no
+longer requires retired tool directories. Existing legacy data is retained;
+Full-access programs can still access it.
 
 ## Browser and export areas
 

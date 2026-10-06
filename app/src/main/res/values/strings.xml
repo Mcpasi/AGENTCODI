@@ -532,8 +532,6 @@
   <string name="approval_decline_cancel">Decline and cancel turn</string>
   <string name="approval_network_title">Allow network access?</string>
   <string name="approval_command_title">Allow command?</string>
-  <string name="approval_toolchain_install_title">Retired tool command</string>
-  <string name="approval_toolchain_install_detail">The requested legacy activation command (%1$s %2$s) is retired in Package Edition. Install the tool from the signed edition APT repository instead.</string>
   <string name="approval_file_title">Allow file changes?</string>
   <string name="approval_target">Target</string>
   <string name="approval_command">Command</string>

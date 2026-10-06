@@ -843,3 +843,41 @@ Implementierungsläufe haben keine Testfehlschläge. Der Abschlusscommit
 ergänzt ausschließlich Dokumentation; der geprüfte App-Code bleibt unverändert.
 Gerätetests werden gemäß Nutzeranweisung übersprungen und bleiben offen.
 Kein PR, Merge oder APK-Release; `main` bleibt unverändert.
+
+## Bereinigung der alten Tool-Runtime und Start-APIs — 2026-10-06
+
+Implementierung ausschließlich auf `Mcpasi/package-edition`; der Punkt wird
+nach erfolgreicher CI-Verifikation als umgesetzt markiert.
+
+PackagedToolRuntime, Alias-Erstellung, Aktivierungsmarker-Abfragen,
+ToolchainCommand mit festen APK-Versionen sowie der ungenutzte native
+Toolchain-/ripgrep-Policy-/ELF-Guard-/Attestor-/Injector-Code und seine
+ausgemusterten Tests sind entfernt. Java, JNI und ProcessConfig übergeben
+nur den aktiven nativen App-Server, Code-mode-Host, Shell und die benötigten
+Paket-/Privatverzeichnisse. Der alte JIT-Parameter entfällt aus diesem Start-API;
+bestehende Launch-Intents werden weiterhin auf Full access migriert.
+
+Neue Installationen legen `tool-bin`, `tool-runtime` und
+`workspace/toolchain` nicht mehr an. Vorhandene Archive, Aktivierungsmarker
+und Nutzerdateien bleiben erhalten, werden jedoch weder interpretiert noch
+als Startvoraussetzung geprüft. Die eng begrenzte Migration erkannter alter
+APK-Aliase bleibt idempotent; verlinkte oder nicht als Verzeichnis vorhandene
+Alt-Wurzeln werden ignoriert, ohne ihnen zu folgen.
+
+Die Paketbasis und ihr Bootstrap-/Reparaturvertrag bleiben erhalten.
+Kanonische ausführbare APK-Dateien, separate Paket-/Privatwurzeln, private
+Bildzustandsdaten und Codex-Konfigurationen werden weiterhin validiert.
+Der verwaltete Präfix muss auch vom temporären Verzeichnis getrennt sein.
+Der lokale Testtreiber und GitHub-CI bauen jetzt dieselbe aktive Package-Shell.
+Sieben portable C++-Suiten behalten Supervisor-, PNG-, Framing-, Lifecycle-
+und Dateizugriffsprüfungen. Zwei zusätzliche Java-Regressionen prüfen den
+Erhalt alter Daten und das Ignorieren verlinkter Altverzeichnisse;
+Layout- und Alias-Migrationstests prüfen außerdem fehlende Altverzeichnisse
+und den Erhalt fremder Dateien. Der ARM64/Bionic-APK-Smoke verwendet denselben
+reduzierten Startvertrag ohne alte Werkzeuge oder Aktivierungsverzeichnisse.
+
+README, SECURITY und CI-Dokumentation sind angepasst. Die anschließende
+vollständige Build-/Docker-/Preflight-/Cache-Reduktion, finale Lizenzprüfung
+und die gesonderte Ausrichtung aller Architektur-/Smoke-Verträge bleiben
+eigene Roadmap-Punkte. Gerätetests werden gemäß Nutzeranweisung übersprungen
+und bleiben offen. Kein PR, Merge oder APK-Release; `main` bleibt unverändert.

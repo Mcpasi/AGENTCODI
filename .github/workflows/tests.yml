@@ -1,7 +1,7 @@
 # Hosted test workflow for AGENTCODI.
 #
 # The local runners (scripts/test.sh, scripts/build-debug-apk.sh) need the
-# Termux Android toolchain and stay untouched. This workflow rebuilds the
+# Termux Android toolchain. This workflow rebuilds the
 # portable part of the same test sources with stock Ubuntu tooling instead.
 # The drivers live in .github/ci/ and can be run locally as well.
 name: Tests

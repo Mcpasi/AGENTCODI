@@ -373,10 +373,7 @@ CODEX_SCHEMA_HOME="$WORK_DIR/codex-schema-home"
 CODEX_SCHEMA_TMP="$WORK_DIR/codex-schema-tmp"
 THIRD_PARTY_ASSETS="$ADDITIONS/assets/third-party/codex"
 ZLIB_THIRD_PARTY_ASSETS="$ADDITIONS/assets/third-party/zlib"
-# Reserved private directory for the legacy transport API; no runtime is extracted.
-TOOL_RUNTIME_STAGE="$WORK_DIR/retired-tool-runtime"
 mkdir -p "$EXTRACT_DIR" "$AAPT2_EXTRACT" "$GENERATED_JAVA" "$CLASSES_ROOT" "$JARS_ROOT" "$DEX_DIR" "$NATIVE_DIR" "$CODEX_EXTRACT" "$THIRD_PARTY_ASSETS" "$ZLIB_THIRD_PARTY_ASSETS"
-mkdir -m 700 "$TOOL_RUNTIME_STAGE"
 # The bootstrap is built from the pinned edition recipes, not from Termux DEBs.
 PACKAGE_BOOTSTRAP_INPUT="$PROJECT_ROOT/output/package-bootstrap"
 PACKAGE_BOOTSTRAP_ASSETS="$ADDITIONS/assets/third-party/package-bootstrap"
@@ -778,12 +775,9 @@ fi
 CONFIG_SMOKE_HOME="$WORK_DIR/config-smoke-home"
 CONFIG_SMOKE_CODEX_HOME="$WORK_DIR/config-smoke-codex-home"
 CONFIG_SMOKE_WORKSPACE="$WORK_DIR/config-smoke-workspace"
-CONFIG_SMOKE_TOOLCHAIN="$CONFIG_SMOKE_WORKSPACE/toolchain"
-CONFIG_SMOKE_TOOL_BIN="$WORK_DIR/config-smoke-tool-bin"
-CONFIG_SMOKE_TOOL_RUNTIME="$TOOL_RUNTIME_STAGE"
 CONFIG_SMOKE_TEMP="$WORK_DIR/config-smoke-temp"
-mkdir -p "$CONFIG_SMOKE_HOME" "$CONFIG_SMOKE_CODEX_HOME" "$CONFIG_SMOKE_WORKSPACE" "$CONFIG_SMOKE_TOOLCHAIN" "$CONFIG_SMOKE_TOOL_BIN" "$CONFIG_SMOKE_TEMP"
-chmod 700 "$CONFIG_SMOKE_HOME" "$CONFIG_SMOKE_CODEX_HOME" "$CONFIG_SMOKE_WORKSPACE" "$CONFIG_SMOKE_TOOLCHAIN" "$CONFIG_SMOKE_TOOL_BIN" "$CONFIG_SMOKE_TEMP"
+mkdir -p "$CONFIG_SMOKE_HOME" "$CONFIG_SMOKE_CODEX_HOME" "$CONFIG_SMOKE_WORKSPACE" "$CONFIG_SMOKE_TEMP"
+chmod 700 "$CONFIG_SMOKE_HOME" "$CONFIG_SMOKE_CODEX_HOME" "$CONFIG_SMOKE_WORKSPACE" "$CONFIG_SMOKE_TEMP"
 printf '%s\n' \
   'approval_policy="never"' \
   'shell_environment_policy={inherit="all"}' \
@@ -851,9 +845,6 @@ patch_elf_name "$BOOTSTRAP_SMOKE_BIN" 'libz.so.1' 'libz_1.so' 1
 BOOTSTRAP_SMOKE_ROOT="$WORK_DIR/supervisor-bootstrap-smoke"
 BOOTSTRAP_SMOKE_WORKSPACE="$BOOTSTRAP_SMOKE_ROOT/workspace"
 BOOTSTRAP_SMOKE_IMPORTS="$BOOTSTRAP_SMOKE_WORKSPACE/imports"
-BOOTSTRAP_SMOKE_TOOLCHAIN="$BOOTSTRAP_SMOKE_WORKSPACE/toolchain"
-BOOTSTRAP_SMOKE_TOOL_BIN="$BOOTSTRAP_SMOKE_ROOT/tool-bin"
-BOOTSTRAP_SMOKE_TOOL_RUNTIME="$TOOL_RUNTIME_STAGE"
 BOOTSTRAP_SMOKE_CODEX_HOME="$BOOTSTRAP_SMOKE_ROOT/codex-home"
 BOOTSTRAP_SMOKE_HOME="$BOOTSTRAP_SMOKE_ROOT/home"
 BOOTSTRAP_SMOKE_PREFIX="$BOOTSTRAP_SMOKE_ROOT/usr"
@@ -876,8 +867,6 @@ if [ "$BOOTSTRAP_LAYOUT" = flat ]; then
     printf -v "$variable" '%s' "$directory"
   }
   bootstrap_flat_directory BOOTSTRAP_SMOKE_WORKSPACE workspace
-  bootstrap_flat_directory BOOTSTRAP_SMOKE_TOOL_BIN tool-bin
-  bootstrap_flat_directory BOOTSTRAP_SMOKE_TOOL_RUNTIME tool-runtime
   bootstrap_flat_directory BOOTSTRAP_SMOKE_NATIVE native
   bootstrap_flat_directory BOOTSTRAP_SMOKE_CODEX_HOME codex-home
   bootstrap_flat_directory BOOTSTRAP_SMOKE_HOME home
@@ -886,16 +875,14 @@ if [ "$BOOTSTRAP_LAYOUT" = flat ]; then
   bootstrap_flat_directory BOOTSTRAP_SMOKE_TEMP temp
   BOOTSTRAP_SMOKE_ROOT="$BOOTSTRAP_SMOKE_WORKSPACE"
   BOOTSTRAP_SMOKE_IMPORTS="$BOOTSTRAP_SMOKE_WORKSPACE/imports"
-  BOOTSTRAP_SMOKE_TOOLCHAIN="$BOOTSTRAP_SMOKE_WORKSPACE/toolchain"
   cp -a "$NATIVE_DIR/." "$BOOTSTRAP_SMOKE_NATIVE/"
-  cp -a "$TOOL_RUNTIME_STAGE/." "$BOOTSTRAP_SMOKE_TOOL_RUNTIME/"
-  chmod 700 "$BOOTSTRAP_SMOKE_NATIVE" "$BOOTSTRAP_SMOKE_TOOL_RUNTIME"
+  chmod 700 "$BOOTSTRAP_SMOKE_NATIVE"
   echo "Using flat bootstrap fixture roots for the container's Android linker."
 fi
 mkdir -p "$BOOTSTRAP_SMOKE_PREFIX/bin" "$BOOTSTRAP_SMOKE_PREFIX/lib" "$BOOTSTRAP_SMOKE_HOME/.local/bin"
 chmod 700 "$BOOTSTRAP_SMOKE_PREFIX" "$BOOTSTRAP_SMOKE_PREFIX/bin" "$BOOTSTRAP_SMOKE_PREFIX/lib" "$BOOTSTRAP_SMOKE_HOME/.local" "$BOOTSTRAP_SMOKE_HOME/.local/bin"
-mkdir -p "$BOOTSTRAP_SMOKE_WORKSPACE" "$BOOTSTRAP_SMOKE_IMPORTS" "$BOOTSTRAP_SMOKE_TOOLCHAIN" "$BOOTSTRAP_SMOKE_TOOL_BIN" "$BOOTSTRAP_SMOKE_CODEX_HOME" "$BOOTSTRAP_SMOKE_HOME" "$BOOTSTRAP_SMOKE_STATE" "$BOOTSTRAP_SMOKE_TEMP"
-chmod 700 "$BOOTSTRAP_SMOKE_ROOT" "$BOOTSTRAP_SMOKE_WORKSPACE" "$BOOTSTRAP_SMOKE_IMPORTS" "$BOOTSTRAP_SMOKE_TOOLCHAIN" "$BOOTSTRAP_SMOKE_TOOL_BIN" "$BOOTSTRAP_SMOKE_CODEX_HOME" "$BOOTSTRAP_SMOKE_HOME" "$BOOTSTRAP_SMOKE_STATE" "$BOOTSTRAP_SMOKE_TEMP"
+mkdir -p "$BOOTSTRAP_SMOKE_WORKSPACE" "$BOOTSTRAP_SMOKE_IMPORTS" "$BOOTSTRAP_SMOKE_CODEX_HOME" "$BOOTSTRAP_SMOKE_HOME" "$BOOTSTRAP_SMOKE_STATE" "$BOOTSTRAP_SMOKE_TEMP"
+chmod 700 "$BOOTSTRAP_SMOKE_ROOT" "$BOOTSTRAP_SMOKE_WORKSPACE" "$BOOTSTRAP_SMOKE_IMPORTS" "$BOOTSTRAP_SMOKE_CODEX_HOME" "$BOOTSTRAP_SMOKE_HOME" "$BOOTSTRAP_SMOKE_STATE" "$BOOTSTRAP_SMOKE_TEMP"
 printf '%s\n' 'agentcodi-import-content-smoke' > "$BOOTSTRAP_SMOKE_IMPORTS/0123456789abcdef0123456789abcdef.bin"
 chmod 600 "$BOOTSTRAP_SMOKE_IMPORTS/0123456789abcdef0123456789abcdef.bin"
 printf '%s\n' \
@@ -914,11 +901,7 @@ if timeout --kill-after=5s 300s env -i \
     "$BOOTSTRAP_SMOKE_NATIVE/libcodex.so" \
     "$BOOTSTRAP_SMOKE_NATIVE/$CODEX_PACKAGED_HOST_NAME" \
     "$BOOTSTRAP_SMOKE_NATIVE/$TERMINAL_SHELL_NAME" \
-    "" "" "" \
     "$BOOTSTRAP_SMOKE_WORKSPACE" \
-    "$BOOTSTRAP_SMOKE_TOOLCHAIN" \
-    "$BOOTSTRAP_SMOKE_TOOL_BIN" \
-    "$BOOTSTRAP_SMOKE_TOOL_RUNTIME" \
     "$BOOTSTRAP_SMOKE_CODEX_HOME" \
     "$BOOTSTRAP_SMOKE_HOME" \
     "$BOOTSTRAP_SMOKE_STATE" \
@@ -1078,7 +1061,6 @@ grep -Fq 'Lde/agentcodi/core/CodexWorkspaceAttachmentContext;' "$WORK_DIR/dex-st
 grep -Fq 'Lde/agentcodi/core/TerminalOutputBuffer;' "$WORK_DIR/dex-strings.txt"
 grep -Fq 'Lde/agentcodi/core/TerminalSessionSnapshot;' "$WORK_DIR/dex-strings.txt"
 grep -Fq 'Lde/agentcodi/core/CodexTerminalSession;' "$WORK_DIR/dex-strings.txt"
-grep -Fq 'Lde/agentcodi/core/ToolchainCommand;' "$WORK_DIR/dex-strings.txt"
 grep -Fq 'Lde/agentcodi/core/CodexSessionController;' "$WORK_DIR/dex-strings.txt"
 grep -Fq 'Lde/agentcodi/core/CodexModelOption;' "$WORK_DIR/dex-strings.txt"
 grep -Fq 'Lde/agentcodi/core/CodexReasoningOption;' "$WORK_DIR/dex-strings.txt"

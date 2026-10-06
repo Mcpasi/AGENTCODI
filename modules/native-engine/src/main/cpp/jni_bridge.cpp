@@ -173,22 +173,14 @@ Java_de_agentcodi_runtime_NativeEngine_nativeStartAppServer(
     jstring executable,
     jstring code_mode_host_executable,
     jstring shell_executable,
-    jstring /* node_executable */,
-    jstring /* python_executable */,
-    jstring /* ripgrep_executable */,
     jstring workspace,
-    jstring toolchain,
-    jstring tool_binary_directory,
-    jstring tool_runtime_directory,
     jstring codex_home,
     jstring home,
     jstring package_prefix,
     jstring state_directory,
     jstring temporary_directory,
-    jstring native_library_directory,
-    jboolean just_in_time_approvals) {
+    jstring native_library_directory) {
   agentcodi::ProcessConfig config;
-  config.just_in_time_approvals = just_in_time_approvals == JNI_TRUE;
   if (!from_java_string(environment, executable, "Executable", &config.executable)
       || !from_java_string(
           environment,
@@ -200,23 +192,7 @@ Java_de_agentcodi_runtime_NativeEngine_nativeStartAppServer(
           shell_executable,
           "Terminal shell executable",
           &config.shell_executable)
-      // Retired JNI parameters are kept until the transport API cleanup.
       || !from_java_string(environment, workspace, "Workspace", &config.working_directory)
-      || !from_java_string(
-          environment,
-          toolchain,
-          "Toolchain",
-          &config.toolchain_directory)
-      || !from_java_string(
-          environment,
-          tool_binary_directory,
-          "Packaged tool directory",
-          &config.tool_binary_directory)
-      || !from_java_string(
-          environment,
-          tool_runtime_directory,
-          "Packaged tool runtime",
-          &config.tool_runtime_directory)
       || !from_java_string(environment, codex_home, "Codex home", &config.codex_home)
       || !from_java_string(environment, home, "Home", &config.home_directory)
       || !from_java_string(

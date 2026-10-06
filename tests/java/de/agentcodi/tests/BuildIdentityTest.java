@@ -38,40 +38,5 @@ public final class BuildIdentityTest {
             BuildIdentity.TERMINAL_SHELL_LIBRARY,
             "terminal shell library"
         );
-        TestSupport.assertEquals(
-            "24.18.0",
-            BuildIdentity.NODE_RUNTIME_VERSION,
-            "Node.js runtime version"
-        );
-        TestSupport.assertEquals(
-            "libnode.so",
-            BuildIdentity.NODE_RUNTIME_LIBRARY,
-            "Node.js runtime library"
-        );
-        TestSupport.assertEquals(
-            "11.19.0",
-            BuildIdentity.NPM_RUNTIME_VERSION,
-            "npm runtime version"
-        );
-        TestSupport.assertEquals(
-            "3.14.6",
-            BuildIdentity.PYTHON_RUNTIME_VERSION,
-            "Python runtime version"
-        );
-        TestSupport.assertEquals(
-            "libpython-bin.so",
-            BuildIdentity.PYTHON_RUNTIME_LIBRARY,
-            "Python runtime library"
-        );
-        TestSupport.assertEquals(
-            "15.2.0",
-            BuildIdentity.RIPGREP_RUNTIME_VERSION,
-            "ripgrep runtime version"
-        );
-        TestSupport.assertEquals(
-            "libripgrep.so",
-            BuildIdentity.RIPGREP_RUNTIME_LIBRARY,
-            "ripgrep runtime library"
-        );
     }
 }

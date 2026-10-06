@@ -2,31 +2,14 @@ package de.agentcodi.storage;
 
 import java.io.File;
 import java.io.IOException;
-import java.io.InputStream;
-import java.nio.charset.StandardCharsets;
-import java.nio.file.DirectoryStream;
 import java.nio.file.Files;
 import java.nio.file.LinkOption;
 import java.nio.file.Path;
-import java.nio.file.attribute.BasicFileAttributes;
-import java.nio.file.attribute.PosixFilePermission;
-import java.util.Arrays;
-import java.util.Set;
 
 public final class WorkspaceLayout {
-    public static final String NODE_TOOL_ALIAS = "node";
-    public static final String NPM_TOOL_ALIAS = "npm";
-    public static final String PYTHON_TOOL_ALIAS = "python";
-    public static final String PYTHON3_TOOL_ALIAS = "python3";
-    public static final String RIPGREP_TOOL_ALIAS = "rg";
-    public static final String TOOLCHAIN_TOOL_ALIAS = "agentcodi-toolchain";
-
     private final File root;
     private final File workspace;
     private final File imports;
-    private final File toolchain;
-    private final File toolBin;
-    private final File toolRuntime;
     private final File state;
     private final File logs;
     private final File home;
@@ -37,9 +20,6 @@ public final class WorkspaceLayout {
         File root,
         File workspace,
         File imports,
-        File toolchain,
-        File toolBin,
-        File toolRuntime,
         File state,
         File logs,
         File home,
@@ -49,9 +29,6 @@ public final class WorkspaceLayout {
         this.root = root;
         this.workspace = workspace;
         this.imports = imports;
-        this.toolchain = toolchain;
-        this.toolBin = toolBin;
-        this.toolRuntime = toolRuntime;
         this.state = state;
         this.logs = logs;
         this.home = home;
@@ -64,9 +41,6 @@ public final class WorkspaceLayout {
         File root = secureChild(canonicalBase, "agentcodi");
         File workspace = secureChild(root, "workspace");
         File imports = secureChild(workspace, "imports");
-        File toolchain = secureChild(workspace, "toolchain");
-        File toolBin = secureChild(root, "tool-bin");
-        File toolRuntime = secureChild(root, "tool-runtime");
         File state = secureChild(root, "state");
         File logs = secureChild(root, "logs");
         File home = secureChild(root, "home");
@@ -92,9 +66,6 @@ public final class WorkspaceLayout {
             root,
             workspace,
             imports,
-            toolchain,
-            toolBin,
-            toolRuntime,
             state,
             logs,
             home,
@@ -121,29 +92,22 @@ public final class WorkspaceLayout {
         return imports;
     }
 
-    public File getToolchain() {
-        return toolchain;
-    }
-
-    public File getToolBin() {
-        return toolBin;
-    }
-
-    public File getToolRuntime() {
-        return toolRuntime;
-    }
-
     /**
-     * Removes stale app-created aliases after an APK update. This directory is
-     * no longer on PATH. Never follow a link or remove a user-created file.
+     * One-time-compatible migration of recognized APK aliases. Retired storage
+     * is optional: do not create, traverse or validate it as part of startup.
+     * Existing archives, activation markers and user files remain untouched.
      */
-    public void retirePackagedToolAliases(File shellExecutable) throws IOException {
+    public void retireLegacyToolAliases(File shellExecutable) throws IOException {
+        Path legacyBin = root.toPath().resolve("tool-bin");
+        if (Files.isSymbolicLink(legacyBin)
+            || !Files.isDirectory(legacyBin, LinkOption.NOFOLLOW_LINKS)) {
+            return;
+        }
         File shell = requirePackagedExecutable(shellExecutable);
         for (String name : new String[] {
-            NODE_TOOL_ALIAS, NPM_TOOL_ALIAS, PYTHON_TOOL_ALIAS, PYTHON3_TOOL_ALIAS,
-            RIPGREP_TOOL_ALIAS, TOOLCHAIN_TOOL_ALIAS
+            "node", "npm", "python", "python3", "rg", "agentcodi-toolchain"
         }) {
-            Path alias = toolBin.toPath().resolve(name);
+            Path alias = legacyBin.resolve(name);
             if (Files.isSymbolicLink(alias)) {
                 Path target = Files.readSymbolicLink(alias);
                 if (target.getFileName() != null
@@ -151,103 +115,6 @@ public final class WorkspaceLayout {
                     Files.delete(alias);
                 }
             }
-        }
-    }
-
-    // Legacy helpers retained until the subsequent source/API cleanup step.
-    public void preparePackagedToolAliases(File shellExecutable) throws IOException {
-        File canonicalShell = requirePackagedExecutable(shellExecutable);
-        prepareToolAlias(NODE_TOOL_ALIAS, canonicalShell);
-        prepareToolAlias(NPM_TOOL_ALIAS, canonicalShell);
-        prepareToolAlias(PYTHON_TOOL_ALIAS, canonicalShell);
-        prepareToolAlias(PYTHON3_TOOL_ALIAS, canonicalShell);
-        prepareToolAlias(RIPGREP_TOOL_ALIAS, canonicalShell);
-        prepareToolAlias(TOOLCHAIN_TOOL_ALIAS, canonicalShell);
-        requireOnlyPackagedToolAliases();
-    }
-
-    public File preparePackagedToolRuntime(
-        String runtimeName,
-        InputStream archive,
-        InputStream manifest,
-        File nativeLibraryDirectory
-    ) throws IOException {
-        return PackagedToolRuntime.prepare(
-            toolRuntime,
-            runtimeName,
-            archive,
-            manifest,
-            nativeLibraryDirectory
-        );
-    }
-
-    public boolean isNodeRuntimeEnabled(String version) throws IOException {
-        return isPackagedToolEnabled("node", version);
-    }
-
-    public boolean isNpmRuntimeEnabled(String version) throws IOException {
-        return isPackagedToolEnabled("npm", version);
-    }
-
-    public boolean isPythonRuntimeEnabled(String version) throws IOException {
-        return isPackagedToolEnabled("python", version);
-    }
-
-    public boolean isRipgrepRuntimeEnabled(String version) throws IOException {
-        return isPackagedToolEnabled("ripgrep", version);
-    }
-
-    private boolean isPackagedToolEnabled(String packageName, String version)
-        throws IOException {
-        if (!packageName.matches("[a-z][a-z0-9-]{0,31}")) {
-            throw new IllegalArgumentException("Tool package name is invalid");
-        }
-        if (version == null || !version.matches("[0-9]+\\.[0-9]+\\.[0-9]+")) {
-            throw new IllegalArgumentException("Tool package version is invalid");
-        }
-        Path installed = toolchain.toPath().resolve("installed");
-        if (!Files.exists(installed, LinkOption.NOFOLLOW_LINKS)) {
-            return false;
-        }
-        if (Files.isSymbolicLink(installed)
-            || !Files.isDirectory(installed, LinkOption.NOFOLLOW_LINKS)
-            || !installed.toFile().getCanonicalFile().equals(installed.toFile())) {
-            return false;
-        }
-        Path marker = installed.resolve(packageName + "-" + version);
-        if (!Files.exists(marker, LinkOption.NOFOLLOW_LINKS)
-            || Files.isSymbolicLink(marker)) {
-            return false;
-        }
-        BasicFileAttributes attributes = Files.readAttributes(
-            marker,
-            BasicFileAttributes.class,
-            LinkOption.NOFOLLOW_LINKS
-        );
-        byte[] expected = ("enabled " + version + "\n").getBytes(StandardCharsets.US_ASCII);
-        if (!attributes.isRegularFile() || attributes.size() != expected.length) {
-            return false;
-        }
-        try {
-            WorkspaceFileBoundary.requireSingleLink(marker);
-            Set<PosixFilePermission> permissions = Files.getPosixFilePermissions(
-                marker,
-                LinkOption.NOFOLLOW_LINKS
-            );
-            if (!permissions.equals(java.util.EnumSet.of(
-                PosixFilePermission.OWNER_READ,
-                PosixFilePermission.OWNER_WRITE
-            ))) {
-                return false;
-            }
-            byte[] actual = Files.readAllBytes(marker);
-            try {
-                return Arrays.equals(expected, actual);
-            } finally {
-                Arrays.fill(actual, (byte) 0);
-            }
-        } catch (IOException error) {
-            return false;
         }
     }
 
@@ -269,52 +136,6 @@ public final class WorkspaceLayout {
             throw new IOException("Packaged shell must remain outside private writable storage");
         }
         return canonical;
-    }
-
-    private void prepareToolAlias(String name, File target) throws IOException {
-        Path alias = toolBin.toPath().resolve(name);
-        if (Files.exists(alias, LinkOption.NOFOLLOW_LINKS) || Files.isSymbolicLink(alias)) {
-            if (!Files.isSymbolicLink(alias)) {
-                throw new IOException("Packaged tool alias is not a symbolic link: " + name);
-            }
-            Path existingTarget = Files.readSymbolicLink(alias);
-            Path resolvedTarget = existingTarget.isAbsolute()
-                ? existingTarget.normalize()
-                : alias.getParent().resolve(existingTarget).normalize();
-            if (resolvedTarget.toFile().getCanonicalFile().equals(target)) {
-                return;
-            }
-            Files.delete(alias);
-        }
-        Files.createSymbolicLink(alias, target.toPath());
-        if (!Files.isSymbolicLink(alias)
-            || !alias.toRealPath().equals(target.toPath().toRealPath())) {
-            throw new IOException("Packaged tool alias failed canonical validation: " + name);
-        }
-    }
-
-    private void requireOnlyPackagedToolAliases() throws IOException {
-        int count = 0;
-        try (DirectoryStream<Path> entries = Files.newDirectoryStream(toolBin.toPath())) {
-            for (Path entry : entries) {
-                String name = entry.getFileName().toString();
-                if (!NODE_TOOL_ALIAS.equals(name)
-                    && !NPM_TOOL_ALIAS.equals(name)
-                    && !PYTHON_TOOL_ALIAS.equals(name)
-                    && !PYTHON3_TOOL_ALIAS.equals(name)
-                    && !RIPGREP_TOOL_ALIAS.equals(name)
-                    && !TOOLCHAIN_TOOL_ALIAS.equals(name)) {
-                    throw new IOException("Unexpected entry in packaged tool directory");
-                }
-                if (!Files.isSymbolicLink(entry)) {
-                    throw new IOException("Packaged tool entry is not a symbolic link");
-                }
-                count++;
-            }
-        }
-        if (count != 6) {
-            throw new IOException("Packaged tool aliases are incomplete");
-        }
     }
 
     public File getLogs() {

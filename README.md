@@ -138,7 +138,7 @@ evidence. The app's legal-notices view includes the exact libc++ distributor
 and full upstream LLVM texts, plus a package selector for original bootstrap
 license files. This selector describes the bundled bootstrap version; packages
 updated or installed later retain current notices under $PREFIX/share/doc and
-$PREFIX/share/licenses.
+$PREFIX/share/LICENSES and $PREFIX/share/licenses.
 
 The supplied Community LICENSE/NOTICE do not enumerate all statically linked
 Rust/V8 dependencies. This gap is explicit in NOTICE.md and the contract report;

@@ -47,7 +47,7 @@ LLVM libc++/libc++abi/libunwind notices and LLVM exceptions.
 
 Bootstrap: shell, APT, dpkg, CA certificates and runtime dependencies rebuilt
 for /data/data/de.agentcodi.pkg/files/usr. The bootstrap keeps original license
-files in share/doc and share/licenses. The legal-notices screen selects those
+files in share/doc, share/LICENSES and share/licenses. The legal-notices screen selects those
 files from the bundled ZIP, using BOOTSTRAP-LICENSE-INDEX.json.
 The package report records their ownership, sizes and SHA-256 values.
 Corresponding sources, recipes, patches and edition build scripts accompany

@@ -128,7 +128,7 @@ Their inclusion does not relicense them under AGENTCODI's Apache license.
 
 The APK asset third-party/package-bootstrap/bootstrap-report.json records the
 actual package versions, source/build pins, DEB and ELF checksums. The installed
-prefix retains the upstream license material under share/doc and share/licenses.
+prefix retains the upstream license material under share/doc, share/LICENSES and share/licenses.
 The bootstrap CI artifact includes the selected DEBs, build evidence and
 bootstrap-corresponding-sources.tar.xz with the source downloads/Git snapshot,
 recipes, patches and edition build scripts used for these packages.

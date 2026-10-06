@@ -6,6 +6,7 @@ on:
     branches:
       - 'Mcpasi/package-edition'
     paths:
+      - 'NOTICE.md'
       - 'app/**'
       - 'modules/**'
       - 'scripts/**'

@@ -5,6 +5,8 @@
 - Handle `mcpServer/elicitation/request` tool approvals with an explicit, per-call dialog and the Runtime's `action/content/_meta` response format.
 - Show MCP server, request and redacted parameters, including on the MCP management screen. Preserve `prompt`; session/permanent approval is not granted.
 - Add reproduction and regression coverage for allow/decline/cancel, nullable turn IDs, stale/overloaded requests, invalid forms, server resolution and timeout. Verify actual Java request/response shapes and the real ARM64/Bionic MCP prompt gate in CI.
+- Validation: [Tests CI](https://github.com/Mcpasi/AGENTCODI/actions/runs/37494809156) passed all seven jobs with 325 Java tests, generated-schema checks and real ARM64/Bionic MCP accept/decline/cancel coverage. [APK build](https://github.com/Mcpasi/AGENTCODI/actions/runs/37493949315) passed, including final identity, payload and license-byte verification.
+- [Debug APK artifact](https://github.com/Mcpasi/AGENTCODI/actions/runs/37493949315/artifacts/11427764122); APK SHA-256: `7e929e795da754b21b493c1066110def67a4e6901b0d66159d88dcf3e92269eb`.
 - Physical device tests are skipped in hosted CI. The user reported working package installation/use; full device validation and a device retest of the MCP fix remain outstanding.
 
 # Historical regular-edition changelog

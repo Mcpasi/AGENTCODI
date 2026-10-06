@@ -1241,8 +1241,8 @@ erzeugten Java-MCP-Anfragen/-Antworten gegen die vom gepinnten ELF erzeugten
 Schemas. Zusätzlich prüft ein synthetischer lokaler HTTP-MCP-Server mit
 deterministischem Modellfixture die echte ARM64/Bionic-`prompt`-Sperre:
 kein Aufruf vor Freigabe, genau ein Aufruf nach Erlauben, kein Aufruf nach
-Ablehnen oder Abbrechen. Die CI-Nachweise dieses Implementierungsstands
-werden nach Abschluss der Läufe unten ergänzt.
+Ablehnen oder Abbrechen. Die abgeschlossenen CI-/APK-Nachweise dieses Implementierungsstands
+stehen unten.
 
 Version: `0.1.0-package.2`, Android `versionCode 2`. Manifest, BuildIdentity,
 Build-Skript, Identitätstests, Architekturvertrag und aktive Dokumentation
@@ -1263,3 +1263,56 @@ Java-Antworten; der vorhandene Code-mode-Host-Smoke bleibt erhalten.
 Dies ist kein Nachweis einer Reparatur des Community-Hosts für verschachtelte
 experimentelle Code-mode-Callbacks. Ein solcher Callback-/Hardware-Nachweis
 bleibt außerhalb der hier bestätigten MCP-Freigabeprüfung.
+
+### Verifikation des MCP-Fixes
+
+App-/Versions-/Payload-Commit:
+`0968f19930113e3f62090171e93faa278cf96366`.
+Die nachfolgende native MCP-Testfixture und ihr Dokumentationsabgleich liegen
+auf `6ff314b864ff7848d123165db927bccc6d72a4e9`; App, Ressourcen,
+Versionspins und APK-Lieferumfang sind dabei unverändert.
+
+[Tests-Lauf 37494809156](https://github.com/Mcpasi/AGENTCODI/actions/runs/37494809156)
+hat alle sieben Jobs bestanden: 325 Java-Tests, alle sieben portablen
+C++-Suiten (294 Engine-Assertions), Architektur-/Paket-/Toolchain-Verträge,
+Android-Quellen/Ressourcen gegen API 35, Community-Archiv und echte
+ARM64/Bionic-Runtime. Die generierten Schemas validieren 418 tatsächliche
+Java-RPCs sowie 15 MCP-Freigabeanfragen/-antworten. Der
+[Runtime-Nachweis](https://github.com/Mcpasi/AGENTCODI/actions/runs/37494809156/artifacts/11427551406)
+hält die drei echten MCP-`prompt`-Entscheidungen fest: nur Erlauben erhöht
+den Tool-Aufrufzähler auf eins; Ablehnen und Abbrechen erhöhen ihn nicht.
+Der separate bisherige Code-mode-Host-, PTY-, Import-, Full-access- und
+Neustartvertrag ist ebenfalls erfolgreich.
+
+[APK-Lauf 37493949315](https://github.com/Mcpasi/AGENTCODI/actions/runs/37493949315)
+ist erfolgreich abgeschlossen: neuer Bootstrap aus gepinnten Quellen,
+ARM64/Bionic-Bootstrap-Smoke und Debug-APK-Bau auf dem oben genannten
+App-/Payload-Commit. Der Build wiederholt 325 Java-Tests, die C++-Hostprüfungen
+einschließlich 674 Terminal-Bootstrap-Assertions und die Architekturverträge.
+Die fertige APK meldet `de.agentcodi.pkg`, `versionCode 2` und
+`versionName 0.1.0-package.2`; Signatur, Alignment, ARM64-ABI sowie
+Payload- und Lizenzbytes sind geprüft. Der Payload-/Lizenzprüfer meldet
+null Blocker innerhalb dieses Prüfvertrags.
+
+- [APK-Artefakt](https://github.com/Mcpasi/AGENTCODI/actions/runs/37493949315/artifacts/11427764122):
+  `AGENTCODI-Package-0.1.0-package.2-arm64-v8a-debug.apk`
+  (debug-signiert, nicht debuggable).
+- APK-Datei-SHA-256: `7e929e795da754b21b493c1066110def67a4e6901b0d66159d88dcf3e92269eb`.
+- [Payload-/Lizenzbericht](https://github.com/Mcpasi/AGENTCODI/actions/runs/37493949315/artifacts/11428327399).
+- [Bootstrap und korrespondierende Quellen](https://github.com/Mcpasi/AGENTCODI/actions/runs/37493949315/artifacts/11428401113).
+
+Der durch den Paket-Testvertrag automatisch mitgestartete
+[Paketkatalog-Neubau 37493949752](https://github.com/Mcpasi/AGENTCODI/actions/runs/37493949752)
+ist zum Stand dieser Dokumentation (2026-10-06, 16:45 UTC) noch nicht komplett:
+Signatur-Voraussetzungen, Bootstrap, dessen ARM64/Bionic-Smoke und der
+ripgrep-Quellbau sind erfolgreich; Git-, Python- und Node-Quellbau laufen noch.
+Es ist zu diesem Zeitpunkt kein Job fehlgeschlagen. Dieser Zwischenstand
+belegt keinen abgeschlossenen Katalog-/APT-Publikationslauf und ändert nicht
+die abgeschlossenen Tests-/APK-Nachweise oben. Die Katalog-Rezept-Eingaben
+wurden für den MCP-Fix nicht geändert.
+
+Der abschließende Nachweis-Commit ändert ausschließlich diese Roadmap und
+den Package-Edition-Changelog; App, Versionspins und Build-Lieferumfang
+bleiben unverändert. Physische Geräteprüfungen bleiben übersprungen/offen.
+Es wurde kein PR, Merge oder finales APK-Release erstellt; `main` bleibt
+auf `ff27ec7c30d373a864e845e9a7ceeae3380dd103`.

@@ -154,6 +154,36 @@ class AssemblyTest(unittest.TestCase):
         self.assertEqual((again / "BOOTSTRAP-MANIFEST").read_bytes(),
                          (output / "BOOTSTRAP-MANIFEST").read_bytes())
 
+    def test_shared_legal_text_is_indexed_for_its_owner_and_referring_package(self):
+        prefix = self.root / "fixture-lib" / bootstrap.verify.PREFIX.lstrip("/")
+        shared = prefix / "share/LICENSES/MIT.txt"
+        shared.parent.mkdir(parents=True)
+        shared.write_text("Copyright shared fixture\nMIT License\n")
+        self.build_deb("fixture-lib")
+        doc = self.root / "apt" / bootstrap.verify.PREFIX.lstrip("/") / "share/doc/apt/copyright"
+        doc.unlink()
+        doc.symlink_to("../../LICENSES/MIT.txt")
+        self.build_deb("apt")
+        output = self.root / "bootstrap"
+        self.assemble(output)
+        report = json.loads((output / "bootstrap-report.json").read_text())
+        record = report["licenses"]["apt"][0]
+        self.assertEqual(record["installed_path"], "share/doc/apt/copyright")
+        self.assertEqual(record["path"], "share/LICENSES/MIT.txt")
+        self.assertTrue(any(x["path"] == record["path"]
+                            for x in report["licenses"]["fixture-lib"]))
+        with zipfile.ZipFile(output / "bootstrap-aarch64.zip") as archive:
+            self.assertEqual(record["sha256"],
+                             hashlib.sha256(archive.read(record["path"])).hexdigest())
+
+    def test_dangling_legal_link_is_rejected(self):
+        doc = self.root / "apt" / bootstrap.verify.PREFIX.lstrip("/") / "share/doc/apt/copyright"
+        doc.unlink()
+        doc.symlink_to("../../LICENSES/missing.txt")
+        self.build_deb("apt")
+        with self.assertRaisesRegex(ValueError, "Missing bootstrap legal link target"):
+            self.assemble(self.root / "bootstrap")
+
     def test_package_file_collision_fails(self):
         path = self.root / "bash" / bootstrap.verify.PREFIX.lstrip("/") / "bin/apt"
         path.write_text("conflicting file")

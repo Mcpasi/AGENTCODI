@@ -15,7 +15,7 @@ identity and native-runtime checks remain required.
 
 | Layer | Required evidence |
 | --- | --- |
-| Architecture / host contract regressions | Same active C++ suite set in local and hosted drivers; Package shell fixture; exact APK native/asset and legal-byte contract. Twelve mutation/acceptance regressions exercise assembled fixture ZIPs. |
+| Architecture / host contract regressions | Same active C++ suite set in local and hosted drivers; Package shell fixture; exact APK native/asset and legal-byte contract. Fourteen mutation/acceptance regressions exercise assembled fixture ZIPs. |
 | Java host suite | Full-access identity/protocol, bootstrap interruption/recovery and update preservation; managed and user prefixes; all four user tool names, executable permissions, dpkg state and caches; alias retirement; file-browser/import/export checks. |
 | Seven portable C++ suites | Supervisor environment, process lifecycle, framing, PNG and file operations; actual Package shell; prefix precedence; inherited retired activation variables stripped. |
 | Android compilation | All sources/resources against API 35, manifest target 28/minimum 29, separate installation identity and compiled component classes; German/English legal UI. |
@@ -45,3 +45,9 @@ recorded; final_release_ready is false. Release builds fail the license gate
 until that exact release's attribution is complete. Package-local legal gaps,
 if any, are recorded separately. Debug CI success cannot close device tests
 or authorize final publication.
+
+Bootstrap copyright links are resolved solely through the audited manifest.
+The index records both the package-owned installed path and the actual shared
+license file under share/LICENSES (or share/licenses). Shared texts are indexed
+for their owning package as well. Dangling, escaping or cyclic legal links fail;
+reading arbitrary host paths is not part of this process.

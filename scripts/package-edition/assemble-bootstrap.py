@@ -16,6 +16,9 @@ HERE = Path(__file__).resolve().parent
 spec = importlib.util.spec_from_file_location("verify", HERE / "verify-prefix.py")
 verify = importlib.util.module_from_spec(spec)
 spec.loader.exec_module(verify)
+legal_spec = importlib.util.spec_from_file_location("legal_files", HERE / "legal-files.py")
+legal_files = importlib.util.module_from_spec(legal_spec)
+legal_spec.loader.exec_module(legal_files)
 
 
 def command(*args):
@@ -112,7 +115,7 @@ def assemble_packages(debs, output, readelf):
         info.mkdir(parents=True)
         status = []
         reports = {}
-        licenses = {}
+        license_candidates = {}
         for name, (deb, metadata) in sorted(selected.items()):
             payload, control = work / name / "payload", work / name / "control"
             payload.mkdir(parents=True)
@@ -120,19 +123,12 @@ def assemble_packages(debs, output, readelf):
             subprocess.run(["dpkg-deb", "-x", str(deb), str(payload)], check=True)
             subprocess.run(["dpkg-deb", "-e", str(deb), str(control)], check=True)
             reports[name] = verify.audit(payload, readelf)
-            legal = []
             package_prefix = payload / verify.PREFIX.lstrip("/")
-            for path in sorted(package_prefix.rglob("*")):
-                relative = path.relative_to(package_prefix)
-                if (path.is_file() and not path.is_symlink() and
-                    relative.parts[:2] in (("share", "doc"), ("share", "licenses")) and
-                    any(word in path.name.lower() for word in ("copyright", "license", "copying", "notice"))):
-                    data = path.read_bytes()
-                    if not data:
-                        raise ValueError("Empty package legal text: " + name + "/" + str(relative))
-                    legal.append({"path": relative.as_posix(), "size": len(data),
-                                  "sha256": hashlib.sha256(data).hexdigest()})
-            licenses[name] = legal
+            license_candidates[name] = [
+                path.relative_to(package_prefix).as_posix()
+                for path in sorted(package_prefix.rglob("*"))
+                if (path.is_file() or path.is_symlink()) and
+                   legal_files.is_legal(path.relative_to(package_prefix).as_posix())]
             verify.check_control(control)
             file_list = []
             for path in sorted(payload.rglob("*")):
@@ -195,6 +191,28 @@ def assemble_packages(debs, output, readelf):
         (prefix / "etc/apt/apt.conf.d/00agentcodi").write_text(
             'APT::Sandbox::User "";\nAcquire::AllowInsecureRepositories "false";\n')
         audit = verify.audit(root, readelf)
+        regular_files = set()
+        links = {}
+        for path in prefix.rglob("*"):
+            name = path.relative_to(prefix).as_posix()
+            if path.is_symlink():
+                target = os.readlink(path)
+                if target.startswith(verify.PREFIX + "/"):
+                    target = os.path.relpath(target, verify.PREFIX + "/" + str(Path(name).parent))
+                links[name] = target
+            elif path.is_file():
+                regular_files.add(name)
+        licenses = {}
+        for package, candidates in license_candidates.items():
+            records = []
+            for installed in candidates:
+                name = legal_files.resolve(installed, regular_files, links)
+                data = (prefix / name).read_bytes()
+                if not data:
+                    raise ValueError("Empty package legal text: " + package + "/" + installed)
+                records.append({"path": name, "installed_path": installed, "size": len(data),
+                                "sha256": hashlib.sha256(data).hexdigest()})
+            licenses[package] = records
         for path in prefix.rglob("*"):
             if path.is_file() and not path.is_symlink() and path.stat().st_mode & 0o111:
                 with path.open("rb") as stream:

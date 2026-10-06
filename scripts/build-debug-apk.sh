@@ -629,7 +629,19 @@ cp "$CODEX_NOTICE" "$THIRD_PARTY_ASSETS/NOTICE"
 cp "$ZLIB_LICENSE_SOURCE" "$ZLIB_THIRD_PARTY_ASSETS/ZLIB-LICENSE"
 # Keep the exact distributor bytes and supplement its generic NCSA template
 # with the complete upstream LLVM notices, including the LLVM exceptions.
-cp "$TERMUX_RUNTIME_PREFIX/share/doc/libc++/copyright" "$LIBCXX_THIRD_PARTY_ASSETS/DISTRIBUTOR-LICENSE"
+LIBCXX_LICENSE_SOURCE="$TERMUX_RUNTIME_PREFIX/share/doc/libc++/copyright"
+if [ -L "$LIBCXX_LICENSE_SOURCE" ]; then
+  test "$(readlink "$LIBCXX_LICENSE_SOURCE")" = '../../LICENSES/NCSA.txt' || {
+    echo "Pinned libc++ distributor license link changed." >&2
+    exit 1
+  }
+  # termux-licenses is not an APK build input. Use its verbatim checked-in
+  # source text for the declared link without downloading another package.
+  cp "$PROJECT_ROOT/third_party/libcxx/DISTRIBUTOR-LICENSE" "$LIBCXX_THIRD_PARTY_ASSETS/DISTRIBUTOR-LICENSE"
+else
+  cp "$LIBCXX_LICENSE_SOURCE" "$LIBCXX_THIRD_PARTY_ASSETS/DISTRIBUTOR-LICENSE"
+  cmp "$PROJECT_ROOT/third_party/libcxx/DISTRIBUTOR-LICENSE" "$LIBCXX_THIRD_PARTY_ASSETS/DISTRIBUTOR-LICENSE"
+fi
 cp "$PROJECT_ROOT/third_party/libcxx/LLVM-LICENSES" "$LIBCXX_THIRD_PARTY_ASSETS/LLVM-LICENSES"
 
 # Exact executable/library closure, before any runtime execution.

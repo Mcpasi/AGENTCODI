@@ -3,6 +3,7 @@
 import argparse
 import hashlib
 import io
+import importlib.util
 import json
 from pathlib import Path, PurePosixPath
 import re
@@ -10,6 +11,9 @@ import zipfile
 
 HERE = Path(__file__).resolve().parent
 REPO = HERE.parents[1]
+legal_spec = importlib.util.spec_from_file_location("legal_files", HERE / "legal-files.py")
+legal_files = importlib.util.module_from_spec(legal_spec)
+legal_spec.loader.exec_module(legal_files)
 
 
 def digest(data):
@@ -25,13 +29,6 @@ def require(condition, message):
         raise ValueError(message)
 
 
-def legal_path(name):
-    path = PurePosixPath(name)
-    return (len(path.parts) >= 3 and path.parts[:2] in
-            (("share", "doc"), ("share", "licenses")) and
-            any(word in path.name.lower() for word in ("copyright", "license", "copying", "notice")))
-
-
 def bootstrap_evidence(archive_data, manifest_data, report_data):
     report = json.loads(report_data)
     require(digest(archive_data) == report["archive_sha256"], "Bootstrap archive checksum")
@@ -42,13 +39,18 @@ def bootstrap_evidence(archive_data, manifest_data, report_data):
     records = manifest_data.decode().splitlines()
     require(records and records[0] == "AGENTCODI_BOOTSTRAP_V1", "Bootstrap manifest format")
     files = {}
+    links = {}
     for record in records[1:]:
         fields = record.split("\t")
         require(fields[0] in ("F", "L"), "Unknown bootstrap manifest record")
+        if fields[0] == "L":
+            require(len(fields) == 3 and fields[2] not in links, "Invalid bootstrap link record")
+            links[fields[2]] = fields[1]
         if fields[0] == "F":
             require(len(fields) == 5 and fields[1] in ("600", "700"), "Invalid bootstrap file record")
             require(fields[4] not in files, "Duplicate bootstrap manifest path")
             files[fields[4]] = {"size": int(fields[2]), "sha256": fields[3]}
+    require(not set(files).intersection(links), "Conflicting bootstrap file/link record")
     with zipfile.ZipFile(io.BytesIO(archive_data)) as archive:
         names = archive.namelist()
         require(len(names) == len(set(names)), "Duplicate bootstrap ZIP entry")
@@ -72,13 +74,17 @@ def bootstrap_evidence(archive_data, manifest_data, report_data):
                 gaps.append("No package-local license text: " + package)
             for record in records:
                 name = record["path"]
-                require(legal_path(name) and name in files, "Missing bootstrap legal file: " + name)
+                installed = record["installed_path"]
+                require(legal_files.is_legal(installed) and legal_files.is_legal(name) and name in files,
+                        "Missing bootstrap legal file: " + name)
+                require(legal_files.resolve(installed, files, links) == name,
+                        "Bootstrap legal link differs")
                 require(files[name] == {"size": record["size"], "sha256": record["sha256"]},
                         "Bootstrap license checksum differs: " + name)
                 prefix = report["lock"]["target"]["prefix"]
-                require(prefix + "/" + name in listing, "Bootstrap legal file has wrong package owner")
+                require(prefix + "/" + installed in listing, "Bootstrap legal file has wrong package owner")
                 covered.add(name)
-        require(covered == {name for name in files if legal_path(name)},
+        require(covered == {name for name in files if legal_files.is_legal(name)},
                 "Unindexed bootstrap legal material")
     return {"packages": report["packages"], "licenses": inventory,
             "corresponding_sources": source, "release_blockers": gaps}
@@ -123,6 +129,9 @@ def verify(apk_path, staged, project=REPO, release=False):
         report["bootstrap"] = evidence
         report["release_blockers"].extend(evidence["release_blockers"])
         # The complete LLVM source texts supplement the verbatim distributor notice.
+        require(apk.read("assets/third-party/libcxx/DISTRIBUTOR-LICENSE") ==
+                (project / "third_party/libcxx/DISTRIBUTOR-LICENSE").read_bytes(),
+                "LLVM distributor legal source differs")
         require(apk.read("assets/third-party/libcxx/LLVM-LICENSES") ==
                 (project / "third_party/libcxx/LLVM-LICENSES").read_bytes(),
                 "LLVM legal source differs")

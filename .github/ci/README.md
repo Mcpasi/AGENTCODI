@@ -317,7 +317,7 @@ The authoritative [test matrix](../../scripts/package-edition/TEST_CONTRACT.md)
 maps all current checks to the actual minimal Package Edition.
 Architecture now also requires host Python 3 and invokes
 verify-apk-contract.py --check-sources; the hosted and local C++ drivers must
-enumerate the same seven active test sources. The twelve APK-contract
+enumerate the same seven active test sources. The fourteen APK-contract
 regressions use actual fixture ZIP bytes and reject extra ABIs/assets, staged
 mutations, bootstrap legal-index/manifest/source drift and premature releases.
 
@@ -340,3 +340,9 @@ Rust/V8 dependency notices. final_release_ready remains false, and release
 builds fail the license gate while blockers exist. Hosted CI does not perform
 or certify hardware installation/update/service/picker tests. These open
 roadmap prerequisites must be completed before publishing a final APK.
+
+Bootstrap copyright links are resolved solely through the audited manifest.
+The index records both the package-owned installed path and the actual shared
+license file under share/LICENSES (or share/licenses). Shared texts are indexed
+for their owning package as well. Dangling, escaping or cyclic legal links fail;
+reading arbitrary host paths is not part of this process.

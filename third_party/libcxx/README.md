@@ -1,8 +1,13 @@
 # LLVM runtime notices
 
-The APK copies the exact distributor copyright file from the SHA-256-pinned
-Termux libc++ 29 DEB to assets/third-party/libcxx/DISTRIBUTOR-LICENSE.
-That file supplies a generic NCSA template; it is retained unchanged.
+The SHA-256-pinned Termux libc++ 29 DEB declares the copyright link
+../../LICENSES/NCSA.txt. The APK build verifies that link and copies the
+unchanged common-license source to assets/third-party/libcxx/DISTRIBUTOR-LICENSE.
+The checked-in DISTRIBUTOR-LICENSE comes from:
+https://github.com/termux/termux-packages/blob/b6af76b353140fe17f299248fca1ac13ea91c5c5/packages/termux-licenses/LICENSES/NCSA.txt
+It is the distributor's generic NCSA template. Keeping its source here avoids
+adding another downloaded build input merely to dereference that notice.
+A regular copyright file, if supplied instead, must match these same bytes.
 
 LLVM-LICENSES supplements it with verbatim libc++, libc++abi and libunwind
 LICENSE.TXT files from llvm/llvm-project tag llvmorg-21.1.8, source commit

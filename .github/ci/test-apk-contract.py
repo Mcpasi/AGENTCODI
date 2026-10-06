@@ -32,10 +32,15 @@ class ApkContractTest(unittest.TestCase):
             path = self.project / "app/src/main" / name
             path.parent.mkdir(parents=True, exist_ok=True)
             path.write_bytes(self.entries[name])
+        distributor = (REPO / "third_party/libcxx/DISTRIBUTOR-LICENSE").read_bytes()
+        self.entries["assets/third-party/libcxx/DISTRIBUTOR-LICENSE"] = distributor
+        path = self.project / "third_party/libcxx/DISTRIBUTOR-LICENSE"
+        path.parent.mkdir(parents=True, exist_ok=True)
+        path.write_bytes(distributor)
         llvm = (REPO / "third_party/libcxx/LLVM-LICENSES").read_bytes()
         self.entries["assets/third-party/libcxx/LLVM-LICENSES"] = llvm
         path = self.project / "third_party/libcxx/LLVM-LICENSES"
-        path.parent.mkdir(parents=True)
+        path.parent.mkdir(parents=True, exist_ok=True)
         path.write_bytes(llvm)
         prefix = "/data/data/de.agentcodi.pkg/files/usr"
         self.legal = "share/doc/fixture/copyright"
@@ -48,7 +53,7 @@ class ApkContractTest(unittest.TestCase):
         manifest = ("AGENTCODI_BOOTSTRAP_V1\n" + "".join(
             "F\t600\t" + str(len(data)) + "\t" + contract.digest(data) + "\t" + name + "\n"
             for name, data in files.items())).encode()
-        record = {"path": self.legal, "size": len(files[self.legal]),
+        record = {"path": self.legal, "installed_path": self.legal, "size": len(files[self.legal]),
                   "sha256": contract.digest(files[self.legal])}
         self.report = {"archive_sha256": contract.digest(stream.getvalue()),
                        "manifest_sha256": contract.digest(manifest),
@@ -88,6 +93,48 @@ class ApkContractTest(unittest.TestCase):
         self.assertFalse(report["final_release_ready"])
         self.assertEqual(1, len(report["release_blockers"]))
         self.assertEqual([self.legal], [x["path"] for x in report["bootstrap"]["licenses"]["fixture"]])
+
+    def shared_license(self, target="../../LICENSES/MIT.txt"):
+        shared = "share/LICENSES/MIT.txt"
+        prefix = self.report["lock"]["target"]["prefix"]
+        data = b"Copyright fixture\nMIT License\n"
+        files = {shared: data,
+                 "var/lib/dpkg/info/fixture.list": (prefix + "/" + self.legal + "\n").encode(),
+                 "var/lib/dpkg/info/termux-licenses.list": (prefix + "/" + shared + "\n").encode()}
+        stream = io.BytesIO()
+        with zipfile.ZipFile(stream, "w") as archive:
+            for name, value in files.items():
+                archive.writestr(name, value)
+        manifest = ("AGENTCODI_BOOTSTRAP_V1\nL\t" + target + "\t" + self.legal + "\n" + "".join(
+            "F\t600\t" + str(len(value)) + "\t" + contract.digest(value) + "\t" + name + "\n"
+            for name, value in files.items())).encode()
+        linked = {"path": shared, "installed_path": self.legal,
+                  "size": len(data), "sha256": contract.digest(data)}
+        direct = {**linked, "installed_path": shared}
+        self.report["archive_sha256"] = contract.digest(stream.getvalue())
+        self.report["manifest_sha256"] = contract.digest(manifest)
+        self.report["packages"]["termux-licenses"] = {"Version": "2.2"}
+        self.report["licenses"] = {"fixture": [linked], "termux-licenses": [direct]}
+        self.index["packages"] = [
+            {"name": name, "version": value["Version"],
+             "files": self.report["licenses"][name], "notice": ""}
+            for name, value in sorted(self.report["packages"].items())]
+        self.entries[self.bootstrap + "bootstrap-aarch64.zip"] = stream.getvalue()
+        self.entries[self.bootstrap + "BOOTSTRAP-MANIFEST"] = manifest
+        self.update_report()
+        self.write()
+
+    def test_manifest_owned_shared_license_links_are_resolved(self):
+        self.shared_license()
+        report = self.verify()
+        self.assertEqual("share/LICENSES/MIT.txt",
+                         report["bootstrap"]["licenses"]["fixture"][0]["path"])
+        self.assertEqual(1, len(report["release_blockers"]))
+
+    def test_escaping_legal_link_is_rejected_without_host_access(self):
+        self.shared_license("../../../../../../outside")
+        with self.assertRaisesRegex(ValueError, "leaves bootstrap prefix"):
+            self.verify()
 
     def test_foreign_abi_is_rejected(self):
         self.entries["lib/x86_64/libcodex.so"] = b"foreign"

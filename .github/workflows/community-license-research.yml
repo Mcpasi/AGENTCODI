@@ -32,6 +32,8 @@ jobs:
           github-token: ${{ github.token }}
           path: legal-seed
       - name: Collect original license texts and report missing material
+        env:
+          GH_TOKEN: ${{ github.token }}
         run: python3 .github/ci/collect-community-licenses.py --codex legal-source/codex --seed-v8 legal-seed --output legal-evidence
       - uses: actions/upload-artifact@v4
         with:

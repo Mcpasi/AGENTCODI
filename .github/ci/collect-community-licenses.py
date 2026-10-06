@@ -1,6 +1,6 @@
 #!/usr/bin/env python3
 """Collect pinned source license files without authorizing publication."""
-import argparse, base64, hashlib, json, re, subprocess, tomllib, zipfile
+import argparse, base64, hashlib, json, os, re, subprocess, tomllib, urllib.request, zipfile
 from pathlib import Path
 
 def run(*args, cwd=None):
@@ -13,6 +13,49 @@ def files(root):
     return [p for p in sorted(root.rglob("*")) if p.is_file() and not p.is_symlink()
             and ".git" not in p.parts and "target" not in p.relative_to(root).parts
             and re.match(r"^(license|licence|copying|copyright|notice)(?:$|[._-])", p.name, re.I)]
+
+
+ROOT_LICENSE_CACHE = {}
+
+def repository_legal(package, root, output):
+    repository = package.get("repository") or package.get("source", "")
+    match = re.search(r"github.com/([^/]+)/([^/#?]+)", repository)
+    if not match:
+        raise ValueError("No public GitHub source repository")
+    repo = match[1] + "/" + match[2].removesuffix(".git")
+    vcs_file = root / ".cargo_vcs_info.json"
+    if vcs_file.is_file():
+        revision = json.loads(vcs_file.read_text())["git"]["sha1"]
+    elif str(package.get("source", "")).startswith("git+"):
+        revision = package["source"].rsplit("#", 1)[1]
+    else:
+        raise ValueError("Published crate has no exact Git revision")
+    if not re.fullmatch("[0-9a-f]{40}", revision):
+        raise ValueError("Invalid crate Git revision")
+    key = (repo, revision)
+    if key not in ROOT_LICENSE_CACHE:
+        request = urllib.request.Request(
+            "https://api.github.com/repos/" + repo + "/contents?ref=" + revision,
+            headers={"Accept": "application/vnd.github+json", "User-Agent": "AGENTCODI-license-audit",
+                     "Authorization": "Bearer " + os.environ["GH_TOKEN"]})
+        with urllib.request.urlopen(request, timeout=60) as response:
+            entries = json.load(response)
+        texts = {}
+        for entry in entries:
+            if entry["type"] == "file" and re.match(
+                    r"^(license|licence|copying|copyright|notice)(?:$|[._-])", entry["name"], re.I):
+                with urllib.request.urlopen(entry["download_url"], timeout=60) as response:
+                    texts[entry["name"]] = response.read()
+        ROOT_LICENSE_CACHE[key] = texts
+    texts = ROOT_LICENSE_CACHE[key]
+    if not texts:
+        raise ValueError("Exact source revision has no root legal file")
+    destination = output / "upstream-notices" / (package["name"] + "-" + package["version"])
+    destination.mkdir(parents=True, exist_ok=True)
+    for name, data in texts.items():
+        (destination / name).write_bytes(data)
+    return destination, files(destination), {"repository": repo, "revision": revision,
+        "reason": "Original repository-level terms omitted from the published crate"}
 
 def main():
     parser = argparse.ArgumentParser()
@@ -52,7 +95,7 @@ def main():
                             "size": len(data), "sha256": sha(data)})
         component["files"] = records
         if not records:
-            gaps.append({k: component.get(k) for k in ("name", "version", "license", "repository", "source")})
+            gaps.append({k: component.get(k) for k in ("name", "version", "license", "repository", "source", "legal_source")})
         components.append(component)
     for p in metadata["packages"]:
         if (p["name"], p["version"]) not in keys:
@@ -65,9 +108,16 @@ def main():
             root = args.codex.resolve()
             candidates.extend([root / "LICENSE", root / "NOTICE"])
         package = locked[(p["name"], p["version"])]
+        legal_source = {}
+        if not candidates:
+            try:
+                root, candidates, legal_source = repository_legal(p, root, args.output)
+            except Exception as error:
+                legal_source = {"unresolved_reason": str(error)}
         add({"kind": "cargo-normal-and-build-closure", "name": p["name"], "version": p["version"],
              "license": p.get("license"), "authors": p.get("authors"), "repository": p.get("repository"),
-             "source": p.get("source"), "checksum": package.get("checksum")}, root, candidates)
+             "source": p.get("source"), "checksum": package.get("checksum"),
+             "legal_source": legal_source}, root, candidates)
     if {(p["name"], p["version"]) for p in components} != keys:
         raise ValueError("Cargo inventory differs from requested closure")
     if args.seed_v8:

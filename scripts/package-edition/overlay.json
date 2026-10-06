@@ -267,7 +267,17 @@
       "replacements": [
         {
           "old": "TERMUX_PKG_SRCURL=\"http://download.savannah.gnu.org/releases/attr/attr-${TERMUX_PKG_VERSION}.tar.gz\"",
-          "new": "TERMUX_PKG_SRCURL=\"https://download.savannah.gnu.org/releases/attr/attr-${TERMUX_PKG_VERSION}.tar.gz\""
+          "new": "TERMUX_PKG_SRCURL=https://raw.githubusercontent.com/Mcpasi/AGENTCODI/c267f933121e9fba5991b797a510aa7601a37b9b/third_party/package-source-archives/attr-2.6.0.tar.gz"
+        }
+      ]
+    },
+    {
+      "path": "packages/libacl/build.sh",
+      "upstream_blob": "79660ba0ea43f5f2e1b2658f6ad04f3696605a1e",
+      "replacements": [
+        {
+          "old": "TERMUX_PKG_SRCURL=https://download.savannah.gnu.org/releases/acl/acl-${TERMUX_PKG_VERSION}.tar.gz",
+          "new": "TERMUX_PKG_SRCURL=https://raw.githubusercontent.com/Mcpasi/AGENTCODI/c267f933121e9fba5991b797a510aa7601a37b9b/third_party/package-source-archives/acl-2.4.0.tar.gz"
         }
       ]
     }

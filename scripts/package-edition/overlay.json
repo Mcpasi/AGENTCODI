@@ -174,6 +174,10 @@
         {
           "old": "TERMUX_PKG_VERSION=\"2.5.24\"",
           "new": "TERMUX_PKG_VERSION=\"2.5.24\"\nTERMUX_PKG_REVISION=1"
+        },
+        {
+          "old": "TERMUX_PKG_LICENSE=\"GPL-3.0\"",
+          "new": "TERMUX_PKG_LICENSE=\"GPL-3.0\"\nTERMUX_PKG_LICENSE_FILE=\"COPYING\""
         }
       ]
     },
@@ -268,6 +272,14 @@
         {
           "old": "TERMUX_PKG_SRCURL=\"http://download.savannah.gnu.org/releases/attr/attr-${TERMUX_PKG_VERSION}.tar.gz\"",
           "new": "TERMUX_PKG_SRCURL=https://raw.githubusercontent.com/Mcpasi/AGENTCODI/c267f933121e9fba5991b797a510aa7601a37b9b/third_party/package-source-archives/attr-2.6.0.tar.gz"
+        },
+        {
+          "old": "TERMUX_PKG_LICENSE=\"GPL-2.0\"",
+          "new": "TERMUX_PKG_LICENSE=\"GPL-2.0, LGPL-2.1\"\nTERMUX_PKG_LICENSE_FILE=\"doc/COPYING, doc/COPYING.LGPL\""
+        },
+        {
+          "old": "TERMUX_PKG_VERSION=\"2.6.0\"",
+          "new": "TERMUX_PKG_VERSION=\"2.6.0\"\nTERMUX_PKG_REVISION=1"
         }
       ]
     },
@@ -278,6 +290,14 @@
         {
           "old": "TERMUX_PKG_SRCURL=https://download.savannah.gnu.org/releases/acl/acl-${TERMUX_PKG_VERSION}.tar.gz",
           "new": "TERMUX_PKG_SRCURL=https://raw.githubusercontent.com/Mcpasi/AGENTCODI/c267f933121e9fba5991b797a510aa7601a37b9b/third_party/package-source-archives/acl-2.4.0.tar.gz"
+        },
+        {
+          "old": "TERMUX_PKG_LICENSE=\"LGPL-2.1, GPL-2.0\"",
+          "new": "TERMUX_PKG_LICENSE=\"LGPL-2.1, GPL-2.0\"\nTERMUX_PKG_LICENSE_FILE=\"doc/COPYING, doc/COPYING.LGPL\""
+        },
+        {
+          "old": "TERMUX_PKG_VERSION=\"2.4.0\"",
+          "new": "TERMUX_PKG_VERSION=\"2.4.0\"\nTERMUX_PKG_REVISION=1"
         }
       ]
     }

@@ -68,6 +68,10 @@ public final class CodexSessionControllerTest {
         enablesCompatibilityApprovalsWithoutReducingFullAccess();
         startsCompatibilityWithApprovalsEnabled();
         carriesCompatibilityProfileIntoTerminal();
+        handlesMcpToolApprovalsInFullAccess();
+        cancelsStaleAndOverloadedMcpApprovals();
+        rejectsMalformedAndUnsupportedMcpElicitations();
+        removesServerResolvedMcpApprovals();
         handlesCommandAndFileApprovals();
         acceptsFileCreationApproval();
         enrichesFileApprovalAfterReorderedPatchUpdate();
@@ -80,7 +84,7 @@ public final class CodexSessionControllerTest {
         terminatesTerminalWhenOutputCapIsReached();
         rejectsTerminalCredentialsAndMalformedOutput();
         usesVettedMcpConfigurationRpcs();
-        return 42;
+        return 46;
     }
 
     private static void preservesProtectionAfterSandboxBootstrapFailure() throws Exception {
@@ -3300,6 +3304,176 @@ public final class CodexSessionControllerTest {
         controller.stopTerminal();
         waitForTerminalExit(controller);
         controller.close();
+    }
+
+
+    private static void handlesMcpToolApprovalsInFullAccess() throws Exception {
+        final FixtureServer server = new FixtureServer(true);
+        server.holdTurnOpen = true;
+        final CodexSessionController controller =
+            new CodexSessionController(server, "/private/workspace");
+        try {
+            startHeldTurn(server, controller);
+            TestSupport.assertFalse(controller.snapshot().isCompatibilityApprovalsEnabled(),
+                "MCP approvals are independent of optional command approvals");
+            CodexApprovalDecision[] decisions = {
+                CodexApprovalDecision.ACCEPT, CodexApprovalDecision.DECLINE,
+                CodexApprovalDecision.CANCEL
+            };
+            String[] actions = {"accept", "decline", "cancel"};
+            for (int index = 0; index < decisions.length; index++) {
+                final long id = 900L + index;
+                // MCP elicitation has no itemId/startedAtMs; turnId can be null.
+                server.requestFromServer(id, "mcpServer/elicitation/request",
+                    mcpToolApproval("thr_existing", index == 0 ? "turn_fixture" : null));
+                waitFor(new Condition() {
+                    @Override public boolean isTrue() {
+                        return controller.snapshot().hasInteractiveRequest()
+                            || server.errorFor(id) != null;
+                    }
+                }, "MCP approval reaches the client");
+                TestSupport.assertEquals(null, server.errorFor(id),
+                    "MCP tool approval must not be rejected as an unsupported RPC");
+                CodexInteractiveRequest request =
+                    controller.snapshot().getInteractiveRequests().get(0);
+                TestSupport.assertEquals("MCP_TOOL_APPROVAL", request.getKind().name(),
+                    "MCP approval has its own dialog kind");
+                TestSupport.assertEquals(null, server.responseFor(id),
+                    "MCP tool remains pending until an explicit user decision");
+                TestSupport.assertFalse(request.allowsDecision(
+                    CodexApprovalDecision.ACCEPT_FOR_SESSION),
+                    "the edition keeps managed MCP tool approvals per request");
+                controller.resolveApproval(id, decisions[index], -1);
+                assertMcpAction(server, id, actions[index]);
+                TestSupport.assertFalse(controller.snapshot().hasInteractiveRequest(),
+                    "answered MCP approval leaves the dialog queue");
+            }
+        } finally {
+            controller.close();
+        }
+    }
+
+    private static void cancelsStaleAndOverloadedMcpApprovals() throws Exception {
+        final FixtureServer server = new FixtureServer(true);
+        server.holdTurnOpen = true;
+        final CodexSessionController controller =
+            new CodexSessionController(server, "/private/workspace");
+        try {
+            startHeldTurn(server, controller);
+            server.requestFromServer(910L, "mcpServer/elicitation/request",
+                mcpToolApproval("other-thread", "turn_fixture"));
+            assertMcpAction(server, 910L, "cancel");
+            server.requestFromServer(911L, "mcpServer/elicitation/request",
+                mcpToolApproval("thr_existing", "other-turn"));
+            assertMcpAction(server, 911L, "cancel");
+            TestSupport.assertFalse(controller.snapshot().hasInteractiveRequest(),
+                "stale MCP requests do not create dialogs");
+            for (int index = 0; index < 9; index++) {
+                server.requestFromServer(920L + index, "mcpServer/elicitation/request",
+                    mcpToolApproval("thr_existing", "turn_fixture"));
+            }
+            assertMcpAction(server, 928L, "cancel");
+            TestSupport.assertEquals(8, controller.snapshot().getInteractiveRequests().size(),
+                "MCP approvals obey the bounded interactive queue");
+            for (int index = 0; index < 8; index++) {
+                TestSupport.assertEquals(null, server.responseFor(920L + index),
+                    "queued MCP approvals are never granted automatically");
+                controller.resolveApproval(920L + index, CodexApprovalDecision.CANCEL, -1);
+                assertMcpAction(server, 920L + index, "cancel");
+            }
+        } finally {
+            controller.close();
+        }
+    }
+
+    private static void rejectsMalformedAndUnsupportedMcpElicitations() throws Exception {
+        final FixtureServer server = new FixtureServer(true);
+        server.holdTurnOpen = true;
+        final CodexSessionController controller =
+            new CodexSessionController(server, "/private/workspace");
+        try {
+            startHeldTurn(server, controller);
+            List<Map<String, Object>> invalid = new ArrayList<Map<String, Object>>();
+            Map<String, Object> noServer = mcpToolApproval("thr_existing", "turn_fixture");
+            noServer.remove("serverName");
+            invalid.add(noServer);
+            Map<String, Object> formInput = mcpToolApproval("thr_existing", "turn_fixture");
+            formInput.put("requestedSchema", JsonCodec.object("type", "object",
+                "properties", JsonCodec.object("name", JsonCodec.object("type", "string"))));
+            invalid.add(formInput);
+            Map<String, Object> noApproval = mcpToolApproval("thr_existing", "turn_fixture");
+            noApproval.put("_meta", null);
+            invalid.add(noApproval);
+            Map<String, Object> url = mcpToolApproval("thr_existing", "turn_fixture");
+            url.put("mode", "url");
+            url.put("url", "https://example.com/login");
+            url.put("elicitationId", "url-fixture");
+            invalid.add(url);
+            for (int index = 0; index < invalid.size(); index++) {
+                final long id = 940L + index;
+                server.requestFromServer(id, "mcpServer/elicitation/request", invalid.get(index));
+                waitFor(new Condition() {
+                    @Override public boolean isTrue() { return server.errorFor(id) != null; }
+                }, "unsupported MCP input rejected safely");
+                TestSupport.assertEquals(Long.valueOf(-32602L),
+                    server.errorFor(id).get("code"), "recognized MCP request validation error");
+                TestSupport.assertEquals(null, server.responseFor(id),
+                    "a form needing input or a URL request cannot be approved blindly");
+            }
+            TestSupport.assertFalse(controller.snapshot().hasInteractiveRequest(),
+                "invalid MCP requests cannot enter the approval queue");
+        } finally {
+            controller.close();
+        }
+    }
+
+    private static void removesServerResolvedMcpApprovals() throws Exception {
+        final FixtureServer server = new FixtureServer(true);
+        server.holdTurnOpen = true;
+        final CodexSessionController controller =
+            new CodexSessionController(server, "/private/workspace");
+        try {
+            startHeldTurn(server, controller);
+            server.requestFromServer(950L, "mcpServer/elicitation/request",
+                mcpToolApproval("thr_existing", null));
+            waitFor(new Condition() {
+                @Override public boolean isTrue() {
+                    return controller.snapshot().hasInteractiveRequest();
+                }
+            }, "nullable-turn MCP approval projected");
+            server.notifyMessage("serverRequest/resolved", JsonCodec.object(
+                "threadId", "thr_existing", "requestId", Long.valueOf(950L)));
+            waitFor(new Condition() {
+                @Override public boolean isTrue() {
+                    return !controller.snapshot().hasInteractiveRequest();
+                }
+            }, "server-resolved MCP approval removed");
+            controller.resolveApproval(950L, CodexApprovalDecision.ACCEPT, -1);
+            TestSupport.assertEquals(null, server.responseFor(950L),
+                "resolved MCP request cannot receive a late approval");
+        } finally {
+            controller.close();
+        }
+    }
+
+    private static Map<String, Object> mcpToolApproval(String threadId, String turnId) {
+        return JsonCodec.object(
+            "threadId", threadId, "turnId", turnId, "serverName", "fixture-mcp",
+            "mode", "form", "message", "Allow fixture-mcp to run tool read_note?",
+            "_meta", JsonCodec.object("codex_approval_kind", "mcp_tool_call",
+                "tool_title", "Read note", "tool_params", JsonCodec.object("path", "note.txt"),
+                "persist", JsonCodec.array("session", "always")),
+            "requestedSchema", JsonCodec.object("type", "object", "properties", JsonCodec.object())
+        );
+    }
+
+    private static void assertMcpAction(final FixtureServer server, final long id,
+        String action) throws Exception {
+        waitFor(new Condition() {
+            @Override public boolean isTrue() { return server.responseFor(id) != null; }
+        }, "MCP action response");
+        TestSupport.assertEquals(JsonCodec.object("action", action, "content", null, "_meta", null),
+            server.responseFor(id), "MCP elicitation response uses action, not command decision");
     }
 
     private static void handlesCommandAndFileApprovals() throws Exception {

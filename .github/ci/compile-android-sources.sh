@@ -71,10 +71,20 @@ print("Package installation identity and all manifest component classes verified
 PY
 # A higher versionCode cannot repair a changed signer. Exercise the real signing
 # branch with two valid resource APKs in independent, empty build caches.
+python3 - "$PROJECT_ROOT/app/src/main/AndroidManifest.xml" "$BUILD_DIR/signing-upgrade.xml" <<'PY'
+import sys
+import xml.etree.ElementTree as ET
+ET.register_namespace("android", "http://schemas.android.com/apk/res/android")
+tree = ET.parse(sys.argv[1])
+android = "{http://schemas.android.com/apk/res/android}"
+manifest = tree.getroot()
+manifest.set(android + "versionCode", str(int(manifest.attrib[android + "versionCode"]) + 1))
+manifest.set(android + "versionName", "signing-fixture")
+tree.write(sys.argv[2], encoding="utf-8", xml_declaration=True)
+PY
 "$AAPT2" link -o "$BUILD_DIR/signing-upgrade.apk" \
-  --manifest "$PROJECT_ROOT/app/src/main/AndroidManifest.xml" \
+  --manifest "$BUILD_DIR/signing-upgrade.xml" \
   --custom-package de.agentcodi.app --min-sdk-version 29 --target-sdk-version 28 \
-  --version-code 1000001 --version-name signing-fixture \
   -I "$ANDROID_JAR" "$BUILD_DIR/resources.zip"
 python3 "$PROJECT_ROOT/.github/ci/test-debug-signing.py" \
   "$BUILD_DIR/resources.apk" "$BUILD_DIR/signing-upgrade.apk" \

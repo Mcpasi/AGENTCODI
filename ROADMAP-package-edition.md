@@ -1339,7 +1339,7 @@ Versionscode reichen Android bei inkompatibler Signatur nicht für ein Update.
 Der [reine Reproduktionscommit](https://github.com/Mcpasi/AGENTCODI/commit/87edf38c52c5ec0a1d62638ec14e02e780ae0e4d)
 und [Tests-Lauf 37501539976](https://github.com/Mcpasi/AGENTCODI/actions/runs/37501539976)
 führen den tatsächlichen Debug-Signierungsblock mit zwei AAPT2-APKs
-(unterschiedliche Versionscodes) in leeren, unabhängigen Build-Caches aus.
+in leeren, unabhängigen Build-Caches aus.
 Der Android-Job scheitert genau am unterschiedlichen Zertifikatsfingerabdruck;
 die übrigen sechs Jobs bestehen.
 
@@ -1382,3 +1382,15 @@ Physische Installations-, Update- und Datenerhaltungsprüfungen bleiben gemäß
 Nutzeranweisung übersprungen/offen. CI- und APK-Nachweise dieses Fixes folgen
 nach Abschluss der neuen Läufe. Ausschließlich `Mcpasi/package-edition`,
 kein PR, kein Merge nach `main`.
+
+Der erste [erweiterte Testlauf 37502585222](https://github.com/Mcpasi/AGENTCODI/actions/runs/37502585222)
+bestätigt bereits gleiche Debug-Signierer sowie alle vier weiteren
+Signierungsregressionen, scheitert aber an der zusätzlich geprüften
+Versionsdifferenz der Fixture: AAPT2 übernimmt die Version aus einem bereits
+versionierten Manifest statt sie allein durch CLI-Optionen zu ersetzen.
+Die Fixture erstellt deshalb jetzt ein eigenes Manifest mit um eins erhöhtem
+Versionscode. Der Test liest beide tatsächlichen APK-Identitäten mit
+`aapt2 dump badging` und verlangt gleiche App-ID und steigenden Code.
+Die Korrektur betrifft ausschließlich Test-/Dokumentationsdateien; die
+App-/Signer-/Versions-/Payload-Dateien auf `5f0632e4286823b6b52a73282c305545d589f6b5`
+bleiben unverändert.

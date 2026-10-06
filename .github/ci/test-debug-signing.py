@@ -71,7 +71,18 @@ class DebugSigningTest(unittest.TestCase):
             self.certificate(first), self.certificate(upgrade),
             "Fresh CI runners changed the debug certificate; Android rejects the update")
         self.assertEqual(self.certificate(first), signer.CERTIFICATE_SHA256)
-        self.assertNotEqual(FIRST_APK.read_bytes(), UPGRADE_APK.read_bytes())
+        def identity(apk):
+            badging = subprocess.run(
+                [str(APKSIGNER.with_name("aapt2")), "dump", "badging", str(apk)],
+                check=True, capture_output=True, text=True, timeout=20).stdout
+            package = re.search(r"^package: name='([^']+)' versionCode='([0-9]+)'", badging, re.M)
+            self.assertIsNotNone(package, "aapt2 must report the built APK identity")
+            return package.group(1), int(package.group(2))
+        first_id, first_code = identity(FIRST_APK)
+        upgrade_id, upgrade_code = identity(UPGRADE_APK)
+        self.assertEqual(first_id, upgrade_id)
+        self.assertGreater(upgrade_code, first_code, "Signing fixture must really increase versionCode")
+        print("Signing fixture versionCodes: " + str(first_code) + " -> " + str(upgrade_code))
         print("Two clean APK builds keep the same update signer: " + self.certificate(first))
 
     def copy_project(self, name):

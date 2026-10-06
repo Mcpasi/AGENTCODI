@@ -392,7 +392,9 @@ external model inference or physical Android device is required.
 ## Stable development APK signing
 
 The Android source job also runs `test-debug-signing.py` using two real AAPT2
-resource APKs with different versionCodes. It executes the production builder's
+resource APKs with different versionCodes. The upgrade fixture has its own
+manifest; `aapt2 dump badging` must confirm the same package ID and a higher
+actual code before the check passes. It executes the production builder's
 debug signing stage with independent empty caches, validates signatures with
 the SDK apksigner and checks the pinned certificate. Other cases preserve and
 ignore a legacy cached keystore, reject missing/modified tracked signing

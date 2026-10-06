@@ -52,7 +52,8 @@ jobs:
   bootstrap:
     uses: ./.github/workflows/bootstrap.yml
     with:
-      source_run_id: 37215181811
+      # Same-branch source-built bootstrap; the reusable workflow verifies recipes and hashes.
+      source_run_id: 37493949315
   apk:
     needs: bootstrap
     name: Debug APK

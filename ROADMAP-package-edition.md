@@ -1316,3 +1316,69 @@ den Package-Edition-Changelog; App, Versionspins und Build-Lieferumfang
 bleiben unverändert. Physische Geräteprüfungen bleiben übersprungen/offen.
 Es wurde kein PR, Merge oder finales APK-Release erstellt; `main` bleibt
 auf `ff27ec7c30d373a864e845e9a7ceeae3380dd103`.
+
+## Stabile Debug-Signierung und Versionsbump — 2026-10-06
+
+Der Nutzer meldet einen Installations-/Updatekonflikt trotz vollständigem
+Android-Versionsbump; der aktuell verwendete Build hat `versionCode 2`.
+Die Debug-Keystores wurden ausschließlich auf CI-Runnern erzeugt.
+
+Der Signaturvergleich bestätigt die Ursache:
+[APK-Lauf 37459913761](https://github.com/Mcpasi/AGENTCODI/actions/runs/37459913761)
+(`0.1.0-package.1` / Code 1) meldet Zertifikats-SHA-256
+`3e15a999a522f3c7179ea99b89df80b4e08853819a9417f10d4efdac88bcdc55`;
+[APK-Lauf 37493949315](https://github.com/Mcpasi/AGENTCODI/actions/runs/37493949315)
+(`0.1.0-package.2` / Code 2) meldet
+`66eaf52ce0fe2ff694d15e22b9e22af0cae96c833c36ac28722073d3254a4399`.
+`build-debug-apk.sh` erzeugte bei fehlendem lokalem Keystore jeweils ein
+zufälliges Schlüsselpaar. Der explizite CI-Input-Cache und die hochgeladenen
+Artefakte enthalten diesen Keystore nicht. Die Prüfung des Zertifikatsnamens
+erkannte den wechselnden Schlüssel nicht. Gleiche App-ID und höherer
+Versionscode reichen Android bei inkompatibler Signatur nicht für ein Update.
+
+Der [reine Reproduktionscommit](https://github.com/Mcpasi/AGENTCODI/commit/87edf38c52c5ec0a1d62638ec14e02e780ae0e4d)
+und [Tests-Lauf 37501539976](https://github.com/Mcpasi/AGENTCODI/actions/runs/37501539976)
+führen den tatsächlichen Debug-Signierungsblock mit zwei AAPT2-APKs
+(unterschiedliche Versionscodes) in leeren, unabhängigen Build-Caches aus.
+Der Android-Job scheitert genau am unterschiedlichen Zertifikatsfingerabdruck;
+die übrigen sechs Jobs bestehen.
+
+Die Korrektur verwendet ausschließlich für Entwicklungs-APKs den versionierten,
+öffentlichen AOSP-Testsignierer. [Herkunft, Lizenz und SHA-256-Pins](scripts/debug-signing/README.md)
+sind nachvollziehbar; `sign-debug-apk.py` prüft Schlüssel-/Zertifikatsbytes
+und anschließend die tatsächlich signierte APK. Der stabile Zertifikats-Pin ist
+`a40da80a59d170caa950cf15c18c454d47a39b26989d8b640ecd745ba71bf5dc`.
+Fehlendes oder verändertes Material beendet den Build; es gibt keine
+Schlüssel-Neuerzeugung als Ersatz. Ein vorhandener alter Cache-Keystore wird
+ignoriert und erhalten. Der private Testschlüssel bleibt ein öffentliches
+Build-Fixture und wird nicht als App-Asset ausgeliefert. Er authentifiziert
+kein offizielles Release. Der Release-Pfad behält seine externe private
+Keystore-Konfiguration und lehnt dieses öffentliche Testzertifikat explizit ab.
+
+Fünf Signierungsregressionen prüfen kalte Builds/höheren Versionscode,
+alte Cache-Keystores, fehlendes Material, manipulierten Schlüssel bzw.
+Zertifikat und die Release-Ablehnung. Der neue Stand ist
+`0.1.0-package.3` / `versionCode 3`. Java-Identität, Manifest,
+Build-Skript, Architekturvertrag und die drei beim vorigen Bump ausgelassenen
+nativen Versionspins sind abgeglichen. Historische Build-/CI-Angaben oben
+bleiben an ihre ursprünglichen Commits und Artefakte gebunden.
+
+Die APK-CI darf den in Lauf `37493949315` erfolgreich aus gepinnten Quellen
+gebauten Bootstrap wiederverwenden. Der bestehende wiederverwendbare Workflow
+prüft Branch, Quell-/Build-Eingaben, erfolgreichen Producer, nicht abgelaufenes
+Artefakt, SHA-256-Summen und Lock; der aktuelle APK-Bau und dessen Tests laufen
+vollständig weiter. Paket-Rezepte wurden für diesen Signierungsfix nicht geändert.
+
+**Übergang vorhandener Installationen:** Der ursprüngliche private
+CI-Schlüssel wurde nicht aufbewahrt und lässt sich aus einer APK bzw. ihrem
+öffentlichen Zertifikat nicht zurückgewinnen. Daher kann dieser Fix die
+bestehende zufällig signierte Installation nicht ohne diesen Schlüssel
+aktualisieren. Vor dem einmaligen Entfernen/Neuinstallieren sind alle benötigten
+Daten zu exportieren und die Sicherungen zu prüfen. Workspace-ZIPs enthalten
+nicht automatisch private Chats, Zugangsdaten oder installierte Pakete;
+Deinstallation löscht private App-Daten. Spätere APKs mit dem stabilen
+Zertifikat und höherem Versionscode erfüllen die Signaturvoraussetzung.
+Physische Installations-, Update- und Datenerhaltungsprüfungen bleiben gemäß
+Nutzeranweisung übersprungen/offen. CI- und APK-Nachweise dieses Fixes folgen
+nach Abschluss der neuen Läufe. Ausschließlich `Mcpasi/package-edition`,
+kein PR, kein Merge nach `main`.

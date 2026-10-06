@@ -1,5 +1,14 @@
 # Package Edition
 
+## 0.1.0-package.3 (Android versionCode 3) — 2026-10-06
+
+- Fix debug update conflicts caused by a new CI keystore on each fresh runner. Use a tracked public AOSP development test identity, verify its key/certificate hashes and the actual APK signer, and fail instead of generating a replacement.
+- Keep old local debug keystores untouched. Reject the public development certificate in the external private-key release path.
+- Add real APK signing regression coverage for independent cold builds with a higher versionCode, an existing legacy cache key, missing/modified material and the release rejection.
+- Align Java, manifest, build, architecture and native version pins at `0.1.0-package.3` / code 3.
+- Existing randomly signed CI installations cannot upgrade to the new identity without their original private key. Export and verify required data before the one-time removal/reinstallation; private app data is deleted by uninstalling. Future APKs retain the same debug signing identity. Physical device update tests remain open.
+
+
 ## 0.1.0-package.2 (Android versionCode 2) — 2026-10-06
 
 - Handle `mcpServer/elicitation/request` tool approvals with an explicit, per-call dialog and the Runtime's `action/content/_meta` response format.

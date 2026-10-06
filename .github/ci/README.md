@@ -25,7 +25,7 @@ Ubuntu runner. They are additional entry points only:
 | Android sources and resources | `compile-android-sources.sh` | Compile against API 35, check SDK pins and Package Edition identity, and resolve every manifest component against its compiled Java class. |
 
 Package Edition builds use installation ID `de.agentcodi.pkg`, their own
-`0.1.0-package.N` version line (currently `0.1.0-package.2` / Android versionCode 2; started at 1), and APK names
+`0.1.0-package.N` version line (currently `0.1.0-package.3` / Android versionCode 3; started at 1), and APK names
 starting with `AGENTCODI-Package-`. The APK workflow on this branch
 uploads `agentcodi-package-debug-apk`. Java classes and resources retain the
 `de.agentcodi.app` namespace via AAPT2's `--custom-package`; manifest components
@@ -388,3 +388,23 @@ existing relocated code-mode host smoke remains a separate check.
 The invocation counter must stay unchanged before approval and after decline
 or cancel; an explicit per-call accept runs the tool once. No OpenAI credentials,
 external model inference or physical Android device is required.
+
+## Stable development APK signing
+
+The Android source job also runs `test-debug-signing.py` using two real AAPT2
+resource APKs with different versionCodes. It executes the production builder's
+debug signing stage with independent empty caches, validates signatures with
+the SDK apksigner and checks the pinned certificate. Other cases preserve and
+ignore a legacy cached keystore, reject missing/modified tracked signing
+material without key generation, and reject the public development certificate
+in the release verification path.
+
+The public AOSP test material is a build fixture under
+[`scripts/debug-signing`](../../scripts/debug-signing/README.md), not an
+external private release key or packaged app asset. The full APK build checks
+the actual signer again. The APK workflow reuses the successful same-branch
+bootstrap source run `37493949315` only after the existing recipe, job,
+artifact and checksum provenance gates pass; it still assembles and tests the
+current APK. The fixture proves the signing prerequisite for Android updates.
+It performs no physical device installation, upgrade or data-retention test.
+Previously random CI signing identities cannot be recovered from APKs alone.

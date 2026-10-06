@@ -357,6 +357,17 @@ if [ ! -x "$release_builder" ] \
   exit 1
 fi
 
+if rg -q 'DEBUG_KEYSTORE=|-genkeypair' "$apk_builder" \
+    || ! rg -Fq 'scripts/sign-debug-apk.py' "$apk_builder" \
+    || ! rg -Fq 'Debug signer certificate does not match the pinned development identity.' "$apk_builder" \
+    || ! rg -Fq 'Release APK must not use the public development test certificate.' "$apk_builder" \
+    || [ ! -s "$PROJECT_ROOT/scripts/debug-signing/testkey.pk8.b64" ] \
+    || [ ! -s "$PROJECT_ROOT/scripts/debug-signing/testkey.x509.pem" ]; then
+  echo "Stable debug signing or the release test-key rejection is incomplete." >&2
+  exit 1
+fi
+python3 "$PROJECT_ROOT/scripts/sign-debug-apk.py" --certificate-sha256 >/dev/null
+
 if rg -n 'new[[:space:]]+ProcessBuilder|Runtime\.getRuntime\(\)\.exec' "$PROJECT_ROOT/app/src/main/java" "$PROJECT_ROOT/modules" --glob '*.java'; then
   echo "Child processes must be owned by the C++ process supervisor." >&2
   exit 1
@@ -926,13 +937,13 @@ if ! rg -q 'command/exec/outputDelta' "$PROJECT_ROOT/tests/cpp/android_app_serve
   exit 1
 fi
 
-if ! rg -q 'VERSION_NAME = "0\.1\.0-package\.2"' "$core_root/BuildIdentity.java" \
-    || ! rg -q 'VERSION_CODE = 2' "$core_root/BuildIdentity.java" \
+if ! rg -q 'VERSION_NAME = "0\.1\.0-package\.3"' "$core_root/BuildIdentity.java" \
+    || ! rg -q 'VERSION_CODE = 3' "$core_root/BuildIdentity.java" \
     || ! rg -q 'CODEX_RUNTIME_VERSION = "0\.156\.1-termux\.1"' "$core_root/BuildIdentity.java" \
-    || ! rg -q 'android:versionName="0\.1\.0-package\.2"' "$manifest" \
-    || ! rg -q 'android:versionCode="2"' "$manifest" \
-    || ! rg -q 'APP_VERSION="0\.1\.0-package\.2"' "$apk_builder" \
-    || ! rg -q 'VERSION_CODE="2"' "$apk_builder" \
+    || ! rg -q 'android:versionName="0\.1\.0-package\.3"' "$manifest" \
+    || ! rg -q 'android:versionCode="3"' "$manifest" \
+    || ! rg -q 'APP_VERSION="0\.1\.0-package\.3"' "$apk_builder" \
+    || ! rg -q 'VERSION_CODE="3"' "$apk_builder" \
     || ! rg -q 'CODEX_ANDROID_VERSION="0\.156\.1-termux\.1"' "$apk_builder" \
     || ! rg -q 'CODEX_TERMUX_SOURCE_TAG="v0\.156\.1-termux\.1"' "$apk_builder" \
     || ! rg -q 'CODEX_TERMUX_SOURCE_COMMIT="ea762071ec4acbf1531fcc7daf47524836f70a09"' "$apk_builder" \
@@ -953,7 +964,7 @@ if ! rg -q 'VERSION_NAME = "0\.1\.0-package\.2"' "$core_root/BuildIdentity.java"
     || ! rg -q 'ea762071ec4acbf1531fcc7daf47524836f70a09' "$PROJECT_ROOT/app/src/main/res/raw/third_party_notices.txt" \
     || ! rg -q 'b412ff32c417f855c2b2d1581b77058eed87c84b' "$PROJECT_ROOT/NOTICE.md" \
     || ! rg -q 'b412ff32c417f855c2b2d1581b77058eed87c84b' "$PROJECT_ROOT/app/src/main/res/raw/third_party_notices.txt"; then
-  echo "The 0.1.0-package.2 / Codex 0.156.1-termux.1 identity is inconsistent." >&2
+  echo "The 0.1.0-package.3 / Codex 0.156.1-termux.1 identity is inconsistent." >&2
   exit 1
 fi
 

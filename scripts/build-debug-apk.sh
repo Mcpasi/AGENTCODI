@@ -7,8 +7,8 @@ PROJECT_ROOT="$(cd -- "$SCRIPT_DIR/.." && pwd -P)"
 APP_NAME="AGENTCODI Package"
 APP_ARTIFACT_NAME="AGENTCODI-Package"
 APP_ID="de.agentcodi.pkg"
-APP_VERSION="0.1.0-package.2"
-VERSION_CODE="2"
+APP_VERSION="0.1.0-package.3"
+VERSION_CODE="3"
 MIN_SDK="29"
 # Package Edition allows execution of user-installed files in private app storage.
 TARGET_SDK="28"
@@ -940,15 +940,12 @@ cp "$UNSIGNED_APK" "$UNALIGNED_APK"
 )
 zipalign -f -p 4 "$UNALIGNED_APK" "$ALIGNED_APK"
 
+DEBUG_CERT_SHA256="$(python3 "$PROJECT_ROOT/scripts/sign-debug-apk.py" --certificate-sha256)"
 if [ "$BUILD_VARIANT" = "debug" ]; then
-  DEBUG_KEYSTORE="$CACHE_DIR/agentcodi-debug.keystore"
-  if [ ! -f "$DEBUG_KEYSTORE" ]; then
-    "$KEYTOOL" -genkeypair -noprompt -keystore "$DEBUG_KEYSTORE" -storepass android -keypass android -alias androiddebugkey -dname "CN=AGENTCODI Android Debug,O=AGENTCODI,C=DE" -keyalg RSA -keysize 2048 -validity 10000
-  fi
-  chmod 600 "$DEBUG_KEYSTORE"
   VERSIONED_APK="$OUTPUT_DIR/$APP_ARTIFACT_NAME-$APP_VERSION-$ABI-debug.apk"
   NAMED_APK="$OUTPUT_DIR/$APP_ARTIFACT_NAME-debug.apk"
-  apksigner sign --min-sdk-version "$MIN_SDK" --ks "$DEBUG_KEYSTORE" --ks-key-alias androiddebugkey --ks-pass pass:android --key-pass pass:android --out "$VERSIONED_APK" "$ALIGNED_APK"
+  python3 "$PROJECT_ROOT/scripts/sign-debug-apk.py" \
+    --unsigned "$ALIGNED_APK" --output "$VERSIONED_APK" --min-sdk "$MIN_SDK"
 else
   VERSIONED_APK="$OUTPUT_DIR/$APP_ARTIFACT_NAME-$APP_VERSION-$ABI-release.apk"
   NAMED_APK="$OUTPUT_DIR/$APP_ARTIFACT_NAME-release.apk"
@@ -975,12 +972,16 @@ if [ "$BUILD_VARIANT" = "release" ]; then
     echo "Release signer certificate does not match AGENTCODI_RELEASE_CERT_SHA256." >&2
     exit 1
   fi
+  if [ "$actual_signer_cert_sha256" = "$DEBUG_CERT_SHA256" ]; then
+    echo "Release APK must not use the public development test certificate." >&2
+    exit 1
+  fi
   if printf '%s\n' "$certificate_report" | grep -Fiq 'android debug'; then
     echo "Release APK must not use an Android debug certificate." >&2
     exit 1
   fi
-elif ! printf '%s\n' "$certificate_report" | grep -Fq 'Signer #1 certificate DN: CN=AGENTCODI Android Debug, O=AGENTCODI, C=DE'; then
-  echo "Debug APK was not signed by the local AGENTCODI test signer." >&2
+elif [ "$actual_signer_cert_sha256" != "$DEBUG_CERT_SHA256" ]; then
+  echo "Debug signer certificate does not match the pinned development identity." >&2
   exit 1
 fi
 badging="$(env LD_LIBRARY_PATH="$AAPT2_LIBRARY_PATH" "$AAPT2_BIN" dump badging "$VERSIONED_APK")"

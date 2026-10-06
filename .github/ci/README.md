@@ -354,3 +354,25 @@ The index records both the package-owned installed path and the actual shared
 license file under share/LICENSES (or share/licenses). Shared texts are indexed
 for their owning package as well. Dangling, escaping or cyclic legal links fail;
 reading arbitrary host paths is not part of this process.
+
+The Savannah attr/acl source archives are retained unchanged at
+[third_party/package-source-archives](../../third_party/package-source-archives/README.md).
+The edition overlay uses immutable GitHub URLs with the original recipe
+SHA-256 values. The branch-only Package source archive checks workflow verifies
+both complete archives and their original COPYING material. This changes source
+retrieval for the separate package builds; the 12 APK inputs remain unchanged.
+
+The attr recipe records both GPL-2.0 and LGPL-2.1 and retains the original
+doc/COPYING and doc/COPYING.LGPL files. libacl retains those original files
+as well, and GnuPG/gpgv retain the original COPYING. Affected package revisions
+are raised so APT installs the supplemented legal material on updates.
+
+The XZ source summary explicitly identifies liblzma as 0BSD and describes
+the additional GPL/LGPL portions of the toolset. Its original COPYING.0BSD is
+retained alongside COPYING and the GNU GPL/LGPL texts in liblzma/xz-utils. The liblzma and GnuPG revisions
+are 2, distinguishing these original-text payloads from earlier CI builds.
+
+The catalog source driver resolves selected DEBs to unique parent recipes before
+building. Python and python-ensurepip-wheels remain selected together; only the
+Python source recipe is invoked. Two additional catalog regressions cover parent
+deduplication and reject missing/ambiguous recipes without a binary fallback.

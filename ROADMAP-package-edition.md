@@ -2,7 +2,7 @@
 
 Stand: 2026-10-06. Ausschließlich Branch `Mcpasi/package-edition`; kein Merge nach `main`.
 
-Die Checklisten zeigen den aktuellen Umsetzungsstand. Datierte Ergebnis- und Verifikationsabschnitte dokumentieren frühere Meilensteine; ihre Testzahlen, Artefakte und Prüfsummen gehören zum jeweils genannten Commit. Bootstrap, Startkatalog und öffentliches signiertes APT-Repository sind umgesetzt. Die npm-/Python-Pfade und die gemeinsame Prozessumgebung sind umgesetzt und in CI geprüft; die aktuellen Nachweise stehen im Ergebnisabschnitt „Gemeinsame Paketumgebung und npm-/Python-Pfade“. Die Paketdiagnose und die Workspace-Browser-/Import-/Export-Erweiterung sind umgesetzt; die nutzerinstallierbaren Übergangswerkzeuge sind aus dem APK entfernt. Die verbliebenen Legacy-Helfer und Transportparameter sind bereinigt. Build-Skript, Dockerfile, CI-Inputs, Restore-/Preflight-Prüfungen und Cache-Schlüssel sind auf die aktiven Edition-Abhängigkeiten reduziert. Der endgültige Test-/Payloadvertrag und der Abgleich der gelieferten Lizenzmaterialien sind umgesetzt; die aktuellen Nachweise stehen im Ergebnisabschnitt „Finaler Testvertrag und Lizenzabgleich“. Vollständige Community-Rust-/V8-Abhängigkeitshinweise und drei paketlokale Bootstrap-Lizenzzuordnungen fehlen weiterhin und sperren die finale APK-Veröffentlichung. Echte Gerätetests bleiben gemäß Nutzeranweisung offen. Die APT-Veröffentlichung ist getrennt von einem GitHub-Release der APK.
+Die Checklisten zeigen den aktuellen Umsetzungsstand. Datierte Ergebnis- und Verifikationsabschnitte dokumentieren frühere Meilensteine; ihre Testzahlen, Artefakte und Prüfsummen gehören zum jeweils genannten Commit. Bootstrap, Startkatalog und öffentliches signiertes APT-Repository sind umgesetzt. Die npm-/Python-Pfade und die gemeinsame Prozessumgebung sind umgesetzt und in CI geprüft; die aktuellen Nachweise stehen im Ergebnisabschnitt „Gemeinsame Paketumgebung und npm-/Python-Pfade“. Die Paketdiagnose und die Workspace-Browser-/Import-/Export-Erweiterung sind umgesetzt; die nutzerinstallierbaren Übergangswerkzeuge sind aus dem APK entfernt. Die verbliebenen Legacy-Helfer und Transportparameter sind bereinigt. Build-Skript, Dockerfile, CI-Inputs, Restore-/Preflight-Prüfungen und Cache-Schlüssel sind auf die aktiven Edition-Abhängigkeiten reduziert. Der endgültige Test-/Payloadvertrag und der Abgleich der gelieferten Lizenzmaterialien sind umgesetzt; die aktuellen Nachweise stehen im Ergebnisabschnitt „Finaler Testvertrag und Lizenzabgleich“. Die Community-Rust-/V8-Abhängigkeitstexte und die drei paketlokalen Bootstrap-Lizenzzuordnungen sind ergänzt; Quellen-, Versions- und Artefaktbindungen werden im APK-Vertrag geprüft. Der neue Ergebnisabschnitt „Ergänzung der fehlenden Lizenzen“ dokumentiert diesen Stand. Echte Gerätetests bleiben gemäß Nutzeranweisung offen. Die APT-Veröffentlichung ist getrennt von einem GitHub-Release der APK.
 
 ## Ziel und feste Entscheidungen
 
@@ -60,7 +60,7 @@ Umgesetzt mit `.github/ci/community-codex-release.json`, `inspect-community-code
 - Beide ausführbaren ELF-Dateien sind ARM64/ELF64 mit Interpreter `/system/bin/linker64` und RUNPATH `$ORIGIN:$ORIGIN`. Die zwei identischen Einträge sind gleichwertig zum selben Bibliotheksordner; fremde oder leere Suchpfade werden abgelehnt.
 - `codex.bin` benötigt dynamisch `libdl.so/libm.so/libc.so`, der Code-mode-Host zusätzlich `liblog.so`. Die mitgelieferte `libc++_shared.so` benötigt `libc.so/libm.so/libdl.so`; die beiden Programme haben in diesem Release keinen direkten DT_NEEDED-Eintrag für libc++. Alle ermittelten dynamischen Abhängigkeiten sind Android-Systembibliotheken.
 - Keine npm-Paketabhängigkeiten sind deklariert. Die JavaScript-Launcher deklarieren Node.js `>=18.0.0`; das Postinstall-Skript passt Shebangs anhand des laufenden Node-Interpreters an. Shell- und JavaScript-Launcher enthalten weiterhin den Termux-Standardpräfix `/data/data/com.termux/files/usr`. Die spätere Integration verwendet die ELF-Dateien direkt; diese npm-/JavaScript-Launcher werden weder installiert noch ausgeführt.
-- Paketlizenz und LICENSE sind Apache-2.0; NOTICE nennt OpenAI, Davide A. Guglielmi und Ratatui/MIT. Separate Lizenztexte für libc++ und statisch eingebundene Rust-/V8-Abhängigkeiten sind im Archiv nicht enthalten. LICENSE/NOTICE werden unverändert ins APK übernommen. Der inzwischen abgeschlossene Abgleich in Abschnitt 4 erfasst diese gelieferte Menge und die fehlenden vollständigen Rust-/V8-Abhängigkeitshinweise; deren Klärung bleibt Voraussetzung für eine finale APK-Veröffentlichung.
+- Paketlizenz und LICENSE sind Apache-2.0; NOTICE nennt OpenAI, Davide A. Guglielmi und Ratatui/MIT. Separate Lizenztexte für libc++ und statisch eingebundene Rust-/V8-Abhängigkeiten sind im Archiv nicht enthalten. LICENSE/NOTICE werden unverändert ins APK übernommen. Der damalige Abgleich in Abschnitt 4 erfasste diese gelieferte Menge und die fehlenden Rust-/V8-Abhängigkeitshinweise. Der spätere Ergebnisabschnitt „Ergänzung der fehlenden Lizenzen“ dokumentiert die separate, gepinnte Ergänzung dieser Materialien.
 - Das archivierte README nennt veraltet `rust-v0.155.0`; Release und Paketbeschreibung nennen `rust-v0.156.1`. Die Prüfung dokumentiert diese Abweichung und verwendet die gepinnten Release-/Quellangaben.
 
 Neu ermittelte ELF-Prüfsummen, ausschließlich für dieses unveränderte Release-Archiv:
@@ -735,17 +735,18 @@ Kein PR, Merge oder APK-Release; `main` bleibt unverändert.
 
 ## 4. Build verkleinern und veröffentlichbare Edition erstellen
 
-Bootstrap, Startkatalog, signierter Paketkanal und die gemeinsame Paketumgebung funktionieren in CI. Die npm-/Python-Pfadvoraussetzungen sind abgeschlossen. Die bisher enthaltenen nutzerinstallierbaren Pakete sind aus dem APK entfernt. Der aktive Startpfad nutzt ausschließlich die native Codex-Runtime und die installierte Paketbasis. Ungenutzte Legacy-Quellen, Identitätskonstanten und Aktivierungs-/Transport-APIs sind entfernt. Alte private Tool-Verzeichnisse werden nicht mehr angelegt oder als Startvoraussetzung benötigt; vorhandene Nutzerdaten bleiben erhalten. Die Build-Abhängigkeiten, ihre Wiederherstellung und die Cache-Auswahl sind reduziert. Der endgültige Prüfvertrag und der Abgleich gelieferter Lizenzmaterialien sind inzwischen umgesetzt. Offen bleiben die vollständigen Community-Abhängigkeitshinweise und fehlenden Bootstrap-Lizenzzuordnungen vor Veröffentlichung sowie die Gerätevalidierung.
+Bootstrap, Startkatalog, signierter Paketkanal und die gemeinsame Paketumgebung funktionieren in CI. Die npm-/Python-Pfadvoraussetzungen sind abgeschlossen. Die bisher enthaltenen nutzerinstallierbaren Pakete sind aus dem APK entfernt. Der aktive Startpfad nutzt ausschließlich die native Codex-Runtime und die installierte Paketbasis. Ungenutzte Legacy-Quellen, Identitätskonstanten und Aktivierungs-/Transport-APIs sind entfernt. Alte private Tool-Verzeichnisse werden nicht mehr angelegt oder als Startvoraussetzung benötigt; vorhandene Nutzerdaten bleiben erhalten. Die Build-Abhängigkeiten, ihre Wiederherstellung und die Cache-Auswahl sind reduziert. Der endgültige Prüfvertrag und der Abgleich gelieferter Lizenzmaterialien sind inzwischen umgesetzt. Die Community-Abhängigkeitstexte und Bootstrap-Lizenzzuordnungen sind ergänzt und geprüft. Offen bleiben die Gerätevalidierung und die anschließende finale APK-Veröffentlichung.
 
 - [x] Bundled Node.js, npm, Python, ripgrep und nur von ihnen benötigte Bibliotheken/Archive/Lizenzen aus dem APK entfernen.
 - [x] Vorher Abhängigkeiten des App-Servers und Code-mode-Hosts auf diese Werkzeuge prüfen; zwingend notwendige Basiswerkzeuge im Bootstrap behalten.
 - [x] PackagedToolRuntime, Tool-Alias-/Activation-/ELF-Attestor-Code und Runtime-Startvalidierung an den Paket-Bootstrap anpassen. Ausgemusterte Quellen/APIs und feste Tool-Pins entfernt; Startup benötigt nur den aktiven Paketvertrag. Alte Nutzerdaten bleiben erhalten.
 - [x] Build-Skript, Dockerfile, CI-Input-Manifest, Restore-/Preflight-Prüfungen und Cache-Schlüssel auf die minimalen Edition-Abhängigkeiten reduzieren.
-- [x] Eigene Debug-APK-Artefakte für diesen Branch erzeugen (`agentcodi-package-debug-apk`); keine regulären Main-Releases überschreiben. Das APK enthält keine Übergangswerkzeuge mehr; die Bereinigung ist inzwischen abgeschlossen. Die finale Veröffentlichung benötigt die verbleibenden Lizenz-/Gerätenachweise.
+- [x] Eigene Debug-APK-Artefakte für diesen Branch erzeugen (`agentcodi-package-debug-apk`); keine regulären Main-Releases überschreiben. Das APK enthält keine Übergangswerkzeuge mehr; die Bereinigung ist inzwischen abgeschlossen. Die finale Veröffentlichung benötigt weiterhin die echten Gerätenachweise.
 - [x] Architekturchecks und Java-/C++-/Android-Smokes auf den endgültigen Paketvertrag ausrichten.
-- [x] Notices, README, SECURITY und Build-Dokumentation mit der tatsächlich ausgelieferten Paketbasis abgleichen. Der Abgleich ist umgesetzt; fehlende vollständige Community-Rust-/V8-Notices und drei paketlokale Bootstrap-Lizenzzuordnungen sind als Veröffentlichungsblocker dokumentiert und durch das Release-Lizenzgate abgesichert.
+- [x] Notices, README, SECURITY und Build-Dokumentation mit der tatsächlich ausgelieferten Paketbasis abgleichen. Der Abgleich und die nachfolgende Lizenzergänzung sind umgesetzt; Community-Rust-/V8-Materialien und paketlokale Bootstrap-Zuordnungen sind quellen-/artefaktgebunden. Das Release-Lizenzgate weist jede neu auftretende Lücke zurück.
+- [x] Community-Rust-/V8-Abhängigkeitstexte und fehlende Bootstrap-Lizenzzuordnungen für die gepinnten Artefakte ergänzen; Quell-/Versions-/Hashnachweise, App-Lizenzansicht und finales APK-Lizenzgate prüfen.
 - [ ] Installations-/Update-Test inklusive niedrigem Target SDK, Foreground Service, Notifications, Login, Dateiauswahl und Backups durchführen.
-- [ ] Vollständige Community-Rust-/V8-Abhängigkeitshinweise und fehlende Bootstrap-Lizenzzuordnungen für die exakten Artefakte klären, finales APK auf Gerät testen und erst danach als Package Edition veröffentlichen.
+- [ ] Finales APK auf Gerät testen und erst danach als Package Edition veröffentlichen.
 
 ## Historische Verifikation des Grundlagenabschnitts
 
@@ -758,7 +759,7 @@ Erfolgreicher [GitHub-Actions-Lauf](https://github.com/Mcpasi/AGENTCODI/actions/
 
 Zusätzlich deckt ein Terminal-Shell-Test den Vorrang selbst installierter Programme gegenüber früheren festen Shell-Funktionen ab.
 
-Alle Repository-Zugriffe und Änderungen erfolgen ausschließlich über den GitHub Connector. Die Community-Anbindung aus Abschnitt 2, der minimale Paket-Bootstrap und die Startkatalog-CI aus Abschnitt 3 sind umgesetzt. Das signierte Paketrepository ist einschließlich öffentlicher HTTPS-Veröffentlichung und ARM64-/APT-Laufzeittests umgesetzt. Die Legacy-Quell-/API-Bereinigung ist inzwischen umgesetzt. Die Build-/Cache-Reduktion ist ebenfalls umgesetzt. Weitere Katalogerweiterung bleibt optional. Endgültiger Architektur-/Smoke-Vertrag und Abgleich der gelieferten Lizenzmaterialien sind inzwischen umgesetzt; vollständige Community-Abhängigkeitshinweise und fehlende Bootstrap-Lizenzzuordnungen vor Veröffentlichung sowie echte Gerätetests bleiben in Abschnitt 3/4 offen. Die ursprünglichen Verifikationsangaben oben beschreiben den vorausgehenden Grundlagenabschnitt.
+Alle Repository-Zugriffe und Änderungen erfolgen ausschließlich über den GitHub Connector. Die Community-Anbindung aus Abschnitt 2, der minimale Paket-Bootstrap und die Startkatalog-CI aus Abschnitt 3 sind umgesetzt. Das signierte Paketrepository ist einschließlich öffentlicher HTTPS-Veröffentlichung und ARM64-/APT-Laufzeittests umgesetzt. Die Legacy-Quell-/API-Bereinigung ist inzwischen umgesetzt. Die Build-/Cache-Reduktion ist ebenfalls umgesetzt. Weitere Katalogerweiterung bleibt optional. Endgültiger Architektur-/Smoke-Vertrag und Abgleich der gelieferten Lizenzmaterialien sind inzwischen umgesetzt; die nachfolgende Lizenzergänzung ist ebenfalls umgesetzt; echte Gerätetests und finales APK-Release bleiben in Abschnitt 3/4 offen. Die ursprünglichen Verifikationsangaben oben beschreiben den vorausgehenden Grundlagenabschnitt.
 
 ## Historische Verifikation der Community-Anbindung
 
@@ -1038,19 +1039,21 @@ gepinnten Downloads und der minimale APK-Werkzeugumfang bleiben erhalten.
 Historische Sandbox-/Tool-Provenienz bleibt in `NOTICE.md`; sie wird nicht
 als aktueller APK-Lieferumfang ausgegeben.
 
-**Ergebnis des Lizenzabgleichs:** Die ausgelieferte Menge und die gelieferten
-Nachweise sind abgeglichen. Das Community-Archiv liefert weiterhin keine
+**Historisches Ergebnis des Lizenzabgleichs für den unten genannten Commit:**
+Die ausgelieferte Menge und die damals gelieferten Nachweise sind abgeglichen.
+Die folgenden vier Befunde wurden anschließend im Ergebnisabschnitt
+„Ergänzung der fehlenden Lizenzen“ behoben. Das Community-Archiv liefert weiterhin keine
 vollständigen Rust-/V8-Abhängigkeitshinweise für den exakten statisch gelinkten
-Release-Build. Außerdem haben `bzip2`, `gpgv` und `xz-utils` keine eigene
-paketlokale Lizenzdatei im ausgewählten DEB; diese Befunde sind ausdrücklich
-im Bericht enthalten. Gemeinsame Texte und die korrespondierenden Quellen
-bleiben verfügbar; daraus wird keine vollständige paketbezogene Attribution
+Release-Build. Außerdem hatten `bzip2`, `gpgv` und `xz-utils` damals keine eigene
+paketlokale Lizenzdatei im ausgewählten DEB; diese Befunde sind im historischen
+Bericht enthalten. Gemeinsame Texte und die korrespondierenden Quellen
+waren verfügbar; daraus wurde keine vollständige paketbezogene Attribution
 abgeleitet. Das öffentliche Editions-Keyring-Metadatenpaket verwendet den
-AGENTCODI-Apache-2.0-Hinweis. Der Debug-Bericht enthält vier Lizenzblocker und
-`final_release_ready=false`; Release-Builds scheitern am Lizenzgate, bis die
-verbleibenden Zuordnungen/Nachweise für die exakten Artefakte geklärt sind.
-Dies ist eine Veröffentlichungsbedingung im letzten offenen Roadmap-Punkt,
-kein als erfolgreich ausgegebener vollständiger Upstream-Lizenzaudit.
+AGENTCODI-Apache-2.0-Hinweis. Der damalige Debug-Bericht enthält vier
+Lizenzblocker und `final_release_ready=false`; Release-Builds dieses Stands
+scheiterten am Lizenzgate. Die verbleibenden Zuordnungen/Nachweise wurden
+anschließend ergänzt und werden im aktuellen Format-2-Bericht geprüft.
+Die historischen vier Blocker bleiben im damaligen Bericht nachvollziehbar.
 
 Verifizierter Code-/Lizenzindex-Commit:
 `c04fdf3c93a5f0313c1df675416a73582df75e24`.
@@ -1105,3 +1108,101 @@ APK-Release; `main` bleibt auf
 
 Der Abschlusscommit ergänzt ausschließlich Roadmap-Nachweise und Markierungen.
 Die historische Verifikation bleibt an ihre jeweils genannten Commits gebunden.
+
+## Ergänzung der fehlenden Lizenzen — 2026-10-06
+
+Umgesetzt ausschließlich auf `Mcpasi/package-edition`. Der Lizenzpunkt in
+Abschnitt 4 ist getrennt von Geräteprüfung und finaler Veröffentlichung
+abgehakt. Alle echten Geräte-/Installations-/Update-Tests bleiben offen.
+
+Die unveränderten LICENSE/NOTICE des Community-Archivs werden durch
+[quellengebundene Abhängigkeitstexte](third_party/community-codex/README.md)
+ergänzt: 1.033 Cargo-Komponenten der Android-Normal-/Build-Abhängigkeiten,
+Rust-Standardbibliothek und exakte rusty_v8-/V8-Quellen mit 20 rekursiven
+Submodul-Pins. Die Sammlung enthält 669 unterschiedliche Texte und keine
+offenen Komponenten. Cargo.lock, Ziel, Quellrevision, Originalautoren,
+Archiv-/Dateihashes und die nativen Release-Hashes sind gebunden.
+64 ausgelassene Crate-Dateien wurden aus exakt belegten Git-Revisionen
+wiedergewonnen. 16 weitere Fälle verwenden vollständig ausgeschriebene,
+im checksum-geprüften Crate erklärte MIT-/Apache-Bedingungen; vorhandene
+Autoren-/Copyright-Hinweise bleiben erhalten und diese Ergänzungen sind
+ausdrücklich gekennzeichnet. Jahreszahlen oder Copyright-Inhaber werden
+nicht erfunden. Konservative Build-/V8-Testquellen werden mitgeführt;
+dies ist kein Nachweis einer unabhängig reproduzierten nativen Binärdatei.
+
+[Lizenzsammlung 37454140926](https://github.com/Mcpasi/AGENTCODI/actions/runs/37454140926)
+besteht einschließlich vier Auswahl-/Attributionsregressionen. Ihre erneute
+Erzeugung stimmt bytegenau mit dem festgehaltenen Index und ZIP überein.
+Die laufende Regeneration benötigt kein später ablaufendes CI-Artefakt.
+Die App bietet eine Komponenten-/Dateiauswahl, einschließlich lesbarer
+Darstellung des unverändert aufbewahrten Rust-Copyright-HTMLs.
+
+`bzip2`, `gpgv` und `xz-utils` erhalten die vollständigen rechtlichen Dateien
+ihrer Elternpakete unter eigenen, von dpkg verwalteten Pfaden. libbz2/bzip2
+verwenden Revision 9, GnuPG/gpgv und liblzma/xz-utils Revision 2.
+Der zusätzliche Abgleich fand die unvollständige GPL-only-Deklaration von
+`attr` und die im bisherigen XZ-Rezept ausgelassene explizite 0BSD-Zuordnung:
+attr nennt nun GPL-2.0 und LGPL-2.1; attr/libacl behalten originale
+`doc/COPYING` und `doc/COPYING.LGPL`, GnuPG/gpgv originales `COPYING`.
+liblzma/xz-utils behalten auch originales `COPYING.0BSD` neben Zusammenfassung
+und GNU-Lizenztexten. attr/libacl verwenden Revision 1. APT kann die
+ergänzten Dateien damit auch über Paket-Updates ausliefern.
+
+Savannah war über HTTP und HTTPS nicht erreichbar; die geprüften Spiegel
+lieferten die exakten attr-/acl-Versionen nicht. Die vollständigen Originalarchive
+wurden aus früherer erfolgreicher, checksum-geprüfter Quell-CI
+[wiederhergestellt](https://github.com/Mcpasi/AGENTCODI/actions/runs/37456334585).
+[Originalquellen und Provenienz](third_party/package-source-archives/README.md)
+liegen unverändert auf diesem Branch; immutable GitHub-URLs ersetzen den
+unzuverlässigen Bezug bei identischen Original-SHA-256 und Versionen.
+[Archivprüfung 37456619360](https://github.com/Mcpasi/AGENTCODI/actions/runs/37456619360)
+bestätigt beide Hashes und originale GPL-/LGPL-Dateien. Es werden keine
+Binärpakete als Build-Seeds eingeführt; die zwölf APK-Inputs bleiben unverändert.
+
+Ein frischer Python-Quellbau deckte außerdem einen Fehler in der Katalog-
+Rezeptauswahl auf: `python-ensurepip-wheels` wurde nach erfolgreichem Python-Bau
+als selbständiges Quellrezept aufgerufen. Der Build löst nun ausgewählte DEBs
+auf eindeutige Elternrezepte auf, baut Python einmal und behält beide
+Runtime-Pakete in der Auswahl. Vier Katalog-Quellregressionen prüfen
+Quellabdeckung sowie Elternauflösung und verweigern unbekannte/mehrdeutige
+Rezepte ohne Binärrepository-Fallback.
+
+Geprüfter Implementierungscommit: `7c4ef061ff96841621c30710267a6427435c1640`.
+[Tests 37459913151](https://github.com/Mcpasi/AGENTCODI/actions/runs/37459913151)
+besteht mit allen sieben Jobs: Java, sieben portable C++-Suiten,
+Android-Kompilierung, Community-Archiv-/ARM64-Bionic-Vertrag und Paket-/
+Toolchain-Prüfungen. Dazu gehören 20 APK-Vertragsregressionen, elf Bootstrap-
+Assembly- und vier Katalog-Quellregressionen.
+
+[APK 37459913761](https://github.com/Mcpasi/AGENTCODI/actions/runs/37459913761)
+besteht mit allen drei Jobs: frischer Bootstrap-Quellbau, ARM64/Bionic-Smoke
+und vollständiger Debug-APK-Build. Der neue Bootstrap umfasst 48 Pakete,
+113 paketbezogene Lizenzdatensätze und 66 konkrete Lizenzdateien ohne Lücke.
+Der finale Verifier bestätigt sämtliche nativen/Asset-/Lizenzbytes,
+Cargo-/Quell-/Release-Bindungen und dpkg-Eigentümerschaft. Er meldet
+**null Lizenzblocker**, entsprechend `license_release_ready=true` im
+Format-2-Bericht. `device_tests` bleibt ausdrücklich unausgeführt.
+
+[Debug-APK-Artefakt](https://github.com/Mcpasi/AGENTCODI/actions/runs/37459913761/artifacts/11413840550)
+und [APK-Vertragsbericht](https://github.com/Mcpasi/AGENTCODI/actions/runs/37459913761/artifacts/11413935702)
+sind verfügbar. Der Bericht hält APK-, Datei- und Lizenz-SHA-256 sowie Paket-/
+Quellnachweise fest. Die gerundete APK-Größe ist 124 MiB. Identität, Signatur,
+Alignment, ARM64-ABI, 16-KiB-Segmente und bestehende Runtime-Prüfungen bleiben
+erfolgreich. Die sechs nativen Dateien und zwölf gepinnten APK-Inputs bleiben
+der aktive Vertrag.
+
+Der zusätzliche [Paketkatalog-Lauf 37459913693](https://github.com/Mcpasi/AGENTCODI/actions/runs/37459913693)
+führt die frischen Quellbuilds für Git, Python, ripgrep und Node.js/npm,
+Bootstrap-/Katalog-ARM64-Bionic-Smokes, signierte Repository-Erzeugung und
+öffentliche HTTPS-/Quellenprüfung für denselben Implementierungscommit aus.
+Die bestehende Branch-CI veröffentlicht das separate APT-Repository erst
+nach erfolgreichen Katalogprüfungen; dies erstellt kein finales APK-Release.
+Die Jobergebnisse und zugehörigen Quellen-/DEB-Artefakte bleiben in diesem
+Lauf nachvollziehbar.
+
+Der abschließende Dokumentationsabgleich aktualisiert ausschließlich
+`ROADMAP-package-edition.md`, `.github/ci/README.md` und `NOTICE.md`.
+Der Code-/Payload-Vertrag bleibt an den oben geprüften Implementierungscommit
+gebunden. Echte Android-Hardware-, Installations-, Update- und Service-Tests
+bleiben gemäß Nutzeranweisung offen. Kein PR, Merge oder finales APK-Release;
+`main` bleibt auf `ff27ec7c30d373a864e845e9a7ceeae3380dd103`.

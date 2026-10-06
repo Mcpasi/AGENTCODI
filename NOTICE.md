@@ -156,3 +156,20 @@ records, compared with the actual ZIP and dpkg ownership lists during APK
 verification, and used by the legal-notices screen. Texts are not inferred from
 license-family names. The first-party edition keyring's public metadata uses
 AGENTCODI's Apache-2.0 notice; it does not add a Termux trust-key package.
+
+The complete attr 2.6.0 and acl 2.4.0 source archives used by package builds
+are retained unchanged in [third_party/package-source-archives](third_party/package-source-archives/README.md)
+with original GPL/LGPL COPYING material, upstream URLs and recovery/hash
+provenance. The pinned overlay retrieves those original bytes through immutable
+GitHub URLs when Savannah cannot be reached. These are package-build source
+inputs; they are not additional APK runtimes or assets.
+
+The attr recipe records both GPL-2.0 and LGPL-2.1 and retains the original
+doc/COPYING and doc/COPYING.LGPL files. libacl retains those original files
+as well, and GnuPG/gpgv retain the original COPYING. Affected package revisions
+are raised so APT installs the supplemented legal material on updates.
+
+The XZ source summary explicitly identifies liblzma as 0BSD and describes
+the additional GPL/LGPL portions of the toolset. Its original COPYING.0BSD is
+retained alongside COPYING and the GNU GPL/LGPL texts in liblzma/xz-utils. The liblzma and GnuPG revisions
+are 2, distinguishing these original-text payloads from earlier CI builds.

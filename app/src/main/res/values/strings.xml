@@ -742,4 +742,10 @@
   <string name="license_bootstrap_title">APT/dpkg bootstrap</string>
   <string name="license_bootstrap_summary">Choose a bundled package to read its original license files. This list describes the APK bootstrap; packages installed later retain notices under their installation prefix.</string>
   <string name="license_bootstrap_missing">This package supplies no separate license text. Consult its source and shared dependency notices; the build report records this gap.</string>
+  <string name="license_mpl_sources_title">MPL-2.0 source code</string>
+  <string name="license_mpl_show_sources">Read MPL source availability notice</string>
+  <string name="license_mpl_sources_summary">Complete original sources for the MPL-2.0 components are included with this app. Save them free of charge without an account or internet connection. Original copyright notices and license terms remain included.</string>
+  <string name="license_mpl_save_sources">Save MPL sources</string>
+  <string name="license_mpl_sources_saved">MPL sources saved.</string>
+  <string name="license_mpl_sources_save_failed">Could not save the MPL sources. Select a destination and try again.</string>
 </resources>

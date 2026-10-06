@@ -742,4 +742,10 @@
   <string name="license_bootstrap_title">APT-/dpkg-Bootstrap</string>
   <string name="license_bootstrap_summary">Ein mitgeliefertes Paket auswählen und seine originalen Lizenzdateien lesen. Die Liste beschreibt den APK-Bootstrap; später installierte Pakete behalten ihre Hinweise im Installationspräfix.</string>
   <string name="license_bootstrap_missing">Dieses Paket liefert keinen separaten Lizenztext. Quellen und gemeinsame Abhängigkeitshinweise prüfen; der Build-Bericht führt diese Lücke auf.</string>
+  <string name="license_mpl_sources_title">MPL-2.0-Quellcode</string>
+  <string name="license_mpl_show_sources">Hinweis zum Bezug der MPL-Quellen lesen</string>
+  <string name="license_mpl_sources_summary">Die vollständigen Originalquellen der MPL-2.0-Komponenten sind in dieser App enthalten. Sie können sie kostenlos ohne Konto oder Internetverbindung speichern. Originale Urheberhinweise und Lizenzbedingungen bleiben enthalten.</string>
+  <string name="license_mpl_save_sources">MPL-Quellen speichern</string>
+  <string name="license_mpl_sources_saved">MPL-Quellen gespeichert.</string>
+  <string name="license_mpl_sources_save_failed">Die MPL-Quellen konnten nicht gespeichert werden. Wählen Sie ein Ziel und versuchen Sie es erneut.</string>
 </resources>

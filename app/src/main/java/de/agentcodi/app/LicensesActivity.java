@@ -4,6 +4,8 @@ import android.app.Activity;
 import android.app.AlertDialog;
 import android.content.Context;
 import android.content.DialogInterface;
+import android.content.Intent;
+import android.net.Uri;
 import android.graphics.Typeface;
 import android.os.Bundle;
 import android.view.Gravity;
@@ -13,10 +15,12 @@ import android.widget.Button;
 import android.widget.LinearLayout;
 import android.widget.ScrollView;
 import android.widget.TextView;
+import android.widget.Toast;
 
 import java.io.ByteArrayOutputStream;
 import java.io.IOException;
 import java.io.InputStream;
+import java.io.OutputStream;
 import java.nio.charset.StandardCharsets;
 import java.util.zip.ZipEntry;
 import java.util.zip.ZipInputStream;
@@ -26,6 +30,8 @@ import org.json.JSONObject;
 
 public final class LicensesActivity extends Activity {
     private static final int MAX_LICENSE_BYTES = 512 * 1024;
+    private static final int MPL_SOURCE_EXPORT_REQUEST = 1401;
+    private static final String MPL_SOURCE_ARCHIVE = "third-party/codex/MPL-SOURCES.zip";
 
     private UiTheme theme;
 
@@ -168,7 +174,78 @@ public final class LicensesActivity extends Activity {
             }
         });
         theme.addWithTopMargin(card, show, 12);
+        Button sourceNotice = theme.secondaryButton(getString(R.string.license_mpl_show_sources));
+        sourceNotice.setOnClickListener(new View.OnClickListener() {
+            @Override
+            public void onClick(View view) {
+                showLicenseText(getString(R.string.license_mpl_sources_title), new LicenseLoader() {
+                    @Override
+                    public String load() throws IOException {
+                        return readAsset("third-party/codex/MPL-SOURCE-OFFER.txt");
+                    }
+                });
+            }
+        });
+        theme.addWithTopMargin(card, sourceNotice, 12);
+        theme.addWithTopMargin(card, theme.body(getString(R.string.license_mpl_sources_summary)), 8);
+        Button saveSources = theme.secondaryButton(getString(R.string.license_mpl_save_sources));
+        saveSources.setOnClickListener(new View.OnClickListener() {
+            @Override
+            public void onClick(View view) {
+                Intent intent = new Intent(Intent.ACTION_CREATE_DOCUMENT);
+                intent.addCategory(Intent.CATEGORY_OPENABLE);
+                intent.setType("application/zip");
+                intent.putExtra(Intent.EXTRA_TITLE, "AGENTCODI-MPL-sources.zip");
+                try {
+                    startActivityForResult(intent, MPL_SOURCE_EXPORT_REQUEST);
+                } catch (RuntimeException error) {
+                    Toast.makeText(LicensesActivity.this, R.string.document_picker_open_failed,
+                        Toast.LENGTH_LONG).show();
+                }
+            }
+        });
+        theme.addWithTopMargin(card, saveSources, 12);
         theme.addWithTopMargin(page, card, 16);
+    }
+
+    @Override
+    protected void onActivityResult(int requestCode, int resultCode, Intent data) {
+        if (requestCode != MPL_SOURCE_EXPORT_REQUEST) {
+            super.onActivityResult(requestCode, resultCode, data);
+            return;
+        }
+        if (resultCode != RESULT_OK || data == null || data.getData() == null) {
+            return;
+        }
+        final Uri destination = data.getData();
+        new Thread(new Runnable() {
+            @Override
+            public void run() {
+                int result = R.string.license_mpl_sources_saved;
+                try (InputStream input = getAssets().open(MPL_SOURCE_ARCHIVE);
+                     OutputStream output = getContentResolver().openOutputStream(destination, "wt")) {
+                    if (output == null) {
+                        throw new IOException("No output stream for MPL source destination");
+                    }
+                    byte[] buffer = new byte[32768];
+                    int read;
+                    while ((read = input.read(buffer)) != -1) {
+                        output.write(buffer, 0, read);
+                    }
+                } catch (IOException | RuntimeException error) {
+                    result = R.string.license_mpl_sources_save_failed;
+                }
+                final int message = result;
+                runOnUiThread(new Runnable() {
+                    @Override
+                    public void run() {
+                        if (!isFinishing() && !isDestroyed()) {
+                            Toast.makeText(LicensesActivity.this, message, Toast.LENGTH_LONG).show();
+                        }
+                    }
+                });
+            }
+        }, "mpl-source-export").start();
     }
 
     private void showCommunityComponents() {

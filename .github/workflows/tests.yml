@@ -68,6 +68,7 @@ jobs:
           python3 -B .github/ci/test-release-signing.py
           python3 -B .github/ci/test-build-inputs.py
           python3 -B .github/ci/test-apk-contract.py
+          python3 -B .github/ci/test-community-mpl-sources.py
 
   java:
     name: Java host tests

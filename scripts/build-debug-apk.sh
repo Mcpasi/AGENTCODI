@@ -370,7 +370,10 @@ test -f "$PACKAGE_BOOTSTRAP_INPUT/BOOTSTRAP-MANIFEST"
 )
 cp "$PROJECT_ROOT/third_party/community-codex/DEPENDENCY-LICENSE-INDEX.json" \
   "$PROJECT_ROOT/third_party/community-codex/DEPENDENCY-LICENSES.zip" \
-  "$PROJECT_ROOT/third_party/community-codex/DEPENDENCY-PROVENANCE.json" "$THIRD_PARTY_ASSETS/"
+  "$PROJECT_ROOT/third_party/community-codex/DEPENDENCY-PROVENANCE.json" \
+  "$PROJECT_ROOT/third_party/community-codex/MPL-SOURCE-INDEX.json" \
+  "$PROJECT_ROOT/third_party/community-codex/MPL-SOURCE-OFFER.txt" \
+  "$PROJECT_ROOT/third_party/community-codex/MPL-SOURCES.zip" "$THIRD_PARTY_ASSETS/"
 mkdir -p "$PACKAGE_BOOTSTRAP_ASSETS"
 cp "$PACKAGE_BOOTSTRAP_INPUT/bootstrap-aarch64.zip" "$PACKAGE_BOOTSTRAP_INPUT/BOOTSTRAP-MANIFEST" \
   "$PACKAGE_BOOTSTRAP_INPUT/bootstrap-report.json" "$PACKAGE_BOOTSTRAP_INPUT/BOOTSTRAP-LICENSE-INDEX.json" "$PACKAGE_BOOTSTRAP_ASSETS/"

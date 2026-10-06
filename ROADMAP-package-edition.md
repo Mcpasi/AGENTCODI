@@ -2,6 +2,21 @@
 
 Stand: 2026-10-06. Ausschließlich Branch `Mcpasi/package-edition`; kein Merge nach `main`.
 
+### MPL-2.0-Quellenzugang — 2026-10-06
+
+Die zwölf MPL-Komponenten der Community-Runtime erhalten vollständige,
+unveränderte Quellen im APK: zehn per Cargo.lock prüfsummengebundene
+Crate-Archive und ein Git-Snapshot für beide nucleo-Komponenten. Der lesbare
+Quellenhinweis erläutert die kostenlose Offline-Bereitstellung; die Lizenzansicht
+bietet „MPL-Quellen speichern“ über den Android-Dokumentauswahldialog. Originale
+Urheberhinweise und Lizenzdateien bleiben enthalten. Der APK-Vertrag prüft
+Quellen-/Versionsabdeckung, Paketmanifeste, Lizenzdateien und alle Lieferbytes.
+Regressionen verhindern unbemerkten Hinweisverlust und neue MPL-Abhängigkeiten
+ohne aktualisierte Quellen. APT-Rezepte, Bootstrap-Build-Eingaben und Katalogpakete
+werden hierfür nicht verändert. CI-/APK-Nachweise werden nach Abschluss ergänzt.
+Der Nutzer meldet die bisherigen Release-APK-Gerätetests einschließlich APT bis
+MCP als bestanden; die neue Quellen-Speicherfunktion wurde damit noch nicht geprüft.
+
 Die Checklisten zeigen den aktuellen Umsetzungsstand. Datierte Ergebnis- und Verifikationsabschnitte dokumentieren frühere Meilensteine; ihre Testzahlen, Artefakte und Prüfsummen gehören zum jeweils genannten Commit. Bootstrap, Startkatalog und öffentliches signiertes APT-Repository sind umgesetzt. Die npm-/Python-Pfade und die gemeinsame Prozessumgebung sind umgesetzt und in CI geprüft; die aktuellen Nachweise stehen im Ergebnisabschnitt „Gemeinsame Paketumgebung und npm-/Python-Pfade“. Die Paketdiagnose und die Workspace-Browser-/Import-/Export-Erweiterung sind umgesetzt; die nutzerinstallierbaren Übergangswerkzeuge sind aus dem APK entfernt. Die verbliebenen Legacy-Helfer und Transportparameter sind bereinigt. Build-Skript, Dockerfile, CI-Inputs, Restore-/Preflight-Prüfungen und Cache-Schlüssel sind auf die aktiven Edition-Abhängigkeiten reduziert. Der endgültige Test-/Payloadvertrag und der Abgleich der gelieferten Lizenzmaterialien sind umgesetzt; die aktuellen Nachweise stehen im Ergebnisabschnitt „Finaler Testvertrag und Lizenzabgleich“. Die Community-Rust-/V8-Abhängigkeitstexte und die drei paketlokalen Bootstrap-Lizenzzuordnungen sind ergänzt; Quellen-, Versions- und Artefaktbindungen werden im APK-Vertrag geprüft. Der neue Ergebnisabschnitt „Ergänzung der fehlenden Lizenzen“ dokumentiert diesen Stand. Der Nutzer meldet erfolgreiche Paketinstallation und -benutzung auf einem Gerät; die vollständige Gerätevalidierung und der Gerätetest des MCP-Freigabefixes bleiben offen. Die APT-Veröffentlichung ist getrennt von einem GitHub-Release der APK.
 
 ## Ziel und feste Entscheidungen

@@ -63,6 +63,15 @@ DEPENDENCY-LICENSES.zip
 DEPENDENCY-LICENSE-INDEX.json
 DEPENDENCY-PROVENANCE.json
 
+MPL-2.0 Source Code Form is supplied free of charge inside this APK at
+assets/third-party/codex/MPL-SOURCES.zip. In the Codex dependency notices card,
+read the source-availability notice and select Save MPL sources to obtain a
+complete copy without a network connection. MPL-SOURCE-OFFER.txt also explains
+direct APK ZIP extraction and gives exact upstream source URLs. Original
+copyright and MPL terms remain included; AGENTCODI's Apache terms do not
+restrict your rights to these MPL sources. MPL-SOURCE-INDEX.json binds the
+complete source delivery to the pinned Community dependency inventory.
+
 The legal screen selects individual Rust crate, Rust standard-library and V8
 source notices. The collection uses the pinned aarch64-linux-android normal/build
 Cargo dependency closure and exact V8 submodule revisions. Original texts and

@@ -46,6 +46,20 @@ DEPENDENCY-PROVENANCE.json binds this material to the pinned release archive,
 native ELFs, V8 static archive, source/submodule revisions and file checksums.
 See [the collection and license selections](third_party/community-codex/README.md).
 
+The twelve MPL-2.0 components in this Community dependency inventory retain
+their complete original Source Code Form in eleven source archives (the two
+nucleo packages share one pinned Git snapshot). The APK supplies these at
+assets/third-party/codex/MPL-SOURCES.zip together with MPL-SOURCE-INDEX.json
+and the readable MPL-SOURCE-OFFER.txt. The license screen displays the source
+availability notice and offers an offline, free source export through Android's
+document picker. The source ZIP can also be copied directly from the APK.
+Original source/license/copyright files are preserved; AGENTCODI's Apache
+terms do not restrict the recipients' MPL source rights. Crate bytes match
+Cargo.lock checksums; nucleo follows its locked Git revision. The final APK
+contract rejects missing source components, version drift, changed source bytes
+and a missing or altered source-availability notice. This supplies the notice
+and source access required by MPL-2.0 section 3.2(a).
+
 Original legal files are copied unchanged. Where a published crate omits its
 repository-level terms, the recorded crate Git revision provides those texts.
 Where no standalone legal file is supplied, the checksum-verified published

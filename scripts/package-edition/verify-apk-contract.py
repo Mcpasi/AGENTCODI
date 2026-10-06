@@ -15,6 +15,9 @@ REPO = HERE.parents[1]
 legal_spec = importlib.util.spec_from_file_location("legal_files", HERE / "legal-files.py")
 legal_files = importlib.util.module_from_spec(legal_spec)
 legal_spec.loader.exec_module(legal_files)
+mpl_spec = importlib.util.spec_from_file_location("mpl_sources", REPO / ".github/ci/community-mpl-sources.py")
+mpl_sources = importlib.util.module_from_spec(mpl_spec)
+mpl_spec.loader.exec_module(mpl_sources)
 
 
 def digest(data):
@@ -174,7 +177,8 @@ def verify(apk_path, staged, project=REPO, release=False):
             require(bool(data), "Empty payload/legal file: " + name)
             report["files"][name] = {"size": len(data), "sha256": digest(data)}
         community_root = "assets/third-party/codex/"
-        for filename in ("DEPENDENCY-LICENSES.zip", "DEPENDENCY-LICENSE-INDEX.json", "DEPENDENCY-PROVENANCE.json"):
+        for filename in ("DEPENDENCY-LICENSES.zip", "DEPENDENCY-LICENSE-INDEX.json", "DEPENDENCY-PROVENANCE.json",
+                         *mpl_sources.FILENAMES):
             require(apk.read(community_root + filename) ==
                     (project / "third_party/community-codex" / filename).read_bytes(),
                     "Community legal checked-in source differs")
@@ -188,6 +192,10 @@ def verify(apk_path, staged, project=REPO, release=False):
                 runtime["native_sha256"]["codex-code-mode-host"], "Community legal native artifact binding")
         report["community"] = community
         report["release_blockers"].extend(community["release_blockers"])
+        report["community"]["mpl_sources"] = mpl_sources.evidence(
+            *(apk.read(community_root + name) for name in mpl_sources.FILENAMES),
+            json.loads(apk.read(community_root + "DEPENDENCY-LICENSE-INDEX.json")),
+            (project / "third_party/community-codex/Cargo.lock").read_bytes())
         bootstrap_root = "assets/third-party/package-bootstrap/"
         evidence = bootstrap_evidence(
             apk.read(bootstrap_root + "bootstrap-aarch64.zip"),
@@ -235,6 +243,10 @@ def check_sources():
     require("libcodex-codehost.so" in spec["native_files"], "Missing standalone code-mode host")
     for path in spec["resources"]:
         require((REPO / "app/src/main" / path).is_file(), "Missing legal resource: " + path)
+    mpl_sources.evidence(
+        *((REPO / "third_party/community-codex" / name).read_bytes() for name in mpl_sources.FILENAMES),
+        json.loads((REPO / "third_party/community-codex/DEPENDENCY-LICENSE-INDEX.json").read_bytes()),
+        (REPO / "third_party/community-codex/Cargo.lock").read_bytes())
     print("Final Package Edition source/test contract verified.")
 
 

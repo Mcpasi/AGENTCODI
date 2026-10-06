@@ -68,6 +68,38 @@ pinned release; it is not an independent reproduction of its native build.
 
 ## Regeneration and validation
 
+### Complete MPL-2.0 source delivery
+
+The twelve inventoried MPL-2.0 components are supplied in full, unchanged in
+[MPL-SOURCES.zip](MPL-SOURCES.zip). Ten original published `.crate` archives
+match their Cargo.lock SHA-256 values. One complete nucleo Git snapshot at
+4253de9faabb4e5c6d81d946a5e35a90f87347ee contains both nucleo and nucleo-matcher.
+Original file contents and license/copyright notices remain in these archives.
+The pinned Community Cargo.toml selects that Git revision and applies no local
+patch to these MPL components. This does not relicense their sources under
+AGENTCODI's Apache terms or claim reproduction of the Community native build.
+
+[MPL-SOURCE-OFFER.txt](MPL-SOURCE-OFFER.txt) explains the free, offline in-app
+source export and direct APK ZIP extraction, and lists exact upstream source
+URLs. [MPL-SOURCE-INDEX.json](MPL-SOURCE-INDEX.json) binds every component,
+version, locked source/checksum and source-archive bytes to the same Community
+source/Cargo.lock. All three files are shipped in every Package Edition APK.
+The APK contract validates complete coverage, the original source package and
+MPL license files, source checksums and the readable availability notice.
+Tests also reject a newly inventoried MPL dependency until its sources and
+notice are supplied. Regenerate when updating the Community runtime:
+
+```sh
+python3 -B .github/ci/community-mpl-sources.py --collect
+python3 -B .github/ci/community-mpl-sources.py
+python3 -B .github/ci/test-community-mpl-sources.py
+```
+
+Collection downloads sources only; it neither builds native programs nor
+changes APT recipes, DEBs, repository snapshots or the Community binaries.
+APK assembly and verification use the committed files and need no source
+download or expiring CI artifact.
+
 The branch-only [collection workflow](../../.github/workflows/community-license-research.yml)
 uses the committed, checksum-verified V8/standard-library seed and freshly
 resolves the pinned Cargo source. It needs no expiring artifact as input.

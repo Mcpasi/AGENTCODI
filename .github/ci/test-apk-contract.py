@@ -45,7 +45,8 @@ class ApkContractTest(unittest.TestCase):
         community_dir = REPO / "third_party/community-codex"
         target_dir = self.project / "third_party/community-codex"
         target_dir.mkdir(parents=True, exist_ok=True)
-        for filename in ("Cargo.lock", "DEPENDENCY-LICENSE-INDEX.json", "DEPENDENCY-LICENSES.zip"):
+        for filename in ("Cargo.lock", "DEPENDENCY-LICENSE-INDEX.json", "DEPENDENCY-LICENSES.zip",
+                         *contract.mpl_sources.FILENAMES):
             data = (community_dir / filename).read_bytes()
             (target_dir / filename).write_bytes(data)
             if filename != "Cargo.lock":
@@ -229,6 +230,24 @@ class ApkContractTest(unittest.TestCase):
         report = self.verify(release=True)
         self.assertTrue(report["license_release_ready"])
         self.assertFalse(report["release_blockers"])
+        self.assertEqual(12, report["community"]["mpl_sources"]["components"])
+        self.assertEqual(11, report["community"]["mpl_sources"]["source_archives"])
+
+    def test_release_rejects_missing_mpl_source_delivery(self):
+        for filename in contract.mpl_sources.FILENAMES:
+            path = "assets/third-party/codex/" + filename
+            original = self.entries.pop(path)
+            self.write()
+            with self.assertRaisesRegex(ValueError, "asset set"):
+                self.verify(release=True)
+            self.entries[path] = original
+
+    def test_new_mpl_component_requires_updated_source_offer(self):
+        self.community_index["components"][0]["license"] = "MPL-2.0"
+        self.update_community()
+        self.write()
+        with self.assertRaisesRegex(ValueError, "MPL source availability notice differs"):
+            self.verify(release=True)
 
     def test_final_release_is_blocked_when_a_dependency_loses_its_notice(self):
         component = self.community_index["components"][0]

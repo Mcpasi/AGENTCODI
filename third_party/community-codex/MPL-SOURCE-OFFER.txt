@@ -1,0 +1,77 @@
+MPL-2.0 SOURCE CODE — AGENTCODI PACKAGE EDITION
+
+The Community Codex runtime includes the MPL-2.0 components listed below.
+Their complete, unmodified Source Code Form is supplied free of charge with
+this APK in MPL-SOURCES.zip. Original source files, copyright notices and
+MPL-2.0 license texts are retained. The sources remain available under MPL-2.0;
+AGENTCODI's Apache-2.0 license does not restrict your rights to these sources.
+This source delivery fulfills the source-availability notice in MPL-2.0 §3.2(a).
+
+How to obtain the sources:
+1. In the app, open Settings > Licenses and notices > Codex dependency notices
+   and choose Save MPL sources. Select a destination in Android's
+   file picker. The app saves the complete source ZIP without changing its bytes.
+2. Alternatively, open this APK as a ZIP and copy
+   assets/third-party/codex/MPL-SOURCES.zip. No account or network access is needed.
+3. Open the saved ZIP, then open its sources/*.crate or sources/*.tar.gz archives
+   with a tar/gzip-capable archive tool. Rust .crate files are gzip-compressed tar
+   archives. The original license files are inside each source archive.
+
+This same ZIP, its source index and this notice are also retained under
+third_party/community-codex in the AGENTCODI source repository. The upstream
+download URLs below are an additional way to obtain the identical pinned sources.
+The delivered ZIP remains usable if an upstream URL becomes unavailable.
+
+The source selection follows the pinned Community Cargo.lock and conservative
+normal/build dependency inventory. It does not claim an independent reproduction
+of the Community binaries. A shared Git snapshot contains both nucleo components.
+
+Components and exact upstream source locations:
+
+nucleo 0.5.0 — MPL-2.0
+sources/helix-editor-nucleo-4253de9faabb4e5c6d81d946a5e35a90f87347ee.tar.gz
+https://codeload.github.com/helix-editor/nucleo/tar.gz/4253de9faabb4e5c6d81d946a5e35a90f87347ee
+
+nucleo-matcher 0.3.1 — MPL-2.0
+sources/helix-editor-nucleo-4253de9faabb4e5c6d81d946a5e35a90f87347ee.tar.gz
+https://codeload.github.com/helix-editor/nucleo/tar.gz/4253de9faabb4e5c6d81d946a5e35a90f87347ee
+
+option-ext 0.2.0 — MPL-2.0
+sources/option-ext-0.2.0.crate
+https://static.crates.io/crates/option-ext/option-ext-0.2.0.crate
+
+symphonia 0.6.0 — MPL-2.0
+sources/symphonia-0.6.0.crate
+https://static.crates.io/crates/symphonia/symphonia-0.6.0.crate
+
+symphonia-bundle-mp3 0.6.0 — MPL-2.0
+sources/symphonia-bundle-mp3-0.6.0.crate
+https://static.crates.io/crates/symphonia-bundle-mp3/symphonia-bundle-mp3-0.6.0.crate
+
+symphonia-common 0.6.0 — MPL-2.0
+sources/symphonia-common-0.6.0.crate
+https://static.crates.io/crates/symphonia-common/symphonia-common-0.6.0.crate
+
+symphonia-core 0.6.0 — MPL-2.0
+sources/symphonia-core-0.6.0.crate
+https://static.crates.io/crates/symphonia-core/symphonia-core-0.6.0.crate
+
+symphonia-format-isomp4 0.6.0 — MPL-2.0
+sources/symphonia-format-isomp4-0.6.0.crate
+https://static.crates.io/crates/symphonia-format-isomp4/symphonia-format-isomp4-0.6.0.crate
+
+symphonia-format-mkv 0.6.0 — MPL-2.0
+sources/symphonia-format-mkv-0.6.0.crate
+https://static.crates.io/crates/symphonia-format-mkv/symphonia-format-mkv-0.6.0.crate
+
+symphonia-format-ogg 0.6.0 — MPL-2.0
+sources/symphonia-format-ogg-0.6.0.crate
+https://static.crates.io/crates/symphonia-format-ogg/symphonia-format-ogg-0.6.0.crate
+
+symphonia-format-riff 0.6.0 — MPL-2.0
+sources/symphonia-format-riff-0.6.0.crate
+https://static.crates.io/crates/symphonia-format-riff/symphonia-format-riff-0.6.0.crate
+
+symphonia-metadata 0.6.0 — MPL-2.0
+sources/symphonia-metadata-0.6.0.crate
+https://static.crates.io/crates/symphonia-metadata/symphonia-metadata-0.6.0.crate

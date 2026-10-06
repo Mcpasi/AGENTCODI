@@ -156,6 +156,16 @@ Published crate SPDX declarations determine MIT/Apache terms when a publisher
 omits a legal file; supplied authors and copyright notices are retained.
 See [the dependency provenance](third_party/community-codex/README.md).
 
+The complete original sources for the Community runtime's MPL-2.0 components
+are included with the APK. Open **Settings → Licenses and notices → Codex
+dependency notices**, read the source-availability notice and choose **Save MPL
+sources**. Saving is free and works without an account or internet connection.
+The [source offer](third_party/community-codex/MPL-SOURCE-OFFER.txt) also gives
+exact upstream download URLs and instructions for extracting the source ZIP
+directly from the APK. Original MPL terms and copyright notices are retained.
+The build checks the source set and hashes against the pinned dependency inventory
+and Cargo.lock; a new MPL component requires an updated source delivery.
+
 The format-2 contract report uses license_release_ready for the license gate
 and separately states that device tests were not performed. Release builds fail
 if any package/component lacks legal evidence. A clear license gate and successful

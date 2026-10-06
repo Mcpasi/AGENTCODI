@@ -149,5 +149,69 @@ class DebugSigningTest(unittest.TestCase):
         self.assertIn("Release APK must not use the public development test certificate.", result.stderr)
 
 
+    def test_release_signs_with_private_keystore_and_checks_its_fingerprint(self):
+        directory = self.work / "release-material"
+        directory.mkdir(mode=0o700)
+        keystore = directory / "fixture.jks"
+        store_password, key_password = "fixture-store-password", "fixture-key-password"
+        subprocess.run([
+            shutil.which("keytool"), "-genkeypair", "-noprompt", "-storetype", "JKS",
+            "-keystore", str(keystore), "-storepass", store_password,
+            "-keypass", key_password, "-alias", "releasefixture",
+            "-dname", "CN=Private Release Signing Fixture",
+            "-keyalg", "RSA", "-keysize", "2048", "-validity", "7"],
+            check=True, capture_output=True, text=True, timeout=30)
+        certificate = subprocess.run([
+            shutil.which("keytool"), "-exportcert", "-keystore", str(keystore),
+            "-storepass", store_password, "-alias", "releasefixture"],
+            check=True, capture_output=True, timeout=20).stdout
+        fingerprint = hashlib.sha256(certificate).hexdigest()
+        material = self.work / "ci-release-material"
+        material.mkdir(mode=0o700)
+        release_spec = importlib.util.spec_from_file_location(
+            "release_material", ROOT / ".github/ci/prepare-release-signing.py")
+        release_material = importlib.util.module_from_spec(release_spec)
+        release_spec.loader.exec_module(release_material)
+        release_material.prepare(material, {
+            "AGENTCODI_RELEASE_KEYSTORE_BASE64": base64.b64encode(keystore.read_bytes()).decode(),
+            "AGENTCODI_RELEASE_STORE_PASSWORD": store_password,
+            "AGENTCODI_RELEASE_KEY_PASSWORD": key_password,
+            "AGENTCODI_RELEASE_KEY_ALIAS": "releasefixture",
+            "AGENTCODI_RELEASE_CERT_SHA256": fingerprint,
+        })
+        output = self.work / "release-output"
+        output.mkdir()
+        source = (ROOT / "scripts/build-debug-apk.sh").read_text()
+        marker = '\nif [ "$BUILD_VARIANT" = "debug" ]; then\n'
+        release_branch = source.rsplit(marker, 1)[1].split("\nelse\n", 1)[1].split("\nfi\n", 1)[0]
+        verification = "signer_count=" + source.split("\nsigner_count=", 1)[1].split("\nbadging=", 1)[0]
+        environment = dict(
+            os.environ, PATH=str(APKSIGNER.parent) + os.pathsep + os.environ["PATH"],
+            OUTPUT_DIR=str(output), APP_ARTIFACT_NAME="private-release-fixture",
+            APP_VERSION="1", ABI="arm64-v8a", MIN_SDK="29", ALIGNED_APK=str(FIRST_APK),
+            RELEASE_PASSWORD_MODE="file", RELEASE_KEYSTORE=str(material / "release.keystore"),
+            RELEASE_STORE_PASSWORD_FILE=str(material / "store-password"),
+            RELEASE_KEY_PASSWORD_FILE=str(material / "key-password"),
+            RELEASE_KEY_ALIAS="releasefixture", BUILD_VARIANT="release",
+            EXPECTED_RELEASE_CERT_SHA256=fingerprint, DEBUG_CERT_SHA256=signer.CERTIFICATE_SHA256)
+        result = subprocess.run(
+            ["bash", "-Eeuo", "pipefail", "-c", release_branch],
+            env=environment, capture_output=True, text=True, timeout=30)
+        self.assertEqual(result.returncode, 0, result.stdout + result.stderr)
+        apk = output / "private-release-fixture-1-arm64-v8a-release.apk"
+        self.assertEqual(self.certificate(apk), fingerprint)
+        report = subprocess.run(
+            [str(APKSIGNER), "verify", "--min-sdk-version", "29", "--print-certs", str(apk)],
+            check=True, capture_output=True, text=True, timeout=20).stdout
+        for expected, success in ((fingerprint, True), ("0" * 64, False)):
+            result = subprocess.run(
+                ["bash", "-Eeuo", "pipefail", "-c", verification],
+                env={**environment, "certificate_report": report, "EXPECTED_RELEASE_CERT_SHA256": expected},
+                capture_output=True, text=True, timeout=15)
+            self.assertEqual(result.returncode == 0, success, result.stdout + result.stderr)
+            if not success:
+                self.assertIn("Release signer certificate does not match", result.stderr)
+
+
 if __name__ == "__main__":
     unittest.main()

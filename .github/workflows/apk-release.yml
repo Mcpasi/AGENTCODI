@@ -1,0 +1,164 @@
+# Signed Package Edition release APK. All signing material comes from repository secrets.
+name: APK Release
+
+on:
+  push:
+    branches:
+      - 'Mcpasi/package-edition'
+    paths:
+      - 'app/**'
+      - 'modules/**'
+      - 'scripts/**'
+      - 'third_party/libcxx/**'
+      - 'third_party/community-codex/**'
+      - 'tests/**'
+      - '.github/workflows/apk-release.yml'
+      - '.github/ci/*release-signing*'
+      - '.github/ci/build-release-apk.sh'
+      - '.github/workflows/bootstrap.yml'
+      - '.github/ci/bootstrap-*'
+      - '.github/ci/BootstrapInstall.java'
+      - '.github/ci/Dockerfile'
+      - '.github/ci/*build-inputs*'
+      - '.github/ci/build-input-cache.py'
+      - '.github/ci/container-preflight.sh'
+      - '.github/ci/restore-ndk-sysroot.sh'
+      - '.github/ci/ndk-29-inputs.tsv'
+  workflow_dispatch:
+
+permissions:
+  contents: read
+  actions: read
+
+concurrency:
+  group: package-release-apk-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  signing:
+    name: Validate release signing secrets
+    if: github.ref == 'refs/heads/Mcpasi/package-edition'
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          persist-credentials: false
+      - name: Check signing secrets before starting the build
+        env:
+          AGENTCODI_RELEASE_KEYSTORE_BASE64: ${{ secrets.AGENTCODI_RELEASE_KEYSTORE_BASE64 }}
+          AGENTCODI_RELEASE_STORE_PASSWORD: ${{ secrets.AGENTCODI_RELEASE_STORE_PASSWORD }}
+          AGENTCODI_RELEASE_KEY_PASSWORD: ${{ secrets.AGENTCODI_RELEASE_KEY_PASSWORD }}
+          AGENTCODI_RELEASE_KEY_ALIAS: ${{ secrets.AGENTCODI_RELEASE_KEY_ALIAS }}
+          AGENTCODI_RELEASE_CERT_SHA256: ${{ secrets.AGENTCODI_RELEASE_CERT_SHA256 }}
+        run: python3 .github/ci/prepare-release-signing.py --check
+
+  bootstrap:
+    needs: signing
+    uses: ./.github/workflows/bootstrap.yml
+    with:
+      # Reuse only after the existing same-branch recipe, job and artifact gates pass.
+      source_run_id: 37493949315
+
+  release:
+    needs: bootstrap
+    name: Signed release APK
+    runs-on: ubuntu-24.04-arm
+    timeout-minutes: 120
+    env:
+      IMAGE: agentcodi-release-build
+      AGENTCODI_CI_SIGNING_DIR: ${{ runner.temp }}/agentcodi-release-${{ github.run_id }}-${{ github.run_attempt }}
+    steps:
+      - name: Check out the repository
+        uses: actions/checkout@v4
+        with:
+          persist-credentials: false
+
+      # The mirror is a private backup, so this needs a token with read access
+      # to it; the default workflow token cannot reach another repository.
+      # Inputs that are still available upstream are fetched without it.
+      - uses: actions/download-artifact@v4
+        with:
+          name: agentcodi-package-bootstrap
+          path: output/package-bootstrap
+
+      - name: Select the current edition cache paths
+        id: cache-paths
+        run: python3 .github/ci/build-input-cache.py
+
+      - name: Restore verified edition inputs
+        id: inputs-cache
+        uses: actions/cache/restore@v4
+        with:
+          path: ${{ steps.cache-paths.outputs.paths }}
+          key: agentcodi-package-inputs-v1-${{ runner.os }}-${{ runner.arch }}-${{ hashFiles('.github/ci/build-inputs.tsv', '.github/ci/build-input-cache.py') }}
+
+      - name: Restore the pinned build inputs
+        env:
+          GH_TOKEN: ${{ secrets.AGENTCODI_INPUTS_TOKEN }}
+          AGENTCODI_INPUTS_TAG: '0.7.6-preview.1'
+        run: .github/ci/fetch-build-inputs.sh
+
+      - name: Verify the build inputs
+        run: .github/ci/verify-build-inputs.sh
+
+      - name: Cache the verified edition inputs
+        if: steps.inputs-cache.outputs.cache-hit != 'true'
+        uses: actions/cache/save@v4
+        with:
+          path: ${{ steps.cache-paths.outputs.paths }}
+          key: ${{ steps.inputs-cache.outputs.cache-primary-key }}
+
+      - name: Report the Docker environment
+        run: |
+          docker version
+          df -h /var/lib/docker / | tail -2
+
+      - name: Build the container image
+        run: docker build --progress=plain -t "$IMAGE" -f .github/ci/Dockerfile .github/ci
+
+      - name: Check the container against the build requirements
+        run: |
+          docker run --rm \
+            -v "$GITHUB_WORKSPACE":/workspace -w /workspace \
+            "$IMAGE" .github/ci/container-preflight.sh
+
+      - name: Build and verify the signed release APK
+        env:
+          AGENTCODI_RELEASE_KEYSTORE_BASE64: ${{ secrets.AGENTCODI_RELEASE_KEYSTORE_BASE64 }}
+          AGENTCODI_RELEASE_STORE_PASSWORD: ${{ secrets.AGENTCODI_RELEASE_STORE_PASSWORD }}
+          AGENTCODI_RELEASE_KEY_PASSWORD: ${{ secrets.AGENTCODI_RELEASE_KEY_PASSWORD }}
+          AGENTCODI_RELEASE_KEY_ALIAS: ${{ secrets.AGENTCODI_RELEASE_KEY_ALIAS }}
+          AGENTCODI_RELEASE_CERT_SHA256: ${{ secrets.AGENTCODI_RELEASE_CERT_SHA256 }}
+        run: .github/ci/build-release-apk.sh
+
+      - name: Remove temporary signing files
+        if: always()
+        run: sudo rm -rf -- "$AGENTCODI_CI_SIGNING_DIR"
+
+      - name: Hand the outputs back to the runner
+        if: always()
+        run: sudo chown -R "$(id -u):$(id -g)" "$GITHUB_WORKSPACE"
+
+      - name: Make release checksums portable after downloading the artifact
+        run: |
+          cd output/release-apk
+          for apk in *-release.apk; do
+            sha256sum "$apk" > "$apk.sha256"
+          done
+
+      - name: Collect the verified release APK and checksums
+        uses: actions/upload-artifact@v4
+        with:
+          name: agentcodi-package-release-apk
+          path: |
+            output/release-apk/*-release.apk
+            output/release-apk/*-release.apk.sha256
+          if-no-files-found: error
+
+      - name: Upload final release payload and license evidence
+        uses: actions/upload-artifact@v4
+        with:
+          name: agentcodi-package-release-apk-contract
+          path: output/release-apk/package-apk-contract.json
+          if-no-files-found: error

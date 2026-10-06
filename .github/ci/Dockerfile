@@ -5,15 +5,14 @@
 #   * Ubuntu arm64 supplies every command the build requires. The package list
 #     below was derived from the build host by resolving each command in the
 #     build script's own require_command list back to its owning package:
-#     apksigner, zipalign, ripgrep, binutils (readelf/strings), bsdutils
-#     (script), dpkg (dpkg-deb), findutils, mawk and coreutils. Termux does not
+#     apksigner, zipalign, ripgrep, binutils (readelf/strings), dpkg (dpkg-deb), findutils, mawk and coreutils. Termux does not
 #     package zipalign at all, so a pure Termux image cannot work.
-#   * The Termux prefix supplies the pinned LLVM toolchain. Its generated code
-#     is covered by the build's derived *_RUNTIME_SHA256 pins, so the version
-#     is pinned here and checked again by the build script itself.
+#   * The Termux prefix supplies the LLVM toolchain for the native engine,
+#     minimal shell and Bionic tests. Its version is pinned here and checked
+#     again by the build script itself.
 #   * The Android linker and bionic libraries come from the Termux image, which
 #     ships them as aosp-libs. Without them the build cannot execute the
-#     build-only aapt2/patchelf and the Codex app-server, all of which are
+#     build-only aapt2 and the Codex app-server, all of which are
 #     bionic binaries.
 ARG TERMUX_IMAGE=termux/termux-docker:aarch64@sha256:e19ea56dd687563849826cbda57da714ae23277ee463e21f39917dbc0a59bab4
 ARG UBUNTU_IMAGE=ubuntu:26.04
@@ -37,8 +36,7 @@ COPY --from=ndk --chown=1000:1000 /output/ndk-sysroot_29-3_aarch64.deb /data/dat
 ARG CLANG_VERSION=21.1.8-3
 ARG NDK_SYSROOT_VERSION=29-3
 ARG LIBCXX_VERSION=29
-# The NDK headers/CRT and libc++ must match the original build as well as LLVM.
-# A newer sysroot changes the guard bytes even with the same clang --version.
+# The NDK headers/CRT and libc++ match the pinned native engine/shell toolchain.
 # libc++ is installed explicitly: binaries built by this toolchain carry a
 # DT_RUNPATH into the Termux prefix and need libc++_shared.so there, exactly as
 # on the build host.
@@ -48,27 +46,27 @@ RUN /entrypoint.sh bash -c "apt-get update -q \
       libllvm=${CLANG_VERSION} libcompiler-rt=${CLANG_VERSION} \
       /data/data/com.termux/files/usr/tmp/ndk-sysroot_${NDK_SYSROOT_VERSION}_aarch64.deb \
       libc++=${LIBCXX_VERSION} \
- && clang++ --version && ld.lld --version && llvm-objcopy --version \
+ && clang++ --version && ld.lld --version && llvm-strip --version \
  && dpkg-query -W clang lld llvm libllvm libcompiler-rt ndk-sysroot libc++ \
- && test -f /data/data/com.termux/files/usr/lib/libc++_shared.so"
+ && test -f /data/data/com.termux/files/usr/lib/libc++_shared.so \
+ && apt-get clean \
+ && rm -f /data/data/com.termux/files/usr/tmp/ndk-sysroot_${NDK_SYSROOT_VERSION}_aarch64.deb \
+ && rm -rf /data/data/com.termux/files/usr/var/lib/apt/lists/*"
 
-# The build host has /linkerconfig bound in, and the sandbox lists it among its
-# platform defaults for a reason: bionic reads its namespace configuration,
-# whose permitted paths govern where a library may be loaded from at all.
-# Stage whatever the Termux image has so the next stage can take it.
+# Bionic reads its library namespace configuration from /linkerconfig.
 RUN mkdir -p /export \
  && if [ -d /linkerconfig ]; then cp -a /linkerconfig /export/linkerconfig; \
     else mkdir -p /export/linkerconfig; fi
 
 FROM ${UBUNTU_IMAGE}
-COPY --from=termux /data/data/com.termux /data/data/com.termux
+COPY --from=termux /data/data/com.termux/files/usr /data/data/com.termux/files/usr
 COPY --from=termux /export/linkerconfig /linkerconfig
 # The Termux image keeps the Android linker in an aosp-libs directory that
 # /system links to. Locate it instead of assuming the path, and fail here with a
 # clear message rather than leaving a dangling symlink that only breaks later.
 #
 # /system must end up a real directory, not a symlink: the supervisor
-# canonicalizes the code-mode host with realpath and compares the result against
+# canonicalizes the system shell with realpath and compares it against
 # the literal /system/bin/sh, so a symlinked /system resolves into the prefix
 # and fails that check. Move the tree there and leave a link behind for anything
 # that still refers to the prefix path.
@@ -88,8 +86,7 @@ RUN set -eux; \
 RUN apt-get update \
  && apt-get install -y --no-install-recommends \
       openjdk-17-jdk-headless zipalign apksigner ripgrep file binutils dpkg \
-      coreutils bsdutils findutils mawk diffutils grep sed tar \
-      gcc libc6-dev \
+      coreutils findutils mawk diffutils grep sed tar \
       curl ca-certificates unzip zip \
  && rm -rf /var/lib/apt/lists/*
 # The build host runs under C.UTF-8. Without it the JVM derives

@@ -101,7 +101,7 @@ live in the cache directory (`AGENTCODI_CACHE_DIR`, by default
 
 | File | Purpose |
 | --- | --- |
-| `build-inputs.tsv` | The 13 pinned inputs: path, SHA-256, origin, source URL. |
+| `build-inputs.tsv` | The 12 pinned inputs: path, SHA-256, origin, source URL. |
 | `generate-build-inputs.sh` | Regenerates the manifest from the build script. |
 | `verify-build-inputs.sh` | Checks a directory against the manifest. |
 | `fetch-build-inputs.sh` | Restores the inputs from the mirror, or upstream. |
@@ -114,15 +114,16 @@ live in the cache directory (`AGENTCODI_CACHE_DIR`, by default
 .github/ci/generate-build-inputs.sh > .github/ci/build-inputs.tsv
 ```
 
-The manifest is derived from all 13 `download_verified` calls in the build
+The manifest is derived from all 12 `download_verified` calls in the build
 script, including the content-addressed Community release archive. The explicit
 configuration marker includes every destination assignment. Regenerate it when
 pins change; architecture CI and `verify-build-inputs.sh` reject drift.
 Schemas are generated from the verified binary rather than restored as old
-cached inputs.
+cached inputs. Build-only patchelf, llvm-objcopy checks and the unused bulk ELF
+relocation helper are removed.
 
 The build script also pins the LLVM toolchain through `CLANG_TOOLCHAIN_VERSION`
-and refuses to build when clang, lld, llvm-objcopy or llvm-strip report a
+and refuses to build when clang, lld or llvm-strip report a
 different version. That toolchain compiles the JNI engine and minimal shell
 bridge. Historical guard/attestor sources and their obsolete regression
 fixtures are removed.
@@ -151,22 +152,12 @@ are kept.
 
 #### Why the mirror is private
 
-Keeping it private is what allows it to be complete. Two inputs cannot lawfully
-be redistributed:
-
-* `platform-35_r02.zip` — Android SDK Licence Agreement, section 3.4: *"you may
-  not copy (except for backup purposes), modify, adapt, redistribute,
-  decompile, reverse engineer, disassemble, or create derivative works of the
-  SDK or any part of the SDK."* A private backup falls under the stated backup
-  exception; publishing it would not.
-* `patchelf-0.19.1` — the package links its licence to `GPL-3.0.txt`, so
-  redistribution would add a corresponding-source obligation.
-
-Further Termux packages carry copyleft notices (`zstd` links `GPL-2.0.txt`,
-`termux-licenses` links `GPL-3.0.txt`, `liblzma` ships `COPYING.GPLv2`), and
-`aapt2`, `libexpat` and `libffi` ship no licence file at all, so their terms
-cannot be established from the artifact. None of that matters for a private
-backup; all of it would need clearing before publishing.
+The Android SDK platform archive remains a private backup under the Android
+SDK Licence Agreement, section 3.4. It is restored from the existing private
+mirror or its upstream URL and excluded from the GitHub Actions input cache.
+The mirror also retains historical inputs for earlier builds; the Edition
+restorer reads only the current manifest. The final delivered-payload licence
+review remains a separate roadmap item.
 
 Reading the mirror therefore needs an authenticated `gh` — in CI a token secret
 with read access, because the default workflow token cannot reach another
@@ -174,6 +165,23 @@ repository. The upstream fallback needs no credentials.
 
 When a pin changes, publish a new release for the new pin set instead of
 editing the existing one, so old APKs stay reproducible.
+
+### Edition input cache
+
+The APK job caches only the 11 non-SDK paths selected from the current
+12-row manifest by `build-input-cache.py`. Its key is
+`agentcodi-package-inputs-v1-<OS>-<architecture>-<manifest/selector hash>`;
+there are no fallback keys, whole-directory restores, native build outputs
+or retired tool archives. Cached files are SHA-256-verified before use and
+saved only after manifest synchronization and verification pass.
+App-source changes do not change the download key. The Community archive
+retains its existing SHA-256-addressed subdirectory. SDK bytes and the
+source-built bootstrap use their existing separate restoration paths.
+
+`test-build-inputs.py` covers missing/corrupt inputs, rejected generator
+failures, stale manifests, restoration of only listed files, preservation
+of unrelated files and cache path validation. Architecture CI runs it and
+syntax-checks the active restore/verification/preflight scripts.
 
 ## Building the APK on a hosted runner
 
@@ -184,8 +192,9 @@ the `AGENTCODI_*` variables it already supports.
 
 The image reproduces the build host, which is a hybrid rather than a Termux
 system. Resolving every command in the build script's own `require_command`
-list back to its owning package on the host gives 25 Ubuntu packages and no
-Termux ones — `zipalign`, `apksigner` and `java` all come from `/usr/bin`. So
+list back to its owning package determines the Ubuntu package set;
+`zipalign`, `apksigner` and `java` all come from `/usr/bin`. The unused
+Ubuntu gcc/libc6-dev and bsdutils requirements are removed. So
 the image is:
 
 * **Ubuntu arm64** for the required commands. Termux does not package
@@ -197,7 +206,7 @@ the image is:
   guard/attestor sources and obsolete fixtures are removed.
 * **The Android linker and bionic libraries**, copied from
   `termux/termux-docker:aarch64`, which ships them as aosp-libs. Without them
-  build-only `aapt2`/`patchelf` and the Codex app-server cannot run —
+  build-only `aapt2` and the Codex app-server cannot run —
   they are bionic binaries. On an arm64 runner all of this runs natively,
   without qemu.
 
@@ -209,7 +218,11 @@ Manual runs default to a preflight-only run.
 toolchain version out of the build script — so they cannot drift — and reports
 everything the environment is missing in one pass, instead of surfacing it one
 failing build at a time. It is green on the build host, which makes it the
-reference the container has to match.
+reference the container has to match. Preflight now checks Java 17, ARM64,
+the canonical shell and executable linker, then compiles and runs a disposable
+API-29 C++/JNI/zlib probe. It has no retired guard/manual-linker or process-
+confinement probes. The final image copies only the Termux prefix, without
+home/cache data, package lists or the temporary reconstructed sysroot DEB.
 
 It needs a repository secret `AGENTCODI_INPUTS_TOKEN` with read access to the
 mirror.
@@ -226,8 +239,8 @@ closure and shipped-byte comparisons remain authoritative.
 
 The old source-only toolchain guard/attestor and packaged-ripgrep linker tests
 are removed with the retired implementation; the APK workflow no longer needs
-`AGENTCODI_SKIP_DEVICE_LINKER_TESTS`. The informational linker probe in
-`container-preflight.sh` describes the build container only. Installation,
+`AGENTCODI_SKIP_DEVICE_LINKER_TESTS`. The disposable native probe in
+`container-preflight.sh` checks build prerequisites only. Installation,
 updates and runtime checks on actual Android hardware remain outside hosted CI.
 
 ### Full-access bootstrap

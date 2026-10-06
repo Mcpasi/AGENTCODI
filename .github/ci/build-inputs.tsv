@@ -15,4 +15,3 @@ libexpat-2.8.2-aarch64.deb	6f5eb2fd14b6fe4d7bb79bf7f0f3d7fc838fea07402477a172b14
 libpng-1.6.58-aarch64.deb	e47937405c72734867513cf0c63d27f36400d462666b65dfada984667d7228c4	download	https://packages.termux.dev/apt/termux-main/pool/main/libp/libpng/libpng_1.6.58_aarch64.deb
 libzopfli-1.0.3-5-aarch64.deb	95cd7cb2209fbafb25825f5fcd4f86f021512175608e038b1c3d8d3fa0a4fe40	download	https://packages.termux.dev/apt/termux-main/pool/main/libz/libzopfli/libzopfli_1.0.3-5_aarch64.deb
 zlib-1.3.2-aarch64.deb	75e7d0af17fcc3b40004309fdc00a1ddb9ae08346dce5e269902c34ac3966ac9	download	https://packages.termux.dev/apt/termux-main/pool/main/z/zlib/zlib_1.3.2_aarch64.deb
-patchelf-0.19.1-aarch64.deb	a08bea49b3c9c3bf449ee0c7b7ee9c97a9f3ab84ae06ace08a564d0903a23c3f	download	https://packages.termux.dev/apt/termux-main/pool/main/p/patchelf/patchelf_0.19.1_aarch64.deb

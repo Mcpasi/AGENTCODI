@@ -60,11 +60,12 @@ jobs:
       # build and test scripts it runs unchanged on a hosted runner.
       - name: Check architecture contracts
         run: |
-          for script in scripts/build-debug-apk.sh scripts/check-architecture.sh .github/ci/generate-build-inputs.sh; do
+          for script in scripts/build-debug-apk.sh scripts/check-architecture.sh .github/ci/generate-build-inputs.sh .github/ci/fetch-build-inputs.sh .github/ci/verify-build-inputs.sh .github/ci/container-preflight.sh .github/ci/restore-ndk-sysroot.sh; do
             bash -n "$script"
           done
           ./scripts/check-architecture.sh
           diff -u .github/ci/build-inputs.tsv <(.github/ci/generate-build-inputs.sh)
+          python3 -B .github/ci/test-build-inputs.py
 
   java:
     name: Java host tests

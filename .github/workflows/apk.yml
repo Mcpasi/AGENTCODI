@@ -3,7 +3,7 @@
 # scripts/build-debug-apk.sh runs inside a container that reproduces
 # the build host: Ubuntu arm64 for every required command, the Termux prefix
 # for the pinned LLVM toolchain, and the Android linker so the packaged bionic
-# binaries (aapt2, patchelf and the Codex app-server) can execute.
+# binaries (aapt2 and the Codex app-server) can execute.
 # See .github/ci/Dockerfile.
 #
 # Manual runs default to a preflight-only run, because the
@@ -27,6 +27,7 @@ on:
       - '.github/ci/BootstrapInstall.java'
       - '.github/ci/Dockerfile'
       - '.github/ci/*build-inputs*'
+      - '.github/ci/build-input-cache.py'
       - '.github/ci/container-preflight.sh'
       - '.github/ci/restore-ndk-sysroot.sh'
       - '.github/ci/ndk-29-inputs.tsv'
@@ -70,6 +71,17 @@ jobs:
           name: agentcodi-package-bootstrap
           path: output/package-bootstrap
 
+      - name: Select the current edition cache paths
+        id: cache-paths
+        run: python3 .github/ci/build-input-cache.py
+
+      - name: Restore verified edition inputs
+        id: inputs-cache
+        uses: actions/cache/restore@v4
+        with:
+          path: ${{ steps.cache-paths.outputs.paths }}
+          key: agentcodi-package-inputs-v1-${{ runner.os }}-${{ runner.arch }}-${{ hashFiles('.github/ci/build-inputs.tsv', '.github/ci/build-input-cache.py') }}
+
       - name: Restore the pinned build inputs
         env:
           GH_TOKEN: ${{ secrets.AGENTCODI_INPUTS_TOKEN }}
@@ -78,6 +90,13 @@ jobs:
 
       - name: Verify the build inputs
         run: .github/ci/verify-build-inputs.sh
+
+      - name: Cache the verified edition inputs
+        if: steps.inputs-cache.outputs.cache-hit != 'true'
+        uses: actions/cache/save@v4
+        with:
+          path: ${{ steps.cache-paths.outputs.paths }}
+          key: ${{ steps.inputs-cache.outputs.cache-primary-key }}
 
       - name: Report the Docker environment
         run: |

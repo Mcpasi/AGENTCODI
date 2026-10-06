@@ -60,9 +60,6 @@ CODEX_DEFAULT_HOST_OFFSET="10568364"
 TERMINAL_SHELL_NAME="libagentcodi-shell.so"
 ZLIB_RUNTIME_SHA256="fc9659e5d77c32149627ef3c357a1a76cfd44b93917e29c6c1c78cb054f92b83"
 CLANG_TOOLCHAIN_VERSION="21.1.8"
-PATCHELF_VERSION="0.19.1"
-PATCHELF_URL="https://packages.termux.dev/apt/termux-main/pool/main/p/patchelf/patchelf_${PATCHELF_VERSION}_aarch64.deb"
-PATCHELF_SHA256="a08bea49b3c9c3bf449ee0c7b7ee9c97a9f3ab84ae06ace08a564d0903a23c3f"
 
 PLATFORM_URL="https://dl.google.com/android/repository/platform-35_r02.zip"
 PLATFORM_SHA256="0988cacad01b38a18a47bac14a0695f246bc76c1b06c0eeb8eb0dc825ab0c8e0"
@@ -98,7 +95,6 @@ TERMUX_PREFIX="${AGENTCODI_TERMUX_PREFIX:-/data/data/com.termux/files/usr}"
 CLANGXX="${AGENTCODI_CLANGXX:-$TERMUX_PREFIX/bin/clang++}"
 LLVM_STRIP="${AGENTCODI_LLVM_STRIP:-$TERMUX_PREFIX/bin/llvm-strip}"
 LD_LLD="${AGENTCODI_LD_LLD:-$TERMUX_PREFIX/bin/ld.lld}"
-LLVM_OBJCOPY="${AGENTCODI_LLVM_OBJCOPY:-$TERMUX_PREFIX/bin/llvm-objcopy}"
 CACHE_DIR="${AGENTCODI_CACHE_DIR:-$PROJECT_ROOT/.cache/android}"
 OUTPUT_DIR="${AGENTCODI_OUTPUT_DIR:-$PROJECT_ROOT/output/apk}"
 BUILD_ROOT="$PROJECT_ROOT/.build"
@@ -110,12 +106,12 @@ require_command() {
   fi
 }
 
-for command_name in apksigner awk cmp curl dd diff dpkg-deb file grep readelf realpath rg script sed sha256sum stat strings tar timeout tr unzip wc xargs zip zipalign zipinfo; do
+for command_name in apksigner awk cmp curl dd diff dpkg-deb file grep readelf realpath rg sed sha256sum stat strings tar timeout tr unzip wc xargs zip zipalign zipinfo; do
   require_command "$command_name"
 done
 for executable in \
     "$JAVA" "$JAVAC" "$JAR" "$KEYTOOL" "$CLANGXX" "$LLVM_STRIP" \
-    "$LD_LLD" "$LLVM_OBJCOPY"; do
+    "$LD_LLD"; do
   if [ ! -x "$executable" ]; then
     echo "Missing required executable: $executable" >&2
     exit 1
@@ -123,7 +119,7 @@ for executable in \
 done
 
 for toolchain_executable in \
-    "$CLANGXX" "$LLVM_STRIP" "$LD_LLD" "$LLVM_OBJCOPY"; do
+    "$CLANGXX" "$LLVM_STRIP" "$LD_LLD"; do
   toolchain_version="$("$toolchain_executable" --version 2>/dev/null \
     | grep -oE '[0-9]+\.[0-9]+\.[0-9]+' | head -1)"
   if [ "$toolchain_version" != "$CLANG_TOOLCHAIN_VERSION" ]; then
@@ -273,17 +269,6 @@ EOF
   fi
 }
 
-patch_elf_name_all() {
-  local file="$1"
-  local old_name="$2"
-  local new_name="$3"
-  local count
-  count="$(grep -aoF "$old_name" "$file" | wc -l || true)"
-  if [ "$count" -gt 0 ]; then
-    patch_elf_name "$file" "$old_name" "$new_name" "$count"
-  fi
-}
-
 verify_file_sha256() {
   local file="$1"
   local expected="$2"
@@ -307,12 +292,11 @@ EXPAT_ARCHIVE="$CACHE_DIR/libexpat-2.8.2-aarch64.deb"
 PNG_ARCHIVE="$CACHE_DIR/libpng-1.6.58-aarch64.deb"
 ZOPFLI_ARCHIVE="$CACHE_DIR/libzopfli-1.0.3-5-aarch64.deb"
 ZLIB_ARCHIVE="$CACHE_DIR/zlib-1.3.2-aarch64.deb"
-# Prefer the supplied/local fork package. A replaced .tgz must never be hidden
+# Prefer the supplied/local Community archive. A replaced .tgz must never be hidden
 # by the old content-addressed cache; the updater handles deliberate repinning.
 CODEX_CACHED_ARCHIVE="$CACHE_DIR/codex/$CODEX_ANDROID_SHA256/package.tgz"
 download_verified "$CODEX_ANDROID_URL" "$CODEX_ANDROID_SHA256" "$CODEX_CACHED_ARCHIVE"
 CODEX_ANDROID_ARCHIVE="$("$PROJECT_ROOT/scripts/update-codex-runtime.sh" --select-build-archive)"
-PATCHELF_ARCHIVE="$CACHE_DIR/patchelf-$PATCHELF_VERSION-aarch64.deb"
 
 # End of build-input configuration.
 echo "Verifying pinned Android build inputs..."
@@ -322,7 +306,7 @@ if [ ! -f "$CODEX_ANDROID_ARCHIVE" ] || [ -L "$CODEX_ANDROID_ARCHIVE" ]; then
   exit 1
 fi
 verify_file_sha256 "$CODEX_ANDROID_ARCHIVE" "$CODEX_ANDROID_SHA256"
-echo "Codex fork source: $CODEX_TERMUX_SOURCE_COMMIT"
+echo "Codex Community source: $CODEX_TERMUX_SOURCE_COMMIT"
 echo "Codex archive SHA-256: $CODEX_ANDROID_SHA256"
 
 download_verified "$PLATFORM_URL" "$PLATFORM_SHA256" "$PLATFORM_ARCHIVE"
@@ -336,7 +320,6 @@ download_verified "$EXPAT_URL" "$EXPAT_SHA256" "$EXPAT_ARCHIVE"
 download_verified "$PNG_URL" "$PNG_SHA256" "$PNG_ARCHIVE"
 download_verified "$ZOPFLI_URL" "$ZOPFLI_SHA256" "$ZOPFLI_ARCHIVE"
 download_verified "$ZLIB_URL" "$ZLIB_SHA256" "$ZLIB_ARCHIVE"
-download_verified "$PATCHELF_URL" "$PATCHELF_SHA256" "$PATCHELF_ARCHIVE"
 
 echo "Running Java, C++, and architecture tests..."
 "$SCRIPT_DIR/test.sh"
@@ -399,21 +382,14 @@ if [ ! -f "$ANDROID_JAR" ]; then
   exit 1
 fi
 
-for archive in "$AAPT2_ARCHIVE" "$ABSEIL_ARCHIVE" "$PROTOBUF_ARCHIVE" "$FMT_ARCHIVE" "$LIBCXX_ARCHIVE" "$EXPAT_ARCHIVE" "$PNG_ARCHIVE" "$ZOPFLI_ARCHIVE" "$ZLIB_ARCHIVE" "$PATCHELF_ARCHIVE"; do
+for archive in "$AAPT2_ARCHIVE" "$ABSEIL_ARCHIVE" "$PROTOBUF_ARCHIVE" "$FMT_ARCHIVE" "$LIBCXX_ARCHIVE" "$EXPAT_ARCHIVE" "$PNG_ARCHIVE" "$ZOPFLI_ARCHIVE" "$ZLIB_ARCHIVE"; do
   dpkg-deb -x "$archive" "$AAPT2_EXTRACT"
 done
 tar -xzf "$CODEX_ANDROID_ARCHIVE" -C "$CODEX_EXTRACT"
 AAPT2_BIN="$AAPT2_EXTRACT/data/data/com.termux/files/usr/bin/aapt2"
 AAPT2_LIBRARY_PATH="$AAPT2_EXTRACT/data/data/com.termux/files/usr/lib"
-PATCHELF_BIN="$AAPT2_EXTRACT/data/data/com.termux/files/usr/bin/patchelf"
 if [ ! -x "$AAPT2_BIN" ]; then
   echo "Pinned aapt2 package did not contain an executable." >&2
-  exit 1
-fi
-if [ ! -x "$PATCHELF_BIN" ] \
-    || ! env LD_LIBRARY_PATH="$AAPT2_LIBRARY_PATH" "$PATCHELF_BIN" --version \
-      | grep -Fq "patchelf $PATCHELF_VERSION"; then
-  echo "Pinned build-only patchelf package is missing or invalid." >&2
   exit 1
 fi
 LIBCXX_SHARED="$AAPT2_LIBRARY_PATH/libc++_shared.so"

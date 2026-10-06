@@ -1,6 +1,7 @@
 #!/usr/bin/env bash
 # Checks whether the current environment satisfies what scripts/build-debug-apk.sh
-# requires, without building anything.
+# requires, without assembling an APK. A disposable native probe checks the
+# compiler, link inputs and Bionic execution.
 #
 # This exists because the Termux container is assembled on a hosted runner and
 # the first attempts will be missing packages. Rather than discovering that
@@ -48,7 +49,12 @@ for java_tool in java javac jar keytool; do
   fi
 done
 if [ -x "$java_home/bin/javac" ]; then
-  printf '  version %s\n' "$("$java_home/bin/javac" -version 2>&1)"
+  javac_version="$("$java_home/bin/javac" -version 2>&1)"
+  printf '  version %s\n' "$javac_version"
+  if [[ "$javac_version" != javac\ 17.* ]]; then
+    printf '  WRONG   need Java 17\n'
+    missing=$((missing + 1))
+  fi
 fi
 
 echo
@@ -75,16 +81,16 @@ echo
 echo "== Pinned LLVM toolchain =="
 expected="$(sed -n 's/^CLANG_TOOLCHAIN_VERSION="\(.*\)"$/\1/p' "$BUILD_SCRIPT" | head -1)"
 if [ -z "$expected" ]; then
-  echo "  note    the build script does not pin a toolchain version"
+  echo "  MISSING pinned toolchain version"
+  missing=$((missing + 1))
 else
   printf '  pinned  %s\n' "$expected"
-  for tool_name in clang++ llvm-strip ld.lld llvm-objcopy; do
+  for tool_name in clang++ llvm-strip ld.lld; do
     tool_path="$prefix/bin/$tool_name"
     case "$tool_name" in
       clang++) tool_path="${AGENTCODI_CLANGXX:-$tool_path}" ;;
       llvm-strip) tool_path="${AGENTCODI_LLVM_STRIP:-$tool_path}" ;;
       ld.lld) tool_path="${AGENTCODI_LD_LLD:-$tool_path}" ;;
-      llvm-objcopy) tool_path="${AGENTCODI_LLVM_OBJCOPY:-$tool_path}" ;;
     esac
     if [ ! -x "$tool_path" ]; then
       printf '  MISSING %s\n' "$tool_path"
@@ -102,54 +108,14 @@ else
 fi
 
 echo
-echo "== Android linker =="
-# Informational probe of the container linker. The retired guard/attestor
-# test is removed; this is not a device installation or update test.
-linker="/system/bin/linker64"
-if [ ! -e "$linker" ]; then
-  printf '  note    %s is absent\n' "$linker"
-else
-  printf '  path    %s -> %s\n' "$linker" "$(readlink -f "$linker" 2>/dev/null || echo '?')"
-  probe=""
-  for candidate in "$prefix/bin/readlink" /usr/bin/readlink; do
-    if [ -x "$candidate" ]; then probe="$candidate"; break; fi
-  done
-  if [ -z "$probe" ]; then
-    printf '  note    no readlink available to probe the linker\n'
-  else
-    observed="$("$linker" "$probe" /proc/self/exe 2>&1)"
-    status=$?
-    printf '  probe   %s %s /proc/self/exe -> exit %s\n' "$linker" "$probe" "$status"
-    printf '  result  %s\n' "${observed:-<no output>}"
-    case "$observed" in
-      */linker64)
-        printf '  ok      a manual invocation is visible as the linker; the guard can reject it\n'
-        ;;
-      *)
-        printf '  DIFFERS this environment does not expose a manual invocation as the linker,\n'
-        printf '          so the guard test expectation cannot hold here\n'
-        ;;
-    esac
-  fi
-fi
-
-echo
-echo "== Process confinement =="
-# real syscall interception before executing anything and refuses when it
-# cannot. Docker's default profiles restrict that, so report the state rather
-# than discover it through a failing bootstrap. Informational.
-printf '  ptrace_scope %s\n' "$(cat /proc/sys/kernel/yama/ptrace_scope 2>/dev/null || echo 'n/a')"
-printf '  seccomp      %s\n' "$(grep -i '^Seccomp' /proc/self/status 2>/dev/null | tr '\n\t' '  ' || echo '?')"
-printf '  lsm profile  %s\n' "$(tr -d '\000' < /proc/self/attr/current 2>/dev/null || echo 'none')"
-printf '  capabilities %s\n' "$(grep -i '^CapEff' /proc/self/status 2>/dev/null || echo '?')"
-
-echo
-echo "Package Edition uses Full access; no Landlock or ptrace capability is required."
-
-echo
 echo "== Environment =="
-printf '  arch    %s\n' "$(uname -m)"
-# The supervisor canonicalizes the code-mode host with realpath and compares the
+if [ "$(uname -m)" != aarch64 ]; then
+  printf '  WRONG   architecture %s (need aarch64)\n' "$(uname -m)"
+  missing=$((missing + 1))
+else
+  printf '  ok      architecture aarch64\n'
+fi
+# The supervisor canonicalizes the system shell with realpath and compares the
 # result against the literal /system/bin/sh, so /system must be a real directory
 # rather than a symlink into a prefix.
 if [ ! -x /system/bin/sh ]; then
@@ -162,7 +128,12 @@ elif [ "$(readlink -f /system/bin/sh)" != "/system/bin/sh" ]; then
 else
   printf '  ok      /system/bin/sh is canonical\n'
 fi
-printf '  linker  %s\n' "$([ -e /system/bin/linker64 ] && echo 'present' || echo 'MISSING')"
+if [ -x /system/bin/linker64 ]; then
+  printf '  ok      executable Android linker64\n'
+else
+  printf '  MISSING executable /system/bin/linker64\n'
+  missing=$((missing + 1))
+fi
 # Binaries built by the pinned toolchain carry a DT_RUNPATH into the Termux
 # prefix and resolve libc++_shared.so there.
 if [ -f "$prefix/lib/libc++_shared.so" ]; then
@@ -171,15 +142,47 @@ else
   printf '  MISSING %s/lib/libc++_shared.so\n' "$prefix"
   missing=$((missing + 1))
 fi
-# bionic reads its namespace configuration here; the sandbox grants /linkerconfig
-# as a platform default, and the build host has it bound in.
+# Bionic reads its library namespace configuration here.
 if [ -f /linkerconfig/ld.config.txt ]; then
   printf '  linkercfg ld.config.txt present (%s bytes)\n' \
     "$(wc -c < /linkerconfig/ld.config.txt)"
 else
-  printf '  MISSING /linkerconfig/ld.config.txt — bionic falls back to a built-in\n'
+  printf '  note    /linkerconfig/ld.config.txt absent — bionic uses its built-in\n'
   printf '          namespace configuration whose permitted paths may exclude the\n'
   printf '          native library directory\n'
+fi
+
+
+echo
+echo "== Native engine/shell prerequisites =="
+# Compile and execute a disposable Bionic probe against the same JNI headers,
+# minimum API, C++ runtime and zlib used by the APK and its test driver.
+clangxx="${AGENTCODI_CLANGXX:-$prefix/bin/clang++}"
+min_sdk="$(sed -n 's/^MIN_SDK="\(.*\)"$/\1/p' "$BUILD_SCRIPT" | head -1)"
+if [ "$missing" -eq 0 ]; then
+  probe_dir="$(mktemp -d)"
+  trap 'rm -rf -- "$probe_dir"' EXIT
+  cat > "$probe_dir/probe.cpp" <<'CPP'
+#include <jni.h>
+#include <android/log.h>
+#include <zlib.h>
+#include <string>
+int main() {
+  std::string version = zlibVersion();
+  return version.empty() || sizeof(jlong) != 8;
+}
+CPP
+  if ! "$clangxx" --target=aarch64-linux-android"$min_sdk" -std=c++17 \
+      -I"$java_home/include" -I"$java_home/include/linux" \
+      "$probe_dir/probe.cpp" -lz -llog -o "$probe_dir/probe"; then
+    printf '  MISSING usable Android headers/CRT, JNI, libc++ or zlib link inputs\n'
+    missing=$((missing + 1))
+  elif ! timeout 15 env LD_LIBRARY_PATH="$prefix/lib" "$probe_dir/probe"; then
+    printf '  WRONG   Bionic probe cannot execute with the native build libraries\n'
+    missing=$((missing + 1))
+  else
+    printf '  ok      API %s C++/JNI/zlib compilation and Bionic execution\n' "$min_sdk"
+  fi
 fi
 
 echo

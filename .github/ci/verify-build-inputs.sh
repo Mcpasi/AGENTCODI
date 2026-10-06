@@ -47,18 +47,20 @@ if [ ! -r "$MANIFEST" ]; then
 fi
 
 # The manifest is generated from the build script; catch it going stale.
-if [ "$check_sync" -eq 1 ] && [ -x "$SCRIPT_DIR/generate-build-inputs.sh" ]; then
-  if regenerated="$("$SCRIPT_DIR/generate-build-inputs.sh" 2>/dev/null)"; then
-    if ! printf '%s\n' "$regenerated" | diff -q - "$MANIFEST" >/dev/null 2>&1; then
-      echo "The manifest no longer matches scripts/build-debug-apk.sh." >&2
-      echo "Regenerate it:" >&2
-      echo "  .github/ci/generate-build-inputs.sh > .github/ci/build-inputs.tsv" >&2
-      printf '%s\n' "$regenerated" | diff -u "$MANIFEST" - \
-        --label '.github/ci/build-inputs.tsv' --label 'regenerated' >&2 || true
-      exit 1
-    fi
-    echo "Manifest is in sync with scripts/build-debug-apk.sh."
+if [ "$check_sync" -eq 1 ]; then
+  if ! regenerated="$("$SCRIPT_DIR/generate-build-inputs.sh")"; then
+    echo "Cannot regenerate the build-input manifest." >&2
+    exit 1
   fi
+  if ! printf '%s\n' "$regenerated" | diff -q - "$MANIFEST" >/dev/null 2>&1; then
+    echo "The manifest no longer matches scripts/build-debug-apk.sh." >&2
+    echo "Regenerate it:" >&2
+    echo "  .github/ci/generate-build-inputs.sh > .github/ci/build-inputs.tsv" >&2
+    printf '%s\n' "$regenerated" | diff -u "$MANIFEST" - \
+      --label '.github/ci/build-inputs.tsv' --label 'regenerated' >&2 || true
+    exit 1
+  fi
+  echo "Manifest is in sync with scripts/build-debug-apk.sh."
 fi
 
 echo "Verifying pinned build inputs in $target"

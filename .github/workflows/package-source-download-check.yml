@@ -1,53 +1,85 @@
-name: Package source download checks
+name: Package source archive checks
 on:
   push:
     branches: ['Mcpasi/package-edition']
-    paths: ['.github/workflows/package-source-download-check.yml']
+    paths: ['.github/workflows/package-source-download-check.yml', 'third_party/package-source-archives/**']
   workflow_dispatch:
 permissions:
   contents: read
+  actions: read
 jobs:
   check:
     if: github.ref == 'refs/heads/Mcpasi/package-edition'
     runs-on: ubuntu-24.04
-    timeout-minutes: 8
+    timeout-minutes: 15
     steps:
-      - name: Find reachable mirrors for the unchanged Savannah archives
+      - uses: actions/checkout@v4
+      - name: Recover original sources from the earlier successful edition build
+        uses: actions/download-artifact@v4
+        with:
+          name: agentcodi-package-bootstrap
+          run-id: 37448382664
+          github-token: ${{ github.token }}
+          path: previous-bootstrap
+      - name: Verify original source bytes and export the two unavailable archives
         run: |
           python3 - <<'PY'
+          import base64
           import hashlib
           import json
-          import pathlib
-          import subprocess
-          import tempfile
-          sources = [
-              ("attr", "2.6.0", "d42fa374513180bb48cb11a46696f488240e5124ff1e6ad88b0abff706985612"),
-              ("acl", "2.4.0", "73c853c3d44e1f693e5a96a986f1bd19d3d0dac2c7d453e796177774bc4e5f6a"),
-          ]
-          failures = []
-          with tempfile.TemporaryDirectory() as directory:
-              for name, version, expected in sources:
-                  filename = name + "-" + version + ".tar.gz"
-                  urls = [
-                      "https://mirrors.kernel.org/savannah/" + name + "/" + filename,
-                      "https://download-mirror.savannah.gnu.org/releases/" + name + "/" + filename,
-                      "https://distfiles.macports.org/" + name + "/" + filename,
-                      "https://deb.debian.org/debian/pool/main/a/" + name + "/" + name + "_" + version + ".orig.tar.gz",
-                  ]
-                  target = pathlib.Path(directory) / filename
-                  for url in urls:
-                      result = subprocess.run(["curl", "--fail", "--silent", "--show-error",
-                          "--location", "--connect-timeout", "8", "--max-time", "20",
-                          "--output", str(target), url])
-                      if result.returncode:
-                          print(json.dumps({"package": name, "url": url, "curl_exit": result.returncode}), flush=True)
-                          continue
-                      actual = hashlib.sha256(target.read_bytes()).hexdigest()
-                      print(json.dumps({"package": name, "url": url, "sha256": actual, "matches": actual == expected}), flush=True)
-                      if actual == expected:
-                          break
-                  else:
-                      failures.append(name)
-          if failures:
-              raise SystemExit("No verified source mirror: " + ", ".join(failures))
+          import os
+          from pathlib import Path
+          import tarfile
+          root = Path("previous-bootstrap")
+          report = json.loads((root / "bootstrap-report.json").read_text())
+          lock = json.loads(Path("scripts/package-edition/lock.json").read_text())
+          if report["lock"] != lock:
+              raise SystemExit("Earlier source lock differs")
+          source = report["corresponding_sources"]
+          archive_path = root / source["archive"]
+          if hashlib.sha256(archive_path.read_bytes()).hexdigest() != source["sha256"]:
+              raise SystemExit("Earlier corresponding-source archive checksum differs")
+          output = Path("recovered-sources")
+          output.mkdir()
+          expected = {
+              "attr": ("attr-2.6.0.tar.gz", "d42fa374513180bb48cb11a46696f488240e5124ff1e6ad88b0abff706985612"),
+              "libacl": ("acl-2.4.0.tar.gz", "73c853c3d44e1f693e5a96a986f1bd19d3d0dac2c7d453e796177774bc4e5f6a"),
+          }
+          recovered = {}
+          with tarfile.open(archive_path, "r:xz") as archive:
+              for member in archive:
+                  if not member.isfile():
+                      continue
+                  parts = member.name.split("/")
+                  if len(parts) != 3 or parts[0] != "source-downloads" or parts[1] not in expected:
+                      continue
+                  name, digest = expected[parts[1]]
+                  metadata = [item for item in source["downloads"]
+                              if item["package"] == parts[1] and item["file"] == parts[2]]
+                  if len(metadata) != 1 or metadata[0]["sha256"] != digest:
+                      continue
+                  if member.size > 8 * 1024 * 1024 or name in recovered:
+                      raise SystemExit("Oversized or duplicated source archive")
+                  data = archive.extractfile(member).read()
+                  if hashlib.sha256(data).hexdigest() != digest:
+                      raise SystemExit("Recovered upstream checksum differs")
+                  (output / name).write_bytes(data)
+                  recovered[name] = {"sha256": digest, "size": len(data), "source_member": member.name}
+          if len(recovered) != len(expected):
+              raise SystemExit("Pinned source archives missing from earlier evidence")
+          provenance = {"format_version": 1, "source_run_id": 37448382664,
+                        "original_corresponding_sources_sha256": source["sha256"],
+                        "recovery_run_id": int(os.environ["GITHUB_RUN_ID"]),
+                        "sources": recovered}
+          (output / "PROVENANCE.json").write_text(json.dumps(provenance, indent=2) + "\n")
+          print("SOURCE_RECOVERY_SUMMARY=" + json.dumps(provenance), flush=True)
+          for name in recovered:
+              encoded = base64.b64encode((output / name).read_bytes()).decode()
+              for offset in range(0, len(encoded), 60000):
+                  print("SOURCE_EXPORT " + name + " " + str(offset) + " " + encoded[offset:offset+60000], flush=True)
           PY
+      - uses: actions/upload-artifact@v4
+        with:
+          name: agentcodi-savannah-source-recovery
+          path: recovered-sources/
+          if-no-files-found: error

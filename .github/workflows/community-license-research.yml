@@ -1,0 +1,36 @@
+name: Community license source research
+on:
+  push:
+    branches: ['Mcpasi/package-edition']
+    paths:
+      - '.github/workflows/community-license-research.yml'
+      - '.github/ci/collect-community-licenses.py'
+  workflow_dispatch:
+permissions:
+  contents: read
+jobs:
+  collect:
+    if: github.ref == 'refs/heads/Mcpasi/package-edition'
+    runs-on: ubuntu-24.04
+    timeout-minutes: 40
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/checkout@v4
+        with:
+          repository: DioNanos/codex-termux
+          ref: ea762071ec4acbf1531fcc7daf47524836f70a09
+          path: legal-source/codex
+          persist-credentials: false
+      - name: Install the producer's Rust toolchain
+        run: rustup toolchain install 1.95.0 --profile minimal --component rust-docs
+      - name: Fetch the exact V8 source and submodule revisions
+        run: |
+          git clone --depth 1 --branch v150.4.0 https://github.com/denoland/rusty_v8.git legal-source/v8
+          git -C legal-source/v8 submodule update --init --depth 1 --recursive
+      - name: Collect original license texts and report missing material
+        run: python3 .github/ci/collect-community-licenses.py --codex legal-source/codex --v8 legal-source/v8 --output legal-evidence
+      - uses: actions/upload-artifact@v4
+        with:
+          name: community-dependency-license-research
+          path: legal-evidence/
+          if-no-files-found: error

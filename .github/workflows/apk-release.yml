@@ -67,8 +67,10 @@ jobs:
     timeout-minutes: 120
     env:
       IMAGE: agentcodi-release-build
-      AGENTCODI_CI_SIGNING_DIR: ${{ runner.temp }}/agentcodi-release-${{ github.run_id }}-${{ github.run_attempt }}
     steps:
+      - name: Select the temporary signing directory
+        run: echo "AGENTCODI_CI_SIGNING_DIR=$RUNNER_TEMP/agentcodi-release-$GITHUB_RUN_ID-$GITHUB_RUN_ATTEMPT" >> "$GITHUB_ENV"
+
       - name: Check out the repository
         uses: actions/checkout@v4
         with:

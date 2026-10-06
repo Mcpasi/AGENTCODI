@@ -106,7 +106,7 @@ require_command() {
   fi
 }
 
-for command_name in apksigner awk cmp curl dd diff dpkg-deb file grep readelf realpath rg sed sha256sum stat strings tar timeout tr unzip wc xargs zip zipalign zipinfo; do
+for command_name in apksigner awk cmp curl dd diff dpkg-deb file grep python3 readelf realpath rg sed sha256sum stat strings tar timeout tr unzip wc xargs zip zipalign zipinfo; do
   require_command "$command_name"
 done
 for executable in \
@@ -356,6 +356,8 @@ CODEX_SCHEMA_HOME="$WORK_DIR/codex-schema-home"
 CODEX_SCHEMA_TMP="$WORK_DIR/codex-schema-tmp"
 THIRD_PARTY_ASSETS="$ADDITIONS/assets/third-party/codex"
 ZLIB_THIRD_PARTY_ASSETS="$ADDITIONS/assets/third-party/zlib"
+LIBCXX_THIRD_PARTY_ASSETS="$ADDITIONS/assets/third-party/libcxx"
+mkdir -p "$LIBCXX_THIRD_PARTY_ASSETS"
 mkdir -p "$EXTRACT_DIR" "$AAPT2_EXTRACT" "$GENERATED_JAVA" "$CLASSES_ROOT" "$JARS_ROOT" "$DEX_DIR" "$NATIVE_DIR" "$CODEX_EXTRACT" "$THIRD_PARTY_ASSETS" "$ZLIB_THIRD_PARTY_ASSETS"
 # The bootstrap is built from the pinned edition recipes, not from Termux DEBs.
 PACKAGE_BOOTSTRAP_INPUT="$PROJECT_ROOT/output/package-bootstrap"
@@ -368,7 +370,7 @@ test -f "$PACKAGE_BOOTSTRAP_INPUT/BOOTSTRAP-MANIFEST"
 )
 mkdir -p "$PACKAGE_BOOTSTRAP_ASSETS"
 cp "$PACKAGE_BOOTSTRAP_INPUT/bootstrap-aarch64.zip" "$PACKAGE_BOOTSTRAP_INPUT/BOOTSTRAP-MANIFEST" \
-  "$PACKAGE_BOOTSTRAP_INPUT/bootstrap-report.json" "$PACKAGE_BOOTSTRAP_ASSETS/"
+  "$PACKAGE_BOOTSTRAP_INPUT/bootstrap-report.json" "$PACKAGE_BOOTSTRAP_INPUT/BOOTSTRAP-LICENSE-INDEX.json" "$PACKAGE_BOOTSTRAP_ASSETS/"
 mkdir -m 700 "$CODEX_SCHEMA_DIR" "$CODEX_SCHEMA_HOME" "$CODEX_SCHEMA_TMP"
 mkdir -m 700 "$CODEX_SCHEMA_HOME/codex-home"
 
@@ -625,10 +627,14 @@ verify_file_sha256 "$NATIVE_DIR/libz_1.so" "$ZLIB_RUNTIME_SHA256"
 cp "$CODEX_LICENSE" "$THIRD_PARTY_ASSETS/LICENSE"
 cp "$CODEX_NOTICE" "$THIRD_PARTY_ASSETS/NOTICE"
 cp "$ZLIB_LICENSE_SOURCE" "$ZLIB_THIRD_PARTY_ASSETS/ZLIB-LICENSE"
+# Keep the exact distributor bytes and supplement its generic NCSA template
+# with the complete upstream LLVM notices, including the LLVM exceptions.
+cp "$TERMUX_RUNTIME_PREFIX/share/doc/libc++/copyright" "$LIBCXX_THIRD_PARTY_ASSETS/DISTRIBUTOR-LICENSE"
+cp "$PROJECT_ROOT/third_party/libcxx/LLVM-LICENSES" "$LIBCXX_THIRD_PARTY_ASSETS/LLVM-LICENSES"
 
 # Exact executable/library closure, before any runtime execution.
 EXPECTED_NATIVE_FILES="$WORK_DIR/expected-native-files"
-printf '%s\n' libagentcodi.so libc++_shared.so libcodex.so "$CODEX_PACKAGED_HOST_NAME" "$TERMINAL_SHELL_NAME" libz_1.so | sort > "$EXPECTED_NATIVE_FILES"
+python3 -B "$PROJECT_ROOT/scripts/package-edition/verify-apk-contract.py" --native-files | sort > "$EXPECTED_NATIVE_FILES"
 find "$NATIVE_DIR" -maxdepth 1 -type f -printf '%f\n' | sort > "$WORK_DIR/actual-native-files"
 diff -u "$EXPECTED_NATIVE_FILES" "$WORK_DIR/actual-native-files"
 for native_payload in "$NATIVE_DIR"/*.so; do
@@ -828,11 +834,8 @@ BOOTSTRAP_SMOKE_STATE="$BOOTSTRAP_SMOKE_ROOT/state"
 BOOTSTRAP_SMOKE_TEMP="$BOOTSTRAP_SMOKE_ROOT/temp"
 BOOTSTRAP_SMOKE_NATIVE="$NATIVE_DIR"
 if [ "$BOOTSTRAP_LAYOUT" = flat ]; then
-  # The container's bionic realpath() stats every ancestor. A read-narrowed
-  # Android policy grants the payload/workspace roots, not their parents, so
-  # resolving /workspace/.build/... fails before libc++ can be loaded. Keep
-  # every granted fixture root directly under / instead. Copy the verified
-  # payload bytes; do not grant ancestor reads or weaken the sandbox probes.
+  # Optional flat fixture layout for disposable Bionic containers. All copied
+  # payload bytes are identical to the staged APK; Full access remains active.
   # This opt-in layout needs a disposable container with a writable /.
   bootstrap_flat_directory() {
     local variable="$1"
@@ -1019,6 +1022,13 @@ while IFS= read -r native_name; do
   unzip -p "$VERSIONED_APK" "lib/$ABI/$native_name" > "$WORK_DIR/packaged-native"
   cmp "$NATIVE_DIR/$native_name" "$WORK_DIR/packaged-native"
 done < "$EXPECTED_NATIVE_FILES"
+# Check the complete native/asset set, every staged byte, bootstrap legal
+# ownership and corresponding-source evidence. CI success is not release approval.
+contract_release_args=()
+if [ "$BUILD_VARIANT" = release ]; then contract_release_args+=(--release); fi
+python3 -B "$PROJECT_ROOT/scripts/package-edition/verify-apk-contract.py" \
+  --apk "$VERSIONED_APK" --staged "$ADDITIONS" \
+  --output "$OUTPUT_DIR/package-apk-contract.json" "${contract_release_args[@]}"
 unzip -p "$VERSIONED_APK" classes.dex | strings > "$WORK_DIR/dex-strings.txt"
 grep -Fq 'Lde/agentcodi/app/MainActivity;' "$WORK_DIR/dex-strings.txt"
 grep -Fq 'Lde/agentcodi/app/SettingsActivity;' "$WORK_DIR/dex-strings.txt"

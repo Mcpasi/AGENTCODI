@@ -80,6 +80,9 @@ class AssemblyTest(unittest.TestCase):
                 target.parent.mkdir(parents=True, exist_ok=True)
                 target.write_bytes(data)
                 target.chmod(0o700 if path.startswith("bin/") else 0o600)
+            legal = prefix / "share/doc" / name / "copyright"
+            legal.parent.mkdir(parents=True)
+            legal.write_text("Copyright AGENTCODI test fixture\nLicense: MIT\n")
             if name == "dash":
                 (prefix / "bin/sh").symlink_to("dash")
             if name == "ca-certificates":
@@ -105,6 +108,11 @@ class AssemblyTest(unittest.TestCase):
         self.assertFalse(list(output.glob("compiler*.deb")))
         self.assertTrue((output / "ca-certificates_1_1.0_all.deb").is_file())
         self.assertEqual(report["packages"]["ca-certificates"]["Version"], "1:1.0")
+        self.assertEqual(set(report["licenses"]), set(report["packages"]))
+        self.assertFalse(report["licenses"]["agentcodi-package-keyring"])
+        for name in set(report["packages"]) - {"agentcodi-package-keyring"}:
+            record = report["licenses"][name][0]
+            self.assertEqual(record["path"], "share/doc/" + name + "/copyright")
         records = (output / "BOOTSTRAP-MANIFEST").read_text().splitlines()
         self.assertIn("L\tdash\tbin/sh", records)
         with zipfile.ZipFile(output / "bootstrap-aarch64.zip") as archive:

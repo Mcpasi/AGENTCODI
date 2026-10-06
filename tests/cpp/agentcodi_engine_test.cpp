@@ -1212,7 +1212,7 @@ int main(int argc, char* argv[]) {
     expect(mkdir((package_prefix + "/bin").c_str(), 0700) == 0, "package binary directory");
     const std::string user_node = package_prefix + "/bin/node";
     expect(write_fixture_file(user_node, "#!/system/bin/sh\nprintf 'user-package-selected\\n'\n"),
-           "install a user executable that shadows the packaged Node alias");
+           "install a managed program that takes precedence over user-prefix Node");
     expect(chmod(user_node.c_str(), 0700) == 0, "make user package executable");
     expect(mkdir(state.c_str(), 0700) == 0, "process-test private state");
     expect(mkdir(temporary.c_str(), 0700) == 0, "process-test temporary directory");
@@ -1666,6 +1666,9 @@ int main(int argc, char* argv[]) {
     }
     config.arguments = {
         "-c",
+        "test x${AGENTCODI_TOOLCHAIN+set} = x && "
+        "test x${AGENTCODI_TOOL_BIN+set} = x && "
+        "test x${AGENTCODI_TOOL_RUNTIME+set} = x || exit 17; "
         "printf '%s|%s|%s|%s\\n' \"${AGENTCODI_PARENT_SECRET-unset}\" "
         "\"$CODEX_HOME\" \"$HOME\" \"$(umask)\"; "
         "printf '%s\\n' \"$CODEX_CODE_MODE_HOST_PATH\"; "
@@ -1675,11 +1678,18 @@ int main(int argc, char* argv[]) {
         "node; package-check; "
         "IFS= read -r line; printf '%s\\n' \"$line\"",
     };
+    expect(setenv("AGENTCODI_TOOLCHAIN", "retired", 1) == 0
+               && setenv("AGENTCODI_TOOL_BIN", "retired", 1) == 0
+               && setenv("AGENTCODI_TOOL_RUNTIME", "retired", 1) == 0,
+           "inject retired parent environment to prove it is stripped");
     expect(setenv("AGENTCODI_PARENT_SECRET", "must-not-leak", 1) == 0,
            "set inherited-secret fixture");
     std::shared_ptr<agentcodi::AppServerProcess> process =
         agentcodi::AppServerProcess::Start(config, &error);
     unsetenv("AGENTCODI_PARENT_SECRET");
+    unsetenv("AGENTCODI_TOOLCHAIN");
+    unsetenv("AGENTCODI_TOOL_BIN");
+    unsetenv("AGENTCODI_TOOL_RUNTIME");
     expect(process != nullptr, "spawn supervised process");
     if (process != nullptr) {
       std::string child_security_state;

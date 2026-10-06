@@ -480,7 +480,7 @@
   <string name="security_summary">• App-Server ausschließlich über begrenztes stdio, ohne Netzwerk-Listener\n• Eigenes Berechtigungsprofil mit privatem Workspace als Runtime-Root\n• Modelle und Denkstufen werden live vom App-Server geladen\n• Native Freigabe- und Rückfragedialoge ohne automatische Zustimmung\n\n%1$s · Codex %2$s</string>
 
   <string name="licenses_section">RECHTLICHE HINWEISE</string>
-  <string name="licenses_settings_description">Hier stehen der Urheberschaftshinweis für AGENTCODI sowie alle Lizenzen und Hinweise der tatsächlich in der APK mitgelieferten Komponenten.</string>
+  <string name="licenses_settings_description">Urheberschaft und mitgelieferte Lizenztexte der Komponenten dieser APK ansehen.</string>
   <string name="licenses_open">Rechtliche Hinweise öffnen</string>
   <string name="licenses_title">Rechtliche Hinweise</string>
   <string name="licenses_subtitle">Urheber-, Lizenz- und Attributionsangaben für AGENTCODI und die in der APK mitgelieferten Komponenten.</string>
@@ -490,11 +490,11 @@
   <string name="license_material_icons_title">Material Icons</string>
   <string name="license_material_icons_summary">Runde Oberflächensymbole aus Googles Material-Design-Icons-Repository · gepinnte Quellpfade unter Apache License 2.0.</string>
   <string name="license_codex_runtime_title">Codex Android Community-Runtime</string>
-  <string name="license_codex_runtime_summary">OpenAI Codex 0.156.1-termux.1 und die DioNanos-Android-/Termux-Community-Distribution · Apache License 2.0. Dies ist keine offizielle OpenAI-Android-APK.</string>
+  <string name="license_codex_runtime_summary">OpenAI Codex 0.156.1-termux.1 und DioNanos-Android-/Termux-Distribution · Apache License 2.0. Vollständige Rust-/V8-Abhängigkeitshinweise werden vor einer finalen Veröffentlichung noch abgeglichen. Dies ist keine offizielle OpenAI-Android-APK.</string>
   <string name="license_zlib_runtime_title">zlib für PNG-Prüfung</string>
   <string name="license_zlib_runtime_summary">zlib 1.3.2 · vom nativen AGENTCODI-Code zur PNG-Prüfung verwendet, unter der zlib-Lizenz.</string>
-  <string name="license_third_party_title">Weitere Drittanbieterhinweise</string>
-  <string name="license_third_party_summary">Enthält unter anderem die LLVM-libc++-Runtime unter der University of Illinois/NCSA Open Source License.</string>
+  <string name="license_third_party_title">LLVM-Runtime und Lieferumfang</string>
+  <string name="license_third_party_summary">Unveränderter Distributorhinweis und originale libc++-/libc++abi-/libunwind-Texte, einschließlich Apache-2.0 mit LLVM-Ausnahmen und älterer NCSA-/MIT-Bedingungen.</string>
   <string name="license_show_notice">LICENSE und NOTICE anzeigen</string>
   <string name="license_show_text">Lizenz anzeigen</string>
   <string name="license_close">Schließen</string>
@@ -732,4 +732,7 @@
     <string name="browser_imported">Importiert nach %1$s. Diesen Pfad im Terminal verwenden; es wurde nichts installiert.</string>
     <string name="browser_import_failed">Import fehlgeschlagen. Die Datei muss lesbar, höchstens 512 MiB groß und frei von Kontodaten-Dateinamen sein.</string>
     <string name="browser_unavailable_credential">Zugangsdaten-Pfad: Vorschau und Export sind ausgeschlossen.</string>
+  <string name="license_bootstrap_title">APT-/dpkg-Bootstrap</string>
+  <string name="license_bootstrap_summary">Ein mitgeliefertes Paket auswählen und seine originalen Lizenzdateien lesen. Die Liste beschreibt den APK-Bootstrap; später installierte Pakete behalten ihre Hinweise im Installationspräfix.</string>
+  <string name="license_bootstrap_missing">Dieses Paket liefert keinen separaten Lizenztext. Quellen und gemeinsame Abhängigkeitshinweise prüfen; der Build-Bericht führt diese Lücke auf.</string>
 </resources>

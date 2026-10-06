@@ -112,6 +112,7 @@ def assemble_packages(debs, output, readelf):
         info.mkdir(parents=True)
         status = []
         reports = {}
+        licenses = {}
         for name, (deb, metadata) in sorted(selected.items()):
             payload, control = work / name / "payload", work / name / "control"
             payload.mkdir(parents=True)
@@ -119,6 +120,19 @@ def assemble_packages(debs, output, readelf):
             subprocess.run(["dpkg-deb", "-x", str(deb), str(payload)], check=True)
             subprocess.run(["dpkg-deb", "-e", str(deb), str(control)], check=True)
             reports[name] = verify.audit(payload, readelf)
+            legal = []
+            package_prefix = payload / verify.PREFIX.lstrip("/")
+            for path in sorted(package_prefix.rglob("*")):
+                relative = path.relative_to(package_prefix)
+                if (path.is_file() and not path.is_symlink() and
+                    relative.parts[:2] in (("share", "doc"), ("share", "licenses")) and
+                    any(word in path.name.lower() for word in ("copyright", "license", "copying", "notice"))):
+                    data = path.read_bytes()
+                    if not data:
+                        raise ValueError("Empty package legal text: " + name + "/" + str(relative))
+                    legal.append({"path": relative.as_posix(), "size": len(data),
+                                  "sha256": hashlib.sha256(data).hexdigest()})
+            licenses[name] = legal
             verify.check_control(control)
             file_list = []
             for path in sorted(payload.rglob("*")):
@@ -220,8 +234,15 @@ def assemble_packages(debs, output, readelf):
             for name, (deb, metadata) in sorted(selected.items())},
             "archive_sha256": hashlib.sha256(archive.read_bytes()).hexdigest(),
             "manifest_sha256": hashlib.sha256(manifest.read_bytes()).hexdigest(),
-            "audit": audit}
+            "audit": audit, "licenses": licenses,
+            "license_exemptions": {"agentcodi-package-keyring":
+                "First-party public-key metadata; Apache-2.0 in APK res/raw/agentcodi_apache_2_0.txt"}}
         (output / "bootstrap-report.json").write_text(json.dumps(evidence, indent=2) + "\n")
+        index = {"format_version": 1, "packages": [
+            {"name": name, "version": metadata["Version"], "files": licenses[name],
+             "notice": evidence["license_exemptions"].get(name, "")}
+            for name, (_, metadata) in sorted(selected.items())]}
+        (output / "BOOTSTRAP-LICENSE-INDEX.json").write_text(json.dumps(index, indent=2) + "\n")
         (output / "SHA256SUMS").write_text("".join(
             hashlib.sha256(p.read_bytes()).hexdigest() + "  " + p.name + "\n"
             for p in sorted(output.iterdir()) if p.is_file() and p.name != "SHA256SUMS"))

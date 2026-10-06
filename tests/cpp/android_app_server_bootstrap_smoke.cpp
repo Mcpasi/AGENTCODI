@@ -194,6 +194,16 @@ bool create_private_fixture(const std::string& path, const std::string& contents
   return written == static_cast<ssize_t>(contents.size()) && closed;
 }
 
+// Applied to real Codex commands, the Package shell and stdio-MCP.
+const std::string kRetiredEnvironmentChecks =
+    "test x${AGENTCODI_TOOLCHAIN+set} = x && "
+    "test x${AGENTCODI_TOOL_BIN+set} = x && "
+    "test x${AGENTCODI_TOOL_RUNTIME+set} = x && "
+    "test x${AGENTCODI_NODE_VERSION+set} = x && "
+    "test x${AGENTCODI_NPM_VERSION+set} = x && "
+    "test x${AGENTCODI_PYTHON_VERSION+set} = x && "
+    "test x${AGENTCODI_RIPGREP_VERSION+set} = x";
+
 bool check_package_prefix(
     const std::shared_ptr<agentcodi::AppServerProcess>& process,
     const agentcodi::ProcessConfig& config,
@@ -237,6 +247,7 @@ bool check_package_prefix(
             : "test \\\"$PATH\\\" = \\\"$(/system/bin/cat '" + shared_path + "')\\\" && ")
         + "test \\\"$LD_LIBRARY_PATH\\\" = '" + config.package_prefix + "/lib:"
         + config.home_directory + "/.local/lib:" + config.library_directory + "' && "
+        + kRetiredEnvironmentChecks + " && "
         "package-check && legacy-package-check\"],"
         "\"cwd\":\"" + config.working_directory + "\","
         "\"permissionProfile\":\":danger-full-access\",\"tty\":false,"
@@ -281,6 +292,7 @@ bool check_stdio_package_environment(
       "test \"$TMPDIR\" = '" + config.temporary_directory + "'\n"
       "test \"$NPM_CONFIG_PREFIX\" = \"$HOME/.local\"\n"
       "test \"$XDG_CACHE_HOME\" = \"$HOME/.cache\"\n"
+      + kRetiredEnvironmentChecks + " || exit 17\n"
       "printf stdio-package-env-ok > '" + proof + "'\n"
       "while IFS= read -r request; do\n"
       "  printf 'request=%s\\n' \"$request\" >> '" + diagnostics + "'\n"

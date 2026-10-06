@@ -408,3 +408,24 @@ python3 scripts/package-edition/apt-repository.py verify \
 `agentcodi-catalog-<group>` artifact directories. Add a third
 previous-snapshot argument for an update. Host jobs require Python 3.11+,
 GnuPG/gpgv, dpkg/dpkg-deb, readelf and APT.
+
+
+## Final APK and legal delivery
+
+See [TEST_CONTRACT.md](TEST_CONTRACT.md) for the final source/test/payload matrix.
+The APK delivers only its declared six native files and the minimal bootstrap;
+the catalog's Node/npm/Python/Git/ripgrep programs remain separate installs.
+Original bootstrap legal files are indexed by package, version, path, size and
+SHA-256 at assembly time. The APK verifier checks their dpkg ownership and ZIP
+bytes and the corresponding-source archive record, while the Android legal
+screen selects each file from that bundled ZIP. Existing source collection and
+authenticated catalog source reconstruction remain unchanged.
+
+The libc++ APK notice contains the verbatim distributor file plus complete
+LLVM source notices; zlib and Codex notices are copied unchanged.
+Build-only AAPT2 dependencies, R8/Android SDK and host Python are not additional
+APK runtimes. The debug contract report records the Community release's missing
+complete Rust/V8 dependency attribution and any package-local license gaps.
+Release builds fail this license gate until the exact runtime inventory is
+reconciled. This completed supplied-payload/license comparison does not claim
+complete upstream attribution or replace the skipped physical-device tests.

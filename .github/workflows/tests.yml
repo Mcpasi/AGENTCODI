@@ -56,8 +56,8 @@ jobs:
             sudo apt-get install -y ripgrep
           fi
 
-      # scripts/check-architecture.sh is pure ripgrep and find, so unlike the
-      # build and test scripts it runs unchanged on a hosted runner.
+      # Architecture checks use ripgrep/find and the host Python payload
+      # verifier, so they run unchanged on a hosted runner.
       - name: Check architecture contracts
         run: |
           for script in scripts/build-debug-apk.sh scripts/check-architecture.sh .github/ci/generate-build-inputs.sh .github/ci/fetch-build-inputs.sh .github/ci/verify-build-inputs.sh .github/ci/container-preflight.sh .github/ci/restore-ndk-sysroot.sh; do
@@ -66,6 +66,7 @@ jobs:
           ./scripts/check-architecture.sh
           diff -u .github/ci/build-inputs.tsv <(.github/ci/generate-build-inputs.sh)
           python3 -B .github/ci/test-build-inputs.py
+          python3 -B .github/ci/test-apk-contract.py
 
   java:
     name: Java host tests

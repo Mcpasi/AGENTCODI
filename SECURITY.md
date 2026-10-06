@@ -137,3 +137,22 @@ Advisory, a new release, and a CVE where appropriate.
 Please coordinate publication with the maintainer. Reporter credit will be given
 when requested, unless the reporter prefers to remain anonymous. AGENTCODI does
 not currently operate a paid bug-bounty program.
+
+
+## Package Edition verification boundary
+
+The final payload contract checks the exact ARM64 native/asset set and compares
+all delivered native and supplied legal bytes against the verified build
+staging. It verifies the bootstrap archive/manifest, per-package legal ownership
+and corresponding-source metadata. See [the test contract](scripts/package-edition/TEST_CONTRACT.md).
+Java and native tests preserve installed tool bytes, executable permissions,
+the dpkg database and caches, and reject inherited retired activation variables.
+
+Hosted Linux and ARM64/Bionic containers cannot validate Android installation,
+APK updates, foreground services, notifications, login browser flows, document
+pickers or hardware linker/SELinux behavior. These remain open device tests.
+The Community release's complete statically linked Rust/V8 attribution is also
+an explicit prerequisite for a final APK release; supplied-license byte checks
+do not establish a complete third-party license inventory. The debug contract
+report records this boundary and release builds fail while its license blockers
+remain.

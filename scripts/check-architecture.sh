@@ -857,7 +857,7 @@ if ! rg -Uq 'android:name="de\.agentcodi\.app\.TerminalActivity"[[:space:][:prin
     || ! rg -q '"tty", Boolean\.TRUE' "$terminal_session" \
     || ! rg -q 'OUTPUT_BYTES_CAP = 8L \* 1024L \* 1024L' "$terminal_session" \
     || ! rg -q 'SERVER_TIMEOUT_MS = 30L \* 60L \* 1000L' "$terminal_session"; then
-  echo "The sandboxed app-server PTY, runtime facade, or non-exported UI route is incomplete." >&2
+  echo "The Full-access app-server PTY, runtime facade, or non-exported UI route is incomplete." >&2
   exit 1
 fi
 
@@ -995,3 +995,7 @@ if ! rg -q 'containsLikelyCredential' "$core_root/CredentialGuard.java" \
 fi
 
 echo "Architecture checks passed."
+
+
+# One final payload contract is shared by source checks and the assembled APK.
+python3 -B "$PROJECT_ROOT/scripts/package-edition/verify-apk-contract.py" --check-sources

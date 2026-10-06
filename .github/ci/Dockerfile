@@ -87,7 +87,7 @@ RUN apt-get update \
  && apt-get install -y --no-install-recommends \
       openjdk-17-jdk-headless zipalign apksigner ripgrep file binutils dpkg \
       coreutils findutils mawk diffutils grep sed tar \
-      curl ca-certificates unzip zip \
+      curl ca-certificates unzip zip python3 \
  && rm -rf /var/lib/apt/lists/*
 # The build host runs under C.UTF-8. Without it the JVM derives
 # sun.jnu.encoding from the POSIX locale and resolves to ANSI_X3.4-1968, so any

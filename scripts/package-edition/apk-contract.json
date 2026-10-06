@@ -1,0 +1,31 @@
+{
+  "format_version": 1,
+  "abi": "arm64-v8a",
+  "native_files": [
+    "libagentcodi-shell.so",
+    "libagentcodi.so",
+    "libc++_shared.so",
+    "libcodex-codehost.so",
+    "libcodex.so",
+    "libz_1.so"
+  ],
+  "third_party_assets": [
+    "assets/third-party/codex/LICENSE",
+    "assets/third-party/codex/NOTICE",
+    "assets/third-party/libcxx/DISTRIBUTOR-LICENSE",
+    "assets/third-party/libcxx/LLVM-LICENSES",
+    "assets/third-party/package-bootstrap/BOOTSTRAP-LICENSE-INDEX.json",
+    "assets/third-party/package-bootstrap/BOOTSTRAP-MANIFEST",
+    "assets/third-party/package-bootstrap/bootstrap-aarch64.zip",
+    "assets/third-party/package-bootstrap/bootstrap-report.json",
+    "assets/third-party/zlib/ZLIB-LICENSE"
+  ],
+  "resources": [
+    "res/raw/agentcodi_apache_2_0.txt",
+    "res/raw/material_icons_notice.txt",
+    "res/raw/third_party_notices.txt"
+  ],
+  "release_blockers": [
+    "The pinned Community archive has no complete license/notice inventory for its statically linked Rust/V8 dependencies. Resolve this against the exact release build before publishing a final APK."
+  ]
+}

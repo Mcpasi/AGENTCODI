@@ -2,7 +2,7 @@
 
 AGENTCODI original Java/C++ application code, tests, resources, build automation, and documentation are Copyright 2026 Pascal (Mc Pasi) and licensed under the Apache License, Version 2.0. The complete terms are in `LICENSE` and are displayed in the APK's legal-notices screen.
 
-The Android sandbox backend, seccomp/ptrace supervisor and their integration into the local Codex fork were developed by Pascal (Mc Pasi). These contributions are Copyright 2026 Pascal (Mc Pasi) and licensed under the Apache License, Version 2.0. The underlying OpenAI Codex code, original Android/Termux port, and third-party libraries retain their respective authorship and license notices below.
+Historically, the Android sandbox backend, seccomp/ptrace supervisor and their integration into the local Codex fork were developed by Pascal (Mc Pasi). This backend and fork are not shipped in Package Edition. These contributions are Copyright 2026 Pascal (Mc Pasi) and licensed under the Apache License, Version 2.0. The underlying OpenAI Codex code, original Android/Termux port, and third-party libraries retain their respective authorship and license notices below.
 
 <!-- BEGIN CURRENT CODEX RUNTIME PINS -->
 
@@ -12,19 +12,44 @@ The local package tarball is accepted only at SHA-256 `44cee2f3a4a110fd79d4f7d61
 
 <!-- END CURRENT CODEX RUNTIME PINS -->
 
-## Current Package Edition payload
+## Current Package Edition payload and license reconciliation
 
-Node.js, npm, Python and ripgrep and their exclusive dependency/library,
-runtime-archive, guard and license payloads are no longer bundled. Install
-these programs from the separate signed, source-built edition APT catalog.
-The Codex app-server and code-mode host need only Android system libraries;
-the host includes its own JavaScript engine. AGENTCODI's native engine and
-shell bridge retain LLVM libc++, and its PNG validator retains zlib 1.3.2.
-The complete zlib distributor notice is copied to
-`assets/third-party/zlib/ZLIB-LICENSE`; the libc++ notice remains in the
-packaged third-party notice. The bootstrap and its source/license inventory
-remain unchanged. The historical tool provenance below describes earlier
-regular-edition payloads and does not enumerate the current APK.
+The exact APK contract is scripts/package-edition/apk-contract.json. The build
+and architecture checks consume it; verify-apk-contract.py checks every native
+and legal asset against its staged bytes, including the exact ABI/file set.
+
+| Shipped component | Supplied legal material |
+| --- | --- |
+| Original AGENTCODI engine, shell bridge and Java/UI code | LICENSE and res/raw/agentcodi_apache_2_0.txt; Copyright 2026 Pascal (Mc Pasi). |
+| Google Material Icons | Pinned Google attribution, material_icons_notice.txt and complete Apache-2.0 text. |
+| Community Codex app-server and code-mode host | Verbatim, SHA-256-pinned assets/third-party/codex/LICENSE and NOTICE; release/source pins above. |
+| LLVM libc++ shared runtime from Termux libc++ 29 | Verbatim distributor copyright at assets/third-party/libcxx/DISTRIBUTOR-LICENSE, supplemented with complete upstream LLVM libc++/libc++abi/libunwind texts at LLVM-LICENSES. See third_party/libcxx/README.md for the separate legal-source pin. |
+| zlib 1.3.2 for the PNG validator | Verbatim copyright from the pinned zlib DEB at assets/third-party/zlib/ZLIB-LICENSE. |
+| Source-built minimal bootstrap | Original package license files in its ZIP; per-package ownership, size and SHA-256 in bootstrap-report.json and BOOTSTRAP-LICENSE-INDEX.json, accessible from the app's legal-notices screen. |
+
+Node.js, npm, Python, ripgrep, their exclusive APK libraries/archives and
+activation guards are not shipped. Users install them from the separate signed
+source-built edition catalog; their licenses remain with those packages.
+AAPT2 and its exclusive dependencies, R8, the Android compile platform and host
+Python are build tools. The standalone APK still includes libc++ and zlib;
+the bootstrap independently includes its runtime dependency closure.
+
+**Reconciliation is complete for the declared payload and supplied legal
+material; complete Community dependency attribution is still a final-release
+prerequisite.** The pinned Community archive supplies Apache-2.0 LICENSE and
+NOTICE (including Ratatui/MIT attribution), but no complete license inventory
+for its statically linked Rust/V8 dependencies. DT_NEEDED proves only dynamic
+dependencies. Neither Cargo.lock alone, the historical sandbox crate list,
+nor a different NDK source snapshot proves the exact linked dependency set.
+The debug contract report therefore lists this gap and sets
+final_release_ready=false. A release build fails its license gate until the
+release-specific inventory/texts are reconciled. No final APK is published by
+these checks. Individual bootstrap packages without package-local legal text
+are also listed explicitly, rather than represented as complete.
+
+The original distributor material is never rewritten. The historical
+regular-edition provenance below is retained in this repository; it is excluded
+from the current APK's active notice resource.
 
 ## Historical regular-edition runtime provenance
 
@@ -78,7 +103,7 @@ The build compiles the Python standard library to bytecode, preserves npm's own 
 
 The Python legal inventory is deliberately assembled from the exact retained runtime components rather than wholesale package documentation: Python under the PSF terms; libandroid-posix-semaphore and libffi under MIT-style terms; libandroid-support under Apache-2.0/MIT; libbz2 under the bzip2 license; liblzma under 0BSD; ncurses under its MIT-style license; OpenSSL under Apache-2.0; Expat under MIT; SQLite in the public domain; zlib under the zlib license; and Zstandard under its upstream BSD license. XZ Utils 5.8.3 expressly identifies `liblzma` as 0BSD; its exact 0BSD text is pinned at SHA-256 `0b01625d853911cd0e2e088dcfb743261034a091bb379246cb25a14cc4c74bf1`. The upstream Zstandard 1.5.7 BSD text is pinned at SHA-256 `7055266497633c9025b777c78eb7235af13922117480ed5c674677adc381c9d8`. The resulting license inventory is pinned at SHA-256 `b25c84cf10f0797356b67dd6b27d5a2cdff1c2a2bc098b2ee678c60146392892`, contains no full GPL/LGPL license body, and is packaged at `assets/third-party/python/PYTHON-LICENSES`.
 
-Every APK contains the LLVM libc++ shared runtime from the pinned Termux libc++ package. The distributor-supplied NCSA license text is included verbatim as an Android raw resource. A readable copy of its terms follows.
+Historical regular-edition APKs contained the LLVM libc++ shared runtime from the pinned Termux libc++ package, with the distributor-supplied NCSA template as an Android raw resource. The following historical summary is retained for provenance; the current edition's exact distributor and supplemented LLVM assets are described above.
 
 Copyright holders and contributor names are those of the LLVM/libc++ upstream project.
 
@@ -110,3 +135,10 @@ recipes, patches and edition build scripts used for these packages.
 The source recipe tree, source download checksums, dpkg Git source commit and
 all edition build modifications are available through the linked package-build
 documentation. No Termux app, API, tools, exec or trust-key package is included.
+
+The current bootstrap report also records the legal files belonging to each
+selected package. BOOTSTRAP-LICENSE-INDEX.json is generated from those same
+records, compared with the actual ZIP and dpkg ownership lists during APK
+verification, and used by the legal-notices screen. Texts are not inferred from
+license-family names. The first-party edition keyring's public metadata uses
+AGENTCODI's Apache-2.0 notice; it does not add a Termux trust-key package.

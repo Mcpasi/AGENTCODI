@@ -20,6 +20,7 @@ on:
       - 'app/**'
       - 'modules/**'
       - 'scripts/**'
+      - 'third_party/libcxx/**'
       - 'tests/**'
       - '.github/workflows/apk.yml'
       - '.github/workflows/bootstrap.yml'
@@ -132,4 +133,12 @@ jobs:
         with:
           name: agentcodi-package-debug-apk
           path: output/apk/*.apk
+          if-no-files-found: error
+
+      - name: Upload final payload and license evidence
+        if: ${{ !inputs.preflight_only }}
+        uses: actions/upload-artifact@v4
+        with:
+          name: agentcodi-package-apk-contract
+          path: output/apk/package-apk-contract.json
           if-no-files-found: error

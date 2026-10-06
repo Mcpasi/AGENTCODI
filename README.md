@@ -1,6 +1,6 @@
 > **Package Edition — for power users and experienced users only.** This edition offers **Full access** exclusively. Codex and user-installed programs can read, change, or delete every file reachable by the app, including Codex account data. Android's isolation from other apps remains in place; there is no workspace sandbox within this app.
 >
-> **Development status:** The writable package prefix, Full access, and Community app-server integration are implemented. The minimal APT/dpkg bootstrap, signed APT repository and initial Python, Node.js/npm, Git and ripgrep catalog are integrated and CI-verified. The public HTTPS repository passes pinned-signature, package/index checksum and complete source-availability checks. On-demand terminal package diagnostics and explicit workspace/package file areas are implemented. The APK now omits the user-installable Node.js, npm, Python and ripgrep runtimes. The APK build uses 12 pinned downloads and a cache restricted to current edition inputs. Final architecture/smoke alignment, notice alignment and device validation are tracked on the [roadmap](ROADMAP-package-edition.md). This development branch is not merged into `main`.
+> **Development status:** The writable package prefix, Full access, and Community app-server integration are implemented. The minimal APT/dpkg bootstrap, signed APT repository and initial Python, Node.js/npm, Git and ripgrep catalog are integrated and CI-verified. The public HTTPS repository passes pinned-signature, package/index checksum and complete source-availability checks. On-demand terminal package diagnostics and explicit workspace/package file areas are implemented. The APK now omits the user-installable Node.js, npm, Python and ripgrep runtimes. The APK build uses 12 pinned downloads and a cache restricted to current edition inputs. The final payload/test contract and supplied-license reconciliation are implemented; CI evidence and the remaining device validation are tracked on the [roadmap](ROADMAP-package-edition.md). Complete Rust/V8 dependency notices for the pinned Community release remain a prerequisite for a final APK publication. This development branch is not merged into `main`.
 
 <div align="center">
 
@@ -104,7 +104,7 @@ Command resolution and managed package state are shown separately: a command fro
 
 The active runtime is the pinned [DioNanos/codex-termux](https://github.com/DioNanos/codex-termux) Community release [v0.156.1-termux.1](https://github.com/DioNanos/codex-termux/releases/tag/v0.156.1-termux.1), based on OpenAI Codex `rust-v0.156.1`. The executable reports `codex-cli 0.156.1`. Release, source, archive, binary, relocation, and generated-schema pins are verified in CI. The updater rejects the former `-agentcodi` sandbox channel and requires the DioNanos source remote and matching release tag.
 
-GitHub tests run on every branch push. The Package Edition APK workflow also runs on pushes to `Mcpasi/package-edition`; manual runs can select preflight only. ARM64/Bionic runtime checks run on hosted GitHub runners. Device-specific linker and installation tests remain separate.
+GitHub tests run on every branch push. The Package Edition APK workflow also runs on pushes to `Mcpasi/package-edition`; manual runs can select preflight only. ARM64/Bionic runtime checks run on hosted GitHub runners. Android installation/update/service behavior and hardware linker tests remain separate and are skipped here; ARM64/Bionic container checks do not replace them.
 
 ```sh
 ./scripts/test.sh
@@ -128,3 +128,20 @@ Copyright 2026 Pascal (Mc Pasi). [Apache License 2.0](LICENSE).
 Licenses and notices for included third-party components are available in [NOTICE.md](NOTICE.md) and in the app.
 
 AGENTCODI is an independent open-source project and is neither affiliated with nor endorsed by OpenAI.
+
+
+The [final test and payload contract](scripts/package-edition/TEST_CONTRACT.md)
+maps Java, portable C++, Android compilation and ARM64/Bionic checks to the
+actual delivery. The APK build uploads agentcodi-package-apk-contract with
+native/legal SHA-256 values, bootstrap package/license ownership and source
+evidence. The app's legal-notices view includes the exact libc++ distributor
+and full upstream LLVM texts, plus a package selector for original bootstrap
+license files. This selector describes the bundled bootstrap version; packages
+updated or installed later retain current notices under $PREFIX/share/doc and
+$PREFIX/share/licenses.
+
+The supplied Community LICENSE/NOTICE do not enumerate all statically linked
+Rust/V8 dependencies. This gap is explicit in NOTICE.md and the contract report;
+final_release_ready remains false and release builds fail the license gate
+until it is resolved for the exact Community build. Successful CI is a debug
+payload verification, not final-release approval.

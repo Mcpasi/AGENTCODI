@@ -18,6 +18,11 @@ import java.io.ByteArrayOutputStream;
 import java.io.IOException;
 import java.io.InputStream;
 import java.nio.charset.StandardCharsets;
+import java.util.zip.ZipEntry;
+import java.util.zip.ZipInputStream;
+import org.json.JSONArray;
+import org.json.JSONException;
+import org.json.JSONObject;
 
 public final class LicensesActivity extends Activity {
     private static final int MAX_LICENSE_BYTES = 512 * 1024;
@@ -136,14 +141,121 @@ public final class LicensesActivity extends Activity {
             new LicenseLoader() {
                 @Override
                 public String load() throws IOException {
-                    String notices = readRawResource(R.raw.third_party_notices);
-                    String marker = "LLVM libc++ shared runtime";
-                    int offset = notices.indexOf(marker);
-                    return offset < 0 ? notices : notices.substring(offset);
+                    return readAsset("third-party/libcxx/DISTRIBUTOR-LICENSE")
+                        + "\n\nLLVM UPSTREAM NOTICES\n\n"
+                        + readAsset("third-party/libcxx/LLVM-LICENSES")
+                        + "\n\n"
+                        + readRawResource(R.raw.third_party_notices);
                 }
             }
         );
+        addBootstrapCard(page);
         return scroll;
+    }
+
+    private void addBootstrapCard(LinearLayout page) {
+        LinearLayout card = theme.card();
+        TextView title = theme.text(getString(R.string.license_bootstrap_title), 18, theme.primary);
+        title.setTypeface(Typeface.DEFAULT_BOLD);
+        card.addView(title);
+        theme.addWithTopMargin(card, theme.body(getString(R.string.license_bootstrap_summary)), 8);
+        Button show = theme.secondaryButton(getString(R.string.license_show_text));
+        show.setOnClickListener(new View.OnClickListener() {
+            @Override
+            public void onClick(View view) {
+                showBootstrapPackages();
+            }
+        });
+        theme.addWithTopMargin(card, show, 12);
+        theme.addWithTopMargin(page, card, 16);
+    }
+
+    private void showBootstrapPackages() {
+        try {
+            JSONObject index = new JSONObject(readAsset("third-party/package-bootstrap/BOOTSTRAP-LICENSE-INDEX.json"));
+            final JSONArray packages = index.getJSONArray("packages");
+            String[] labels = new String[packages.length()];
+            for (int i = 0; i < labels.length; i++) {
+                JSONObject entry = packages.getJSONObject(i);
+                labels[i] = entry.getString("name") + " " + entry.getString("version");
+            }
+            new AlertDialog.Builder(this)
+                .setTitle(R.string.license_bootstrap_title)
+                .setItems(labels, new DialogInterface.OnClickListener() {
+                    @Override
+                    public void onClick(DialogInterface dialog, int which) {
+                        try {
+                            showBootstrapFiles(packages.getJSONObject(which));
+                        } catch (JSONException error) {
+                            showBootstrapError();
+                        }
+                    }
+                })
+                .setNegativeButton(R.string.license_close, null)
+                .show();
+        } catch (IOException | JSONException error) {
+            showBootstrapError();
+        }
+    }
+
+    private void showBootstrapFiles(final JSONObject entry) throws JSONException {
+        final JSONArray files = entry.getJSONArray("files");
+        final String name = entry.getString("name") + " " + entry.getString("version");
+        if (files.length() == 0) {
+            final String notice = entry.getString("notice");
+            showLicenseText(name, new LicenseLoader() {
+                @Override
+                public String load() throws IOException {
+                    return notice.isEmpty() ? getString(R.string.license_bootstrap_missing)
+                        : notice + "\n\n" + readRawResource(R.raw.agentcodi_apache_2_0);
+                }
+            });
+            return;
+        }
+        String[] paths = new String[files.length()];
+        for (int i = 0; i < paths.length; i++) {
+            paths[i] = files.getJSONObject(i).getString("path");
+        }
+        new AlertDialog.Builder(this)
+            .setTitle(name)
+            .setItems(paths, new DialogInterface.OnClickListener() {
+                @Override
+                public void onClick(DialogInterface dialog, int which) {
+                    try {
+                        final String path = files.getJSONObject(which).getString("path");
+                        showLicenseText(name, new LicenseLoader() {
+                            @Override
+                            public String load() throws IOException {
+                                return readBootstrapLicense(path);
+                            }
+                        });
+                    } catch (JSONException error) {
+                        showBootstrapError();
+                    }
+                }
+            })
+            .setNegativeButton(R.string.license_close, null)
+            .show();
+    }
+
+    private String readBootstrapLicense(String path) throws IOException {
+        try (ZipInputStream archive = new ZipInputStream(
+                getAssets().open("third-party/package-bootstrap/bootstrap-aarch64.zip"))) {
+            ZipEntry entry;
+            while ((entry = archive.getNextEntry()) != null) {
+                if (entry.getName().equals(path)) {
+                    return readBounded(archive);
+                }
+            }
+        }
+        throw new IOException("Bootstrap license entry is missing");
+    }
+
+    private void showBootstrapError() {
+        new AlertDialog.Builder(this)
+            .setMessage(R.string.license_load_failed)
+            .setPositiveButton(R.string.license_close, null)
+            .show();
     }
 
     private void addLicenseCard(

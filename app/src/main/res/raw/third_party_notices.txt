@@ -7,7 +7,7 @@ the pinned google/material-design-icons revision
 e083cc60a0828fdd3b404cea0cb8a5b900e9c23e. They are bundled only as local
 Android VectorDrawable resources and are licensed under Apache License 2.0.
 The source paths, original SVG SHA-256 values, local resource mapping, and
-conversion rules are documented in docs/UI_ICONS.md. The complete Apache
+conversion rules are checked by the repository's ChatUiIconResourcesTest. The complete Apache
 License 2.0 terms are available in the APK legal-notices view.
 
 Codex CLI/app-server Android ARM64 community build 0.156.1-termux.1
@@ -32,155 +32,35 @@ The complete distributor LICENSE and NOTICE are packaged verbatim at:
 assets/third-party/codex/LICENSE
 assets/third-party/codex/NOTICE
 
-Historical Codex Android sandbox dependency attributions
+Current Package Edition payload
 
-These license texts are retained from the previously bundled Mcpasi runtime
-and preserve the original third-party credits. Package Edition now uses the
-DioNanos Community artifact above with Full access. This historical list does
-not describe an active workspace sandbox.
-The permissive alternatives below were selected from the locked crate
-archives. No crate source is packaged as AGENTCODI application code.
+The native APK set is the AGENTCODI engine and shell bridge, Community Codex
+app-server and matching code-mode host, LLVM libc++ and zlib 1.3.2.
+Node.js, npm, Python and ripgrep are supplied through the separate signed APT
+catalog. Historical sandbox/tool attributions are retained in repository
+NOTICE.md and do not enumerate this APK.
 
-landlock 0.4.4: MIT
-Crate SHA-256: 49fefd6652c57d68aaa32544a4c0e642929725bdc1fd929367cdeb673ab81088
-LICENSE-MIT SHA-256: d11fe3f1df9c3fd6fd020091899fcfccd0a949e0a32b461b4c68915f770e31a9
+zlib: assets/third-party/zlib/ZLIB-LICENSE.
+LLVM: assets/third-party/libcxx/DISTRIBUTOR-LICENSE and LLVM-LICENSES.
+The exact libc++ distributor text is retained, supplemented with the complete
+LLVM libc++/libc++abi/libunwind notices and LLVM exceptions.
 
-MIT License
+Bootstrap: shell, APT, dpkg, CA certificates and runtime dependencies rebuilt
+for /data/data/de.agentcodi.pkg/files/usr. The bootstrap keeps original license
+files in share/doc and share/licenses. The legal-notices screen selects those
+files from the bundled ZIP, using BOOTSTRAP-LICENSE-INDEX.json.
+The package report records their ownership, sizes and SHA-256 values.
+Corresponding sources, recipes, patches and edition build scripts accompany
+the CI bootstrap artifact. Authenticated catalog source downloads:
+https://mcpasi.github.io/AGENTCODI/apt/package-edition
+See scripts/package-edition/README.md in the repository for reconstruction.
 
-Copyright (c) 2020 Mickaël Salaün
+License reconciliation result and final-release prerequisite
 
-Permission is hereby granted, free of charge, to any
-person obtaining a copy of this software and associated
-documentation files (the "Software"), to deal in the
-Software without restriction, including without
-limitation the rights to use, copy, modify, merge,
-publish, distribute, sublicense, and/or sell copies of
-the Software, and to permit persons to whom the Software
-is furnished to do so, subject to the following
-conditions:
-
-The above copyright notice and this permission notice
-shall be included in all copies or substantial portions
-of the Software.
-
-THE SOFTWARE IS PROVIDED "AS IS", WITHOUT WARRANTY OF
-ANY KIND, EXPRESS OR IMPLIED, INCLUDING BUT NOT LIMITED
-TO THE WARRANTIES OF MERCHANTABILITY, FITNESS FOR A
-PARTICULAR PURPOSE AND NONINFRINGEMENT. IN NO EVENT
-SHALL THE AUTHORS OR COPYRIGHT HOLDERS BE LIABLE FOR ANY
-CLAIM, DAMAGES OR OTHER LIABILITY, WHETHER IN AN ACTION
-OF CONTRACT, TORT OR OTHERWISE, ARISING FROM, OUT OF OR
-IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER
-DEALINGS IN THE SOFTWARE.
-
-seccompiler 0.5.0: BSD-3-Clause
-Crate SHA-256: a4ae55de56877481d112a559bbc12667635fdaf5e005712fd4e2b2fa50ffc884
-LICENSE-BSD-3-Clause SHA-256: 051a73a9b3811f17c6b6ba5659d0258cee303a47af0e79ec4b05e6566e021750
-
-Copyright 2021 Amazon.com, Inc. or its affiliates. All Rights Reserved.
-
-Redistribution and use in source and binary forms, with or without
-modification, are permitted provided that the following conditions are met:
-
-1. Redistributions of source code must retain the above copyright notice,
-this list of conditions and the following disclaimer.
-
-2. Redistributions in binary form must reproduce the above copyright notice,
-this list of conditions and the following disclaimer in the documentation
-and/or other materials provided with the distribution.
-
-3. Neither the name of the copyright holder nor the names of its contributors
-may be used to endorse or promote products derived from this software without
-specific prior written permission.
-
-THIS SOFTWARE IS PROVIDED BY THE COPYRIGHT HOLDERS AND CONTRIBUTORS "AS IS"
-AND ANY EXPRESS OR IMPLIED WARRANTIES, INCLUDING, BUT NOT LIMITED TO, THE
-IMPLIED WARRANTIES OF MERCHANTABILITY AND FITNESS FOR A PARTICULAR PURPOSE ARE
-DISCLAIMED. IN NO EVENT SHALL THE COPYRIGHT HOLDER OR CONTRIBUTORS BE LIABLE
-FOR ANY DIRECT, INDIRECT, INCIDENTAL, SPECIAL, EXEMPLARY, OR CONSEQUENTIAL
-DAMAGES (INCLUDING, BUT NOT LIMITED TO, PROCUREMENT OF SUBSTITUTE GOODS OR
-SERVICES; LOSS OF USE, DATA, OR PROFITS; OR BUSINESS INTERRUPTION) HOWEVER
-CAUSED AND ON ANY THEORY OF LIABILITY, WHETHER IN CONTRACT, STRICT LIABILITY,
-OR TORT (INCLUDING NEGLIGENCE OR OTHERWISE) ARISING IN ANY WAY OUT OF THE USE
-OF THIS SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
-
-enumflags2 0.7.12: MIT
-Crate SHA-256: 1027f7680c853e056ebcec683615fb6fbbc07dbaa13b4d5d9442b146ded4ecef
-LICENSE-MIT SHA-256: 2e3edd2716fb15616e867bd53f724f0906732242e9ae76bb1faad1d88f7eeebd
-
-Copyright (c) 2017-2023 Maik Klein, Maja Kądziołka
-
-Permission is hereby granted, free of charge, to any
-person obtaining a copy of this software and associated
-documentation files (the "Software"), to deal in the
-Software without restriction, including without
-limitation the rights to use, copy, modify, merge,
-publish, distribute, sublicense, and/or sell copies of
-the Software, and to permit persons to whom the Software
-is furnished to do so, subject to the following
-conditions:
-
-The above copyright notice and this permission notice
-shall be included in all copies or substantial portions
-of the Software.
-
-THE SOFTWARE IS PROVIDED "AS IS", WITHOUT WARRANTY OF
-ANY KIND, EXPRESS OR IMPLIED, INCLUDING BUT NOT LIMITED
-TO THE WARRANTIES OF MERCHANTABILITY, FITNESS FOR A
-PARTICULAR PURPOSE AND NONINFRINGEMENT. IN NO EVENT
-SHALL THE AUTHORS OR COPYRIGHT HOLDERS BE LIABLE FOR ANY
-CLAIM, DAMAGES OR OTHER LIABILITY, WHETHER IN AN ACTION
-OF CONTRACT, TORT OR OTHERWISE, ARISING FROM, OUT OF OR
-IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER
-DEALINGS IN THE SOFTWARE.
-
-
-Package Edition runtime payload
-
-Node.js, npm, Python and ripgrep are not bundled. Install them and their
-dependencies from the separate source-built, signed edition APT repository.
-The Community app-server and code-mode host run directly as native ELFs;
-the host includes its JavaScript engine and needs no external Node.js/npm.
-Legacy activation guards and npm/Python runtime archives are not shipped.
-
-zlib 1.3.2 remains for AGENTCODI's bounded native PNG validator.
-Its complete distributor license text is packaged at:
-assets/third-party/zlib/ZLIB-LICENSE
-
-LLVM libc++ shared runtime from the pinned Termux libc++ package.
-The following is the distributor-supplied license text.
-
-University of Illinois/NCSA Open Source License
-
-Copyright (c) [year] [fullname]. All rights reserved.
-
-Developed by: [project]
-              [fullname]
-              [projecturl]
-
-Permission is hereby granted, free of charge, to any person
-obtaining a copy of this software and associated documentation files
-(the "Software"), to deal with the Software without restriction,
-including without limitation the rights to use, copy, modify, merge,
-publish, distribute, sublicense, and/or sell copies of the Software,
-and to permit persons to whom the Software is furnished to do so,
-subject to the following conditions:
-
-* Redistributions of source code must retain the above copyright notice,
-  this list of conditions and the following disclaimers.
-
-* Redistributions in binary form must reproduce the above copyright
-  notice, this list of conditions and the following disclaimers in the
-  documentation and/or other materials provided with the distribution.
-
-* Neither the names of [fullname], [project] nor the names of its
-  contributors may be used to endorse or promote products derived from
-  this Software without specific prior written permission.
-
-THE SOFTWARE IS PROVIDED "AS IS", WITHOUT WARRANTY OF ANY KIND, EXPRESS
-OR IMPLIED, INCLUDING BUT NOT LIMITED TO THE WARRANTIES OF MERCHANTABILITY,
-FITNESS FOR A PARTICULAR PURPOSE AND NONINFRINGEMENT. IN NO EVENT SHALL THE
-CONTRIBUTORS OR COPYRIGHT HOLDERS BE LIABLE FOR ANY CLAIM, DAMAGES OR OTHER
-LIABILITY, WHETHER IN AN ACTION OF CONTRACT, TORT OR OTHERWISE, ARISING FROM,
-OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS WITH
-THE SOFTWARE.
+The Community archive's original LICENSE and NOTICE are preserved unchanged.
+It does not provide a complete inventory/text bundle for statically linked
+Rust/V8 dependencies. The historical sandbox crate credits are not proof of
+that build's dependency closure. Resolve these notices against the exact
+Community release before publishing a final APK. CI verifies the supplied
+payload/legal bytes and records this gap; it does not certify complete
+third-party attribution.

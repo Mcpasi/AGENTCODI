@@ -309,3 +309,34 @@ python3 .github/ci/inspect-community-codex.py --output /tmp/agentcodi-community-
 Use a fresh output directory for each audit. The ARM64 workflow defines the
 complete runnable runtime/schema sequence. Publishing a final APK still
 requires the later roadmap work and its device validation.
+
+
+## Final payload and supplied-license contract
+
+The authoritative [test matrix](../../scripts/package-edition/TEST_CONTRACT.md)
+maps all current checks to the actual minimal Package Edition.
+Architecture now also requires host Python 3 and invokes
+verify-apk-contract.py --check-sources; the hosted and local C++ drivers must
+enumerate the same seven active test sources. The twelve APK-contract
+regressions use actual fixture ZIP bytes and reject extra ABIs/assets, staged
+mutations, bootstrap legal-index/manifest/source drift and premature releases.
+
+The complete APK build uses the same apk-contract.json for its six native
+files. Python 3 is a host build tool in Docker, not a bundled Python runtime.
+After assembly, the verifier compares all native/assets/legal resources with
+their staged or checked-in source bytes, validates every bootstrap file, and
+checks its legal file ownership and corresponding-source metadata. It uploads
+package-apk-contract.json as agentcodi-package-apk-contract, separate from the
+debug APK artifact. Its hashes identify this exact APK and legal delivery.
+
+Original Codex LICENSE/NOTICE, libc++ distributor copyright and zlib copyright
+remain unchanged; complete checked-in LLVM notices supplement libc++.
+The generated bootstrap index lets the Android legal UI read each original
+license file directly from the immutable bundled ZIP. It does not describe
+subsequent user installations or package upgrades.
+
+The reconciliation explicitly records the missing complete Community
+Rust/V8 dependency notices. final_release_ready remains false, and release
+builds fail the license gate while blockers exist. Hosted CI does not perform
+or certify hardware installation/update/service/picker tests. These open
+roadmap prerequisites must be completed before publishing a final APK.

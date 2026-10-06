@@ -124,19 +124,35 @@ public final class WorkspaceLayoutTest {
                 TestSupport.assertTrue(Files.isDirectory(prefix.resolve(name)),
                     "package prefix directory " + name);
             }
-            Path program = prefix.resolve("bin/user-tool");
+            // These names no longer have APK aliases or a bundled tool runtime.
+            Path[] programs = new Path[] {prefix.resolve("bin/node"), prefix.resolve("bin/npm"),
+                prefix.resolve("bin/python"), prefix.resolve("bin/rg")};
             byte[] contents = "#!/system/bin/sh\nprintf user-package\n"
                 .getBytes(java.nio.charset.StandardCharsets.US_ASCII);
-            Files.write(program, contents);
-            TestSupport.assertTrue(program.toFile().setExecutable(true, true),
-                "user package can be marked executable");
+            for (Path installed : programs) {
+                Files.write(installed, contents);
+                TestSupport.assertTrue(installed.toFile().setExecutable(true, true),
+                    "user package can be marked executable");
+            }
+            Path database = Files.createDirectories(prefix.resolve("var/lib/dpkg")).resolve("status");
+            byte[] status = "Package: user-package\nVersion: 2.0\nStatus: install ok installed\n"
+                .getBytes(java.nio.charset.StandardCharsets.US_ASCII);
+            Files.write(database, status);
+            Path npmCache = first.getHome().toPath().resolve(".npm/user-cache");
+            Files.write(npmCache, contents);
             WorkspaceLayout second = WorkspaceLayout.create(base.toFile());
             TestSupport.assertEquals(prefix, second.getPackagePrefix().toPath(),
                 "prefix stays stable after restart");
-            TestSupport.assertTrue(Arrays.equals(contents, Files.readAllBytes(program)),
-                "startup preserves user-installed contents");
-            TestSupport.assertTrue(program.toFile().canExecute(),
-                "startup preserves executable permissions");
+            for (Path installed : programs) {
+                TestSupport.assertTrue(Arrays.equals(contents, Files.readAllBytes(installed)),
+                    "startup preserves user-installed tool bytes without APK fallback");
+                TestSupport.assertTrue(installed.toFile().canExecute(),
+                    "startup preserves executable permissions");
+            }
+            TestSupport.assertTrue(Arrays.equals(status, Files.readAllBytes(database)),
+                "restart preserves the actual managed package database");
+            TestSupport.assertTrue(Arrays.equals(contents, Files.readAllBytes(npmCache)),
+                "restart preserves user package cache");
             TestSupport.assertFalse(prefix.startsWith(first.getCodexHome().toPath()),
                 "packages stay outside account storage");
         } finally {

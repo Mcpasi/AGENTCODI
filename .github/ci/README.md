@@ -383,7 +383,8 @@ The Tests workflow records the Java controller's actual MCP elicitation requests
 and responses in a separate audit. The generated pinned Community schema checks
 those records, including nullable turn IDs and `action/content/_meta` answers.
 A local synthetic HTTP MCP server and deterministic model fixture exercise
-`prompt` with the real ARM64/Bionic app-server and relocated code-mode host.
+`prompt` with the real ARM64/Bionic app-server through model function calls. The
+existing relocated code-mode host smoke remains a separate check.
 The invocation counter must stay unchanged before approval and after decline
 or cancel; an explicit per-call accept runs the tool once. No OpenAI credentials,
 external model inference or physical Android device is required.

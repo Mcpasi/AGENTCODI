@@ -1251,3 +1251,15 @@ historischen Commits gebunden. Paketinstallation/-benutzung ist als
 Nutzerbericht dokumentiert, ohne die vollständige Geräte-/Versionsmatrix als
 bestanden zu markieren. Weitere echte Geräteprüfungen und ein Hardware-Retest
 des MCP-Fixes werden gemäß Nutzeranweisung übersprungen und bleiben offen.
+
+Der erste erweiterte [Runtime-Lauf](https://github.com/Mcpasi/AGENTCODI/actions/runs/37493948718)
+bestand Java, Schema, Kommandos, PTY und den bisherigen Code-mode-Host-Smoke,
+scheiterte aber am zusätzlich erzwungenen experimentellen Code-mode-Callback:
+der gepinnte Host meldete SIGSEGV, bevor eine MCP-Anfrage entstand. Die
+MCP-Freigabeprüfung verwendet jetzt den in der gepinnten Upstream-Testsuite
+verwendeten nativen Modell-Funktionsaufruf mit MCP-Namespace in einem eigenen
+Runtime-Prozess. Sie prüft weiterhin den echten `prompt`-Pfad und die realen
+Java-Antworten; der vorhandene Code-mode-Host-Smoke bleibt erhalten.
+Dies ist kein Nachweis einer Reparatur des Community-Hosts für verschachtelte
+experimentelle Code-mode-Callbacks. Ein solcher Callback-/Hardware-Nachweis
+bleibt außerhalb der hier bestätigten MCP-Freigabeprüfung.

@@ -44,6 +44,7 @@ class ModelFixture:
     def __init__(self):
         self.requests = []
         self.probe_code = "text('community-code-host-ok');"
+        self.mcp_probe = False
         fixture = self
         class Handler(BaseHTTPRequestHandler):
             def log_message(self, *args):
@@ -54,9 +55,13 @@ class ModelFixture:
                 number = len(fixture.requests)
                 events = [{"type": "response.created", "response": {"id": "ci-" + str(number)}}]
                 if number % 2 == 1:
-                    events.append({"type": "response.output_item.done", "item": {
-                        "type": "custom_tool_call", "call_id": "community-host-probe",
-                        "name": "exec", "input": fixture.probe_code}})
+                    item = ({"type": "function_call", "call_id": "community-mcp-probe",
+                             "namespace": "mcp__approval_probe", "name": "echo",
+                             "arguments": json.dumps({"message": "mcp-approved-once-ok"})}
+                            if fixture.mcp_probe else
+                            {"type": "custom_tool_call", "call_id": "community-host-probe",
+                             "name": "exec", "input": fixture.probe_code})
+                    events.append({"type": "response.output_item.done", "item": item})
                 else:
                     events.append({"type": "response.output_item.done", "item": {
                         "type": "message", "role": "assistant", "id": "ci-message",
@@ -133,7 +138,7 @@ class McpApprovalFixture:
 
 
 class Runtime:
-    def __init__(self, audit, validate, mock_url):
+    def __init__(self, audit, validate, mock_url, code_mode_only=True):
         self.name = "community-probe-" + uuid.uuid4().hex
         prefix = "/data/data/com.termux/files/usr"
         probe = "/probe"
@@ -166,7 +171,7 @@ class Runtime:
             ' -c \'model_providers.agentcodi-openai-http.requires_openai_auth=false\''
             ' -c \'model_providers.agentcodi-openai-http.base_url="' + mock_url + '"\''
             ' -c \'features.enable_request_compression=false\''
-            ' -c \'features.code_mode_only=true\''
+            " -c 'features.code_mode_only=" + str(code_mode_only).lower() + "'"
         )
         # Intentionally omit CODEX_CODE_MODE_HOST_PATH: exercise sibling host discovery.
         self.process = subprocess.Popen(command, stdin=subprocess.PIPE, stdout=subprocess.PIPE,
@@ -225,7 +230,8 @@ class Runtime:
                 self.notifications.append(json.loads(self.lines.get(timeout=1)))
             except queue.Empty:
                 assert self.process.poll() is None, "".join(self.errors)
-        raise AssertionError("Notification timed out: " + method + "\n" + "".join(self.errors))
+        raise AssertionError("Notification timed out: " + method + "\n" + "".join(self.errors)
+                             + "\nPending messages: " + json.dumps(self.notifications[-6:]))
 
     def wait_notification(self, method):
         return self.wait_message(method)["params"]
@@ -391,53 +397,57 @@ def main():
         assert "community-code-host-ok" in follow_up, follow_up
         assert "failed to spawn" not in follow_up and "failed to initialize" not in follow_up
         print("Relocated sibling code-mode host executed JavaScript successfully.")
-        mcp = McpApprovalFixture()
-        try:
-            runtime.request("config/batchWrite", {"edits": [{
-                "keyPath": "mcp_servers.approval_probe",
-                "value": {"url": mcp.url, "enabled": True, "required": False,
-                          "default_tools_approval_mode": "prompt"},
-                "mergeStrategy": "replace"}], "reloadUserConfig": False})
-            runtime.request("config/mcpServer/reload")
-            probe = runtime.request("thread/start", {
-                "cwd": runtime.cwd, "runtimeWorkspaceRoots": [runtime.cwd],
-                "model": "gpt-5.1-codex", "modelProvider": "agentcodi-openai-http",
-                "approvalPolicy": "on-request", "permissions": PROFILE,
-                "persistExtendedHistory": True})
-            probe_id = probe["thread"]["id"]
-            model.probe_code = (
-                'text(await tools.mcp__approval_probe__echo({message:"mcp-approved-once-ok"}));')
-            for action in ("accept", "decline", "cancel"):
-                before = len(mcp.calls)
-                runtime.request("turn/start", {"threadId": probe_id,
-                    "input": [{"type": "text", "text": "Run the synthetic MCP approval probe."}],
-                    "cwd": runtime.cwd, "runtimeWorkspaceRoots": [runtime.cwd],
-                    "approvalPolicy": "on-request", "permissions": PROFILE,
-                    "model": "gpt-5.1-codex", "effort": "medium", "summary": "auto"})
-                approval = runtime.wait_message("mcpServer/elicitation/request")
-                server_request.validate(approval)
-                params = approval["params"]
-                assert params["threadId"] == probe_id and params["serverName"] == "approval_probe", params
-                assert params["_meta"]["codex_approval_kind"] == "mcp_tool_call", params
-                assert params["requestedSchema"]["properties"] == {}, params
-                assert len(mcp.calls) == before, "MCP tool ran before the user decision"
-                # Send the exact action object emitted by the Java controller regression.
-                runtime.respond_to_server_request(approval["id"], mcp_actions[action])
-                finished = runtime.wait_notification("turn/completed")
-                expected = before + (1 if action == "accept" else 0)
-                assert len(mcp.calls) == expected, (action, mcp.calls, finished)
-                if action == "accept":
-                    assert finished["turn"]["status"] == "completed", finished
-                    assert "mcp-approved-once-ok" in json.dumps(model.requests[-1]["input"])
-                print("Real MCP prompt gate passed:", action, "tool invocations:", len(mcp.calls))
-            assert len(mcp.calls) == 1, "Only the explicitly accepted call may run"
-        finally:
-            mcp.close()
-            runtime.request("config/batchWrite", {"edits": [{
-                "keyPath": "mcp_servers.approval_probe", "value": None,
-                "mergeStrategy": "replace"}], "reloadUserConfig": False})
-            runtime.request("config/mcpServer/reload")
     finally:
+        runtime.close()
+    # MCP tools are normally dispatched as model function calls. Do not force
+    # experimental code-mode callbacks to test the native MCP approval protocol.
+    runtime = Runtime(audit, client, model.url, code_mode_only=False)
+    mcp = McpApprovalFixture()
+    try:
+        runtime.initialize()
+        runtime.request("config/batchWrite", {"edits": [{
+            "keyPath": "mcp_servers.approval_probe",
+            "value": {"url": mcp.url, "enabled": True, "required": False,
+                      "default_tools_approval_mode": "prompt"},
+            "mergeStrategy": "replace"}], "reloadUserConfig": False})
+        runtime.request("config/mcpServer/reload")
+        probe = runtime.request("thread/start", {
+            "cwd": runtime.cwd, "runtimeWorkspaceRoots": [runtime.cwd],
+            "model": "gpt-5.1-codex", "modelProvider": "agentcodi-openai-http",
+            "approvalPolicy": "on-request", "permissions": PROFILE,
+            "persistExtendedHistory": True})
+        probe_id = probe["thread"]["id"]
+        model.mcp_probe = True
+        for action in ("accept", "decline", "cancel"):
+            before = len(mcp.calls)
+            runtime.request("turn/start", {"threadId": probe_id,
+                "input": [{"type": "text", "text": "Run the synthetic MCP approval probe."}],
+                "cwd": runtime.cwd, "runtimeWorkspaceRoots": [runtime.cwd],
+                "approvalPolicy": "on-request", "permissions": PROFILE,
+                "model": "gpt-5.1-codex", "effort": "medium", "summary": "auto"})
+            approval = runtime.wait_message("mcpServer/elicitation/request")
+            server_request.validate(approval)
+            params = approval["params"]
+            assert params["threadId"] == probe_id and params["serverName"] == "approval_probe", params
+            assert params["_meta"]["codex_approval_kind"] == "mcp_tool_call", params
+            assert params["requestedSchema"]["properties"] == {}, params
+            assert len(mcp.calls) == before, "MCP tool ran before the user decision"
+            # Send the exact action object emitted by the Java controller regression.
+            runtime.respond_to_server_request(approval["id"], mcp_actions[action])
+            finished = runtime.wait_notification("turn/completed")
+            expected = before + (1 if action == "accept" else 0)
+            assert len(mcp.calls) == expected, (action, mcp.calls, finished)
+            if action == "accept":
+                assert finished["turn"]["status"] == "completed", finished
+                assert "mcp-approved-once-ok" in json.dumps(model.requests[-1]["input"])
+            print("Real MCP prompt gate passed:", action, "tool invocations:", len(mcp.calls))
+        assert len(mcp.calls) == 1, "Only the explicitly accepted call may run"
+        runtime.request("config/batchWrite", {"edits": [{
+            "keyPath": "mcp_servers.approval_probe", "value": None,
+            "mergeStrategy": "replace"}], "reloadUserConfig": False})
+        runtime.request("config/mcpServer/reload")
+    finally:
+        mcp.close()
         runtime.close()
     restarted = Runtime(audit, client, model.url)
     try:

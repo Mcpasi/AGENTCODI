@@ -2,7 +2,7 @@
 
 Stand: 2026-10-06. Ausschließlich Branch `Mcpasi/package-edition`; kein Merge nach `main`.
 
-Die Checklisten zeigen den aktuellen Umsetzungsstand. Datierte Ergebnis- und Verifikationsabschnitte dokumentieren frühere Meilensteine; ihre Testzahlen, Artefakte und Prüfsummen gehören zum jeweils genannten Commit. Bootstrap, Startkatalog und öffentliches signiertes APT-Repository sind umgesetzt. Die npm-/Python-Pfade und die gemeinsame Prozessumgebung sind umgesetzt und in CI geprüft; die aktuellen Nachweise stehen im Ergebnisabschnitt „Gemeinsame Paketumgebung und npm-/Python-Pfade“. Die Paketdiagnose und die Workspace-Browser-/Import-/Export-Erweiterung sind umgesetzt; die nutzerinstallierbaren Übergangswerkzeuge sind aus dem APK entfernt. Die verbliebenen Legacy-Helfer und Transportparameter sind bereinigt. Build-Skript, Dockerfile, CI-Inputs, Restore-/Preflight-Prüfungen und Cache-Schlüssel sind auf die aktiven Edition-Abhängigkeiten reduziert. Der endgültige Test-/Payloadvertrag und der Abgleich der gelieferten Lizenzmaterialien sind umgesetzt; die aktuellen Nachweise stehen im Ergebnisabschnitt „Finaler Testvertrag und Lizenzabgleich“. Die Community-Rust-/V8-Abhängigkeitstexte und die drei paketlokalen Bootstrap-Lizenzzuordnungen sind ergänzt; Quellen-, Versions- und Artefaktbindungen werden im APK-Vertrag geprüft. Der neue Ergebnisabschnitt „Ergänzung der fehlenden Lizenzen“ dokumentiert diesen Stand. Echte Gerätetests bleiben gemäß Nutzeranweisung offen. Die APT-Veröffentlichung ist getrennt von einem GitHub-Release der APK.
+Die Checklisten zeigen den aktuellen Umsetzungsstand. Datierte Ergebnis- und Verifikationsabschnitte dokumentieren frühere Meilensteine; ihre Testzahlen, Artefakte und Prüfsummen gehören zum jeweils genannten Commit. Bootstrap, Startkatalog und öffentliches signiertes APT-Repository sind umgesetzt. Die npm-/Python-Pfade und die gemeinsame Prozessumgebung sind umgesetzt und in CI geprüft; die aktuellen Nachweise stehen im Ergebnisabschnitt „Gemeinsame Paketumgebung und npm-/Python-Pfade“. Die Paketdiagnose und die Workspace-Browser-/Import-/Export-Erweiterung sind umgesetzt; die nutzerinstallierbaren Übergangswerkzeuge sind aus dem APK entfernt. Die verbliebenen Legacy-Helfer und Transportparameter sind bereinigt. Build-Skript, Dockerfile, CI-Inputs, Restore-/Preflight-Prüfungen und Cache-Schlüssel sind auf die aktiven Edition-Abhängigkeiten reduziert. Der endgültige Test-/Payloadvertrag und der Abgleich der gelieferten Lizenzmaterialien sind umgesetzt; die aktuellen Nachweise stehen im Ergebnisabschnitt „Finaler Testvertrag und Lizenzabgleich“. Die Community-Rust-/V8-Abhängigkeitstexte und die drei paketlokalen Bootstrap-Lizenzzuordnungen sind ergänzt; Quellen-, Versions- und Artefaktbindungen werden im APK-Vertrag geprüft. Der neue Ergebnisabschnitt „Ergänzung der fehlenden Lizenzen“ dokumentiert diesen Stand. Der Nutzer meldet erfolgreiche Paketinstallation und -benutzung auf einem Gerät; die vollständige Gerätevalidierung und der Gerätetest des MCP-Freigabefixes bleiben offen. Die APT-Veröffentlichung ist getrennt von einem GitHub-Release der APK.
 
 ## Ziel und feste Entscheidungen
 
@@ -1206,3 +1206,48 @@ Der Code-/Payload-Vertrag bleibt an den oben geprüften Implementierungscommit
 gebunden. Echte Android-Hardware-, Installations-, Update- und Service-Tests
 bleiben gemäß Nutzeranweisung offen. Kein PR, Merge oder finales APK-Release;
 `main` bleibt auf `ff27ec7c30d373a864e845e9a7ceeae3380dd103`.
+
+## MCP-Tool-Freigaben und Versionsbump — 2026-10-06
+
+Ausschließlich `Mcpasi/package-edition`; kein PR oder Merge nach `main`.
+Der Nutzer meldet erfolgreiche Installation und Benutzung von Paketen auf einem
+Gerät. Die MCP-Tool-Nutzung scheiterte: `prompt` fordert korrekt eine Freigabe,
+doch der Client kannte `mcpServer/elicitation/request` nicht. Er antwortete mit
+`-32601 / Client request is not supported`; die Runtime lehnte das Tool ab,
+ohne dass ein Dialog sichtbar wurde.
+
+Der reine [Reproduktionscommit](https://github.com/Mcpasi/AGENTCODI/commit/b3aa230e77e1ee7f00962bfc5ebc05a9d7cf15aa)
+und [Tests-Lauf 37492914015](https://github.com/Mcpasi/AGENTCODI/actions/runs/37492914015)
+weisen genau diese Ablehnung im Java-Job nach. Die ebenfalls fehlschlagende
+Community-Runtime-Prüfung verwendet dieselbe Java-Suite.
+
+Die Korrektur verarbeitet message-only Form-Anfragen mit
+`codex_approval_kind=mcp_tool_call` als eigene MCP-Tool-Freigabe. Anders als
+Kommando-/Dateifreigaben haben diese Anfragen keine `itemId` oder
+`startedAtMs`; `turnId` darf null sein. Thread und vorhandener Turn werden
+geprüft. Der Dialog zeigt Server, Anfrage und begrenzte, redigierte Parameter
+in Chat, Einstellungen und MCP-Verwaltung. Erlauben gilt einmal; Ablehnen und
+Abbrechen führen das Tool nicht aus. Die Antwort verwendet
+`action/content/_meta` mit null-Inhalt/-Metadaten, keine Kommando-`decision`.
+Stale, volle oder abgelaufene Anfragen werden mit MCP-`cancel` geschlossen.
+Serverseitig aufgelöste Anfragen lassen sich nicht nachträglich freigeben.
+Formulare mit zusätzlichen Eingabefeldern und URL-Elicitations bleiben
+ausdrücklich ununterstützt und werden sicher zurückgewiesen.
+
+Fünf Java-Regressionen prüfen diesen Vertrag einschließlich aller drei
+Entscheidungen, null-Turn, Warteschlangenlimit, ungültiger Anfragen,
+serverseitiger Auflösung und Ablauf. Die Community-CI validiert die tatsächlich
+erzeugten Java-MCP-Anfragen/-Antworten gegen die vom gepinnten ELF erzeugten
+Schemas. Zusätzlich prüft ein synthetischer lokaler HTTP-MCP-Server mit
+deterministischem Modellfixture die echte ARM64/Bionic-`prompt`-Sperre:
+kein Aufruf vor Freigabe, genau ein Aufruf nach Erlauben, kein Aufruf nach
+Ablehnen oder Abbrechen. Die CI-Nachweise dieses Implementierungsstands
+werden nach Abschluss der Läufe unten ergänzt.
+
+Version: `0.1.0-package.2`, Android `versionCode 2`. Manifest, BuildIdentity,
+Build-Skript, Identitätstests, Architekturvertrag und aktive Dokumentation
+verwenden denselben Stand; frühere Artefakte/Versionsangaben bleiben an ihre
+historischen Commits gebunden. Paketinstallation/-benutzung ist als
+Nutzerbericht dokumentiert, ohne die vollständige Geräte-/Versionsmatrix als
+bestanden zu markieren. Weitere echte Geräteprüfungen und ein Hardware-Retest
+des MCP-Fixes werden gemäß Nutzeranweisung übersprungen und bleiben offen.

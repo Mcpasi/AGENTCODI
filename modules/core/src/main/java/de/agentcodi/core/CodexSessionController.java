@@ -70,6 +70,7 @@ public final class CodexSessionController
     private static final String FILE_CHANGE_PATCH_UPDATED_METHOD =
         "item/fileChange/patchUpdated";
     private static final String USER_INPUT_METHOD = "item/tool/requestUserInput";
+    private static final String MCP_TOOL_APPROVAL_METHOD = "mcpServer/elicitation/request";
     private static final String REASONING_SUMMARY_DELTA_METHOD =
         "item/reasoning/summaryTextDelta";
     private static final String REASONING_SUMMARY_PART_ADDED_METHOD =
@@ -1614,7 +1615,8 @@ public final class CodexSessionController
     ) {
         if (!COMMAND_APPROVAL_METHOD.equals(method)
             && !FILE_CHANGE_APPROVAL_METHOD.equals(method)
-            && !USER_INPUT_METHOD.equals(method)) {
+            && !USER_INPUT_METHOD.equals(method)
+            && !MCP_TOOL_APPROVAL_METHOD.equals(method)) {
             return false;
         }
         final CodexInteractiveRequest request;
@@ -1630,10 +1632,12 @@ public final class CodexSessionController
         synchronized (this) {
             stale = closed
                 || !ready
-                || !turnActive
+                || (!turnActive
+                    && request.getKind() != CodexInteractiveRequest.Kind.MCP_TOOL_APPROVAL)
                 || !matchesActiveThread(request.getThreadId())
-                || (!activeTurnId.isEmpty()
-                    && !matchesActiveTurnLocked(request.getTurnId()));
+                || (!request.getTurnId().isEmpty()
+                    && (!turnActive || (!activeTurnId.isEmpty()
+                        && !matchesActiveTurnLocked(request.getTurnId()))));
             overloaded = !stale
                 && interactiveRequests.size() >= MAX_INTERACTIVE_REQUESTS;
             if (!stale && !overloaded) {
@@ -3456,6 +3460,9 @@ public final class CodexSessionController
         String method,
         Map<String, Object> params
     ) {
+        if (MCP_TOOL_APPROVAL_METHOD.equals(method)) {
+            return parseMcpToolApproval(requestId, params);
+        }
         String threadId = requireInteractiveIdentifier(params.get("threadId"), "threadId");
         String turnId = requireInteractiveIdentifier(params.get("turnId"), "turnId");
         String itemId = requireInteractiveIdentifier(params.get("itemId"), "itemId");
@@ -3655,6 +3662,48 @@ public final class CodexSessionController
         );
     }
 
+    private CodexInteractiveRequest parseMcpToolApproval(
+        long requestId, Map<String, Object> params
+    ) {
+        String threadId = requireInteractiveIdentifier(params.get("threadId"), "threadId");
+        String turnId = params.get("turnId") == null ? ""
+            : requireInteractiveIdentifier(params.get("turnId"), "turnId");
+        String serverName = requireBoundedString(params.get("serverName"), "serverName", 160);
+        String message = requireBoundedString(params.get("message"), "message", 16 * 1024);
+        Map<String, Object> meta = JsonCodec.requireObject(params.get("_meta"), "MCP metadata");
+        Map<String, Object> schema = JsonCodec.requireObject(
+            params.get("requestedSchema"), "MCP approval schema"
+        );
+        String mode = JsonCodec.optionalString(params.get("mode"));
+        if (serverName.trim().isEmpty() || message.trim().isEmpty()
+            || (!"form".equals(mode) && !"openai/form".equals(mode)
+                && !"openaiForm".equals(mode))
+            || !"mcp_tool_call".equals(meta.get("codex_approval_kind"))
+            || !"object".equals(schema.get("type"))
+            || !JsonCodec.requireObject(schema.get("properties"), "MCP properties").isEmpty()
+            || !JsonCodec.optionalArray(schema.get("required")).isEmpty()) {
+            throw new IllegalArgumentException("Only message-only MCP tool approvals are supported");
+        }
+        // Display bounded, redacted values. Never echo metadata/parameters back as an answer.
+        return CodexInteractiveRequest.mcpToolApproval(
+            requestId, threadId, turnId, visibleText(serverName, 160),
+            visibleText(message, 16 * 1024), visibleJson(meta.get("tool_params")),
+            System.currentTimeMillis() + MAX_INTERACTIVE_WAIT_MS
+        );
+    }
+
+    private static Map<String, Object> mcpApprovalResponse(String action) {
+        return JsonCodec.object("action", action, "content", null, "_meta", null);
+    }
+
+    private static Map<String, Object> safeInteractiveRejection(CodexInteractiveRequest request) {
+        if (request.getKind() == CodexInteractiveRequest.Kind.MCP_TOOL_APPROVAL) {
+            return mcpApprovalResponse("cancel");
+        }
+        return request.getKind() == CodexInteractiveRequest.Kind.USER_INPUT
+            ? emptyUserInputResponse() : JsonCodec.object("decision", "cancel");
+    }
+
     private Map<String, Object> approvalResponse(
         CodexInteractiveRequest request,
         CodexApprovalDecision decision,
@@ -3662,6 +3711,14 @@ public final class CodexSessionController
     ) {
         if (!request.allowsDecision(decision)) {
             throw new IllegalArgumentException("Diese Freigabe gilt nur für die aktuelle Aktion.");
+        }
+        if (request.getKind() == CodexInteractiveRequest.Kind.MCP_TOOL_APPROVAL) {
+            switch (decision) {
+                case ACCEPT: return mcpApprovalResponse("accept");
+                case DECLINE: return mcpApprovalResponse("decline");
+                case CANCEL: return mcpApprovalResponse("cancel");
+                default: throw new IllegalArgumentException("Unsupported MCP approval decision");
+            }
         }
         Object wireDecision;
         switch (decision) {
@@ -3796,11 +3853,7 @@ public final class CodexSessionController
     }
 
     private void submitSafeInteractiveRejection(CodexInteractiveRequest request) {
-        Map<String, Object> response = request.getKind()
-            == CodexInteractiveRequest.Kind.USER_INPUT
-            ? emptyUserInputResponse()
-            : JsonCodec.object("decision", "cancel");
-        submitInteractiveResponse(request.getRequestId(), response);
+        submitInteractiveResponse(request.getRequestId(), safeInteractiveRejection(request));
     }
 
     private void scheduleInteractiveTimeout(final CodexInteractiveRequest request) {
@@ -3826,9 +3879,7 @@ public final class CodexSessionController
                         try {
                             client.respondToServerRequest(
                                 request.getRequestId(),
-                                request.getKind() == CodexInteractiveRequest.Kind.USER_INPUT
-                                    ? emptyUserInputResponse()
-                                    : JsonCodec.object("decision", "cancel")
+                                safeInteractiveRejection(request)
                             );
                         } catch (Throwable error) {
                             handleInteractiveResponseFailure(error);

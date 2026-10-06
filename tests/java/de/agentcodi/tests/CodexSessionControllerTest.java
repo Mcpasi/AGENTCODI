@@ -72,6 +72,7 @@ public final class CodexSessionControllerTest {
         cancelsStaleAndOverloadedMcpApprovals();
         rejectsMalformedAndUnsupportedMcpElicitations();
         removesServerResolvedMcpApprovals();
+        timesOutMcpApprovalsWithCancelAction();
         handlesCommandAndFileApprovals();
         acceptsFileCreationApproval();
         enrichesFileApprovalAfterReorderedPatchUpdate();
@@ -84,7 +85,7 @@ public final class CodexSessionControllerTest {
         terminatesTerminalWhenOutputCapIsReached();
         rejectsTerminalCredentialsAndMalformedOutput();
         usesVettedMcpConfigurationRpcs();
-        return 46;
+        return 47;
     }
 
     private static void preservesProtectionAfterSandboxBootstrapFailure() throws Exception {
@@ -3338,11 +3339,22 @@ public final class CodexSessionControllerTest {
                     controller.snapshot().getInteractiveRequests().get(0);
                 TestSupport.assertEquals("MCP_TOOL_APPROVAL", request.getKind().name(),
                     "MCP approval has its own dialog kind");
+                TestSupport.assertEquals("fixture-mcp", request.getMcpServerName(),
+                    "MCP server is visible in the approval");
+                TestSupport.assertTrue(request.getReason().contains("read_note"),
+                    "the tool request message is visible");
+                TestSupport.assertTrue(request.getMcpToolArguments().contains("note.txt"),
+                    "tool parameters are visible before approval");
+                TestSupport.assertEquals("", request.getItemId(),
+                    "MCP approvals do not invent an item identity");
                 TestSupport.assertEquals(null, server.responseFor(id),
                     "MCP tool remains pending until an explicit user decision");
                 TestSupport.assertFalse(request.allowsDecision(
                     CodexApprovalDecision.ACCEPT_FOR_SESSION),
                     "the edition keeps managed MCP tool approvals per request");
+                controller.resolveApproval(id, CodexApprovalDecision.ACCEPT_FOR_SESSION, -1);
+                TestSupport.assertEquals(null, server.responseFor(id),
+                    "a persistence decision cannot escape the per-call approval boundary");
                 controller.resolveApproval(id, decisions[index], -1);
                 assertMcpAction(server, id, actions[index]);
                 TestSupport.assertFalse(controller.snapshot().hasInteractiveRequest(),
@@ -3456,6 +3468,41 @@ public final class CodexSessionControllerTest {
         }
     }
 
+    private static void timesOutMcpApprovalsWithCancelAction() throws Exception {
+        final FixtureServer server = new FixtureServer(true);
+        server.holdTurnOpen = true;
+        final CodexSessionController controller =
+            new CodexSessionController(server, "/private/workspace");
+        try {
+            startHeldTurn(server, controller);
+            server.requestFromServer(960L, "mcpServer/elicitation/request",
+                mcpToolApproval("thr_existing", "turn_fixture"));
+            waitFor(new Condition() {
+                @Override public boolean isTrue() {
+                    return controller.snapshot().hasInteractiveRequest();
+                }
+            }, "MCP timeout fixture projected");
+            CodexInteractiveRequest request =
+                controller.snapshot().getInteractiveRequests().get(0);
+            // Advance this request's deadline without a ten-minute wall-clock wait or
+            // adding a non-protocol timeout field to production parsing.
+            CodexInteractiveRequest expired = CodexInteractiveRequest.mcpToolApproval(
+                request.getRequestId(), request.getThreadId(), request.getTurnId(),
+                request.getMcpServerName(), request.getReason(), request.getMcpToolArguments(),
+                System.currentTimeMillis()
+            );
+            java.lang.reflect.Method schedule = CodexSessionController.class.getDeclaredMethod(
+                "scheduleInteractiveTimeout", CodexInteractiveRequest.class);
+            schedule.setAccessible(true);
+            schedule.invoke(controller, expired);
+            assertMcpAction(server, 960L, "cancel");
+            TestSupport.assertFalse(controller.snapshot().hasInteractiveRequest(),
+                "expired MCP approval leaves the dialog queue");
+        } finally {
+            controller.close();
+        }
+    }
+
     private static Map<String, Object> mcpToolApproval(String threadId, String turnId) {
         return JsonCodec.object(
             "threadId", threadId, "turnId", turnId, "serverName", "fixture-mcp",
@@ -3474,6 +3521,15 @@ public final class CodexSessionControllerTest {
         }, "MCP action response");
         TestSupport.assertEquals(JsonCodec.object("action", action, "content", null, "_meta", null),
             server.responseFor(id), "MCP elicitation response uses action, not command decision");
+        String audit = System.getenv("AGENTCODI_MCP_APPROVAL_AUDIT");
+        if (audit != null) {
+            java.nio.file.Files.write(java.nio.file.Paths.get(audit),
+                (JsonCodec.stringify(JsonCodec.object(
+                    "request", server.serverRequests.get(Long.valueOf(id)),
+                    "response", server.responseFor(id))) + "\n").getBytes(StandardCharsets.UTF_8),
+                java.nio.file.StandardOpenOption.CREATE,
+                java.nio.file.StandardOpenOption.APPEND);
+        }
     }
 
     private static void handlesCommandAndFileApprovals() throws Exception {
@@ -5193,12 +5249,14 @@ public final class CodexSessionControllerTest {
             incoming.offer(JsonCodec.stringify(JsonCodec.object("method", method, "params", params)));
         }
 
+        private final Map<Long, Map<String, Object>> serverRequests =
+            new ConcurrentHashMap<Long, Map<String, Object>>();
+
         private void requestFromServer(long id, String method, Map<String, Object> params) {
-            incoming.offer(JsonCodec.stringify(JsonCodec.object(
-                "id", Long.valueOf(id),
-                "method", method,
-                "params", params
-            )));
+            Map<String, Object> request = JsonCodec.object(
+                "id", Long.valueOf(id), "method", method, "params", params);
+            serverRequests.put(Long.valueOf(id), request);
+            incoming.offer(JsonCodec.stringify(request));
         }
 
         private Map<String, Object> responseFor(long id) {

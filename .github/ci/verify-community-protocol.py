@@ -33,7 +33,7 @@ def validate_sources(bundle):
         used.update(pattern.findall(source.read_text()))
     used.update(("initialize", "initialized", "account/login/start", "command/exec/write",
                  "item/commandExecution/requestApproval", "item/fileChange/requestApproval",
-                 "item/tool/requestUserInput"))
+                 "item/tool/requestUserInput", "mcpServer/elicitation/request"))
     assert used <= available, "Missing source RPCs: " + repr(sorted(used - available))
     print("Source RPC inventory verified:", ", ".join(sorted(used)))
     return used
@@ -43,6 +43,7 @@ class ModelFixture:
     """Serve deterministic Responses SSE without credentials or external inference."""
     def __init__(self):
         self.requests = []
+        self.probe_code = "text('community-code-host-ok');"
         fixture = self
         class Handler(BaseHTTPRequestHandler):
             def log_message(self, *args):
@@ -52,10 +53,10 @@ class ModelFixture:
                 fixture.requests.append(json.loads(body))
                 number = len(fixture.requests)
                 events = [{"type": "response.created", "response": {"id": "ci-" + str(number)}}]
-                if number == 1:
+                if number % 2 == 1:
                     events.append({"type": "response.output_item.done", "item": {
                         "type": "custom_tool_call", "call_id": "community-host-probe",
-                        "name": "exec", "input": "text('community-code-host-ok');"}})
+                        "name": "exec", "input": fixture.probe_code}})
                 else:
                     events.append({"type": "response.output_item.done", "item": {
                         "type": "message", "role": "assistant", "id": "ci-message",
@@ -78,6 +79,58 @@ class ModelFixture:
     def close(self):
         self.server.shutdown()
         self.server.server_close()
+
+class McpApprovalFixture:
+    """Local HTTP MCP tool: invocation count proves the approval gate is effective."""
+    def __init__(self):
+        self.calls = []
+        fixture = self
+        class Handler(BaseHTTPRequestHandler):
+            def log_message(self, *args):
+                pass
+
+            def do_GET(self):
+                self.send_error(405)
+
+            def do_POST(self):
+                request = json.loads(self.rfile.read(int(self.headers["Content-Length"])))
+                method = request["method"]
+                if "id" not in request:
+                    self.send_response(202)
+                    self.send_header("Content-Length", "0")
+                    self.end_headers()
+                    return
+                if method == "initialize":
+                    result = {"protocolVersion": request["params"]["protocolVersion"],
+                              "capabilities": {"tools": {}},
+                              "serverInfo": {"name": "approval-probe", "version": "1"}}
+                elif method == "tools/list":
+                    result = {"tools": [{"name": "echo", "description": "Return a synthetic marker.",
+                              "inputSchema": {"type": "object",
+                                  "properties": {"message": {"type": "string"}},
+                                  "required": ["message"]},
+                              "annotations": {"readOnlyHint": True}}]}
+                elif method == "tools/call":
+                    fixture.calls.append(request["params"])
+                    result = {"content": [{"type": "text",
+                                          "text": request["params"]["arguments"]["message"]}]}
+                else:
+                    raise AssertionError("Unexpected MCP method: " + method)
+                payload = json.dumps({"jsonrpc": "2.0", "id": request["id"],
+                                      "result": result}).encode()
+                self.send_response(200)
+                self.send_header("Content-Type", "application/json")
+                self.send_header("Content-Length", str(len(payload)))
+                self.end_headers()
+                self.wfile.write(payload)
+        self.server = ThreadingHTTPServer(("127.0.0.1", 0), Handler)
+        self.url = "http://127.0.0.1:" + str(self.server.server_port) + "/mcp"
+        threading.Thread(target=self.server.serve_forever, daemon=True).start()
+
+    def close(self):
+        self.server.shutdown()
+        self.server.server_close()
+
 
 class Runtime:
     def __init__(self, audit, validate, mock_url):
@@ -162,21 +215,28 @@ class Runtime:
             self.notifications.append(response)
         raise AssertionError("RPC timed out: " + method + "\n" + "".join(self.errors))
 
-    def wait_notification(self, method):
+    def wait_message(self, method):
         deadline = time.monotonic() + 60
         while time.monotonic() < deadline:
             for index, message in enumerate(self.notifications):
                 if message.get("method") == method:
-                    return self.notifications.pop(index)["params"]
+                    return self.notifications.pop(index)
             try:
                 self.notifications.append(json.loads(self.lines.get(timeout=1)))
             except queue.Empty:
                 assert self.process.poll() is None, "".join(self.errors)
         raise AssertionError("Notification timed out: " + method + "\n" + "".join(self.errors))
 
+    def wait_notification(self, method):
+        return self.wait_message(method)["params"]
+
+    def respond_to_server_request(self, request_id, result):
+        self.process.stdin.write(json.dumps({"id": request_id, "result": result}) + "\n")
+        self.process.stdin.flush()
+
     def initialize(self):
         result = self.request("initialize", {
-            "clientInfo": {"name": "agentcodi_android", "title": "AGENTCODI Package", "version": "0.1.0-package.1"},
+            "clientInfo": {"name": "agentcodi_android", "title": "AGENTCODI Package", "version": "0.1.0-package.2"},
             "capabilities": {"experimentalApi": True,
                              "optOutNotificationMethods": ["rawResponseItem/completed", "rawResponse/completed", "app/list/updated"]}
         })
@@ -205,6 +265,7 @@ def main():
     parser = argparse.ArgumentParser()
     parser.add_argument("audit", type=Path)
     parser.add_argument("--trace", type=Path, required=True)
+    parser.add_argument("--mcp-approvals", type=Path, required=True)
     args = parser.parse_args()
     audit = args.audit.resolve()
     bundle = json.loads((audit / "report/schema/codex_app_server_protocol.schemas.json").read_text())
@@ -237,6 +298,19 @@ def main():
     ]:
         server_request.validate({"id": 1, "method": method, "params": dict(scope, **extra)})
         observed.add(method)
+    mcp_response = validator(bundle, "McpServerElicitationRequestResponse")
+    mcp_records = [json.loads(line) for line in args.mcp_approvals.read_text().splitlines()]
+    assert mcp_records, "Java MCP approval audit must not be empty"
+    mcp_actions = {}
+    for record in mcp_records:
+        assert record["request"]["method"] == "mcpServer/elicitation/request"
+        server_request.validate(record["request"])
+        mcp_response.validate(record["response"])
+        mcp_actions[record["response"]["action"]] = record["response"]
+    assert set(mcp_actions) == {"accept", "decline", "cancel"}, mcp_actions
+    observed.add("mcpServer/elicitation/request")
+    print("Generated schemas accepted", len(mcp_records),
+          "actual Java MCP approval requests/responses, including nullable turn IDs.")
     print("Approval and user-input request shapes match the generated Community schema.")
     print("Generated schemas accepted", count, "actual Java fixture RPCs:", ", ".join(sorted(observed)))
 
@@ -317,6 +391,52 @@ def main():
         assert "community-code-host-ok" in follow_up, follow_up
         assert "failed to spawn" not in follow_up and "failed to initialize" not in follow_up
         print("Relocated sibling code-mode host executed JavaScript successfully.")
+        mcp = McpApprovalFixture()
+        try:
+            runtime.request("config/batchWrite", {"edits": [{
+                "keyPath": "mcp_servers.approval_probe",
+                "value": {"url": mcp.url, "enabled": True, "required": False,
+                          "default_tools_approval_mode": "prompt"},
+                "mergeStrategy": "replace"}], "reloadUserConfig": False})
+            runtime.request("config/mcpServer/reload")
+            probe = runtime.request("thread/start", {
+                "cwd": runtime.cwd, "runtimeWorkspaceRoots": [runtime.cwd],
+                "model": "gpt-5.1-codex", "modelProvider": "agentcodi-openai-http",
+                "approvalPolicy": "on-request", "permissions": PROFILE,
+                "persistExtendedHistory": True})
+            probe_id = probe["thread"]["id"]
+            model.probe_code = (
+                'text(await tools.mcp__approval_probe__echo({message:"mcp-approved-once-ok"}));')
+            for action in ("accept", "decline", "cancel"):
+                before = len(mcp.calls)
+                runtime.request("turn/start", {"threadId": probe_id,
+                    "input": [{"type": "text", "text": "Run the synthetic MCP approval probe."}],
+                    "cwd": runtime.cwd, "runtimeWorkspaceRoots": [runtime.cwd],
+                    "approvalPolicy": "on-request", "permissions": PROFILE,
+                    "model": "gpt-5.1-codex", "effort": "medium", "summary": "auto"})
+                approval = runtime.wait_message("mcpServer/elicitation/request")
+                server_request.validate(approval)
+                params = approval["params"]
+                assert params["threadId"] == probe_id and params["serverName"] == "approval_probe", params
+                assert params["_meta"]["codex_approval_kind"] == "mcp_tool_call", params
+                assert params["requestedSchema"]["properties"] == {}, params
+                assert len(mcp.calls) == before, "MCP tool ran before the user decision"
+                # Send the exact action object emitted by the Java controller regression.
+                runtime.respond_to_server_request(approval["id"], mcp_actions[action])
+                finished = runtime.wait_notification("turn/completed")
+                expected = before + (1 if action == "accept" else 0)
+                assert len(mcp.calls) == expected, (action, mcp.calls, finished)
+                if action == "accept":
+                    assert finished["turn"]["status"] == "completed", finished
+                    assert "mcp-approved-once-ok" in json.dumps(model.requests[-1]["input"])
+                print("Real MCP prompt gate passed:", action, "tool invocations:", len(mcp.calls))
+            assert len(mcp.calls) == 1, "Only the explicitly accepted call may run"
+        finally:
+            mcp.close()
+            runtime.request("config/batchWrite", {"edits": [{
+                "keyPath": "mcp_servers.approval_probe", "value": None,
+                "mergeStrategy": "replace"}], "reloadUserConfig": False})
+            runtime.request("config/mcpServer/reload")
     finally:
         runtime.close()
     restarted = Runtime(audit, client, model.url)
@@ -333,6 +453,8 @@ def main():
         model.close()
     report = {"source_methods": sorted(used), "emitted_methods": sorted(observed),
               "java_messages_validated": count, "real_runtime": "passed",
+              "mcp_approval_messages_validated": len(mcp_records),
+              "real_mcp_prompt_actions": sorted(mcp_actions),
               "device_tests": "skipped"}
     (audit / "report/protocol-verification.json").write_text(json.dumps(report, indent=2) + "\n")
     print("Community Full-access, PTY, MCP, connector and runtime-restart checks passed.")

@@ -532,6 +532,11 @@
   <string name="approval_decline_cancel">Decline and cancel turn</string>
   <string name="approval_network_title">Allow network access?</string>
   <string name="approval_command_title">Allow command?</string>
+  <string name="approval_mcp_title">Allow MCP tool call?</string>
+  <string name="approval_mcp_server">MCP server</string>
+  <string name="approval_mcp_arguments">Tool parameters</string>
+  <string name="approval_mcp_cancel">Cancel tool call</string>
+  <string name="approval_mcp_explanation">Allow runs this tool call once. Decline rejects it. Cancel closes this tool request. Future calls require a new decision; approvals are never granted automatically.</string>
   <string name="approval_file_title">Allow file changes?</string>
   <string name="approval_target">Target</string>
   <string name="approval_command">Command</string>

@@ -55,6 +55,7 @@ public final class McpManagementActivity extends Activity {
                 AgentRuntimeService.mcpConfigurationSnapshot();
             render(snapshot);
             renderConfiguration(configuration);
+            interactiveRequestDialog.render(AgentRuntimeService.sessionSnapshot());
             long delay = snapshot.getPhase() == McpCatalogPhase.LOADING
                     || configuration.isBusy()
                 ? LOADING_REFRESH_INTERVAL_MS
@@ -64,6 +65,7 @@ public final class McpManagementActivity extends Activity {
     };
 
     private UiTheme theme;
+    private InteractiveRequestDialog interactiveRequestDialog;
     private TextView statusView;
     private TextView summaryView;
     private TextView warningsView;
@@ -94,6 +96,7 @@ public final class McpManagementActivity extends Activity {
     protected void onCreate(Bundle savedInstanceState) {
         super.onCreate(savedInstanceState);
         theme = new UiTheme(this);
+        interactiveRequestDialog = new InteractiveRequestDialog(this, theme);
         setContentView(buildContent());
     }
 
@@ -115,6 +118,7 @@ public final class McpManagementActivity extends Activity {
     @Override
     protected void onStop() {
         handler.removeCallbacks(refreshTask);
+        interactiveRequestDialog.dismissForLifecycle();
         super.onStop();
     }
 

@@ -1,3 +1,14 @@
+# Package Edition
+
+## 0.1.0-package.2 (Android versionCode 2) — 2026-10-06
+
+- Handle `mcpServer/elicitation/request` tool approvals with an explicit, per-call dialog and the Runtime's `action/content/_meta` response format.
+- Show MCP server, request and redacted parameters, including on the MCP management screen. Preserve `prompt`; session/permanent approval is not granted.
+- Add reproduction and regression coverage for allow/decline/cancel, nullable turn IDs, stale/overloaded requests, invalid forms, server resolution and timeout. Verify actual Java request/response shapes and the real ARM64/Bionic MCP prompt gate in CI.
+- Physical device tests are skipped in hosted CI. The user reported working package installation/use; full device validation and a device retest of the MCP fix remain outstanding.
+
+# Historical regular-edition changelog
+
 **  CHANGELOG.md is being introduced starting with version 0.6.10. ** 
 
 #  Internal versions

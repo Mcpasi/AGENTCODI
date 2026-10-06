@@ -16,10 +16,10 @@ identity and native-runtime checks remain required.
 | Layer | Required evidence |
 | --- | --- |
 | Architecture / host contract regressions | Same active C++ suite set in local and hosted drivers; Package shell fixture; exact APK native/asset and legal-byte contract. Twenty mutation/acceptance regressions exercise assembled fixture ZIPs. |
-| Java host suite | Full-access identity/protocol, bootstrap interruption/recovery and update preservation; managed and user prefixes; all four user tool names, executable permissions, dpkg state and caches; alias retirement; file-browser/import/export checks. |
+| Java host suite | Full-access identity/protocol, bootstrap interruption/recovery and update preservation; managed and user prefixes; all four user tool names, executable permissions, dpkg state and caches; alias retirement; file-browser/import/export checks; MCP tool approval allow/decline/cancel, nullable turn IDs, stale/overloaded rejection, invalid elicitation, server resolution and timeout. |
 | Seven portable C++ suites | Supervisor environment, process lifecycle, framing, PNG and file operations; actual Package shell; prefix precedence; inherited retired activation variables stripped. |
 | Android compilation | All sources/resources against API 35, manifest target 28/minimum 29, separate installation identity and compiled component classes; German/English legal UI. |
-| Community ARM64/Bionic runtime | Pinned archive/relocation/schemas and actual controller RPCs; real app-server, code-mode JavaScript without external Node/npm, restart and persistent user program. |
+| Community ARM64/Bionic runtime | Pinned archive/relocation/schemas and actual controller RPCs; real app-server, code-mode JavaScript without external Node/npm, restart and persistent user program; actual Java MCP approval records validated against generated schemas and a real MCP prompt gate with invocation counts for accept/decline/cancel. |
 | Bootstrap ARM64/Bionic smoke | Real ZIP installed through Java; dpkg configuration, shell/APT/gpgv, certificates and local package install/remove. |
 | Complete APK ARM64/Bionic smoke | Full-access sibling access, Codex commands, PTY operations, import context, managed/legacy precedence and identical stdio-MCP environment; no retired activation/version variables. |
 | Package catalog (separate workflow) | Source-built npm/npx, pip/user/venv, Git/ripgrep and install/remove/reinstall/upgrade tests; signed APT and authenticated sources. These tools are not required in the minimal APK smoke. |
@@ -54,3 +54,16 @@ The index records both the package-owned installed path and the actual shared
 license file under share/LICENSES (or share/licenses). Shared texts are indexed
 for their owning package as well. Dangling, escaping or cyclic legal links fail;
 reading arbitrary host paths is not part of this process.
+
+## MCP tool approval scope
+
+Managed MCP server mutations continue to enforce `prompt` and clear per-tool
+approval overrides. Message-only `mcp_tool_call` form elicitations use a
+dedicated dialog with server/message/redacted parameters. Answers allow once,
+decline or cancel, with no persisted approval metadata. Structured forms needing
+additional input and URL elicitations are rejected safely. This is distinct
+from optional command/file approvals and does not change Full access.
+
+The 2026-10-06 user report confirms package installation/use on a device.
+It does not complete the Android-version/device matrix or validate the MCP fix
+on hardware; those checks remain outstanding and hosted CI skips them.

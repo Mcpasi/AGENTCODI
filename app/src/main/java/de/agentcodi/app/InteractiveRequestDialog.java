@@ -113,7 +113,8 @@ final class InteractiveRequestDialog {
             approvalClickListener(request, decline)
         );
         builder.setNeutralButton(
-            activity.getString(R.string.approval_stop_turn),
+            activity.getString(request.getKind() == CodexInteractiveRequest.Kind.MCP_TOOL_APPROVAL
+                ? R.string.approval_mcp_cancel : R.string.approval_stop_turn),
             approvalClickListener(request, cancel)
         );
 
@@ -199,6 +200,15 @@ final class InteractiveRequestDialog {
             theme.addWithTopMargin(content, command, 8);
         }
 
+        if (!request.getMcpToolArguments().isEmpty()) {
+            theme.addWithTopMargin(content, theme.sectionLabel(activity.getString(
+                R.string.approval_mcp_arguments
+            )), 14);
+            TextView arguments = theme.codeBlock(request.getMcpToolArguments(), 13);
+            arguments.setTextIsSelectable(true);
+            theme.addWithTopMargin(content, arguments, 8);
+        }
+
         for (CodexFileChangeSummary change : request.getFileChanges()) {
             FileChangeView changeView = new FileChangeView(activity, theme);
             changeView.bind(FileChangeDetail.of(
@@ -211,7 +221,8 @@ final class InteractiveRequestDialog {
         }
 
         TextView explanation = theme.text(
-            activity.getString(R.string.approval_explanation),
+            activity.getString(request.getKind() == CodexInteractiveRequest.Kind.MCP_TOOL_APPROVAL
+                ? R.string.approval_mcp_explanation : R.string.approval_explanation),
             12,
             theme.secondary
         );
@@ -536,7 +547,9 @@ final class InteractiveRequestDialog {
         boolean detailsAvailable = request.getKind()
             == CodexInteractiveRequest.Kind.FILE_CHANGE_APPROVAL
             ? !request.getFileChanges().isEmpty()
-            : !request.getCommand().isEmpty() || !request.getNetworkHost().isEmpty();
+            : request.getKind() == CodexInteractiveRequest.Kind.MCP_TOOL_APPROVAL
+                ? !request.getMcpServerName().isEmpty() && !request.getReason().isEmpty()
+                : !request.getCommand().isEmpty() || !request.getNetworkHost().isEmpty();
         if (detailsAvailable) {
             actions.add(new ApprovalAction(
                 activity.getString(R.string.approval_once),
@@ -591,6 +604,9 @@ final class InteractiveRequestDialog {
     }
 
     private String approvalTitle(CodexInteractiveRequest request) {
+        if (request.getKind() == CodexInteractiveRequest.Kind.MCP_TOOL_APPROVAL) {
+            return activity.getString(R.string.approval_mcp_title);
+        }
         if (!request.getNetworkHost().isEmpty()) {
             return activity.getString(R.string.approval_network_title);
         }
@@ -602,6 +618,10 @@ final class InteractiveRequestDialog {
     /** The textual part of an approval; commands and file changes get their own views. */
     private String approvalDetails(CodexInteractiveRequest request) {
         StringBuilder details = new StringBuilder();
+        if (!request.getMcpServerName().isEmpty()) {
+            details.append(activity.getString(R.string.approval_mcp_server))
+                .append(": ").append(request.getMcpServerName()).append('\n');
+        }
         if (!request.getReason().isEmpty()) {
             details.append(request.getReason()).append('\n');
         }
@@ -662,6 +682,9 @@ final class InteractiveRequestDialog {
             .append(request.getKind().name()).append('|')
             .append(request.getCommand()).append('|')
             .append(request.getNetworkHost()).append('|')
+            .append(request.getMcpServerName()).append('|')
+            .append(request.getReason()).append('|')
+            .append(request.getMcpToolArguments()).append('|')
             .append(request.getFileChanges().size());
         for (CodexFileChangeSummary change : request.getFileChanges()) {
             value.append('|').append(change.getPath())

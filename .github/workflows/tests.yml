@@ -193,12 +193,14 @@ jobs:
       - name: Validate generated schemas against client RPCs and the real app-server
         env:
           AGENTCODI_RPC_AUDIT: ${{ runner.temp }}/community-rpc.jsonl
+          AGENTCODI_MCP_APPROVAL_AUDIT: ${{ runner.temp }}/community-mcp-approvals.jsonl
         run: |
           .github/ci/run-java-tests.sh
           python3 -m venv "$RUNNER_TEMP/community-validator"
           "$RUNNER_TEMP/community-validator/bin/pip" install --disable-pip-version-check jsonschema==4.26.0
           "$RUNNER_TEMP/community-validator/bin/python" .github/ci/verify-community-protocol.py \
-            "$RUNNER_TEMP/community-runtime" --trace "$AGENTCODI_RPC_AUDIT"
+            "$RUNNER_TEMP/community-runtime" --trace "$AGENTCODI_RPC_AUDIT" \
+            --mcp-approvals "$AGENTCODI_MCP_APPROVAL_AUDIT"
       - uses: actions/upload-artifact@v4
         with:
           name: community-codex-runtime

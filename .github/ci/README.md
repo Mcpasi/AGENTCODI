@@ -25,7 +25,7 @@ Ubuntu runner. They are additional entry points only:
 | Android sources and resources | `compile-android-sources.sh` | Compile against API 35, check SDK pins and Package Edition identity, and resolve every manifest component against its compiled Java class. |
 
 Package Edition builds use installation ID `de.agentcodi.pkg`, their own
-`0.1.0-package.1` version line (Android versionCode starts at 1), and APK names
+`0.1.0-package.N` version line (currently `0.1.0-package.2` / Android versionCode 2; started at 1), and APK names
 starting with `AGENTCODI-Package-`. The APK workflow on this branch
 uploads `agentcodi-package-debug-apk`. Java classes and resources retain the
 `de.agentcodi.app` namespace via AAPT2's `--custom-package`; manifest components
@@ -376,3 +376,14 @@ The catalog source driver resolves selected DEBs to unique parent recipes before
 building. Python and python-ensurepip-wheels remain selected together; only the
 Python source recipe is invoked. Two additional catalog regressions cover parent
 deduplication and reject missing/ambiguous recipes without a binary fallback.
+
+### MCP tool approval regression
+
+The Tests workflow records the Java controller's actual MCP elicitation requests
+and responses in a separate audit. The generated pinned Community schema checks
+those records, including nullable turn IDs and `action/content/_meta` answers.
+A local synthetic HTTP MCP server and deterministic model fixture exercise
+`prompt` with the real ARM64/Bionic app-server and relocated code-mode host.
+The invocation counter must stay unchanged before approval and after decline
+or cancel; an explicit per-call accept runs the tool once. No OpenAI credentials,
+external model inference or physical Android device is required.

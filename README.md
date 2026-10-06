@@ -31,6 +31,10 @@ Full access is the only app mode, including after a runtime-service restart. Pro
 
 Commands and file changes can optionally require approval using Codex's `untrusted` policy. These approvals do not provide filesystem isolation. An installed program runs with the app's permissions.
 
+Managed MCP servers use `prompt` for tool calls. Their message-only tool approvals appear in a dedicated dialog in the chat, settings and MCP management screens, independently of optional command/file approvals. The dialog shows the server, request and redacted tool parameters. Allow applies once; Decline and Cancel close the tool request without running it. No session or permanent approval is stored. MCP forms requiring additional fields and URL elicitations are currently unsupported and rejected safely.
+
+The user reported successful package installation and use on a physical device on 2026-10-06. The reported missing MCP tool approval is covered by the branch fix and CI regressions; the full physical-device matrix and a device retest of this fix remain outstanding.
+
 The workspace, user home, and `CODEX_HOME` remain separate directories. This organizational separation does not protect account data from programs running with the same app permissions. Import, preview, and export continue to apply their own file checks.
 
 ## User-installed programs
@@ -113,7 +117,7 @@ GitHub tests run on every branch push. The Package Edition APK workflow also run
 
 The build environment is documented in [.github/ci/README.md](.github/ci/README.md). The Community ELF files run directly; npm launchers and their Termux-specific shebangs are not installed or executed. The code-mode host is packaged as `libcodex-codehost.so`; its matching name substitution is verified against the new binary. Full-access runtime checks replace the old seccomp/ptrace and workspace-sandbox probes.
 
-The Package Edition uses the separate application ID `de.agentcodi.pkg` and starts at `0.1.0-package.1` with its own Android `versionCode 1`. It can be installed alongside the regular version (`de.agentcodi.app`). The two apps have separate private files, settings, and sign-ins. Java classes and generated resources remain under `de.agentcodi.app`, independently of installation identity.
+The Package Edition uses the separate application ID `de.agentcodi.pkg`. The current version is `0.1.0-package.2` with Android `versionCode 2`; this separate version line started at `0.1.0-package.1` / `versionCode 1`. It can be installed alongside the regular version (`de.agentcodi.app`). The two apps have separate private files, settings, and sign-ins. Java classes and generated resources remain under `de.agentcodi.app`, independently of installation identity.
 
 APK files are named `AGENTCODI-Package-<Version>-arm64-v8a-debug.apk` or `AGENTCODI-Package-<Version>-arm64-v8a-release.apk`. Unversioned copies are `AGENTCODI-Package-debug.apk` and `AGENTCODI-Package-release.apk`; the APK workflow uses the artifact `agentcodi-package-debug-apk`. `scripts/bump-version.sh` increments this edition's version line and version code.
 

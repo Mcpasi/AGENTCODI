@@ -8,6 +8,7 @@ public final class CodexInteractiveRequest {
     public enum Kind {
         COMMAND_APPROVAL,
         FILE_CHANGE_APPROVAL,
+        MCP_TOOL_APPROVAL,
         USER_INPUT
     }
 
@@ -29,6 +30,8 @@ public final class CodexInteractiveRequest {
     private final boolean blocking;
     private final long expiresAtMilliseconds;
     private final boolean justInTimeApproval;
+    private final String mcpServerName;
+    private final String mcpToolArguments;
 
     public CodexInteractiveRequest(
         long requestId,
@@ -49,6 +52,34 @@ public final class CodexInteractiveRequest {
         boolean blocking,
         long expiresAtMilliseconds,
         boolean justInTimeApprovalsEnabled
+    ) {
+        this(requestId, kind, threadId, turnId, itemId, reason, command, cwd, grantRoot,
+            networkHost, networkProtocol, fileChanges, proposedExecPolicyAmendment,
+            proposedNetworkPolicyAmendments, questions, blocking, expiresAtMilliseconds,
+            justInTimeApprovalsEnabled, "", "");
+    }
+
+    private CodexInteractiveRequest(
+        long requestId,
+        Kind kind,
+        String threadId,
+        String turnId,
+        String itemId,
+        String reason,
+        String command,
+        String cwd,
+        String grantRoot,
+        String networkHost,
+        String networkProtocol,
+        List<CodexFileChangeSummary> fileChanges,
+        List<String> proposedExecPolicyAmendment,
+        List<CodexNetworkPolicyAmendment> proposedNetworkPolicyAmendments,
+        List<CodexUserInputQuestion> questions,
+        boolean blocking,
+        long expiresAtMilliseconds,
+        boolean justInTimeApprovalsEnabled,
+        String mcpServerName,
+        String mcpToolArguments
     ) {
         if (kind == null) {
             throw new IllegalArgumentException("Interactive request kind is required");
@@ -76,6 +107,31 @@ public final class CodexInteractiveRequest {
             throw new IllegalArgumentException("Package Edition does not support just-in-time permissions");
         }
         this.justInTimeApproval = false;
+        this.mcpServerName = nonNull(mcpServerName);
+        this.mcpToolArguments = nonNull(mcpToolArguments);
+    }
+
+    /** MCP approvals have a server request identity, with no itemId or startedAtMs. */
+    public static CodexInteractiveRequest mcpToolApproval(
+        long requestId, String threadId, String turnId, String serverName,
+        String message, String arguments, long expiresAtMilliseconds
+    ) {
+        return new CodexInteractiveRequest(
+            requestId, Kind.MCP_TOOL_APPROVAL, threadId, turnId, "", message, "", "", "",
+            "", "", Collections.<CodexFileChangeSummary>emptyList(),
+            Collections.<String>emptyList(),
+            Collections.<CodexNetworkPolicyAmendment>emptyList(),
+            Collections.<CodexUserInputQuestion>emptyList(), true, expiresAtMilliseconds,
+            false, serverName, arguments
+        );
+    }
+
+    public String getMcpServerName() {
+        return mcpServerName;
+    }
+
+    public String getMcpToolArguments() {
+        return mcpToolArguments;
     }
 
     public long getRequestId() {
@@ -151,6 +207,11 @@ public final class CodexInteractiveRequest {
     }
 
     public boolean allowsDecision(CodexApprovalDecision decision) {
+        if (kind == Kind.MCP_TOOL_APPROVAL) {
+            return decision == CodexApprovalDecision.ACCEPT
+                || decision == CodexApprovalDecision.DECLINE
+                || decision == CodexApprovalDecision.CANCEL;
+        }
         return decision != null && kind != Kind.USER_INPUT
             && (!justInTimeApproval || decision == CodexApprovalDecision.ACCEPT
                 || decision == CodexApprovalDecision.DECLINE
@@ -176,7 +237,9 @@ public final class CodexInteractiveRequest {
             questions,
             blocking,
             expiresAtMilliseconds,
-            justInTimeApproval
+            justInTimeApproval,
+            mcpServerName,
+            mcpToolArguments
         );
     }
 

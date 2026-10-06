@@ -260,6 +260,16 @@
           "new": "TERMUX_PKG_VERSION=\"5.8.4\"\nTERMUX_PKG_REVISION=1"
         }
       ]
+    },
+    {
+      "path": "packages/attr/build.sh",
+      "upstream_blob": "6c193fec02d2b09e75a0c5d6af027016fcd2421e",
+      "replacements": [
+        {
+          "old": "TERMUX_PKG_SRCURL=\"http://download.savannah.gnu.org/releases/attr/attr-${TERMUX_PKG_VERSION}.tar.gz\"",
+          "new": "TERMUX_PKG_SRCURL=\"https://download.savannah.gnu.org/releases/attr/attr-${TERMUX_PKG_VERSION}.tar.gz\""
+        }
+      ]
     }
   ],
   "removals": [

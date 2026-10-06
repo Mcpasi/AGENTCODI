@@ -16,15 +16,17 @@ def files(root):
 
 def main():
     parser = argparse.ArgumentParser()
-    for option in ("codex", "v8", "output"):
+    for option in ("codex", "output"):
         parser.add_argument("--" + option, type=Path, required=True)
+    parser.add_argument("--v8", type=Path)
+    parser.add_argument("--seed-v8", type=Path)
     args = parser.parse_args()
     args.output.mkdir(parents=True, exist_ok=True)
     workspace = args.codex / "codex-rs"
     lock_data = (workspace / "Cargo.lock").read_bytes()
     locked = {(p["name"], p["version"]): p for p in tomllib.loads(lock_data.decode())["package"]}
     tree = run("cargo", "+1.95.0", "tree", "--locked", "--target", "aarch64-linux-android",
-               "--edges", "normal", "--prefix", "none", "--format", "{p}",
+               "--edges", "normal,build", "--prefix", "none", "--format", "{p}",
                "-p", "codex-cli", "-p", "codex-code-mode-host", cwd=workspace)
     keys = set()
     for line in tree.splitlines():
@@ -63,28 +65,43 @@ def main():
             root = args.codex.resolve()
             candidates.extend([root / "LICENSE", root / "NOTICE"])
         package = locked[(p["name"], p["version"])]
-        add({"kind": "cargo-normal-closure", "name": p["name"], "version": p["version"],
-             "license": p.get("license"), "repository": p.get("repository"),
+        add({"kind": "cargo-normal-and-build-closure", "name": p["name"], "version": p["version"],
+             "license": p.get("license"), "authors": p.get("authors"), "repository": p.get("repository"),
              "source": p.get("source"), "checksum": package.get("checksum")}, root, candidates)
     if {(p["name"], p["version"]) for p in components} != keys:
         raise ValueError("Cargo inventory differs from requested closure")
-    v8 = args.v8.resolve()
-    submodules = []
-    for line in run("git", "submodule", "status", "--recursive", cwd=v8).splitlines():
-        if not line.startswith(" "):
-            raise ValueError("Uninitialized or changed V8 submodule: " + line)
-        commit, path = line.strip().split()[:2]
-        submodules.append({"path": path, "commit": commit})
-    add({"kind": "v8-source-material", "name": "rusty-v8-and-submodules", "version": "150.4.0",
-         "source": run("git", "rev-parse", "HEAD", cwd=v8).strip(),
-         "submodules": submodules}, v8, files(v8))
-    toolchain = Path(run("rustc", "+1.95.0", "--print", "sysroot").strip())
-    notice = toolchain / "share/doc/rust/COPYRIGHT-library.html"
-    if not notice.is_file():
-        gaps.append({"name": "rust-standard-library", "reason": "COPYRIGHT-library.html unavailable"})
+    if args.seed_v8:
+        seed = json.loads((args.seed_v8 / "DEPENDENCY-LICENSE-INDEX.json").read_text())
+        selected = [c for c in seed["components"] if c["kind"] in
+                    ("v8-source-material", "rust-standard-library")]
+        if len(selected) != 2 or seed["gaps"]:
+            raise ValueError("Incomplete pinned V8/standard-library seed")
+        with zipfile.ZipFile(args.seed_v8 / "DEPENDENCY-LICENSES.zip") as archive:
+            for component in selected:
+                for record in component["files"]:
+                    data = archive.read(record["path"])
+                    if sha(data) != record["sha256"] or len(data) != record["size"]:
+                        raise ValueError("Seed legal checksum")
+                    payload[record["path"]] = data
+                components.append(component)
     else:
-        add({"kind": "rust-standard-library", "name": "rust-standard-library", "version": "1.95.0"},
-            toolchain, [notice])
+        v8 = args.v8.resolve()
+        submodules = []
+        for line in run("git", "submodule", "status", "--recursive", cwd=v8).splitlines():
+            if not line.startswith(" "):
+                raise ValueError("Uninitialized or changed V8 submodule: " + line)
+            commit, path = line.strip().split()[:2]
+            submodules.append({"path": path, "commit": commit})
+        add({"kind": "v8-source-material", "name": "rusty-v8-and-submodules", "version": "150.4.0",
+             "source": run("git", "rev-parse", "HEAD", cwd=v8).strip(),
+             "submodules": submodules}, v8, files(v8))
+        toolchain = Path(run("rustc", "+1.95.0", "--print", "sysroot").strip())
+        notice = toolchain / "share/doc/rust/COPYRIGHT-library.html"
+        if not notice.is_file():
+            gaps.append({"name": "rust-standard-library", "reason": "COPYRIGHT-library.html unavailable"})
+        else:
+            add({"kind": "rust-standard-library", "name": "rust-standard-library", "version": "1.95.0"},
+                toolchain, [notice])
     index = {"format_version": 1,
         "codex_source_commit": run("git", "rev-parse", "HEAD", cwd=args.codex).strip(),
         "cargo_lock_sha256": sha(lock_data), "target": "aarch64-linux-android",

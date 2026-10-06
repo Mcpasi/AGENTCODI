@@ -6,80 +6,37 @@ on:
   workflow_dispatch:
 permissions:
   contents: read
-  actions: read
 jobs:
   check:
     if: github.ref == 'refs/heads/Mcpasi/package-edition'
     runs-on: ubuntu-24.04
-    timeout-minutes: 15
+    timeout-minutes: 5
     steps:
       - uses: actions/checkout@v4
-      - name: Recover original sources from the earlier successful edition build
-        uses: actions/download-artifact@v4
-        with:
-          name: agentcodi-package-bootstrap
-          run-id: 37448382664
-          github-token: ${{ github.token }}
-          path: previous-bootstrap
-      - name: Verify original source bytes and export the two unavailable archives
+      - name: Verify unchanged source hashes and original legal material
         run: |
           python3 - <<'PY'
-          import base64
           import hashlib
           import json
-          import os
           from pathlib import Path
           import tarfile
-          root = Path("previous-bootstrap")
-          report = json.loads((root / "bootstrap-report.json").read_text())
-          lock = json.loads(Path("scripts/package-edition/lock.json").read_text())
-          if report["lock"] != lock:
-              raise SystemExit("Earlier source lock differs")
-          source = report["corresponding_sources"]
-          archive_path = root / source["archive"]
-          if hashlib.sha256(archive_path.read_bytes()).hexdigest() != source["sha256"]:
-              raise SystemExit("Earlier corresponding-source archive checksum differs")
-          output = Path("recovered-sources")
-          output.mkdir()
+          root = Path("third_party/package-source-archives")
+          provenance = json.loads((root / "PROVENANCE.json").read_text())
           expected = {
-              "attr": ("attr-2.6.0.tar.gz", "d42fa374513180bb48cb11a46696f488240e5124ff1e6ad88b0abff706985612"),
-              "libacl": ("acl-2.4.0.tar.gz", "73c853c3d44e1f693e5a96a986f1bd19d3d0dac2c7d453e796177774bc4e5f6a"),
+              "attr-2.6.0.tar.gz": "d42fa374513180bb48cb11a46696f488240e5124ff1e6ad88b0abff706985612",
+              "acl-2.4.0.tar.gz": "73c853c3d44e1f693e5a96a986f1bd19d3d0dac2c7d453e796177774bc4e5f6a",
           }
-          recovered = {}
-          with tarfile.open(archive_path, "r:xz") as archive:
-              for member in archive:
-                  if not member.isfile():
-                      continue
-                  parts = member.name.split("/")
-                  if len(parts) != 3 or parts[0] != "source-downloads" or parts[1] not in expected:
-                      continue
-                  name, digest = expected[parts[1]]
-                  metadata = [item for item in source["downloads"]
-                              if item["package"] == parts[1] and item["file"] == parts[2]]
-                  if len(metadata) != 1 or metadata[0]["sha256"] != digest:
-                      continue
-                  if member.size > 8 * 1024 * 1024 or name in recovered:
-                      raise SystemExit("Oversized or duplicated source archive")
-                  data = archive.extractfile(member).read()
-                  if hashlib.sha256(data).hexdigest() != digest:
-                      raise SystemExit("Recovered upstream checksum differs")
-                  (output / name).write_bytes(data)
-                  recovered[name] = {"sha256": digest, "size": len(data), "source_member": member.name}
-          if len(recovered) != len(expected):
-              raise SystemExit("Pinned source archives missing from earlier evidence")
-          provenance = {"format_version": 1, "source_run_id": 37448382664,
-                        "original_corresponding_sources_sha256": source["sha256"],
-                        "recovery_run_id": int(os.environ["GITHUB_RUN_ID"]),
-                        "sources": recovered}
-          (output / "PROVENANCE.json").write_text(json.dumps(provenance, indent=2) + "\n")
-          print("SOURCE_RECOVERY_SUMMARY=" + json.dumps(provenance), flush=True)
-          for name in recovered:
-              encoded = base64.b64encode((output / name).read_bytes()).decode()
-              for offset in range(0, len(encoded), 60000):
-                  print("SOURCE_EXPORT " + name + " " + str(offset) + " " + encoded[offset:offset+60000], flush=True)
+          if provenance["format_version"] != 1 or set(provenance["sources"]) != set(expected):
+              raise SystemExit("Source provenance file set differs")
+          for name, digest in expected.items():
+              path = root / name
+              record = provenance["sources"][name]
+              if hashlib.sha256(path.read_bytes()).hexdigest() != digest or record["sha256"] != digest or path.stat().st_size != record["size"]:
+                  raise SystemExit("Original pinned source bytes differ: " + name)
+              with tarfile.open(path, "r:gz") as archive:
+                  legal = [item.name for item in archive if item.isfile() and
+                           Path(item.name).name.upper().startswith(("COPYING", "LICENSE", "LICENCE"))]
+              if not legal:
+                  raise SystemExit("Original source legal material missing")
+              print(json.dumps({"file": name, "sha256": digest, "legal_files": legal}))
           PY
-      - uses: actions/upload-artifact@v4
-        with:
-          name: agentcodi-savannah-source-recovery
-          path: recovered-sources/
-          if-no-files-found: error

@@ -1,0 +1,22 @@
+{
+  "format_version": 1,
+  "source_run_id": 37448382664,
+  "original_corresponding_sources_sha256": "e4c7cc7c53fb1cdc1e1189f581105fca7ef0eec2816fc89f565b80bd4af03fcf",
+  "recovery_run_id": 37456334585,
+  "sources": {
+    "attr-2.6.0.tar.gz": {
+      "sha256": "d42fa374513180bb48cb11a46696f488240e5124ff1e6ad88b0abff706985612",
+      "size": 506247,
+      "source_member": "source-downloads/attr/attr-2.6.0.tar.gz",
+      "original_url": "http://download.savannah.gnu.org/releases/attr/attr-2.6.0.tar.gz"
+    },
+    "acl-2.4.0.tar.gz": {
+      "sha256": "73c853c3d44e1f693e5a96a986f1bd19d3d0dac2c7d453e796177774bc4e5f6a",
+      "size": 565843,
+      "source_member": "source-downloads/libacl/acl-2.4.0.tar.gz",
+      "original_url": "https://download.savannah.gnu.org/releases/acl/acl-2.4.0.tar.gz"
+    }
+  },
+  "source_run_commit": "80fc2b0ed134a120a5d6edb5dc254566c8df08d8",
+  "source_recipe_commit": "b6af76b353140fe17f299248fca1ac13ea91c5c5"
+}

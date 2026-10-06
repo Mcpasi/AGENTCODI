@@ -55,12 +55,23 @@ the CI bootstrap artifact. Authenticated catalog source downloads:
 https://mcpasi.github.io/AGENTCODI/apt/package-edition
 See scripts/package-edition/README.md in the repository for reconstruction.
 
-License reconciliation result and final-release prerequisite
+Community dependency license supplement
 
-The Community archive's original LICENSE and NOTICE are preserved unchanged.
-It does not provide a complete inventory/text bundle for statically linked
-Rust/V8 dependencies. The historical sandbox crate credits are not proof of
-that build's dependency closure. Resolve these notices against the exact
-Community release before publishing a final APK. CI verifies the supplied
-payload/legal bytes and records this gap; it does not certify complete
-third-party attribution.
+The original Community LICENSE and NOTICE remain unchanged. Additional license
+texts and attribution are supplied at assets/third-party/codex/:
+DEPENDENCY-LICENSES.zip
+DEPENDENCY-LICENSE-INDEX.json
+DEPENDENCY-PROVENANCE.json
+
+The legal screen selects individual Rust crate, Rust standard-library and V8
+source notices. The collection uses the pinned aarch64-linux-android normal/build
+Cargo dependency closure and exact V8 submodule revisions. Original texts and
+supplied copyright notices are retained. When a publisher omits a standalone
+legal file, the published crate's declared MIT/Apache terms and authors are
+identified explicitly; no copyright date is invented. Additional V8 build/test
+source notices are included conservatively and identified by their source path.
+
+bzip2, gpgv and xz-utils include their parent package's original legal material
+under their own dpkg ownership. The build verifies all indexed text hashes and
+the native release binding. The report's license_release_ready describes legal
+prerequisites; it separately records that physical Android tests remain open.

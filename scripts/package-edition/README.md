@@ -424,8 +424,13 @@ authenticated catalog source reconstruction remain unchanged.
 The libc++ APK notice contains the verbatim distributor file plus complete
 LLVM source notices; zlib and Codex notices are copied unchanged.
 Build-only AAPT2 dependencies, R8/Android SDK and host Python are not additional
-APK runtimes. The debug contract report records the Community release's missing
-complete Rust/V8 dependency attribution and any package-local license gaps.
-Release builds fail this license gate until the exact runtime inventory is
-reconciled. This completed supplied-payload/license comparison does not claim
-complete upstream attribution or replace the skipped physical-device tests.
+APK runtimes. The Community dependency archive/index/provenance are committed
+under third_party/community-codex and copied without online license retrieval
+during an APK build. The verifier binds them to the pinned source/Cargo.lock,
+release/native hashes, V8 submodules and exact legal ZIP bytes.
+The package overlay copies parent legal files into the bzip2/gpgv/xz-utils DEBs
+before splitting; revision increases make those notices available through APT
+updates and reinstalls as well as the bootstrap.
+The format-2 report's license_release_ready concerns only legal prerequisites;
+release builds fail if any component/package has a legal gap. Physical Android
+tests remain separate and were skipped.

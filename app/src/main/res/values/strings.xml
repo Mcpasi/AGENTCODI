@@ -490,7 +490,7 @@
   <string name="license_material_icons_title">Material Icons</string>
   <string name="license_material_icons_summary">Round interface icons from Google’s Material Design Icons repository · pinned source paths under Apache License 2.0.</string>
   <string name="license_codex_runtime_title">Codex Android community runtime</string>
-  <string name="license_codex_runtime_summary">OpenAI Codex 0.156.1-termux.1 and DioNanos Android/Termux distribution · Apache License 2.0. Complete Rust/V8 dependency notices are still being reconciled before a final release. This is not an official OpenAI Android APK.</string>
+  <string name="license_codex_runtime_summary">OpenAI Codex 0.156.1-termux.1 and DioNanos Android/Termux distribution · Apache License 2.0. Rust/V8 dependency terms and attribution are available in the component notices below. This is not an official OpenAI Android APK.</string>
   <string name="license_zlib_runtime_title">zlib for PNG validation</string>
   <string name="license_zlib_runtime_summary">zlib 1.3.2 · used by AGENTCODI native PNG validation, under the zlib License.</string>
   <string name="license_third_party_title">LLVM runtime and payload notices</string>
@@ -732,6 +732,8 @@
     <string name="browser_imported">Imported to %1$s. Use this path in the terminal; nothing was installed.</string>
     <string name="browser_import_failed">Import failed. The file must be readable, within 512 MiB, and not an account credential file.</string>
     <string name="browser_unavailable_credential">Credential path: preview and export are excluded.</string>
+  <string name="license_codex_dependencies_title">Codex dependency notices</string>
+  <string name="license_codex_dependencies_summary">Choose a component to read original Rust crate, Rust standard library and V8 source notices, including native dependencies. Build and test source material is included conservatively and identified by its original path.</string>
   <string name="license_bootstrap_title">APT/dpkg bootstrap</string>
   <string name="license_bootstrap_summary">Choose a bundled package to read its original license files. This list describes the APK bootstrap; packages installed later retain notices under their installation prefix.</string>
   <string name="license_bootstrap_missing">This package supplies no separate license text. Consult its source and shared dependency notices; the build report records this gap.</string>

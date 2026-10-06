@@ -7,6 +7,7 @@ import importlib.util
 import json
 from pathlib import Path, PurePosixPath
 import re
+import tomllib
 import zipfile
 
 HERE = Path(__file__).resolve().parent
@@ -90,6 +91,65 @@ def bootstrap_evidence(archive_data, manifest_data, report_data):
             "corresponding_sources": source, "release_blockers": gaps}
 
 
+def community_evidence(archive_data, index_data, provenance_data, project):
+    base = project / "third_party/community-codex"
+    provenance = json.loads(provenance_data)
+    index = json.loads(index_data)
+    release = json.loads((project / ".github/ci/community-codex-release.json").read_text())
+    require(provenance["format_version"] == index["format_version"] == 1, "Community legal format")
+    require(provenance["community_release"] == release, "Community legal release binding")
+    require(index["codex_source_commit"] == release["source_commit"], "Community legal source revision")
+    lock_data = (base / "Cargo.lock").read_bytes()
+    require(digest(lock_data) == index["cargo_lock_sha256"] == provenance["cargo_lock_sha256"],
+            "Community legal Cargo.lock binding")
+    require(digest(index_data) == provenance["index_sha256"] and
+            digest(archive_data) == provenance["archive_sha256"], "Community legal artifact checksum")
+    require(index["target"] == "aarch64-linux-android" and
+            index["roots"] == ["codex-cli", "codex-code-mode-host"], "Community legal target/roots")
+    locked = {(p["name"], p["version"]): p for p in tomllib.loads(lock_data.decode())["package"]}
+    cargo = [c for c in index["components"] if c["kind"] == "cargo-normal-and-build-closure"]
+    keys = {(c["name"], c["version"]) for c in cargo}
+    require(len(keys) == len(cargo) == provenance["cargo_component_count"] and
+            {"codex-cli", "codex-code-mode-host"}.issubset({name for name, _ in keys}),
+            "Community legal component set")
+    for component in cargo:
+        package = locked.get((component["name"], component["version"]))
+        require(package is not None and component["source"] == package.get("source") and
+                component["checksum"] == package.get("checksum"), "Community legal package/source checksum")
+    v8 = [c for c in index["components"] if c["kind"] == "v8-source-material"]
+    std = [c for c in index["components"] if c["kind"] == "rust-standard-library"]
+    require(len(v8) == len(std) == 1 and v8[0]["version"] == "150.4.0" and
+            v8[0]["source"] == provenance["v8"]["source_commit"] and
+            v8[0]["submodules"] == provenance["v8"]["submodules"] and
+            std[0]["version"] == provenance["rust_toolchain"]["version"], "V8/Rust legal source binding")
+    require(len(index["components"]) == len(cargo) + 2, "Unexpected Community legal component")
+    covered = {}
+    missing = []
+    for component in index["components"]:
+        if not component["files"]:
+            missing.append(component["name"] + " " + component["version"])
+        for record in component["files"]:
+            require(re.fullmatch(r"texts/[0-9a-f]{64}[.]txt", record["path"]) is not None,
+                    "Unsafe Community legal path")
+            require(0 < record["size"] <= 512 * 1024, "Community legal display limit")
+            expected = {"size": record["size"], "sha256": record["sha256"]}
+            require(record["path"] not in covered or covered[record["path"]] == expected,
+                    "Conflicting Community legal record")
+            covered[record["path"]] = expected
+    require(sorted(missing) == sorted(gap["name"] + " " + gap["version"] for gap in index["gaps"]),
+            "Community legal gaps differ from inventory")
+    with zipfile.ZipFile(io.BytesIO(archive_data)) as archive:
+        names = archive.namelist()
+        require(len(names) == len(set(names)) and set(names) == set(covered), "Community legal ZIP file set")
+        for name, expected in covered.items():
+            data = archive.read(name)
+            require(len(data) == expected["size"] and digest(data) == expected["sha256"],
+                    "Community legal text checksum")
+    return {"cargo_components": len(cargo), "unique_texts": len(covered),
+            "provenance": provenance, "release_blockers":
+            ["Missing Community dependency legal text: " + value for value in missing]}
+
+
 def verify(apk_path, staged, project=REPO, release=False):
     spec = contract()
     staged = Path(staged)
@@ -98,7 +158,7 @@ def verify(apk_path, staged, project=REPO, release=False):
     expected_native = {abi_root + name for name in spec["native_files"]}
     expected_assets = set(spec["third_party_assets"])
     resource_sources = {name: project / "app/src/main" / name for name in spec["resources"]}
-    report = {"format_version": 1, "contract": spec, "files": {},
+    report = {"format_version": 2, "contract": spec, "files": {},
               "release_blockers": list(spec["release_blockers"])}
     with zipfile.ZipFile(apk_path) as apk:
         names = [entry.filename for entry in apk.infolist() if not entry.is_dir()]
@@ -113,6 +173,21 @@ def verify(apk_path, staged, project=REPO, release=False):
             require(data == source.read_bytes(), "APK bytes differ from staged source: " + name)
             require(bool(data), "Empty payload/legal file: " + name)
             report["files"][name] = {"size": len(data), "sha256": digest(data)}
+        community_root = "assets/third-party/codex/"
+        for filename in ("DEPENDENCY-LICENSES.zip", "DEPENDENCY-LICENSE-INDEX.json", "DEPENDENCY-PROVENANCE.json"):
+            require(apk.read(community_root + filename) ==
+                    (project / "third_party/community-codex" / filename).read_bytes(),
+                    "Community legal checked-in source differs")
+        community = community_evidence(
+            apk.read(community_root + "DEPENDENCY-LICENSES.zip"),
+            apk.read(community_root + "DEPENDENCY-LICENSE-INDEX.json"),
+            apk.read(community_root + "DEPENDENCY-PROVENANCE.json"), project)
+        runtime = community["provenance"]["community_release"]
+        require(digest(apk.read(abi_root + "libcodex.so")) == runtime["apk_relocation"]["sha256"] and
+                digest(apk.read(abi_root + "libcodex-codehost.so")) ==
+                runtime["native_sha256"]["codex-code-mode-host"], "Community legal native artifact binding")
+        report["community"] = community
+        report["release_blockers"].extend(community["release_blockers"])
         bootstrap_root = "assets/third-party/package-bootstrap/"
         evidence = bootstrap_evidence(
             apk.read(bootstrap_root + "bootstrap-aarch64.zip"),
@@ -136,8 +211,9 @@ def verify(apk_path, staged, project=REPO, release=False):
                 (project / "third_party/libcxx/LLVM-LICENSES").read_bytes(),
                 "LLVM legal source differs")
     report["apk_sha256"] = digest(Path(apk_path).read_bytes())
-    report["final_release_ready"] = not report["release_blockers"]
-    require(not release or report["final_release_ready"], "Final APK license gate: " +
+    report["license_release_ready"] = not report["release_blockers"]
+    report["device_tests"] = "Not performed by hosted CI; physical Android validation remains separate"
+    require(not release or report["license_release_ready"], "Final APK license gate: " +
             "; ".join(report["release_blockers"]))
     return report
 

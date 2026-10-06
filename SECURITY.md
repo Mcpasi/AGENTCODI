@@ -151,8 +151,12 @@ the dpkg database and caches, and reject inherited retired activation variables.
 Hosted Linux and ARM64/Bionic containers cannot validate Android installation,
 APK updates, foreground services, notifications, login browser flows, document
 pickers or hardware linker/SELinux behavior. These remain open device tests.
-The Community release's complete statically linked Rust/V8 attribution is also
-an explicit prerequisite for a final APK release; supplied-license byte checks
-do not establish a complete third-party license inventory. The debug contract
-report records this boundary and release builds fail while its license blockers
-remain.
+Community Rust/V8 terms and attribution are supplemented by the pinned
+target-specific Rust dependency/source collection, with exact V8 submodule
+and Rust standard-library notices. The verifier binds that material to
+Cargo.lock, component/source checksums, legal ZIP bytes and the native release
+hashes. See [the dependency provenance](third_party/community-codex/README.md).
+The format-2 report's license_release_ready describes licensing prerequisites;
+it separately records that device validation was not performed. A release
+build fails if any legal gap reappears. Clearing that gate does not establish
+the Android behaviors listed above.

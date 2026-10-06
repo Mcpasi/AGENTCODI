@@ -149,8 +149,94 @@ public final class LicensesActivity extends Activity {
                 }
             }
         );
+        addCommunityCard(page);
         addBootstrapCard(page);
         return scroll;
+    }
+
+    private void addCommunityCard(LinearLayout page) {
+        LinearLayout card = theme.card();
+        TextView title = theme.text(getString(R.string.license_codex_dependencies_title), 18, theme.primary);
+        title.setTypeface(Typeface.DEFAULT_BOLD);
+        card.addView(title);
+        theme.addWithTopMargin(card, theme.body(getString(R.string.license_codex_dependencies_summary)), 8);
+        Button show = theme.secondaryButton(getString(R.string.license_show_text));
+        show.setOnClickListener(new View.OnClickListener() {
+            @Override
+            public void onClick(View view) {
+                showCommunityComponents();
+            }
+        });
+        theme.addWithTopMargin(card, show, 12);
+        theme.addWithTopMargin(page, card, 16);
+    }
+
+    private void showCommunityComponents() {
+        try {
+            JSONObject index = new JSONObject(readBounded(
+                getAssets().open("third-party/codex/DEPENDENCY-LICENSE-INDEX.json"), 4 * 1024 * 1024));
+            final JSONArray components = index.getJSONArray("components");
+            String[] labels = new String[components.length()];
+            for (int i = 0; i < labels.length; i++) {
+                JSONObject component = components.getJSONObject(i);
+                labels[i] = component.getString("name") + " " + component.getString("version");
+            }
+            new AlertDialog.Builder(this)
+                .setTitle(R.string.license_codex_dependencies_title)
+                .setItems(labels, new DialogInterface.OnClickListener() {
+                    @Override
+                    public void onClick(DialogInterface dialog, int which) {
+                        try {
+                            showCommunityFiles(components.getJSONObject(which));
+                        } catch (JSONException error) {
+                            showBootstrapError();
+                        }
+                    }
+                })
+                .setNegativeButton(R.string.license_close, null)
+                .show();
+        } catch (IOException | JSONException error) {
+            showBootstrapError();
+        }
+    }
+
+    private void showCommunityFiles(final JSONObject component) throws JSONException {
+        final JSONArray files = component.getJSONArray("files");
+        final String title = component.getString("name") + " " + component.getString("version");
+        String[] labels = new String[files.length()];
+        for (int i = 0; i < labels.length; i++) {
+            labels[i] = files.getJSONObject(i).getString("source_path");
+        }
+        new AlertDialog.Builder(this)
+            .setTitle(title)
+            .setItems(labels, new DialogInterface.OnClickListener() {
+                @Override
+                public void onClick(DialogInterface dialog, int which) {
+                    try {
+                        final JSONObject file = files.getJSONObject(which);
+                        showLicenseText(title, new LicenseLoader() {
+                            @Override
+                            public String load() throws IOException {
+                                try {
+                                    String text = readZipLicense(
+                                        "third-party/codex/DEPENDENCY-LICENSES.zip", file.getString("path"));
+                                    if (file.getString("source_path").endsWith(".html")) {
+                                        return android.text.Html.fromHtml(text,
+                                            android.text.Html.FROM_HTML_MODE_LEGACY).toString();
+                                    }
+                                    return text;
+                                } catch (JSONException error) {
+                                    throw new IOException("Invalid dependency notice", error);
+                                }
+                            }
+                        });
+                    } catch (JSONException error) {
+                        showBootstrapError();
+                    }
+                }
+            })
+            .setNegativeButton(R.string.license_close, null)
+            .show();
     }
 
     private void addBootstrapCard(LinearLayout page) {
@@ -239,8 +325,11 @@ public final class LicensesActivity extends Activity {
     }
 
     private String readBootstrapLicense(String path) throws IOException {
-        try (ZipInputStream archive = new ZipInputStream(
-                getAssets().open("third-party/package-bootstrap/bootstrap-aarch64.zip"))) {
+        return readZipLicense("third-party/package-bootstrap/bootstrap-aarch64.zip", path);
+    }
+
+    private String readZipLicense(String asset, String path) throws IOException {
+        try (ZipInputStream archive = new ZipInputStream(getAssets().open(asset))) {
             ZipEntry entry;
             while ((entry = archive.getNextEntry()) != null) {
                 if (entry.getName().equals(path)) {
@@ -323,6 +412,10 @@ public final class LicensesActivity extends Activity {
     }
 
     private static String readBounded(InputStream input) throws IOException {
+        return readBounded(input, MAX_LICENSE_BYTES);
+    }
+
+    private static String readBounded(InputStream input, int limit) throws IOException {
         try {
             ByteArrayOutputStream output = new ByteArrayOutputStream();
             byte[] buffer = new byte[4096];
@@ -333,7 +426,7 @@ public final class LicensesActivity extends Activity {
                     break;
                 }
                 total += read;
-                if (total > MAX_LICENSE_BYTES) {
+                if (total > limit) {
                     throw new IOException("Packaged license exceeds the display limit");
                 }
                 output.write(buffer, 0, read);

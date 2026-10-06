@@ -22,7 +22,7 @@ and legal asset against its staged bytes, including the exact ABI/file set.
 | --- | --- |
 | Original AGENTCODI engine, shell bridge and Java/UI code | LICENSE and res/raw/agentcodi_apache_2_0.txt; Copyright 2026 Pascal (Mc Pasi). |
 | Google Material Icons | Pinned Google attribution, material_icons_notice.txt and complete Apache-2.0 text. |
-| Community Codex app-server and code-mode host | Verbatim, SHA-256-pinned assets/third-party/codex/LICENSE and NOTICE; release/source pins above. |
+| Community Codex app-server and code-mode host | Verbatim, SHA-256-pinned assets/third-party/codex/LICENSE and NOTICE; dependency texts/index/provenance supplement the original material, with release/source pins above. |
 | LLVM libc++ shared runtime from Termux libc++ 29 | Verbatim distributor copyright at assets/third-party/libcxx/DISTRIBUTOR-LICENSE, supplemented with complete upstream LLVM libc++/libc++abi/libunwind texts at LLVM-LICENSES. See third_party/libcxx/README.md for the separate legal-source pin. |
 | zlib 1.3.2 for the PNG validator | Verbatim copyright from the pinned zlib DEB at assets/third-party/zlib/ZLIB-LICENSE. |
 | Source-built minimal bootstrap | Original package license files in its ZIP; per-package ownership, size and SHA-256 in bootstrap-report.json and BOOTSTRAP-LICENSE-INDEX.json, accessible from the app's legal-notices screen. |
@@ -34,18 +34,32 @@ AAPT2 and its exclusive dependencies, R8, the Android compile platform and host
 Python are build tools. The standalone APK still includes libc++ and zlib;
 the bootstrap independently includes its runtime dependency closure.
 
-**Reconciliation is complete for the declared payload and supplied legal
-material; complete Community dependency attribution is still a final-release
-prerequisite.** The pinned Community archive supplies Apache-2.0 LICENSE and
-NOTICE (including Ratatui/MIT attribution), but no complete license inventory
-for its statically linked Rust/V8 dependencies. DT_NEEDED proves only dynamic
-dependencies. Neither Cargo.lock alone, the historical sandbox crate list,
-nor a different NDK source snapshot proves the exact linked dependency set.
-The debug contract report therefore lists this gap and sets
-final_release_ready=false. A release build fails its license gate until the
-release-specific inventory/texts are reconciled. No final APK is published by
-these checks. Individual bootstrap packages without package-local legal text
-are also listed explicitly, rather than represented as complete.
+**The declared payload and its dependency license materials are reconciled.**
+The Community archive's Apache LICENSE/NOTICE are retained verbatim. The
+supplement at assets/third-party/codex/DEPENDENCY-LICENSES.zip and
+DEPENDENCY-LICENSE-INDEX.json records the target-specific normal/build dependency
+closure for codex-cli and codex-code-mode-host at the same source revision and
+Cargo.lock, plus Rust 1.95.0 standard-library and V8 150.4.0 source notices.
+DEPENDENCY-PROVENANCE.json binds this material to the pinned release archive,
+native ELFs, V8 static archive, source/submodule revisions and file checksums.
+See [the collection and license selections](third_party/community-codex/README.md).
+
+Original legal files are copied unchanged. Where a published crate omits its
+repository-level terms, the recorded crate Git revision provides those texts.
+Where no standalone legal file is supplied, the checksum-verified published
+SPDX declaration determines the selected MIT or Apache-2.0 terms; authors and
+supplied copyright notices remain included. These supplements are identified
+as such and do not invent copyright dates. V8 source coverage conservatively
+includes additional build/test legal files, identified by their original paths;
+it does not assert that all such files are linked into the binary. This is not
+a claim of an independently reproduced Community binary.
+
+The bzip2, gpgv and xz-utils DEBs now own copies of their parent package's
+original license material, with increased package revisions. Their installed
+files are indexed and verified with the same dpkg ownership/ZIP contracts.
+The format-2 report separates license_release_ready from the unperformed
+physical-device validation. A release build fails if legal gaps reappear;
+these checks do not publish a final APK or complete hardware tests.
 
 The original distributor material is never rewritten. The historical
 regular-edition provenance below is retained in this repository; it is excluded

@@ -10,6 +10,9 @@
     "libz_1.so"
   ],
   "third_party_assets": [
+    "assets/third-party/codex/DEPENDENCY-LICENSE-INDEX.json",
+    "assets/third-party/codex/DEPENDENCY-LICENSES.zip",
+    "assets/third-party/codex/DEPENDENCY-PROVENANCE.json",
     "assets/third-party/codex/LICENSE",
     "assets/third-party/codex/NOTICE",
     "assets/third-party/libcxx/DISTRIBUTOR-LICENSE",
@@ -25,7 +28,5 @@
     "res/raw/material_icons_notice.txt",
     "res/raw/third_party_notices.txt"
   ],
-  "release_blockers": [
-    "The pinned Community archive has no complete license/notice inventory for its statically linked Rust/V8 dependencies. Resolve this against the exact release build before publishing a final APK."
-  ]
+  "release_blockers": []
 }

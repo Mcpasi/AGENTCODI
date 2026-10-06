@@ -1,6 +1,6 @@
 > **Package Edition — for power users and experienced users only.** This edition offers **Full access** exclusively. Codex and user-installed programs can read, change, or delete every file reachable by the app, including Codex account data. Android's isolation from other apps remains in place; there is no workspace sandbox within this app.
 >
-> **Development status:** The writable package prefix, Full access, and Community app-server integration are implemented. The minimal APT/dpkg bootstrap, signed APT repository and initial Python, Node.js/npm, Git and ripgrep catalog are integrated and CI-verified. The public HTTPS repository passes pinned-signature, package/index checksum and complete source-availability checks. On-demand terminal package diagnostics and explicit workspace/package file areas are implemented. The APK now omits the user-installable Node.js, npm, Python and ripgrep runtimes. The APK build uses 12 pinned downloads and a cache restricted to current edition inputs. The final payload/test contract and supplied-license reconciliation are implemented; CI evidence and the remaining device validation are tracked on the [roadmap](ROADMAP-package-edition.md). Complete Rust/V8 dependency notices for the pinned Community release remain a prerequisite for a final APK publication. This development branch is not merged into `main`.
+> **Development status:** The writable package prefix, Full access, and Community app-server integration are implemented. The minimal APT/dpkg bootstrap, signed APT repository and initial Python, Node.js/npm, Git and ripgrep catalog are integrated and CI-verified. The public HTTPS repository passes pinned-signature, package/index checksum and complete source-availability checks. On-demand terminal package diagnostics and explicit workspace/package file areas are implemented. The APK now omits the user-installable Node.js, npm, Python and ripgrep runtimes. The APK build uses 12 pinned downloads and a cache restricted to current edition inputs. The final payload/test contract and supplied-license reconciliation are implemented; CI evidence and the remaining device validation are tracked on the [roadmap](ROADMAP-package-edition.md). The pinned Community Rust/V8 dependency terms and attribution are included with an inspectable component/source/hash index. Physical Android validation remains required before a final APK publication. This development branch is not merged into `main`.
 
 <div align="center">
 
@@ -140,8 +140,15 @@ license files. This selector describes the bundled bootstrap version; packages
 updated or installed later retain current notices under $PREFIX/share/doc and
 $PREFIX/share/LICENSES and $PREFIX/share/licenses.
 
-The supplied Community LICENSE/NOTICE do not enumerate all statically linked
-Rust/V8 dependencies. This gap is explicit in NOTICE.md and the contract report;
-final_release_ready remains false and release builds fail the license gate
-until it is resolved for the exact Community build. Successful CI is a debug
-payload verification, not final-release approval.
+The Community archive's original LICENSE/NOTICE remain unchanged. Its missing
+dependency texts are supplemented by the pinned Rust normal/build dependency
+closure, Rust standard-library notices and the exact V8 source/submodule texts.
+The legal screen provides a component/file selector for this separate bundle.
+Published crate SPDX declarations determine MIT/Apache terms when a publisher
+omits a legal file; supplied authors and copyright notices are retained.
+See [the dependency provenance](third_party/community-codex/README.md).
+
+The format-2 contract report uses license_release_ready for the license gate
+and separately states that device tests were not performed. Release builds fail
+if any package/component lacks legal evidence. A clear license gate and successful
+hosted CI leave the physical Android validation open.

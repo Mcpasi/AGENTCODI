@@ -317,7 +317,7 @@ The authoritative [test matrix](../../scripts/package-edition/TEST_CONTRACT.md)
 maps all current checks to the actual minimal Package Edition.
 Architecture now also requires host Python 3 and invokes
 verify-apk-contract.py --check-sources; the hosted and local C++ drivers must
-enumerate the same seven active test sources. The fourteen APK-contract
+enumerate the same seven active test sources. The twenty APK-contract
 regressions use actual fixture ZIP bytes and reject extra ABIs/assets, staged
 mutations, bootstrap legal-index/manifest/source drift and premature releases.
 
@@ -335,11 +335,19 @@ The generated bootstrap index lets the Android legal UI read each original
 license file directly from the immutable bundled ZIP. It does not describe
 subsequent user installations or package upgrades.
 
-The reconciliation explicitly records the missing complete Community
-Rust/V8 dependency notices. final_release_ready remains false, and release
-builds fail the license gate while blockers exist. Hosted CI does not perform
-or certify hardware installation/update/service/picker tests. These open
-roadmap prerequisites must be completed before publishing a final APK.
+The committed Community archive/index/provenance supplement its original
+LICENSE/NOTICE with target-specific Rust normal/build dependency notices,
+Rust standard-library and V8 source/submodule texts. The checker validates
+Cargo.lock/source/package checksums, legal ZIP entries and the actual native
+release hashes. The source research workflow collects this material with read
+permissions; it neither auto-commits nor publishes it. Four collector regressions
+check license directories, declared alternative selection and retained notices.
+
+The format-2 report uses license_release_ready for this license gate and
+explicitly records unperformed device tests. Release builds fail while any
+legal gaps exist. Hosted CI does not perform or certify hardware
+installation/update/service/picker tests; the separate device prerequisites
+remain necessary before publishing a final APK.
 
 Bootstrap copyright links are resolved solely through the audited manifest.
 The index records both the package-owned installed path and the actual shared

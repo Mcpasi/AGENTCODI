@@ -15,7 +15,7 @@ identity and native-runtime checks remain required.
 
 | Layer | Required evidence |
 | --- | --- |
-| Architecture / host contract regressions | Same active C++ suite set in local and hosted drivers; Package shell fixture; exact APK native/asset and legal-byte contract. Fourteen mutation/acceptance regressions exercise assembled fixture ZIPs. |
+| Architecture / host contract regressions | Same active C++ suite set in local and hosted drivers; Package shell fixture; exact APK native/asset and legal-byte contract. Twenty mutation/acceptance regressions exercise assembled fixture ZIPs. |
 | Java host suite | Full-access identity/protocol, bootstrap interruption/recovery and update preservation; managed and user prefixes; all four user tool names, executable permissions, dpkg state and caches; alias retirement; file-browser/import/export checks. |
 | Seven portable C++ suites | Supervisor environment, process lifecycle, framing, PNG and file operations; actual Package shell; prefix precedence; inherited retired activation variables stripped. |
 | Android compilation | All sources/resources against API 35, manifest target 28/minimum 29, separate installation identity and compiled component classes; German/English legal UI. |
@@ -38,13 +38,16 @@ template. Historical sandbox/tool notices stay in repository NOTICE.md.
 
 The APK workflow uploads agentcodi-package-apk-contract, containing exact file
 hashes, package legal/source evidence and explicit release blockers.
-The pinned Community archive lacks a complete license/notice inventory for
-statically linked Rust/V8 dependencies. Its Apache LICENSE/NOTICE and dynamic
-ELF dependencies do not prove that inventory. This reconciliation finding is
-recorded; final_release_ready is false. Release builds fail the license gate
-until that exact release's attribution is complete. Package-local legal gaps,
-if any, are recorded separately. Debug CI success cannot close device tests
-or authorize final publication.
+The original Community archive omits dependency terms; the committed supplement
+records its target-specific normal/build Cargo closure, Rust standard-library
+notices and exact V8 source/submodules. ZIP/index/provenance and Cargo.lock
+are tied to the release/source/native hashes, with original notices preserved
+and declared standard terms identified explicitly where publishers omit files.
+The bzip2/gpgv/xz-utils DEBs retain their parent source's legal files under their
+own package ownership. The format-2 report's license_release_ready describes
+only legal prerequisites, and device_tests records the unperformed hardware
+validation. Release builds fail if any component or package has a legal gap.
+Debug CI success cannot close device tests or authorize final publication.
 
 Bootstrap copyright links are resolved solely through the audited manifest.
 The index records both the package-owned installed path and the actual shared

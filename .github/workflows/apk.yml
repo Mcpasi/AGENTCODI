@@ -21,6 +21,7 @@ on:
       - 'modules/**'
       - 'scripts/**'
       - 'third_party/libcxx/**'
+      - 'third_party/community-codex/**'
       - 'tests/**'
       - '.github/workflows/apk.yml'
       - '.github/workflows/bootstrap.yml'

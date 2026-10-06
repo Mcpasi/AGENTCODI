@@ -1,0 +1,151 @@
+{
+  "format_version": 1,
+  "community_release": {
+    "repository": "DioNanos/codex-termux",
+    "release": "v0.156.1-termux.1",
+    "source_commit": "ea762071ec4acbf1531fcc7daf47524836f70a09",
+    "package_name": "@mmmbuto/codex-cli-termux",
+    "package_version": "0.156.1-termux.1",
+    "asset_name": "mmmbuto-codex-cli-termux-0.156.1-termux.1.tgz",
+    "archive_sha256": "44cee2f3a4a110fd79d4f7d61378d46fd72406f45cffb3163e809d63e86d946a",
+    "upstream_tag": "rust-v0.156.1",
+    "upstream_commit": "b412ff32c417f855c2b2d1581b77058eed87c84b",
+    "native_sha256": {
+      "codex.bin": "6cbfa7f1660095e9cf2df7de242014579a0fb0d42545652fb0e22d1b6c8571a5",
+      "codex-code-mode-host": "8afb196579c3fd8ecac558dbebfcba5467f91389b3754e485728ce6904e6ceaf",
+      "libc++_shared.so": "430f7cde7c1a88042bb9e39ae1c1f4b9f5819f3bd95acd1453d2e02c63ba1870"
+    },
+    "schema_sha256": {
+      "codex_app_server_protocol.schemas.json": "eb1ba91bd0fab656523092f6ed7de3ea7aef278921a650f14dc871ae7dcfaf84",
+      "codex_app_server_protocol.v2.schemas.json": "995fc3b8f8c469f6787e8fc5be4038c4f31359025edd8480b862e83355f3bf3b"
+    },
+    "apk_relocation": {
+      "offset": 10568364,
+      "from": "codex-code-mode-host",
+      "to": "libcodex-codehost.so",
+      "sha256": "cf1b406252928b0d68cb0f8f81adde6a02bf357a7fffb762d10cb503a235be06"
+    }
+  },
+  "cargo_lock_sha256": "d722f05fc760bcd1f5749ec452452d81058458b788df3b765b80500d757eba4a",
+  "index_sha256": "8da821f5b474812a05c963d5d18375e4c5ea395f7c2381c72f6cbdf7db861a7e",
+  "archive_sha256": "6fe3d77f8a41e8d69c66c7c99204e2977708678da78c073ab82eab0071e3fd70",
+  "cargo_component_count": 1033,
+  "v8": {
+    "version": "150.4.0",
+    "source_commit": "5c15a6995c9bb4bacd3e341b59fff32c909c80bf",
+    "submodules": [
+      {
+        "path": "build",
+        "commit": "8acb33ac8dceef0503443109c0a92988189563ef"
+      },
+      {
+        "path": "buildtools",
+        "commit": "17495e454aae81b581e8b3caccbb53054509b280"
+      },
+      {
+        "path": "third_party/abseil-cpp",
+        "commit": "d16e32215c3ab90ba57c2e904a5344d85c7353e4"
+      },
+      {
+        "path": "third_party/dragonbox/src",
+        "commit": "beeeef91cf6fef89a4d4ba5e95d47ca64ccb3a44"
+      },
+      {
+        "path": "third_party/fast_float/src",
+        "commit": "05087a303dad9c98768b33c829d398223a649bc6"
+      },
+      {
+        "path": "third_party/fp16/src",
+        "commit": "3d2de1816307bac63c16a297e8c4dc501b4076df"
+      },
+      {
+        "path": "third_party/highway/src",
+        "commit": "2607d3b5b0113992fe84d3848859eae13b3b52c1"
+      },
+      {
+        "path": "third_party/icu",
+        "commit": "ee5f27adc28bd3f15b2c293f726d14d2e336cbd5"
+      },
+      {
+        "path": "third_party/jinja2",
+        "commit": "c3027d884967773057bf74b957e3fea87e5df4d7"
+      },
+      {
+        "path": "third_party/libc++/src",
+        "commit": "5abc7f839700f0f17338434e1c1c6a8c87c00c11"
+      },
+      {
+        "path": "third_party/libc++abi/src",
+        "commit": "8f11bb1d4438d0239d0dfc1bd9456a9f31629dda"
+      },
+      {
+        "path": "third_party/libunwind/src",
+        "commit": "d6c7a21e978f0adaa43accaad53bc64f0b64f6ec"
+      },
+      {
+        "path": "third_party/llvm-libc/src",
+        "commit": "9309c117ebae84dd2f9df1ef99de4782162527d5"
+      },
+      {
+        "path": "third_party/markupsafe",
+        "commit": "4256084ae14175d38a3ff7d739dca83ae49ccec6"
+      },
+      {
+        "path": "third_party/partition_alloc",
+        "commit": "ff3b8b885b8374cbd3902642d94dc737bda93d5d"
+      },
+      {
+        "path": "third_party/rust",
+        "commit": "26e8ff47f18a8d28d6187a04b6a16cb7332356f8"
+      },
+      {
+        "path": "third_party/simdutf",
+        "commit": "f7356eed293f8208c40b3c1b344a50bd70971983"
+      },
+      {
+        "path": "tools/clang",
+        "commit": "45f4b9e25124809497a27a8ae0e63d603b0f9f1b"
+      },
+      {
+        "path": "tools/win",
+        "commit": "faefd1b6fa9eeb033ad6fe60368ccb9bf908cbd0"
+      },
+      {
+        "path": "v8",
+        "commit": "ac1e23989121713ca642f6650b34deff7b686896"
+      }
+    ],
+    "profile": "ptrcomp_sandbox_release",
+    "archive_sha256": "6fb02f1669dbb85f7265a1cba05ac31b683295be7db9651f1db2b7b082794a09",
+    "binding_sha256": "639421ae6a0d125dde076cdb4c5d5b3afc9e3ce764acad4a772b7182ea77da66",
+    "producer_run_url": "https://github.com/DioNanos/codex-vl/actions/runs/33288446010",
+    "producer_job_id": 99195717930
+  },
+  "rust_toolchain": {
+    "version": "1.95.0",
+    "legal_source": "share/doc/rust/COPYRIGHT-library.html"
+  },
+  "collection": {
+    "source_repository": "DioNanos/codex-termux",
+    "source_commit": "ea762071ec4acbf1531fcc7daf47524836f70a09",
+    "workflow_run_url": "https://github.com/Mcpasi/AGENTCODI/actions/runs/37452960760",
+    "workflow_commit": "46c2367c03f1d8ca40b7a99c232c5be5bc94d529",
+    "job_id": 112233633111,
+    "roots": [
+      "codex-cli",
+      "codex-code-mode-host"
+    ],
+    "target": "aarch64-linux-android",
+    "cargo_edges": [
+      "normal",
+      "build"
+    ]
+  },
+  "coverage": "Conservative pinned Cargo normal/build dependency closure, Rust standard-library notices and all original legal files in rusty_v8/V8 source submodules. Includes build-only and test-source material; does not assert every listed source is retained in the ELF files or claim an independently reproduced binary.",
+  "spdx_mit_source": {
+    "repository": "spdx/license-list-data",
+    "commit": "31ba1a50e5397e00a304dbadc76531740e89ee48",
+    "path": "text/MIT.txt",
+    "use": "Complete terms only; generic copyright placeholders removed in generated supplements. Source-supplied copyright and authors are retained separately."
+  }
+}

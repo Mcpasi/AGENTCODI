@@ -7,6 +7,7 @@ on:
       - '.github/ci/collect-community-licenses.py'
       - '.github/ci/license-templates/**'
       - '.github/ci/test-community-license-collector.py'
+      - 'third_party/community-codex/**'
   workflow_dispatch:
 permissions:
   contents: read
@@ -26,13 +27,11 @@ jobs:
           persist-credentials: false
       - name: Install the producer's Rust toolchain
         run: rustup toolchain install 1.95.0 --profile minimal --component rust-docs
-      - name: Reuse verified V8 and standard-library legal source material
-        uses: actions/download-artifact@v4
-        with:
-          name: community-dependency-license-research
-          run-id: 37451191641
-          github-token: ${{ github.token }}
-          path: legal-seed
+      - name: Reuse committed, checksum-verified V8 and standard-library legal material
+        run: |
+          mkdir legal-seed
+          cp third_party/community-codex/DEPENDENCY-LICENSE-INDEX.json legal-seed/
+          cp third_party/community-codex/DEPENDENCY-LICENSES.zip legal-seed/
       - name: Check license selection and attribution handling
         run: python3 .github/ci/test-community-license-collector.py
       - name: Collect original license texts and report missing material

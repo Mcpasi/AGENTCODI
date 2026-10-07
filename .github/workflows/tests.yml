@@ -142,6 +142,7 @@ jobs:
         run: |
           python3 -m py_compile .github/ci/inspect-community-codex.py .github/ci/community-runtime-pins.py .github/ci/verify-community-protocol.py
           python3 .github/ci/test-community-codex-inspection.py
+          python3 .github/ci/test-community-host-output.py
 
       - name: Download, verify and inspect the pinned Community release
         env:
@@ -164,6 +165,8 @@ jobs:
     timeout-minutes: 20
     steps:
       - uses: actions/checkout@v4
+      - name: Prepare Android API 29 Bionic for native ELF TLS
+        run: docker build -f .github/ci/community-runtime.Dockerfile -t agentcodi-community-api29 .github/ci
       - name: Verify release and prepare APK relocation
         env:
           GH_TOKEN: ${{ github.token }}
@@ -177,7 +180,7 @@ jobs:
         run: |
           docker run --rm --entrypoint /entrypoint.sh \
             -v "$RUNNER_TEMP/community-runtime":/audit \
-            termux/termux-docker:aarch64@sha256:e19ea56dd687563849826cbda57da714ae23277ee463e21f39917dbc0a59bab4 \
+            agentcodi-community-api29 \
             bash -c 'set -eu
               mkdir -p /audit/report/schema
               export HOME=/data/data/com.termux/files/usr/tmp/community-home CODEX_HOME=/data/data/com.termux/files/usr/tmp/community-home/codex TMPDIR=/data/data/com.termux/files/usr/tmp
@@ -188,13 +191,9 @@ jobs:
               /audit/payload/package/bin/libcodex.so --version'
       - name: Record binary and generated schema pins
         run: python3 .github/ci/community-runtime-pins.py "$RUNNER_TEMP/community-runtime"
-      - name: Diagnose isolated code-mode host callbacks
-        continue-on-error: true
+      - name: Verify isolated code-mode host callbacks on API 29
         run: |
-          sudo apt-get update
-          sudo apt-get install -y gdb
-          python3 .github/ci/probe-code-mode-callbacks.py "$RUNNER_TEMP/community-runtime" || true
-          python3 .github/ci/probe-code-mode-callbacks.py "$RUNNER_TEMP/community-runtime" --diagnose
+          python3 .github/ci/probe-code-mode-callbacks.py "$RUNNER_TEMP/community-runtime"
       - uses: actions/setup-java@v4
         with:
           distribution: temurin
@@ -210,14 +209,14 @@ jobs:
           "$RUNNER_TEMP/community-validator/bin/python" .github/ci/verify-community-protocol.py \
             "$RUNNER_TEMP/community-runtime" --trace "$AGENTCODI_RPC_AUDIT" \
             --mcp-approvals "$AGENTCODI_MCP_APPROVAL_AUDIT"
-      - name: Reproduce the original nested MCP callback with a host backtrace
+      - name: Verify the original nested MCP callback and all approval decisions
         env:
           AGENTCODI_RPC_AUDIT: ${{ runner.temp }}/community-rpc.jsonl
           AGENTCODI_MCP_APPROVAL_AUDIT: ${{ runner.temp }}/community-mcp-approvals.jsonl
         run: |
           "$RUNNER_TEMP/community-validator/bin/python" -u .github/ci/verify-community-protocol.py \
             "$RUNNER_TEMP/community-runtime" --trace "$AGENTCODI_RPC_AUDIT" \
-            --mcp-approvals "$AGENTCODI_MCP_APPROVAL_AUDIT" --nested-mcp --diagnose-gdb
+            --mcp-approvals "$AGENTCODI_MCP_APPROVAL_AUDIT" --nested-mcp
       - uses: actions/upload-artifact@v4
         if: always()
         with:

@@ -13,8 +13,9 @@ import time
 import uuid
 from http.server import BaseHTTPRequestHandler, ThreadingHTTPServer
 from jsonschema import Draft7Validator
+from community_host_output import verify_host_output
+from community_runtime_image import IMAGE
 
-IMAGE = "termux/termux-docker:aarch64@sha256:e19ea56dd687563849826cbda57da714ae23277ee463e21f39917dbc0a59bab4"
 PROFILE = ":danger-full-access"
 
 def validator(bundle, name):
@@ -326,6 +327,7 @@ def main():
     model = ModelFixture()
     runtime = Runtime(audit, client, model.url)
     thread_id = None
+    host_verified = False
     try:
         runtime.initialize()
         profiles = runtime.request("permissionProfile/list", {"cwd": runtime.cwd, "limit": 50})
@@ -396,13 +398,15 @@ def main():
         assert runtime.cwd + "/imported-content.bin" in first_input, first_input
         assert "Read the actual bytes" in first_input, first_input
         assert "VISIBLE-LABEL-MUST-NOT-BE-MODEL-CONTEXT.bin" not in first_input, first_input
-        follow_up = json.dumps(model.requests[1].get("input", []))
-        assert "community-code-host-ok" in follow_up, follow_up
-        assert "failed to spawn" not in follow_up and "failed to initialize" not in follow_up
+        follow_up_input = model.requests[1].get("input", [])
+        (audit / "report/code-mode-model-input.json").write_text(json.dumps(follow_up_input, indent=2) + "\n")
+        verify_host_output(follow_up_input, "community-host-probe", "community-code-host-ok")
+        host_verified = True
         print("Relocated sibling code-mode host executed JavaScript successfully.")
     finally:
-        if not args.nested_mcp:
+        if not args.nested_mcp or not host_verified:
             runtime.close()
+        (audit / "report/code-mode-app-server.stderr.txt").write_text("".join(runtime.errors))
     # MCP tools are normally dispatched as model function calls. Do not force
     # experimental code-mode callbacks to test the native MCP approval protocol.
     if not args.nested_mcp:
@@ -507,8 +511,10 @@ def main():
               "java_messages_validated": count, "real_runtime": "passed",
               "mcp_approval_messages_validated": len(mcp_records),
               "real_mcp_prompt_actions": sorted(mcp_actions),
+              "real_mcp_dispatch": "nested-code-mode" if args.nested_mcp else "native-function-call",
               "device_tests": "skipped"}
-    (audit / "report/protocol-verification.json").write_text(json.dumps(report, indent=2) + "\n")
+    report_name = "protocol-verification-nested-mcp.json" if args.nested_mcp else "protocol-verification.json"
+    (audit / "report" / report_name).write_text(json.dumps(report, indent=2) + "\n")
     print("Community Full-access, PTY, MCP, connector and runtime-restart checks passed.")
 
 if __name__ == "__main__":

@@ -14,8 +14,8 @@ import subprocess
 import threading
 import time
 import uuid
+from community_runtime_image import IMAGE, LEGACY_IMAGE
 
-IMAGE = "termux/termux-docker:aarch64@sha256:e19ea56dd687563849826cbda57da714ae23277ee463e21f39917dbc0a59bab4"
 TOOL = {"name": "mcp__approval_probe__echo",
         "tool_name": {"name": "echo", "namespace": "mcp__approval_probe"},
         "description": "Return a synthetic marker.", "kind": "function",
@@ -30,7 +30,7 @@ CASES = (
 )
 
 
-def probe(audit, output, case, diagnose):
+def probe(audit, output, case, diagnose, image):
     label, source, enabled, expected_calls = case
     name = "codehost-probe-" + uuid.uuid4().hex
     transcript = []
@@ -42,7 +42,7 @@ def probe(audit, output, case, diagnose):
     process = subprocess.Popen([
         "docker", "run", "--rm", "-i", "--name", name, "--user", "1000:1000",
         "--network", "none", "--entrypoint", "/audit/payload/package/bin/codex-code-mode-host",
-        "-v", str(audit) + ":/audit:ro", IMAGE, "--listen", "stdio"],
+        "-v", str(audit) + ":/audit:ro", image, "--listen", "stdio"],
         stdin=subprocess.PIPE, stdout=subprocess.PIPE, stderr=subprocess.PIPE)
 
     def read_messages():
@@ -129,7 +129,9 @@ def probe(audit, output, case, diagnose):
             if message["type"] == "execute/initialResponse":
                 assert message["result"]["status"] == "ok", message
                 value = message["result"]["value"]
-                assert "host-control-ok" in json.dumps(value), message
+                completed = value["Result"]
+                assert completed["error_text"] is None, message
+                assert "host-control-ok" in json.dumps(completed["content_items"]), message
                 assert len(calls) == expected_calls, calls
                 result["status"] = "passed"
                 break
@@ -164,16 +166,19 @@ def main():
     parser = argparse.ArgumentParser(description=__doc__)
     parser.add_argument("audit", type=Path)
     parser.add_argument("--diagnose", action="store_true")
+    parser.add_argument("--legacy-bionic", action="store_true",
+                        help="Reproduce the failure using Android 9 Bionic (expected to exit nonzero)")
     args = parser.parse_args()
     audit = args.audit.resolve()
     pin = json.loads(Path(__file__).with_name("community-codex-release.json").read_text())
     host = audit / "payload/package/bin/codex-code-mode-host"
     digest = hashlib.sha256(host.read_bytes()).hexdigest()
     assert digest == pin["native_sha256"][host.name], "Unverified host binary"
-    output = audit / "report/code-mode-callbacks"
+    image = LEGACY_IMAGE if args.legacy_bionic else IMAGE
+    output = audit / ("report/code-mode-callbacks-legacy" if args.legacy_bionic else "report/code-mode-callbacks")
     output.mkdir(parents=True, exist_ok=True)
-    results = [probe(audit, output, case, args.diagnose) for case in CASES]
-    report = {"host_sha256": digest, "image": IMAGE, "probes": results}
+    results = [probe(audit, output, case, args.diagnose, image) for case in CASES]
+    report = {"host_sha256": digest, "image": image, "probes": results}
     (output / "report.json").write_text(json.dumps(report, indent=2) + "\n")
     raise SystemExit(0 if all(r["status"] == "passed" for r in results) else 1)
 

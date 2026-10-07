@@ -5,10 +5,11 @@ Status: 2026-10-07. Only branch `Mcpasi/package-edition`; no merge into `main`.
 ### Package Edition 0.1.1: package file export fixes — Unreleased, 2026-10-07
 
 Current development identity: `0.1.1`, Android `versionCode 4`, application ID
-`de.agentcodi.pkg`. **This version remains unpublished until physical Android
-device tests complete successfully.** The published `v0.1.0-package.3` release
-and all earlier CI/artifact records below retain their original version/status;
-they do not validate or publish 0.1.1.
+`de.agentcodi.pkg`. **Experimental prerelease. Device tests: passed.** The user
+confirmed successful APK tests on physical Android hardware on 2026-10-07.
+Version 0.1.1 is not yet published. The published `0.1.0` (`v0.1.0-package.3`)
+also remains an experimental prerelease. Earlier CI/artifact records below
+retain their original version/status; they do not validate or publish 0.1.1.
 
 Selected roadmap area: [Workspace browser and package file import/export](#workspace-browser-und-paketdatei-importexport--2026-10-05).
 Two suspected bugs were reproduced independently against the preceding
@@ -32,7 +33,7 @@ locally. All seven portable C++ suites pass in a Linux host container;
 architecture, release-signing/build-input/APK/MPL-source checks also pass.
 Android sources/resources compile against API 35; target 28, minimum 29,
 edition identity and signing fixtures (`versionCode 4 → 5`) pass. Physical
-Android installation/update/picker tests remain pending for this version.
+Android APK tests subsequently passed according to the user's report above.
 The [0.1.1 changelog](CHANGELOG.md#011--package-edition-android-versioncode-4--unreleased)
 records these fixes under Package Edition. No tag, APK release, PR or merge
 is created for 0.1.1.
@@ -110,7 +111,7 @@ All work stays on `Mcpasi/package-edition`; `main` remains
 ### Published Package Edition release — 2026-10-06
 
 [AGENTCODI Package Edition V0.1.0](https://github.com/Mcpasi/AGENTCODI/releases/tag/v0.1.0-package.3)
-was published on 2026-10-06 at 23:36:32 UTC as an early-version prerelease,
+was published on 2026-10-06 at 23:36:32 UTC as an experimental prerelease,
 tagged `v0.1.0-package.3`, from this edition branch. The released asset is
 `AGENTCODI-Package-0.1.0-package.3-arm64-v8a-release.apk`, with SHA-256
 `028679df0ebeb2f1a5f9d8b373320122cba1778e67e0f198ac877c2771bc25ed`.
@@ -153,10 +154,9 @@ local files. At this verification milestone, a direct complete APK download
 into the working environment failed with HTTP 403; the actual APK contents
 were verified in the successful release job.
 
-The user reports that the preceding release APK device tests, including APT
-through MCP, passed. The new source-saving feature compiled successfully in
-CI but has not yet been tested on an Android device. The complete Android
-version/device matrix is not documented as completed. The experimental
+The user reports that the release APK device tests, including APT through MCP,
+passed, and confirmed successful hardware testing of the current APK on
+2026-10-07. The experimental
 code-mode callback failure described in the MCP approval section was reproduced
 and resolved as a CI Bionic-version mismatch on 2026-10-07; see the [investigation above](#code-mode-sigsegv-ci-fix--2026-10-07).
 
@@ -887,7 +887,7 @@ is recorded above. `main` remains unchanged by edition work.
 
 ## 4. Reduce the build and produce a releasable edition
 
-Bootstrap, starter catalog, signed package channel and shared package environment work in CI. npm/Python path prerequisites are complete. Previously bundled user-installable packages have been removed from the APK. The active startup path uses only the native Codex runtime and installed package base. Unused legacy sources, identity constants and activation/transport APIs have been removed. Old private tool directories are no longer created or required for startup; existing user data is preserved. Build dependencies, their restoration and cache selection are reduced. The final verification contract and reconciliation of delivered legal materials are implemented. Community dependency texts and bootstrap license assignments are supplemented and verified. The signed Package Edition APK was published on 2026-10-06; the user reports release APK tests from APT through MCP passed. The new MPL source-saving feature and complete installation/update/version matrix still need documented hardware validation. The CI code-mode callback failure was resolved on 2026-10-07; see the [investigation above](#code-mode-sigsegv-ci-fix--2026-10-07).
+Bootstrap, starter catalog, signed package channel and shared package environment work in CI. npm/Python path prerequisites are complete. Previously bundled user-installable packages have been removed from the APK. The active startup path uses only the native Codex runtime and installed package base. Unused legacy sources, identity constants and activation/transport APIs have been removed. Old private tool directories are no longer created or required for startup; existing user data is preserved. Build dependencies, their restoration and cache selection are reduced. The final verification contract and reconciliation of delivered legal materials are implemented. Community dependency texts and bootstrap license assignments are supplemented and verified. The signed Package Edition APK was published on 2026-10-06; the user reports release APK tests from APT through MCP passed. On 2026-10-07 the user also confirmed successful hardware testing of the current 0.1.1 APK. Both versions remain experimental prereleases. The detailed installation/update/version matrix is tracked separately below. The CI code-mode callback failure was resolved on 2026-10-07; see the [investigation above](#code-mode-sigsegv-ci-fix--2026-10-07).
 
 - [x] Remove bundled Node.js, npm, Python, ripgrep and libraries/archives/licenses needed only by them from the APK.
 - [x] First check app-server/code-mode host dependencies on these tools; retain essential base tools in the bootstrap.
@@ -897,8 +897,9 @@ Bootstrap, starter catalog, signed package channel and shared package environmen
 - [x] Align architecture checks and Java/C++/Android smokes with the final package contract.
 - [x] Reconcile notices, README, SECURITY and build documentation with the actual delivered package base. Reconciliation and subsequent license supplementation are implemented; Community Rust/V8 materials and package-local bootstrap assignments are source/artifact-bound. The release license gate rejects any new gap.
 - [x] Supplement Community Rust/V8 dependency texts and missing bootstrap license assignments for pinned artifacts; check source/version/hash evidence, app license view and final APK license gate.
+- [x] Test the current Package Edition 0.1.1 APK on physical Android hardware. Passed, as confirmed by the user on 2026-10-07; the version remains an experimental prerelease.
 - [ ] Perform installation/update tests including low target SDK, foreground service, notifications, login, file selection and backups. The complete matrix is not documented as completed by the broader user report.
-- [x] Test the release APK on a device and publish it as Package Edition. The user reports successful release APK tests; `v0.1.0-package.3` is published. This does not mark the separate full hardware matrix or new source-saving feature complete.
+- [x] Test the release APK on a device and publish it as Package Edition. The user reports successful release APK tests; `v0.1.0-package.3` is published as an experimental prerelease. The detailed hardware/version/update matrix is tracked separately.
 
 <a id="historische-verifikation-des-grundlagenabschnitts"></a>
 

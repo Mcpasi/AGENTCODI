@@ -2,9 +2,10 @@
 
 ## 0.1.1 — Package Edition (Android versionCode 4) — Unreleased
 
-**This version remains unpublished until physical Android device tests have
-completed successfully.** Hosted tests and CI APK artifacts do not complete
-that requirement. The latest published Package Edition remains `v0.1.0-package.3`.
+**Experimental prerelease. Device tests: passed.** The user confirmed successful
+APK tests on physical Android hardware on 2026-10-07. Version 0.1.1 is not yet
+published; the latest published Package Edition remains `v0.1.0-package.3`,
+also an experimental prerelease.
 
 - Fix architecture CI timing out during host ripgrep installation on the Azure
   Ubuntu APT mirror. Use authenticated official Ubuntu HTTPS sources with fresh
@@ -19,7 +20,7 @@ that requirement. The latest published Package Edition remains `v0.1.0-package.3
   `zh-Hans`, `zh-CN` and `zh-SG`) using the same language resolution throughout.
   Explicit script tags take precedence over regions; unsupported Traditional
   Chinese device locales retain the English fallback. Version and versionCode
-  remain unchanged; physical device language-switching tests remain pending.
+  remain unchanged.
 - Simplified Chinese validation: all 333 Java host tests, architecture checks,
   Android API 35 source/resource compilation and six signing regressions pass.
   Resource checks cover the complete translation inventory, Chinese plurals and
@@ -39,21 +40,22 @@ that requirement. The latest published Package Edition remains `v0.1.0-package.3
 - Local validation: 327 Java tests, all seven portable C++ suites, architecture
   checks and release-signing/build-input/APK/MPL-source contracts pass. Android
   API 35 source/resource compilation, Package Edition identity and stable-signing
-  fixtures with versionCode 4 → 5 pass. Physical Android device/update tests
-  remain pending.
+  fixtures with versionCode 4 → 5 pass.
 
 ## 0.1.0-package.3 (Android versionCode 3) — 2026-10-06
 
-- Published [AGENTCODI Package Edition V0.1.0](https://github.com/Mcpasi/AGENTCODI/releases/tag/v0.1.0-package.3) as an early-version prerelease, tagged `v0.1.0-package.3`, on 2026-10-06. The signed release asset is `AGENTCODI-Package-0.1.0-package.3-arm64-v8a-release.apk`; SHA-256: `028679df0ebeb2f1a5f9d8b373320122cba1778e67e0f198ac877c2771bc25ed`.
-- Deliver complete original sources for all twelve MPL components in the APK, with offline saving through the license view. [Tests CI](https://github.com/Mcpasi/AGENTCODI/actions/runs/37533009175) and [signed release APK build](https://github.com/Mcpasi/AGENTCODI/actions/runs/37533013532) passed; the new source-saving feature still needs a hardware test.
+**Experimental prerelease (published). Device tests: passed, as reported by the user.**
+
+- Published [AGENTCODI Package Edition V0.1.0](https://github.com/Mcpasi/AGENTCODI/releases/tag/v0.1.0-package.3) as an experimental prerelease, tagged `v0.1.0-package.3`, on 2026-10-06. The signed release asset is `AGENTCODI-Package-0.1.0-package.3-arm64-v8a-release.apk`; SHA-256: `028679df0ebeb2f1a5f9d8b373320122cba1778e67e0f198ac877c2771bc25ed`.
+- Deliver complete original sources for all twelve MPL components in the APK, with offline saving through the license view. [Tests CI](https://github.com/Mcpasi/AGENTCODI/actions/runs/37533009175) and [signed release APK build](https://github.com/Mcpasi/AGENTCODI/actions/runs/37533013532) passed.
 - Fix debug update conflicts caused by a new CI keystore on each fresh runner. Use a tracked public AOSP development test identity, verify its key/certificate hashes and the actual APK signer, and fail instead of generating a replacement.
 - Keep old local debug keystores untouched. Reject the public development certificate in the external private-key release path.
 - Add real APK signing regression coverage for independent cold builds with a higher versionCode, an existing legacy cache key, missing/modified material and the release rejection.
 - Align Java, manifest, build, architecture and native version pins at `0.1.0-package.3` / code 3.
 - Validation: [Tests CI](https://github.com/Mcpasi/AGENTCODI/actions/runs/37503097714) passed all seven jobs, including the five signing regressions. [APK build](https://github.com/Mcpasi/AGENTCODI/actions/runs/37502586391) passed with the pinned actual signer, code 3, and final payload/license checks.
 - [Debug APK artifact](https://github.com/Mcpasi/AGENTCODI/actions/runs/37502586391/artifacts/11430427890); APK SHA-256: `3816238666301182bae8d53d4534c67a19ee16442580f111ac971e76b2e6e430`.
-- Existing randomly signed CI installations cannot upgrade to the new identity without their original private key. Export and verify required data before the one-time removal/reinstallation; private app data is deleted by uninstalling. Future APKs retain the same debug signing identity. Physical device update tests remain open.
-- The user reports successful release APK device tests from APT through MCP. This does not document completion of the full Android-version/update matrix. The experimental nested code-mode callback failure remains open and needs reproduction; details and the failing runtime run are retained in the [roadmap](ROADMAP-package-edition.md#mcp-tool-approvals-and-version-bump--2026-10-06).
+- Existing randomly signed CI installations cannot upgrade to the new identity without their original private key. Export and verify required data before the one-time removal/reinstallation; private app data is deleted by uninstalling. Future APKs retain the same debug signing identity.
+- The user reports successful release APK device tests from APT through MCP. The experimental nested code-mode callback failure was subsequently reproduced and resolved as a CI Bionic-version mismatch on 2026-10-07; details are retained in the [roadmap](ROADMAP-package-edition.md#code-mode-sigsegv-ci-fix--2026-10-07).
 
 
 ## 0.1.0-package.2 (Android versionCode 2) — 2026-10-06

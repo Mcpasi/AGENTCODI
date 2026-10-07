@@ -9,6 +9,7 @@
 ![Android](https://img.shields.io/badge/Android-10%2B-3DDC84?logo=android&logoColor=white)
 ![Architecture](https://img.shields.io/badge/Architecture-ARM64-555555)
 ![Version](https://img.shields.io/badge/Package%20Edition-0.1.1-blue)
+![Status](https://img.shields.io/badge/Status-experimental%20prerelease-orange)
 ![License](https://img.shields.io/badge/License-Apache%202.0-blue)
 
 </div>
@@ -17,10 +18,14 @@ AGENTCODI Package Edition brings Codex workflows to Android with an interactive 
 
 The Package Edition has its own application ID, `de.agentcodi.pkg`, so it can be installed alongside the regular AGENTCODI app.
 
-**Development version: Package Edition 0.1.1 (Android versionCode 4), unreleased.**
-This version will remain unpublished until physical Android device tests have
-completed successfully. The latest published Package Edition is still
-[`v0.1.0-package.3`](https://github.com/Mcpasi/AGENTCODI/releases/tag/v0.1.0-package.3).
+**Package Edition 0.1.1 (Android versionCode 4) — experimental prerelease, not yet published.**
+
+**Device tests: passed.** The user confirmed successful APK tests on physical
+Android hardware on 2026-10-07.
+
+The latest published Package Edition is
+[`0.1.0` (`v0.1.0-package.3`)](https://github.com/Mcpasi/AGENTCODI/releases/tag/v0.1.0-package.3),
+which also remains an **experimental prerelease**.
 See the [0.1.1 changelog](CHANGELOG.md#011--package-edition-android-versioncode-4--unreleased).
 
 No Termux installation, WebView shell, or separate gateway setup is required.

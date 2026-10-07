@@ -33,9 +33,11 @@ uploads `agentcodi-package-debug-apk`. Java classes and resources retain the
 use their full Java class names. Host compilation does not replace an APK
 installation and parallel-app test on Android hardware.
 
-Package Edition 0.1.1 remains unpublished until physical Android device tests
-complete successfully. The published `v0.1.0-package.3` artifacts below are
-historical evidence for that earlier version.
+Package Edition 0.1.1 is an unpublished experimental prerelease. Physical
+Android APK tests passed, as confirmed by the user on 2026-10-07; this result
+is separate from hosted CI. The published `0.1.0` (`v0.1.0-package.3`) also
+remains an experimental prerelease. Its artifacts below are historical
+evidence for that earlier version.
 
 ## Running them locally
 
@@ -333,8 +335,8 @@ complete runnable runtime/schema sequence. The later roadmap implementation
 and license work are complete, and the signed Package Edition prerelease
 [`v0.1.0-package.3`](https://github.com/Mcpasi/AGENTCODI/releases/tag/v0.1.0-package.3)
 was published on 2026-10-06. The user reports successful release APK tests
-from APT through MCP; the complete hardware/version/update matrix and new
-MPL source-saving feature still need documented device validation.
+from APT through MCP, and confirmed successful hardware testing of the current
+APK on 2026-10-07. Both 0.1.0 and 0.1.1 remain experimental prereleases.
 
 
 ## Final payload and supplied-license contract
@@ -376,14 +378,14 @@ installation/update/service/picker tests; the separate device prerequisites
 remain necessary before publishing a final APK.
 The existing prerelease linked above has already been published; this
 licensing report does not itself certify hardware behavior or authorize
-another publication. The broader user report and remaining hardware checks
-are recorded in the roadmap separately from CI results.
+another publication. The successful user-reported hardware tests are recorded
+in the roadmap separately from CI results.
 
 Complete original sources for all twelve MPL components are also delivered
 offline in the APK. Nine MPL-source regressions check coverage, manifests,
 license files, notice preservation and exact archive bytes. The license view
-can save these sources through Android's document picker; that UI operation
-still needs a hardware test.
+can save these sources through Android's document picker. The current APK's
+successful hardware-test status is recorded separately from these CI checks.
 
 Bootstrap copyright links are resolved solely through the audited manifest.
 The index records both the package-owned installed path and the actual shared

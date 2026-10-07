@@ -307,8 +307,12 @@ python3 .github/ci/inspect-community-codex.py --output /tmp/agentcodi-community-
 ```
 
 Use a fresh output directory for each audit. The ARM64 workflow defines the
-complete runnable runtime/schema sequence. Publishing a final APK still
-requires the later roadmap work and its device validation.
+complete runnable runtime/schema sequence. The later roadmap implementation
+and license work are complete, and the signed Package Edition prerelease
+[`v0.1.0-package.3`](https://github.com/Mcpasi/AGENTCODI/releases/tag/v0.1.0-package.3)
+was published on 2026-10-06. The user reports successful release APK tests
+from APT through MCP; the complete hardware/version/update matrix and new
+MPL source-saving feature still need documented device validation.
 
 
 ## Final payload and supplied-license contract
@@ -317,7 +321,7 @@ The authoritative [test matrix](../../scripts/package-edition/TEST_CONTRACT.md)
 maps all current checks to the actual minimal Package Edition.
 Architecture now also requires host Python 3 and invokes
 verify-apk-contract.py --check-sources; the hosted and local C++ drivers must
-enumerate the same seven active test sources. The twenty APK-contract
+enumerate the same seven active test sources. The twenty-two APK-contract
 regressions use actual fixture ZIP bytes and reject extra ABIs/assets, staged
 mutations, bootstrap legal-index/manifest/source drift and premature releases.
 
@@ -348,6 +352,16 @@ explicitly records unperformed device tests. Release builds fail while any
 legal gaps exist. Hosted CI does not perform or certify hardware
 installation/update/service/picker tests; the separate device prerequisites
 remain necessary before publishing a final APK.
+The existing prerelease linked above has already been published; this
+licensing report does not itself certify hardware behavior or authorize
+another publication. The broader user report and remaining hardware checks
+are recorded in the roadmap separately from CI results.
+
+Complete original sources for all twelve MPL components are also delivered
+offline in the APK. Nine MPL-source regressions check coverage, manifests,
+license files, notice preservation and exact archive bytes. The license view
+can save these sources through Android's document picker; that UI operation
+still needs a hardware test.
 
 Bootstrap copyright links are resolved solely through the audited manifest.
 The index records both the package-owned installed path and the actual shared
@@ -385,6 +399,11 @@ those records, including nullable turn IDs and `action/content/_meta` answers.
 A local synthetic HTTP MCP server and deterministic model fixture exercise
 `prompt` with the real ARM64/Bionic app-server through model function calls. The
 existing relocated code-mode host smoke remains a separate check.
+The experimental nested code-mode callback failure in runtime run
+`37493948718` (SIGSEGV before an MCP request) remains open and needs
+reproduction. These native MCP approval tests and the normal code-mode smoke
+do not establish a repair of that callback; its details remain in the
+[roadmap](../../ROADMAP-package-edition.md#mcp-tool-approvals-and-version-bump--2026-10-06).
 The invocation counter must stay unchanged before approval and after decline
 or cancel; an explicit per-call accept runs the tool once. No OpenAI credentials,
 external model inference or physical Android device is required.

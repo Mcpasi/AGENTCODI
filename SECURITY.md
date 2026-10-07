@@ -1,4 +1,4 @@
-> **Package Edition / Power-User-Version:** Dieser Branch bietet ausschließlich Full access. Programme mit den Rechten dieser App können auch Dateien außerhalb des Workspace und Codex-Kontodaten erreichen. Das ist Teil des dokumentierten Modells dieser Edition. Bestätigungsdialoge bilden keine Dateisystem-Sandbox. Siehe [README](README.md) und [Roadmap](ROADMAP-package-edition.md).
+> **Package Edition / Power-user version:** This branch offers only Full access. Programs running with this app's permissions can also access files outside the workspace and Codex account data. This is part of the edition's documented model. Approval dialogs do not provide a filesystem sandbox. See the [README](README.md) and [roadmap](ROADMAP-package-edition.md).
 
 # Security Policy
 
@@ -49,10 +49,13 @@ backported.
 Install released APKs only from the official
 [AGENTCODI GitHub Releases](https://github.com/Mcpasi/AGENTCODI/releases) page and
 update to the latest release before reporting an issue that may already be fixed.
-The Package Edition is still an unreleased development branch: its separate
-debug APKs are official branch CI artifacts, not final releases. When testing
-one, verify its `Mcpasi/package-edition` commit and successful build run and
-include both in a report.
+The Package Edition was released on 2026-10-06 as
+[AGENTCODI Package Edition V0.1.0](https://github.com/Mcpasi/AGENTCODI/releases/tag/v0.1.0-package.3),
+an early-version prerelease tagged `v0.1.0-package.3`, from
+`Mcpasi/package-edition`. Its signed release APK has SHA-256
+`028679df0ebeb2f1a5f9d8b373320122cba1778e67e0f198ac877c2771bc25ed`.
+Separate debug APKs remain official branch CI artifacts. When testing one,
+verify its branch commit and successful build run and include both in a report.
 
 From `0.1.0-package.3`, development APKs use a
 [public AOSP test signing identity](scripts/debug-signing/README.md) to keep the
@@ -62,7 +65,10 @@ published by that run. The release builder requires an external private key
 and rejects this public certificate. Earlier CI builds used random debug keys
 that were not retained; switching an existing installation requires its original
 private key or a verified data export before removal and reinstallation.
-Physical Android update/data-retention validation remains open.
+The complete physical Android update/data-retention matrix is not documented
+as completed; the user reports successful release APK tests through MCP.
+Release updates must retain the private release signer, which is distinct
+from the public development identity.
 
 ## Reporting a vulnerability
 
@@ -160,13 +166,26 @@ the dpkg database and caches, and reject inherited retired activation variables.
 
 Hosted Linux and ARM64/Bionic containers cannot validate Android installation,
 APK updates, foreground services, notifications, login browser flows, document
-pickers or hardware linker/SELinux behavior. These remain open device tests.
+pickers or hardware linker/SELinux behavior. These require separate device
+evidence. The initial 2026-10-06 user report confirmed package installation/use;
+the later report confirms release APK tests from APT through MCP. The complete
+Android-version/device matrix and the new MPL source-saving feature remain
+undocumented as hardware-validated.
 Community Rust/V8 terms and attribution are supplemented by the pinned
 target-specific Rust dependency/source collection, with exact V8 submodule
 and Rust standard-library notices. The verifier binds that material to
 Cargo.lock, component/source checksums, legal ZIP bytes and the native release
 hashes. See [the dependency provenance](third_party/community-codex/README.md).
+Complete, unchanged sources for all twelve MPL components are also delivered
+in the APK and can be saved offline through the license view; source coverage,
+manifests, legal files and delivered bytes are checked by the APK contract.
 The format-2 report's license_release_ready describes licensing prerequisites;
 it separately records that device validation was not performed. A release
 build fails if any legal gap reappears. Clearing that gate does not establish
 the Android behaviors listed above.
+
+The experimental nested code-mode callback failure (SIGSEGV before an MCP
+request in runtime run `37493948718`) remains open and needs reproduction.
+The normal code-mode host smoke and native MCP approval tests do not establish
+a fix for that callback. See the [roadmap](ROADMAP-package-edition.md#mcp-tool-approvals-and-version-bump--2026-10-06)
+for the retained failure details and verification scope.

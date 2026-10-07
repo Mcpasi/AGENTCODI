@@ -4,6 +4,12 @@ Only Mcpasi/package-edition is changed. This contract does not authorize a PR,
 merge, APK release or APT publication. Minimum API is 29, target SDK is 28,
 installation ID is de.agentcodi.pkg, and Full access is the sole runtime mode.
 
+The existing Package Edition prerelease `v0.1.0-package.3` was published on
+2026-10-06. Its [release APK](https://github.com/Mcpasi/AGENTCODI/releases/tag/v0.1.0-package.3)
+has SHA-256 `028679df0ebeb2f1a5f9d8b373320122cba1778e67e0f198ac877c2771bc25ed`.
+Publication does not change the required evidence or turn hosted CI into
+hardware validation; this contract itself authorizes no publication action.
+
 apk-contract.json is the shared native/legal payload definition.
 verify-apk-contract.py is called by architecture checks and the complete APK
 build. The APK contains exactly six ARM64 native files: original engine and
@@ -15,7 +21,7 @@ identity and native-runtime checks remain required.
 
 | Layer | Required evidence |
 | --- | --- |
-| Architecture / host contract regressions | Same active C++ suite set in local and hosted drivers; Package shell fixture; exact APK native/asset and legal-byte contract. Twenty mutation/acceptance regressions exercise assembled fixture ZIPs. |
+| Architecture / host contract regressions | Same active C++ suite set in local and hosted drivers; Package shell fixture; exact APK native/asset and legal-byte contract. Twenty-two mutation/acceptance regressions exercise assembled fixture ZIPs; nine MPL-source regressions check complete source coverage and notice preservation. |
 | Java host suite | Full-access identity/protocol, bootstrap interruption/recovery and update preservation; managed and user prefixes; all four user tool names, executable permissions, dpkg state and caches; alias retirement; file-browser/import/export checks; MCP tool approval allow/decline/cancel, nullable turn IDs, stale/overloaded rejection, invalid elicitation, server resolution and timeout. |
 | Seven portable C++ suites | Supervisor environment, process lifecycle, framing, PNG and file operations; actual Package shell; prefix precedence; inherited retired activation variables stripped. |
 | Android compilation | All sources/resources against API 35, manifest target 28/minimum 29, separate installation identity and compiled component classes; German/English legal UI. |
@@ -43,6 +49,11 @@ records its target-specific normal/build Cargo closure, Rust standard-library
 notices and exact V8 source/submodules. ZIP/index/provenance and Cargo.lock
 are tied to the release/source/native hashes, with original notices preserved
 and declared standard terms identified explicitly where publishers omit files.
+All twelve MPL components receive complete, unchanged offline sources in the
+APK: ten Cargo.lock-bound crate archives and one Git snapshot for both nucleo
+components. The source offer, manifests, license files and all delivered source
+bytes are verified; saving through the Android document picker remains a
+separate hardware check.
 The bzip2/gpgv/xz-utils DEBs retain their parent source's legal files under their
 own package ownership. The format-2 report's license_release_ready describes
 only legal prerequisites, and device_tests records the unperformed hardware
@@ -65,5 +76,13 @@ additional input and URL elicitations are rejected safely. This is distinct
 from optional command/file approvals and does not change Full access.
 
 The 2026-10-06 user report confirms package installation/use on a device.
-It does not complete the Android-version/device matrix or validate the MCP fix
-on hardware; those checks remain outstanding and hosted CI skips them.
+At that milestone it did not complete the Android-version/device matrix or
+validate the MCP fix on hardware. The later user report confirms release APK
+tests from APT through MCP. The complete version/device/update matrix and new
+MPL source-saving feature are not documented as hardware-validated; hosted CI
+continues to skip device tests.
+
+The experimental nested code-mode callback failure in runtime run
+`37493948718` (SIGSEGV before an MCP request) remains open and needs
+reproduction. The normal code-mode JavaScript smoke and native MCP prompt
+gate tests remain required and do not establish a repair of that callback.

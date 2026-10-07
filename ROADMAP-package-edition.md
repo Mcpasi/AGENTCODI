@@ -1,1478 +1,1494 @@
 # Roadmap: AGENTCODI Package Edition
 
-Stand: 2026-10-06. Ausschließlich Branch `Mcpasi/package-edition`; kein Merge nach `main`.
+Status: 2026-10-07. Only branch `Mcpasi/package-edition`; no merge into `main`.
 
-### MPL-2.0-Quellenzugang — 2026-10-06
+### Published Package Edition release — 2026-10-06
 
-Die zwölf MPL-Komponenten der Community-Runtime erhalten vollständige,
-unveränderte Quellen im APK: zehn per Cargo.lock prüfsummengebundene
-Crate-Archive und ein Git-Snapshot für beide nucleo-Komponenten. Der lesbare
-Quellenhinweis erläutert die kostenlose Offline-Bereitstellung; die Lizenzansicht
-bietet „MPL-Quellen speichern“ über den Android-Dokumentauswahldialog. Originale
-Urheberhinweise und Lizenzdateien bleiben enthalten. Der APK-Vertrag prüft
-Quellen-/Versionsabdeckung, Paketmanifeste, Lizenzdateien und alle Lieferbytes.
-Regressionen verhindern unbemerkten Hinweisverlust und neue MPL-Abhängigkeiten
-ohne aktualisierte Quellen. APT-Rezepte, Bootstrap-Build-Eingaben und Katalogpakete
-werden hierfür nicht verändert.
+[AGENTCODI Package Edition V0.1.0](https://github.com/Mcpasi/AGENTCODI/releases/tag/v0.1.0-package.3)
+was published on 2026-10-06 at 23:36:32 UTC as an early-version prerelease,
+tagged `v0.1.0-package.3`, from this edition branch. The released asset is
+`AGENTCODI-Package-0.1.0-package.3-arm64-v8a-release.apk`, with SHA-256
+`028679df0ebeb2f1a5f9d8b373320122cba1778e67e0f198ac877c2771bc25ed`.
+It matches the signed APK evidence recorded below. APT repository publication,
+signed APK CI artifacts and the GitHub APK release are separate deliverables;
+all three now exist. This documentation update creates no release, PR or merge.
 
-Für Implementierungscommit `e6303b269c7229d439ae13ad0c073262ad343e31` sind alle
-sieben Jobs des [Tests-Laufs 37533009175](https://github.com/Mcpasi/AGENTCODI/actions/runs/37533009175)
-und alle vier Jobs des [signierten Release-APK-Laufs 37533013532](https://github.com/Mcpasi/AGENTCODI/actions/runs/37533013532)
-erfolgreich. Lokal bestehen die neun MPL-Regressionen, die 22 APK-Vertragstests
-und die Architekturprüfung. Der Release-Build verwendet den vorhandenen,
-geprüften Bootstrap aus Lauf `37493949315`; kein APT-Katalog und keine Pakete
-wie Python, ripgrep, Git oder Node werden neu gebaut.
+<a id="mpl-20-quellenzugang--2026-10-06"></a>
 
-Der [Vertragsbericht des fertigen APK](https://github.com/Mcpasi/AGENTCODI/actions/runs/37533013532/artifacts/11445870275)
-bestätigt `license_release_ready: true`, keine Lizenzblocker und vollständige
-Abdeckung der zwölf MPL-Komponenten durch elf Originalquellarchive. Die drei
-MPL-Assets im APK stimmen bytegenau mit dem Commit überein. Das
-[signierte APK](https://github.com/Mcpasi/AGENTCODI/actions/runs/37533013532/artifacts/11444709902)
-hat SHA-256 `028679df0ebeb2f1a5f9d8b373320122cba1778e67e0f198ac877c2771bc25ed`;
-`MPL-SOURCES.zip` hat SHA-256
+### MPL-2.0 source access — 2026-10-06
+
+The twelve MPL components of the Community runtime receive complete,
+unchanged sources in the APK: ten crate archives bound to Cargo.lock checksums
+and one Git snapshot for both nucleo components. The readable source offer
+explains free offline delivery; the license view provides “Save MPL sources”
+through the Android document picker. Original copyright notices and license
+files remain included. The APK contract checks source/version coverage,
+package manifests, license files and all delivered bytes. Regressions prevent
+silent notice loss and new MPL dependencies without updated sources. APT
+recipes, bootstrap build inputs and catalog packages are unchanged by this work.
+
+For implementation commit `e6303b269c7229d439ae13ad0c073262ad343e31`, all
+seven jobs of [Tests run 37533009175](https://github.com/Mcpasi/AGENTCODI/actions/runs/37533009175)
+and all four jobs of [signed release APK run 37533013532](https://github.com/Mcpasi/AGENTCODI/actions/runs/37533013532)
+passed. The nine MPL regressions, 22 APK contract tests and architecture check
+passed locally. The release build uses the existing, verified bootstrap from
+run `37493949315`; no APT catalog or packages such as Python, ripgrep, Git or
+Node are rebuilt.
+
+The [completed APK contract report](https://github.com/Mcpasi/AGENTCODI/actions/runs/37533013532/artifacts/11445870275)
+confirms `license_release_ready: true`, no license blockers and complete
+coverage of the twelve MPL components by eleven original source archives.
+The three MPL assets in the APK match the commit byte for byte. The
+[signed APK](https://github.com/Mcpasi/AGENTCODI/actions/runs/37533013532/artifacts/11444709902)
+has SHA-256 `028679df0ebeb2f1a5f9d8b373320122cba1778e67e0f198ac877c2771bc25ed`;
+`MPL-SOURCES.zip` has SHA-256
 `cdcc940563e3e267fbca5343f08e118785b21018eda598a957382cb2a310a174`.
-Der Bericht wurde zusätzlich heruntergeladen und seine MPL-Asset-Prüfsummen
-mit den lokalen Dateien abgeglichen. Ein direkter vollständiger APK-Download
-in diese Arbeitsumgebung scheitert an HTTP 403; die Prüfung der tatsächlichen
-APK-Inhalte erfolgte im erfolgreichen Release-Job.
+The report was also downloaded and its MPL asset checksums compared with the
+local files. At this verification milestone, a direct complete APK download
+into the working environment failed with HTTP 403; the actual APK contents
+were verified in the successful release job.
 
-Der Nutzer meldet die bisherigen Release-APK-Gerätetests einschließlich APT bis
-MCP als bestanden. Die neue Quellen-Speicherfunktion ist in CI erfolgreich
-kompiliert, aber noch nicht auf einem Android-Gerät geprüft.
+The user reports that the preceding release APK device tests, including APT
+through MCP, passed. The new source-saving feature compiled successfully in
+CI but has not yet been tested on an Android device. The complete Android
+version/device matrix is not documented as completed. The experimental
+code-mode callback failure described in the MCP approval section remains
+open and still needs reproduction; the successful existing code-mode host
+smoke does not resolve it.
 
-Die Checklisten zeigen den aktuellen Umsetzungsstand. Datierte Ergebnis- und Verifikationsabschnitte dokumentieren frühere Meilensteine; ihre Testzahlen, Artefakte und Prüfsummen gehören zum jeweils genannten Commit. Bootstrap, Startkatalog und öffentliches signiertes APT-Repository sind umgesetzt. Die npm-/Python-Pfade und die gemeinsame Prozessumgebung sind umgesetzt und in CI geprüft; die aktuellen Nachweise stehen im Ergebnisabschnitt „Gemeinsame Paketumgebung und npm-/Python-Pfade“. Die Paketdiagnose und die Workspace-Browser-/Import-/Export-Erweiterung sind umgesetzt; die nutzerinstallierbaren Übergangswerkzeuge sind aus dem APK entfernt. Die verbliebenen Legacy-Helfer und Transportparameter sind bereinigt. Build-Skript, Dockerfile, CI-Inputs, Restore-/Preflight-Prüfungen und Cache-Schlüssel sind auf die aktiven Edition-Abhängigkeiten reduziert. Der endgültige Test-/Payloadvertrag und der Abgleich der gelieferten Lizenzmaterialien sind umgesetzt; die aktuellen Nachweise stehen im Ergebnisabschnitt „Finaler Testvertrag und Lizenzabgleich“. Die Community-Rust-/V8-Abhängigkeitstexte und die drei paketlokalen Bootstrap-Lizenzzuordnungen sind ergänzt; Quellen-, Versions- und Artefaktbindungen werden im APK-Vertrag geprüft. Der neue Ergebnisabschnitt „Ergänzung der fehlenden Lizenzen“ dokumentiert diesen Stand. Der Nutzer meldet erfolgreiche Paketinstallation und -benutzung auf einem Gerät; die vollständige Gerätevalidierung und der Gerätetest des MCP-Freigabefixes bleiben offen. Die APT-Veröffentlichung ist getrennt von einem GitHub-Release der APK.
+The checklists show the current implementation status. Dated result and verification sections record earlier milestones; their test counts, artifacts and checksums belong to the specified commit. Statements about skipped device tests or absent APK publication in those sections describe that milestone, not the current release status above. Bootstrap, starter catalog and public signed APT repository are implemented. npm/Python paths and the shared process environment are implemented and checked in CI; the evidence is in “Shared package environment and npm/Python paths”. Package diagnostics and workspace browser/import/export extensions are implemented; user-installable transitional tools have been removed from the APK. Remaining legacy helpers and transport parameters have been cleaned up. The build script, Dockerfile, CI inputs, restore/preflight checks and cache keys are reduced to the active edition dependencies. The final test/payload contract and reconciliation of delivered legal materials are implemented; the evidence is in “Final test contract and license reconciliation”. Community Rust/V8 dependency texts and the three package-local bootstrap license assignments have been supplemented; source, version and artifact bindings are checked in the APK contract. “Supplementing the missing licenses” documents that status. The initial user report confirmed package installation/use; the later report confirms release APK tests through MCP. Remaining hardware checks and the experimental code-mode callback failure are recorded separately. The APK has been released as described above.
 
-## Ziel und feste Entscheidungen
+<a id="ziel-und-feste-entscheidungen"></a>
 
-Nutzer installieren eigene Pakete, die Codex und das Terminal direkt verwenden können. Diese zweite Entwicklungslinie nutzt `targetSdk 28`, bietet ausschließlich Full access und richtet sich an erfahrene Nutzer. Androids Isolation zwischen Apps bleibt bestehen; eine zusätzliche Workspace-Sandbox wird hier nicht angeboten.
+## Goal and fixed decisions
 
-Ein Target-SDK-Wechsel allein liefert weder einen Paketmanager noch eine passende Paketquelle. Programme benötigen Android ARM64/Bionic und den richtigen Installationspräfix. Die am 2026-10-03 vom Nutzer gewählte Paketarchitektur — eigener Präfix, minimaler Bootstrap und eigenes signiertes Repository aus Termux-Paketrezepten — ist in Abschnitt 3 festgehalten.
+Users install their own packages for Codex and the terminal to use directly. This second development line uses `targetSdk 28`, offers only Full access and is intended for experienced users. Android's isolation between apps remains active; this edition provides no additional workspace sandbox.
 
-## 1. Grundlage
+A target SDK change alone provides neither a package manager nor a suitable package source. Programs need Android ARM64/Bionic and the correct installation prefix. The package architecture selected by the user on 2026-10-03 — a dedicated prefix, minimal bootstrap and signed repository built from Termux package recipes — is recorded in section 3.
 
-- [x] Separaten Branch vom Main-Stand `ff27ec7c30d373a864e845e9a7ceeae3380dd103` anlegen.
-- [x] Target SDK in Manifest, Build-Skript und BuildIdentity auf 28 setzen; Minimum SDK 29 beibehalten.
-- [x] App-Modus auf Full access beschränken, einschließlich Dienst-Neustart und alter Launch-Intents.
-- [x] Geschützte Modusauswahl und JIT-Schalter aus den Einstellungen entfernen.
-- [x] Deutsche und englische Texte, dauerhafte Chat-Kennzeichnung und README-Warnung aktualisieren.
-- [x] Beschreibbaren Übergangspräfix `$HOME/.local` mit `bin/lib/include/share/etc/tmp` anlegen. Die verwaltete Paketbasis ist inzwischen gemäß Abschnitt 3 auf `files/usr` umgestellt; bestehende `$HOME/.local`-Dateien bleiben erhalten.
-- [x] Präfix-Binaries und Bibliotheken für App-Server und Codex-Kommandos vor die Übergangswerkzeuge setzen.
-- [x] Shell-Funktionen entfernen, die selbst installierte Programme gleichen Namens überschreiben.
-- [x] Regressionstests für beständige Installationen, Modusvertrag, SDK-Pins und tatsächliche Ausführung eigener Programme ergänzen.
-- [x] Android-Quellen und Ressourcen zusätzlich in GitHub Actions gegen API 35 kompilieren; Manifest-Target 28 und Mindestniveau 29 prüfen.
-- [ ] Android-Gerätetest: Programm aus dem beschreibbaren Präfix starten, denselben Befehl durch Codex ausführen, Dienst/Prozess neu starten und erneut prüfen.
-- [x] Getrennte Application-ID, Versionslinie und APK-Namen für parallele Installation festlegen und durchgängig umsetzen: `de.agentcodi.pkg`, eigene Linie `0.1.0-package.1` ab `versionCode 1`, APK-Dateien `AGENTCODI-Package-*` und CI-Artefakt `agentcodi-package-debug-apk`. Der Anzeigename lautet AGENTCODI Package; der Java-Namespace bleibt `de.agentcodi.app`.
+<a id="1-grundlage"></a>
 
-Die Installationsidentität ist unabhängig vom Java-Namespace. Alle Manifest-Komponenten verwenden vollständige Klassennamen; AAPT2 erzeugt Ressourcen weiter unter `de.agentcodi.app`. Die Android-CI vergleicht die Installations-/Versionsangaben in Manifest, Build-Skript, BuildIdentity und verknüpften Ressourcen und prüft, dass jede Manifest-Komponente als Java-Klasse existiert. Ein echter Installations-/Parallelbetriebtest bleibt Teil der offenen Android-Gerätetests. Bisherige Daten der gemeinsamen ID werden nicht automatisch übernommen; Export/Import ist in der README beschrieben.
+## 1. Foundation
 
-Die Edition verwendet ausschließlich `:danger-full-access`; das Protected-Modul, aktive Protected-Verträge und JIT-Auswahl sind entfernt. Verbliebene alte boolesche Übergabeparameter sind stets false oder weisen true ausdrücklich zurück. Alte Launch-Intents werden auf Full access migriert. Die historische interne Mode-ID `compatibility` bleibt zur Kompatibilität mit bestehenden Sitzungsdaten erhalten.
+- [x] Create a separate branch from main commit `ff27ec7c30d373a864e845e9a7ceeae3380dd103`.
+- [x] Set target SDK to 28 in the manifest, build script and BuildIdentity; retain minimum SDK 29.
+- [x] Restrict the app mode to Full access, including service restart and old launch intents.
+- [x] Remove Protected mode selection and the JIT switch from settings.
+- [x] Update German and English texts, persistent chat labeling and the README warning.
+- [x] Create a writable transitional prefix `$HOME/.local` with `bin/lib/include/share/etc/tmp`. The managed package base has since moved to `files/usr` as described in section 3; existing `$HOME/.local` files are preserved.
+- [x] Put prefix binaries and libraries before transitional tools for the app-server and Codex commands.
+- [x] Remove shell functions that override user-installed programs with the same name.
+- [x] Add regressions for persistent installations, mode contract, SDK pins and actual execution of user programs.
+- [x] Also compile Android sources/resources against API 35 in GitHub Actions; check manifest target 28 and minimum 29.
+- [ ] Android device test: start a program from the writable prefix, execute the same command through Codex, restart the service/process and check again. The user reports successful release APK testing; this complete sequence is not separately documented.
+- [x] Define and consistently implement a separate application ID, version line and APK names for parallel installation: `de.agentcodi.pkg`, its own `0.1.0-package.1` line starting at `versionCode 1`, APK files `AGENTCODI-Package-*` and CI artifact `agentcodi-package-debug-apk`. The display name is AGENTCODI Package; the Java namespace remains `de.agentcodi.app`.
 
-## 2. Community-App-Server anbinden
+The installation identity is independent of the Java namespace. All manifest components use fully qualified class names; AAPT2 still generates resources under `de.agentcodi.app`. Android CI compares installation/version information in the manifest, build script, BuildIdentity and linked resources and checks that each manifest component exists as a Java class. A physical installation/parallel-operation test remains part of the hardware matrix not yet documented as complete. Previous data from the shared ID is not transferred automatically; export/import is described in the README.
 
-Die aktive Community-Runtime stammt direkt aus dem gepinnten Release von `DioNanos/codex-termux`. Geprüftes Community-Release vom 2026-09-24:
+The edition uses only `:danger-full-access`; the Protected module, active Protected contracts and JIT selection have been removed. Remaining old boolean transfer parameters are always false or explicitly reject true. Old launch intents are migrated to Full access. The historical internal mode ID `compatibility` remains for compatibility with existing session data.
+
+<a id="2-community-app-server-anbinden"></a>
+
+## 2. Integrate the Community app-server
+
+The active Community runtime comes directly from the pinned `DioNanos/codex-termux` release. Verified Community release dated 2026-09-24:
 
 - Repository: https://github.com/DioNanos/codex-termux
-- Release: `v0.156.1-termux.1`, Upstream `rust-v0.156.1`
-- Quellcommit des Release-Tags: `ea762071ec4acbf1531fcc7daf47524836f70a09`
-- Archiv: `mmmbuto-codex-cli-termux-0.156.1-termux.1.tgz`
-- SHA-256 laut GitHub-Release-Asset-Digest: `44cee2f3a4a110fd79d4f7d61378d46fd72406f45cffb3163e809d63e86d946a`
+- Release: `v0.156.1-termux.1`, upstream `rust-v0.156.1`
+- Source commit of the release tag: `ea762071ec4acbf1531fcc7daf47524836f70a09`
+- Archive: `mmmbuto-codex-cli-termux-0.156.1-termux.1.tgz`
+- SHA-256 from the GitHub release asset digest: `44cee2f3a4a110fd79d4f7d61378d46fd72406f45cffb3163e809d63e86d946a`
 
-Diese Angaben sind die aktive, vollständig angepinnte Community-Runtime. Archiv, Quellcommit, ELF-Dateien, APK-Relokation und erzeugte Schemas werden in GitHub Actions geprüft.
+These details identify the active, fully pinned Community runtime. Archive, source commit, ELF files, APK relocation and generated schemas are verified in GitHub Actions.
 
-- [x] Release-Archiv in CI herunterladen, Prüfsumme verifizieren und Inhalt einschließlich Code-mode-Host, Lizenzen und Abhängigkeiten untersuchen.
-- [x] Quellcommit und vollständige Binär-/Schema-Prüfsummen erfassen; keine alten Hashes oder Binäroffsets wiederverwenden.
-- [x] `scripts/update-codex-runtime.sh`, CodexRuntimeUpdater/Metadata/LocalSource, BuildIdentity, Build-Input-Liste und Notices auf den Community-Kanal umstellen.
-- [x] App-Server-JSON-Schema gegen alle verwendeten RPCs prüfen: Initialize, Login, Models, Permission Profiles, Thread/Turn, Approvals, Terminal-PTY, MCP und Connectors.
-- [x] Anpassungen für umbenannte Felder, Fähigkeiten oder Methoden in Client/SessionController umsetzen und mit realem App-Server prüfen.
-- [x] Code-mode-Host-Auflösung prüfen. Falls weiterhin eine APK-Bibliothek umbenannt wird, den neuen Offset am neuen Artefakt bestimmen.
-- [x] Native Startargumente auf Full access reduzieren und das unbenutzte `agentcodi-workspace`-Profil entfernen.
-- [x] Alte Protected-/JIT-Verträge, Module, Ressourcen und Tests gezielt ablösen; übrige Regressionen behalten.
-- [x] CI-Sandbox-Sonderoptionen und seccomp/ptrace-/Protected-Smokes im Edition-Build durch Full-access-Smokes ersetzen.
-- [x] Keine Runtime-Aktualisierung darf wieder den Mcpasi-Sandbox-Fork auswählen.
+- [x] Download the release archive in CI, verify its checksum and inspect contents including the code-mode host, licenses and dependencies.
+- [x] Record the source commit and full binary/schema checksums; do not reuse old hashes or binary offsets.
+- [x] Switch `scripts/update-codex-runtime.sh`, CodexRuntimeUpdater/Metadata/LocalSource, BuildIdentity, build input list and notices to the Community channel.
+- [x] Check the app-server JSON schema against all used RPCs: Initialize, Login, Models, Permission Profiles, Thread/Turn, Approvals, Terminal PTY, MCP and Connectors.
+- [x] Adapt renamed fields, capabilities or methods in Client/SessionController and verify with the real app-server.
+- [x] Check code-mode host resolution. If an APK library is still renamed, determine the new offset from the new artifact.
+- [x] Reduce native startup arguments to Full access and remove the unused `agentcodi-workspace` profile.
+- [x] Replace old Protected/JIT contracts, modules, resources and tests selectively; retain the other regressions.
+- [x] Replace CI sandbox special options and seccomp/ptrace/Protected smokes in the edition build with Full-access smokes.
+- [x] Ensure no runtime update selects the Mcpasi sandbox fork again.
 
-### Ergebnis der Community-Archivprüfung — 2026-10-03
+<a id="ergebnis-der-community-archivprüfung--2026-10-03"></a>
 
-Umgesetzt mit `.github/ci/community-codex-release.json`, `inspect-community-codex.py` und dem zusätzlichen Tests-Job `Community Codex release inspection`, ausschließlich auf diesem Branch. Der erfolgreiche [CI-Lauf 37158009969](https://github.com/Mcpasi/AGENTCODI/actions/runs/37158009969) für Commit `5a89b6a3a4e2871b3952d10b2201215527e4ea10` prüft den Release-Asset-Digest, den aufgelösten Tag-Quellcommit und die tatsächlich heruntergeladenen Archivbytes. Das [Prüfartefakt](https://github.com/Mcpasi/AGENTCODI/actions/runs/37158009969/artifacts/11286760213) enthält das vollständige Dateiinventar mit SHA-256, ELF-Berichte, Metadaten, Launcher-Befunde sowie LICENSE/NOTICE.
+### Community archive inspection result — 2026-10-03
 
-- Das Archiv enthält 12 reguläre Dateien, darunter `codex.bin`, den separaten `codex-code-mode-host` und `libc++_shared.so`. Der Hostname ist im Codex-Binary vorhanden; dieser statische Prüfschritt bestätigte noch keine tatsächliche Auflösung oder APK-Relokation. Beides wurde beim anschließend dokumentierten Abschluss der Community-Anbindung geprüft.
-- Beide ausführbaren ELF-Dateien sind ARM64/ELF64 mit Interpreter `/system/bin/linker64` und RUNPATH `$ORIGIN:$ORIGIN`. Die zwei identischen Einträge sind gleichwertig zum selben Bibliotheksordner; fremde oder leere Suchpfade werden abgelehnt.
-- `codex.bin` benötigt dynamisch `libdl.so/libm.so/libc.so`, der Code-mode-Host zusätzlich `liblog.so`. Die mitgelieferte `libc++_shared.so` benötigt `libc.so/libm.so/libdl.so`; die beiden Programme haben in diesem Release keinen direkten DT_NEEDED-Eintrag für libc++. Alle ermittelten dynamischen Abhängigkeiten sind Android-Systembibliotheken.
-- Keine npm-Paketabhängigkeiten sind deklariert. Die JavaScript-Launcher deklarieren Node.js `>=18.0.0`; das Postinstall-Skript passt Shebangs anhand des laufenden Node-Interpreters an. Shell- und JavaScript-Launcher enthalten weiterhin den Termux-Standardpräfix `/data/data/com.termux/files/usr`. Die spätere Integration verwendet die ELF-Dateien direkt; diese npm-/JavaScript-Launcher werden weder installiert noch ausgeführt.
-- Paketlizenz und LICENSE sind Apache-2.0; NOTICE nennt OpenAI, Davide A. Guglielmi und Ratatui/MIT. Separate Lizenztexte für libc++ und statisch eingebundene Rust-/V8-Abhängigkeiten sind im Archiv nicht enthalten. LICENSE/NOTICE werden unverändert ins APK übernommen. Der damalige Abgleich in Abschnitt 4 erfasste diese gelieferte Menge und die fehlenden Rust-/V8-Abhängigkeitshinweise. Der spätere Ergebnisabschnitt „Ergänzung der fehlenden Lizenzen“ dokumentiert die separate, gepinnte Ergänzung dieser Materialien.
-- Das archivierte README nennt veraltet `rust-v0.155.0`; Release und Paketbeschreibung nennen `rust-v0.156.1`. Die Prüfung dokumentiert diese Abweichung und verwendet die gepinnten Release-/Quellangaben.
+Implemented with `.github/ci/community-codex-release.json`, `inspect-community-codex.py` and the additional Tests job `Community Codex release inspection`, only on this branch. Successful [CI run 37158009969](https://github.com/Mcpasi/AGENTCODI/actions/runs/37158009969) for commit `5a89b6a3a4e2871b3952d10b2201215527e4ea10` checks the release asset digest, resolved tag source commit and actual downloaded archive bytes. The [inspection artifact](https://github.com/Mcpasi/AGENTCODI/actions/runs/37158009969/artifacts/11286760213) contains the full file inventory with SHA-256, ELF reports, metadata, launcher findings and LICENSE/NOTICE.
 
-Neu ermittelte ELF-Prüfsummen, ausschließlich für dieses unveränderte Release-Archiv:
+- The archive contains 12 regular files, including `codex.bin`, the separate `codex-code-mode-host` and `libc++_shared.so`. The hostname occurs in the Codex binary; this static check did not yet confirm actual resolution or APK relocation. Both were checked in the subsequent Community integration completion recorded below.
+- Both executable ELF files are ARM64/ELF64 with interpreter `/system/bin/linker64` and RUNPATH `$ORIGIN:$ORIGIN`. The two identical entries resolve to the same library directory; foreign or empty search paths are rejected.
+- `codex.bin` dynamically requires `libdl.so/libm.so/libc.so`, and the code-mode host additionally requires `liblog.so`. The supplied `libc++_shared.so` requires `libc.so/libm.so/libdl.so`; the two programs have no direct DT_NEEDED entry for libc++ in this release. All detected dynamic dependencies are Android system libraries.
+- No npm package dependencies are declared. The JavaScript launchers declare Node.js `>=18.0.0`; the postinstall script adjusts shebangs using the running Node interpreter. Shell and JavaScript launchers still contain the Termux default prefix `/data/data/com.termux/files/usr`. The later integration uses the ELF files directly; these npm/JavaScript launchers are neither installed nor executed.
+- The package license and LICENSE are Apache-2.0; NOTICE names OpenAI, Davide A. Guglielmi and Ratatui/MIT. Separate license texts for libc++ and statically linked Rust/V8 dependencies are absent from the archive. LICENSE/NOTICE are copied unchanged into the APK. The reconciliation in section 4 at that time recorded this supplied set and missing Rust/V8 dependency notices. The later “Supplementing the missing licenses” section documents the separate, pinned addition of those materials.
+- The archived README contains the outdated `rust-v0.155.0`; the release and package description specify `rust-v0.156.1`. The check records this discrepancy and uses the pinned release/source information.
 
-| Datei | SHA-256 |
+Newly determined ELF checksums, exclusively for this unchanged release archive:
+
+| File | SHA-256 |
 | --- | --- |
 | `codex.bin` | `6cbfa7f1660095e9cf2df7de242014579a0fb0d42545652fb0e22d1b6c8571a5` |
 | `codex-code-mode-host` | `8afb196579c3fd8ecac558dbebfcba5467f91389b3754e485728ce6904e6ceaf` |
 | `libc++_shared.so` | `430f7cde7c1a88042bb9e39ae1c1f4b9f5819f3bd95acd1453d2e02c63ba1870` |
 
-Architekturchecks, 309 Java-Tests, alle 8 portablen C++-Suites, Android-Quellen/Ressourcen gegen API 35 und die Release-Prüfung einschließlich 8 neuer Archiv-/Suchpfadtests sind erfolgreich. Die anfänglichen CI-Ursachen (anonymes GitHub-API-Ratenlimit und zu strenger Vergleich der doppelten ORIGIN-Einträge) sind behoben.
+Architecture checks, 309 Java tests, all 8 portable C++ suites, Android sources/resources against API 35 and the release inspection including 8 new archive/search-path tests passed. The initial CI issues (anonymous GitHub API rate limit and overly strict comparison of duplicate ORIGIN entries) were fixed.
 
-In diesem statischen Prüfschritt wurden weder npm-Install/Postinstall noch Community-ELFs ausgeführt und keine APK-Runtime verändert. Schema-Erzeugung und -Prüfsummen, RPC-/Startkompatibilität, Host-Relokation und Kanalwechsel wurden anschließend umgesetzt; der folgende Abschnitt dokumentiert den Abschluss. Gerätetests bleiben offen und wurden gemäß Nutzeranweisung übersprungen.
+This static inspection executed neither npm install/postinstall nor Community ELFs and changed no APK runtime. Schema generation/checksums, RPC/startup compatibility, host relocation and channel switching were implemented subsequently; the next section records completion. Device tests were still open at this milestone and were skipped at the user's request.
 
-### Abschluss der Community-Anbindung — 2026-10-04
+<a id="abschluss-der-community-anbindung--2026-10-04"></a>
 
-Der aktive Build verwendet `0.156.1-termux.1`; das ELF meldet die Upstream-Version
-`codex-cli 0.156.1`. Die Versionsprüfung berücksichtigt diese Unterscheidung.
-Updater, Metadatenprüfung und Quellprüfung akzeptieren den DioNanos-Kanal,
-verlangen den passenden Release-Tag und lehnen `-agentcodi` sowie eine fremde
-Source-Remote ab. Die 33 Download-Einträge im Build-Input-Manifest werden aus
-dem Build-Skript erzeugt; veraltete lokale Sandbox-/Schema-Inputs sind entfernt.
-LICENSE und NOTICE des Community-Archivs werden unverändert ins APK übernommen;
-historische Credits sind klar als historische Angaben erhalten.
+### Community integration completion — 2026-10-04
 
-| Pin | Ermittelter Wert |
+The active build uses `0.156.1-termux.1`; the ELF reports upstream version
+`codex-cli 0.156.1`. Version checking accounts for this distinction.
+Updater, metadata and source checks accept the DioNanos channel, require the
+matching release tag and reject `-agentcodi` and a foreign source remote. The
+33 download entries in the build input manifest are generated from the build
+script; obsolete local sandbox/schema inputs are removed. Community archive
+LICENSE and NOTICE are copied unchanged into the APK; historical credits
+remain clearly identified as historical information.
+
+| Pin | Determined value |
 | --- | --- |
-| Community-Quellcommit | `ea762071ec4acbf1531fcc7daf47524836f70a09` |
-| OpenAI-Upstream-Commit | `b412ff32c417f855c2b2d1581b77058eed87c84b` |
-| Unverändertes App-Server-ELF SHA-256 | `6cbfa7f1660095e9cf2df7de242014579a0fb0d42545652fb0e22d1b6c8571a5` |
-| Unveränderter Code-mode-Host SHA-256 | `8afb196579c3fd8ecac558dbebfcba5467f91389b3754e485728ce6904e6ceaf` |
-| APK-App-Server-ELF SHA-256 | `cf1b406252928b0d68cb0f8f81adde6a02bf357a7fffb762d10cb503a235be06` |
-| Gesamtes App-Server-Schema SHA-256 | `eb1ba91bd0fab656523092f6ed7de3ea7aef278921a650f14dc871ae7dcfaf84` |
-| v2-Schema SHA-256 | `995fc3b8f8c469f6787e8fc5be4038c4f31359025edd8480b862e83355f3bf3b` |
-| Host-Namensfeld im neuen ELF | Byteoffset `10568364`; `codex-code-mode-host` → `libcodex-codehost.so` |
+| Community source commit | `ea762071ec4acbf1531fcc7daf47524836f70a09` |
+| OpenAI upstream commit | `b412ff32c417f855c2b2d1581b77058eed87c84b` |
+| Unchanged app-server ELF SHA-256 | `6cbfa7f1660095e9cf2df7de242014579a0fb0d42545652fb0e22d1b6c8571a5` |
+| Unchanged code-mode host SHA-256 | `8afb196579c3fd8ecac558dbebfcba5467f91389b3754e485728ce6904e6ceaf` |
+| APK app-server ELF SHA-256 | `cf1b406252928b0d68cb0f8f81adde6a02bf357a7fffb762d10cb503a235be06` |
+| Complete app-server schema SHA-256 | `eb1ba91bd0fab656523092f6ed7de3ea7aef278921a650f14dc871ae7dcfaf84` |
+| v2 schema SHA-256 | `995fc3b8f8c469f6787e8fc5be4038c4f31359025edd8480b862e83355f3bf3b` |
+| Host name field in the new ELF | Byte offset `10568364`; `codex-code-mode-host` → `libcodex-codehost.so` |
 
-Der neue Offset stammt aus dem eindeutigen Install-context-Datenfeld des
-Community-Artefakts. Die Änderung erhält die Binärlänge und ändert genau diesen
-Eintrag; weitere Host-Namensreferenzen bleiben unverändert. Vollständige
-ELF-Prüfsummen sichern das Ergebnis ab.
+The new offset comes from the unique install-context data field of the
+Community artifact. The change preserves binary length and changes exactly
+this entry; other host name references remain unchanged. Full ELF checksums
+verify the result.
 
-Die ARM64/Bionic-CI erzeugt die Schemas mit dem tatsächlichen ELF, validiert
-378 vom Java-Client gesendete Test-RPCs und prüft zusätzlich Login-, Approval-
-und User-input-Formate. Verwendete Methoden für Initialize, Models, Permission
-Profiles, Thread/Turn, Terminal, MCP und Connectors sind im Schema vorhanden.
-Der echte App-Server führt Full-access-Kommandos aus, liest und schreibt
-synthetische Dateien außerhalb des Workspaces, verarbeitet PTY-Operationen und
-MCP-/Connector-Abfragen. Import-Kontext wird mit dem kanonischen Dateipfad statt des sichtbaren Labels
-in der tatsächlichen Modellanfrage nachgewiesen. Der native Bootstrap liest
-Thread-IDs gezielt aus dem Thread-Objekt, unabhängig vom davor stehenden
-`activePermissionProfile`.
-Ein lokaler Responses-API-Dummy schließt einen Turn
-durch den umbenannten Code-mode-Host ab; dessen JavaScript-Ergebnis wird im
-Folgerequest geprüft. Nach dem Runtime-Neustart werden die Sitzung fortgesetzt
-und ein selbst installiertes Programm erneut ausgeführt. Keine echten
-OpenAI-Zugangsdaten oder externe Modellanfragen sind dafür erforderlich.
+ARM64/Bionic CI generates schemas with the actual ELF, validates 378 test
+RPCs sent by the Java client and additionally checks login, approval and
+user-input formats. Used methods for Initialize, Models, Permission Profiles,
+Thread/Turn, Terminal, MCP and Connectors are present in the schema. The real
+app-server executes Full-access commands, reads/writes synthetic files outside
+the workspace and handles PTY operations and MCP/Connector queries. Import
+context is verified in the actual model request using the canonical file path
+rather than the visible label. The native bootstrap reads thread IDs specifically
+from the thread object, regardless of the preceding `activePermissionProfile`.
+A local Responses API dummy completes a turn through the renamed code-mode
+host; its JavaScript result is checked in the follow-up request. After runtime
+restart, the session resumes and a user-installed program runs again. No real
+OpenAI credentials or external model requests are required.
 
-Native Startargumente enthalten weder JIT noch das alte Workspace-Profil.
-Protected-/JIT-spezifische Module, UI-Ressourcen und Tests wurden gezielt durch
-Full-access-Vertragsprüfungen ersetzt; die übrigen Regressionen bleiben erhalten.
-Der Edition-APK-Build benötigt keine besonderen seccomp-/ptrace-/AppArmor-Optionen
-und prüft Full access statt der alten Workspace-Isolation.
+Native startup arguments include neither JIT nor the old workspace profile.
+Protected/JIT-specific modules, UI resources and tests were selectively
+replaced with Full-access contract checks; other regressions remain. The
+edition APK build requires no special seccomp/ptrace/AppArmor options and
+checks Full access instead of the old workspace isolation.
 
-Die Root-README ist vollständig Englisch. Die danach umgesetzte Paketbasis,
-der Startkatalog und das signierte Repository sind in Abschnitt 3 dokumentiert.
-Die anschließend umgesetzten Paketpfad-/Umgebungsarbeiten sind in Abschnitt 3
-mit ihren CI-Nachweisen dokumentiert. Die APK-Verkleinerung aus Abschnitt 4 ist inzwischen umgesetzt.
-Echte Android-Gerätetests bleiben offen; Gerätetests wurden
-auf ausdrücklichen Nutzerwunsch nicht ausgeführt.
+The root README is entirely English. The subsequently implemented package
+base, starter catalog and signed repository are documented in section 3.
+The later package path/environment work is recorded there with CI evidence.
+APK size reduction in section 4 has since been implemented. Physical Android
+device tests were still open at this milestone and were not performed at the
+user's explicit request.
 
-## 3. Paket-Bootstrap und Workspace vervollständigen
+<a id="3-paket-bootstrap-und-workspace-vervollständigen"></a>
 
-### Beschlossene Paketarchitektur — 2026-10-03
+## 3. Complete package bootstrap and workspace
 
-Der Nutzer hat diese Lösung ausdrücklich gewählt. Am 2026-10-03 wurde zunächst die Architekturentscheidung dokumentiert; Bootstrap und Paketrepository wurden anschließend wie unten beschrieben umgesetzt. Die Entscheidung muss nicht erneut erfragt werden.
+<a id="beschlossene-paketarchitektur--2026-10-03"></a>
 
-- **Termux-Paketrezepte wiederverwenden:** Die benötigten Pakete einschließlich ihrer Abhängigkeiten aus [termux/termux-packages](https://github.com/termux/termux-packages) für Android ARM64/Bionic, die eigene AGENTCODI-Application-ID und den eigenen Installationspräfix neu bauen. Die Termux-App selbst wird weder eingebunden noch als vollständige App-Version gepinnt.
-- **Eigener Präfix außerhalb des Benutzer-Homes:** Für die Paketbasis `files/usr` verwenden, beispielsweise `/data/data/de.agentcodi.pkg/files/usr`. Die separate Application-ID ist endgültig auf `de.agentcodi.pkg` festgelegt und in Manifest sowie Build-Konfiguration umgesetzt. Benutzer-Home, Workspace und `CODEX_HOME` bleiben separate Verzeichnisse. Der frühere Präfix `$HOME/.local` bleibt als Legacy-Fallback erhalten; die verwaltete Paketbasis liegt inzwischen in `files/usr`.
-- **Minimaler Bootstrap:** Nur Shell, APT, dpkg, Zertifikate und die dazu notwendigen Abhängigkeiten als Anfangsbasis bereitstellen. AGENTCODI übernimmt Installation und Initialisierung dieses Bootstraps.
-- **Eigenes signiertes Paketrepository:** Eine eigene CI baut die angebotenen Pakete aus den Termux-Rezepten. Das Repository liefert Installation, Aktualisierung und Abhängigkeitsauflösung. Die umgesetzte Bedienung nutzt APT, etwa `apt install python nodejs-lts npm git ripgrep`; ein zusätzlicher `pkg`-Befehl bleibt optional.
-- **Gezielte reproduzierbare Pins:** Stand der Paketrezepte, Build-Toolchain, Paketversionen und Artefaktprüfsummen festhalten. Aktualisierungen bewusst testen und veröffentlichen. Ein kontrollierter Satz an Build-Anpassungen reicht; die komplette Termux-App muss dafür nicht übernommen werden.
-- **Einheitliche Laufzeit:** Codex-Kommandos, Terminal, App-Server und lokale stdio-MCP-Prozesse verwenden dieselbe Paketinstallation und abgestimmte `PATH/PREFIX/LD_LIBRARY_PATH/HOME/TMPDIR`-Werte.
+### Agreed package architecture — 2026-10-03
 
-Die offiziellen Termux-DEBs sind häufig für `/data/data/com.termux/files/usr` gebaut. Sie werden nicht allgemein durch Entpacken, Ändern von `PATH` oder Setzen von `apt --root` kompatibel. Die reguläre Paketquelle dieser Edition enthält deshalb eigene Builds für den festgelegten Präfix; offizielle Termux-Binärrepositories werden nicht als austauschbare Quelle beigemischt.
+The user explicitly selected this solution. The architecture decision was first documented on 2026-10-03; bootstrap and package repository were implemented afterward as described below. The decision does not need to be requested again.
 
-Der angebotene Paketkatalog umfasst nur Pakete, die für diese Edition samt Abhängigkeiten gebaut und geprüft wurden. Das eigene Repository benötigt laufende Pflege und Sicherheitsupdates. Pakete mit Abhängigkeiten von Termux-App-Komponenten oder Termux:API sind gesondert anzupassen, bevor sie angeboten werden.
+- **Reuse Termux package recipes:** Rebuild required packages and their dependencies from [termux/termux-packages](https://github.com/termux/termux-packages) for Android ARM64/Bionic, AGENTCODI's own application ID and installation prefix. The Termux app itself is neither included nor pinned as a complete app version.
+- **Dedicated prefix outside the user home:** Use `files/usr` for the package base, for example `/data/data/de.agentcodi.pkg/files/usr`. The separate application ID is finalized as `de.agentcodi.pkg` and implemented in the manifest and build configuration. User home, workspace and `CODEX_HOME` remain separate directories. The former `$HOME/.local` prefix remains as a legacy fallback; the managed package base is now in `files/usr`.
+- **Minimal bootstrap:** Provide only shell, APT, dpkg, certificates and their required dependencies as the initial base. AGENTCODI installs and initializes this bootstrap.
+- **Dedicated signed package repository:** Its own CI builds offered packages from Termux recipes. The repository provides installation, updates and dependency resolution. The implemented interface uses APT, for example `apt install python nodejs-lts npm git ripgrep`; an additional `pkg` command remains optional.
+- **Targeted reproducible pins:** Record package recipe revision, build toolchain, package versions and artifact checksums. Test and publish updates deliberately. A controlled set of build adjustments is sufficient; adopting the complete Termux app is unnecessary.
+- **Consistent runtime:** Codex commands, terminal, app-server and local stdio-MCP processes use the same package installation and coordinated `PATH/PREFIX/LD_LIBRARY_PATH/HOME/TMPDIR` values.
 
-PRoot mit virtuellen Termux-Pfaden und eine allgemeine nachträgliche Relokation fertiger DEBs sind nicht der gewählte Ansatz. Die Edition soll ihre Pakete direkt und nativ unter dem eigenen Präfix ausführen.
+Official Termux DEBs are often built for `/data/data/com.termux/files/usr`. Extracting them, changing `PATH` or setting `apt --root` does not generally make them compatible. This edition's regular package source therefore contains dedicated builds for its fixed prefix; official Termux binary repositories are not mixed in as interchangeable sources.
 
-Das Termux-Buildsystem dokumentiert anpassbare App- und Präfixvariablen in [scripts/properties.sh](https://github.com/termux/termux-packages/blob/master/scripts/properties.sh) und unterstützt eigene Bootstrap-Builds über [scripts/build-bootstraps.sh](https://github.com/termux/termux-packages/blob/master/scripts/build-bootstraps.sh). Bei der Umsetzung müssen die Werte in der Build-Konfiguration konsistent gesetzt werden; ein bloßer Laufzeit-Export ersetzt den Neubau nicht.
+The offered package catalog includes only packages built and verified for this edition with their dependencies. The dedicated repository requires ongoing maintenance and security updates. Packages depending on Termux app components or Termux:API need separate adaptations before being offered.
 
-### Umsetzungsschritte
+PRoot with virtual Termux paths and general post-build relocation of finished DEBs are not the chosen approach. The edition is intended to execute packages directly and natively under its own prefix.
 
-- [x] Architekturentscheidung des Nutzers dokumentieren: eigener Präfix, minimaler Bootstrap und signiertes Repository aus neu gebauten Termux-Paketrezepten.
-- [x] Separate Application-ID endgültig festlegen und in der App umsetzen, bevor Pakete mit absoluten Pfaden gebaut werden: `de.agentcodi.pkg`; verwalteter Präfix `/data/data/de.agentcodi.pkg/files/usr`.
-- [x] Verwalteten Präfix auf `files/usr` außerhalb des Benutzer-Homes umstellen. Bestehende Dateien in `$HOME/.local` erhalten; Übergang/Migration und Suchreihenfolge dokumentieren und testen.
-- [x] Reproduzierbaren Stand von `termux-packages` und Toolchain festlegen; gezielte Build-Anpassungen für App-ID, Präfix und Repository-URLs versionieren. Bootstrap, Paketmetadaten, Shebangs, RPATH/RUNPATH und Konfigurationen auf denselben finalen Pfad ausrichten.
-- [x] Minimalen ARM64-Bootstrap mit Shell, APT, dpkg, Zertifikaten und Abhängigkeiten bauen; Initialisierung sowie Reparatur nach abgebrochener Installation integrieren.
-- [x] Eigene CI für Paket- und Abhängigkeitsbuilds aufsetzen; zuerst Bootstrap und einen kleinen Katalog wie Python, Node.js/npm, Git und ripgrep prüfen, danach erweitern.
-- [x] Eigenes signiertes APT-Repository mit Vertrauensschlüssel, HTTPS, Veröffentlichungsablauf und Aktualisierungsstrategie einrichten.
-- [x] Dokumentierte APT-Bedienung für Installation, Aktualisierung und Entfernung bereitstellen. Ein zusätzlicher `pkg`-Wrapper ist optional und bisher nicht umgesetzt.
-- [x] Gemeinsame Umgebungsdefinition für App-Server, Codex-Kommandos, Terminal und lokale stdio-MCP-Prozesse nach den npm-/Python-Pfadanpassungen vollständig prüfen. Der echte ARM64/Bionic-App-Server prüft identische `PATH/PREFIX/LD_LIBRARY_PATH/HOME/TMPDIR`-Werte in Codex-Shell, Terminal und stdio-MCP, einschließlich der privaten Codex-Sitzungshilfsprogramme im gemeinsamen `PATH`.
-- [x] npm-Global-Prefix/-Cache sowie Python-User-/venv-/pip-Pfade nutzbar machen. Normale Nutzerkonfiguration und Python-User-Site sind aktiv; lokale Global-/User-/venv-Installationen, ausführbare Skripte, npx und Entfernung sind unter ARM64/Bionic geprüft.
-- [x] Installation, Aktualisierung, Entfernung und Status im Terminal dokumentieren; Pakete über App-Neustart und APK-Update erhalten. APT-Bedienung ist in der README dokumentiert, Bestandserhaltung durch Java-Regressionen geprüft; echte Geräte-/Update-Tests bleiben separat offen.
-- [x] Paketpfade und installierte Versionen bei Bedarf in Diagnose/Terminal anzeigen; bisherige Aktivierungsanzeigen ersetzen. Die Terminal-Schaltfläche „Paketdiagnose“ fragt aktuelle Umgebungswerte, Befehlsauflösung und Versions-/Statusdaten der verwalteten dpkg-Datenbank ab.
-- [x] Workspace-Browser und Import/Export für ausdrücklich gewählte Paketbereiche erweitern. Kontodaten bleiben außerhalb der zugänglichen Wurzeln; bekannte Zugangsdaten-Pfade und Links sind in Paketbereichen gesperrt.
-- [ ] Android 10 und eine aktuelle Android-Version auf echter ARM64-Hardware prüfen: ELF, Skript/Shebang, dynamische Bibliothek, npm/pip, PTY und stdio-MCP.
+The Termux build system documents configurable app/prefix variables in [scripts/properties.sh](https://github.com/termux/termux-packages/blob/master/scripts/properties.sh) and supports custom bootstrap builds through [scripts/build-bootstraps.sh](https://github.com/termux/termux-packages/blob/master/scripts/build-bootstraps.sh). Implementation must set these values consistently in the build configuration; a runtime export alone does not replace rebuilding.
 
-### Verwalteter Präfix — 2026-10-04
+<a id="umsetzungsschritte"></a>
 
-Die App legt die Paketbasis jetzt als `usr` direkt unter ihrem kanonischen
-Files-Verzeichnis an und übergibt sie ausdrücklich über Java/JNI an den nativen
-Supervisor. `HOME`, Workspace, `CODEX_HOME` und temporäre Dateien bleiben getrennt.
-Codex ergänzt beim Start private Sitzungshilfsprogramme im gemeinsamen `PATH`.
-Danach lautet die Paket-Suchreihenfolge `files/usr/bin`, `$HOME/.local/bin`,
-APK-Aliase, Android-Systempfade; Bibliotheken werden aus `files/usr/lib`,
-`$HOME/.local/lib` und den nativen APK-Bibliotheken gesucht. App-Server und
-Codex-Shell-Konfiguration beziehen die Paketwerte aus derselben nativen
-Definition. Codex-Kommandos und Terminal übernehmen den zur Laufzeit um
-Sitzungshilfsprogramme ergänzten Server-`PATH`; geerbte stdio-MCP-Prozesse
-verwenden denselben tatsächlichen Pfad. Der abschließende Abgleich ist im
-Ergebnisabschnitt vom 2026-10-05 beschrieben.
+### Implementation steps
 
-Bestehende Dateien unter `$HOME/.local` bleiben unverändert erhalten. Es gibt
-keine automatische Verschiebung oder Relokation; Pakete mit eingebetteten
-absoluten Pfaden müssen gezielt für den neuen Präfix neu installiert werden.
-README und Regressionen decken Bestandserhaltung, Suchvorrang, Legacy-Fallback,
-Prozess-Neustart und Ablehnung ungeeigneter Präfixverzeichnisse ab. Der echte
-ARM64/Bionic-APK-Smoke prüft den Vertrag über Codex- und Terminal-Shell.
-Bootstrap, Startkatalog-CI und das öffentliche signierte Paketrepository sind unten dokumentiert.
-Gerätetests bleiben gemäß Nutzeranweisung offen und werden übersprungen.
+- [x] Document the user's architecture decision: dedicated prefix, minimal bootstrap and signed repository from rebuilt Termux package recipes.
+- [x] Finalize and implement the separate application ID before building packages with absolute paths: `de.agentcodi.pkg`; managed prefix `/data/data/de.agentcodi.pkg/files/usr`.
+- [x] Move the managed prefix to `files/usr` outside the user home. Preserve existing `$HOME/.local` files; document and test transition/migration and search order.
+- [x] Pin a reproducible revision of `termux-packages` and the toolchain; version targeted build adjustments for app ID, prefix and repository URLs. Align bootstrap, package metadata, shebangs, RPATH/RUNPATH and configurations to the same final path.
+- [x] Build a minimal ARM64 bootstrap with shell, APT, dpkg, certificates and dependencies; integrate initialization and repair after interrupted installation.
+- [x] Set up dedicated CI for package/dependency builds; verify bootstrap and a small catalog such as Python, Node.js/npm, Git and ripgrep first, then expand.
+- [x] Set up a signed APT repository with trust key, HTTPS, publication process and update strategy.
+- [x] Provide documented APT usage for installation, updates and removal. An additional `pkg` wrapper is optional and not yet implemented.
+- [x] Fully verify the shared environment definition for app-server, Codex commands, terminal and local stdio-MCP processes after npm/Python path adjustments. The real ARM64/Bionic app-server checks identical `PATH/PREFIX/LD_LIBRARY_PATH/HOME/TMPDIR` values in Codex shell, terminal and stdio-MCP, including private Codex session helpers in the shared `PATH`.
+- [x] Make npm global prefix/cache and Python user/venv/pip paths usable. Normal user configuration and Python user site are active; local global/user/venv installations, executable scripts, npx and removal are verified under ARM64/Bionic.
+- [x] Document installation, updates, removal and status in the terminal; retain packages across app restart and APK update. APT usage is documented in the README, preservation checked by Java regressions; the full device/update matrix remains separately undocumented as complete.
+- [x] Display package paths and installed versions in diagnostics/terminal when needed; replace former activation displays. The terminal “Package diagnostics” button queries current environment values, command resolution and version/status data from the managed dpkg database.
+- [x] Extend workspace browser and import/export for explicitly selected package areas. Account data remains outside accessible roots; known credential paths and links are blocked in package areas.
+- [ ] Verify Android 10 and a current Android version on physical ARM64 hardware: ELF, script/shebang, dynamic library, npm/pip, PTY and stdio-MCP. The user reports release APK tests through MCP passed; completion of this full version/device matrix is not documented.
 
-### Reproduzierbarer Paket-Buildvertrag — 2026-10-04
+<a id="verwalteter-präfix--2026-10-04"></a>
 
-Umgesetzt mit `scripts/package-edition/lock.json`, dem kleinen versionierten
-`overlay.json`, `prepare.py` und `verify-prefix.py`. Der Rezeptstand ist
+### Managed prefix — 2026-10-04
+
+The app now creates the package base as `usr` directly under its canonical
+files directory and explicitly passes it through Java/JNI to the native
+supervisor. `HOME`, workspace, `CODEX_HOME` and temporary files remain separate.
+Codex adds private session helpers to the shared `PATH` on startup. Package
+search order is then `files/usr/bin`, `$HOME/.local/bin`, APK aliases, Android
+system paths; libraries are searched in `files/usr/lib`, `$HOME/.local/lib`
+and native APK libraries. App-server and Codex shell configuration obtain
+package values from the same native definition. Codex commands and terminal
+inherit the server `PATH` augmented with session helpers at runtime; inherited
+stdio-MCP processes use the same actual path. Final reconciliation is described
+in the result section dated 2026-10-05.
+
+Existing files under `$HOME/.local` are preserved unchanged. No automatic move
+or relocation occurs; packages with embedded absolute paths must be reinstalled
+specifically for the new prefix. README and regressions cover preservation,
+search precedence, legacy fallback, process restart and rejection of unsuitable
+prefix directories. The real ARM64/Bionic APK smoke checks the contract through
+Codex and terminal shell. Bootstrap, starter catalog CI and the public signed
+package repository are documented below. Device tests were open and skipped
+at the user's request at this milestone.
+
+<a id="reproduzierbarer-paket-buildvertrag--2026-10-04"></a>
+
+### Reproducible package build contract — 2026-10-04
+
+Implemented with `scripts/package-edition/lock.json`, the small versioned
+`overlay.json`, `prepare.py` and `verify-prefix.py`. The recipe revision is
 `termux/termux-packages@b6af76b353140fe17f299248fca1ac13ea91c5c5`
-(Git-Tree `34c914ef107a5552e9c850299be67050cbabe4eb`). Der amd64-Buildcontainer
-ist per Digest `sha256:1db92723f6a82fd3ba45288d68ff99dbdeb08a3e9f3f0c4750115178cc7a6879`
-aus dem erfolgreichen [Upstream-Build](https://github.com/termux/termux-packages/actions/runs/35882400849/job/107253886726)
-gepinnt. NDK r30, SDK 9123335 samt Archiv-SHA-256, Build-Tools 37.0.0,
-Host-LLVM 21 sowie ARM64/Bionic/API 29 sind festgelegt. Die festen Containerbytes
-pinnen auch die Host-Abhängigkeiten; dort wird kein Paket-Upgrade ausgeführt.
-API 29 ist das native Mindestniveau; das Manifest bleibt bei Target SDK 28.
+(Git tree `34c914ef107a5552e9c850299be67050cbabe4eb`). The amd64 build container
+is pinned by digest `sha256:1db92723f6a82fd3ba45288d68ff99dbdeb08a3e9f3f0c4750115178cc7a6879`
+from the successful [upstream build](https://github.com/termux/termux-packages/actions/runs/35882400849/job/107253886726).
+NDK r30, SDK 9123335 with archive SHA-256, Build-Tools 37.0.0, host LLVM 21
+and ARM64/Bionic/API 29 are fixed. Fixed container bytes also pin host
+dependencies; no package upgrade runs there. API 29 is the native minimum;
+the manifest remains at target SDK 28.
 
-Die Vorbereitung verlangt einen sauberen Checkout, prüft Commit, Tree,
-einzelne Blob-IDs und eindeutige Änderungskontexte und schreibt ausschließlich
-eine separate Rezeptkopie. App-ID und Home werden vor der Ableitung der
-Upstream-Pfade eingestellt: Paketbasis `/data/data/de.agentcodi.pkg/files/usr`,
-Home `files/agentcodi/home`. Patchersetzung, Bootstrap-Pfadvorlagen,
-Shebang-Massage, Linker-RUNPATH und Debian-Metadaten verwenden dieselbe
-Paketbasis. Rekursive Builds erhalten dieselben Pins und
-`SOURCE_DATE_EPOCH=1791110575`. Fremde ABIs, glibc und heruntergeladene
-Binärabhängigkeiten einschließlich automatischer zyklischer Seeds werden
-abgelehnt; solche Zyklen benötigen später explizit geprüfte Editions-Seeds.
+Preparation requires a clean checkout, checks commit, tree, individual blob
+IDs and unique change contexts, and writes only a separate recipe copy.
+App ID and home are set before upstream paths are derived: package base
+`/data/data/de.agentcodi.pkg/files/usr`, home `files/agentcodi/home`.
+Patch replacement, bootstrap path templates, shebang processing, linker
+RUNPATH and Debian metadata use the same package base. Recursive builds
+receive the same pins and `SOURCE_DATE_EPOCH=1791110575`. Foreign ABIs,
+glibc and downloaded binary dependencies, including automatic cyclic seeds,
+are rejected; such cycles need explicitly audited edition seeds later.
 
-`repo.json` und das APT-Rezept verwenden ausschließlich die eigene
-HTTPS-Quelle `https://mcpasi.github.io/AGENTCODI/apt/package-edition`
-mit `stable main` und `signed-by=$PREFIX/etc/apt/keyrings/agentcodi-package.gpg`.
-Der upstream Termux-Keyring wird nicht eingebunden. Zum Stand dieses
-Buildvertrags war die Quelle noch nicht veröffentlicht; Vertrauensschlüssel
-und öffentliche Veröffentlichung wurden anschließend im unten beschriebenen
-signierten Repository-Schritt umgesetzt.
+`repo.json` and the APT recipe use only the dedicated HTTPS source
+`https://mcpasi.github.io/AGENTCODI/apt/package-edition` with `stable main`
+and `signed-by=$PREFIX/etc/apt/keyrings/agentcodi-package.gpg`. The upstream
+Termux keyring is excluded. At this build-contract milestone the source had
+not yet been published; trust key and public publication were subsequently
+implemented in the signed repository step described below. The APT source
+is now public.
 
-Der neue Tests-Job „Package recipe and toolchain contracts“ prüft die
-Vorbereitung zweimal, echte Upstream-Pfadableitungen, Bootstrap-Vorlagen,
-Patch-/Shebang-Ersetzung, APT-Konfiguration und Ablehnungsfälle.
-Er baut im gepinnten Container mit der tatsächlichen NDK ein ARM64-Test-ELF
-und eine Bibliothek, verwendet den echten Debian-Metadaten-/Archiv-Hook,
-vergleicht zwei DEB-Erzeugungen und prüft Interpreter, RUNPATH, Payload-,
-Symlink-, Skript- und Metadatenpfade. Das Artefakt enthält Compiler-/
-Host-Inventar, Vorbereitung, ELF-Berichte, Paketmetadaten, Test-DEB und SHA-256.
-Die FUSE-/Sysroot-Einrichtung und die echten Bootstrap-Pakete wurden
-anschließend beim folgenden vollständigen Build geprüft.
+The new Tests job “Package recipe and toolchain contracts” checks preparation
+twice, actual upstream path derivations, bootstrap templates, patch/shebang
+replacement, APT configuration and rejection cases. In the pinned container
+with the actual NDK, it builds an ARM64 test ELF and a library, uses the real
+Debian metadata/archive hook, compares two DEB assemblies and checks interpreter,
+RUNPATH, payload, symlink, script and metadata paths. The artifact contains
+compiler/host inventory, preparation, ELF reports, package metadata, test DEB
+and SHA-256. FUSE/sysroot setup and real bootstrap packages were subsequently
+verified during the full build below.
 
-Die Startpakete des anschließend umgesetzten Bootstraps sind Dash, APT,
-dpkg und Zertifikate samt Abhängigkeiten. Das Test-DEB dieses Buildvertrags
-war kein auslieferbarer Bootstrap; Initialisierung/Reparatur, echte
-Paketbuilds und signierte Veröffentlichung sind in den folgenden
-Ergebnisabschnitten dokumentiert. Termux-App-/API-/Exec-/Tools-Komponenten
-erfordern eigene Anpassungen und werden weiterhin abgelehnt.
-Die [Build-Dokumentation](scripts/package-edition/README.md) beschreibt Pins,
-Anpassungen, Prüfungen und den Aktualisierungsablauf. Gerätetests werden
-gemäß Nutzeranweisung übersprungen.
+The initial packages of the subsequently implemented bootstrap are Dash,
+APT, dpkg and certificates with dependencies. This build contract's test DEB
+was not a distributable bootstrap; initialization/repair, real package builds
+and signed publication are documented in the following result sections.
+Termux app/API/Exec/Tools components need dedicated adaptations and remain
+rejected. The [build documentation](scripts/package-edition/README.md)
+describes pins, adjustments, checks and the update process. Device tests
+were skipped at the user's request at this milestone.
 
-### Minimaler ARM64-Bootstrap und Wiederherstellung — 2026-10-04
+<a id="minimaler-arm64-bootstrap-und-wiederherstellung--2026-10-04"></a>
 
-Der Editions-Bootstrap wird aus den gepinnten Termux-Rezepten vollständig für
-ARM64/Bionic/API 29 und `/data/data/de.agentcodi.pkg/files/usr` gebaut.
-Dash stellt `sh` bereit; Bash wird für Paket-Konfigurationsskripte mitgeliefert.
-Der damalige Bootstrap mit APT, dpkg, CA-Zertifikaten und ihren Laufzeitabhängigkeiten umfasste 47 Pakete, noch ohne das später ergänzte Editions-Keyring-Paket.
-Build-Abhängigkeiten werden ebenfalls aus Quellen gebaut und anschließend nicht
-in den Laufzeit-Bootstrap übernommen. Die libc++-Compilerlaufzeit stammt wie
-im gepinnten Rezept vorgesehen aus der festgelegten NDK. Termux-App-/API-/Exec-/Tools-/Keyring-
-Komponenten und fremde Binärrepositories bleiben ausgeschlossen.
+### Minimal ARM64 bootstrap and recovery — 2026-10-04
 
-`assemble-bootstrap.py` prüft Depends/Pre-Depends samt Versionen, Skript-
-Interpreter und ELF-Abhängigkeiten. Paketpfade, Shebangs, RUNPATH, Symlinks,
-Konfigurationsdateien und ARM64/Bionic werden vor dem Packen geprüft.
-Die dpkg-Datenbank enthält vollständige Dateilisten einschließlich gemeinsam
-registrierter Elternverzeichnisse, Prüfsummen, Konfigurationsdatei-MD5
-und den Zustand „unpacked“. Die gemeinsamen Verzeichniseinträge verhindern
-Entfernungsversuche geschützter Eltern beim Deinstallieren späterer Pakete;
-Änderungen an Konfigurationsdateien können damit
-bei späteren Paketupdates erkannt werden. ZIP-Reihenfolge und Zeitstempel
-sind fest. Das Artefakt enthält die ausgewählten DEBs, ZIP, Größen-/SHA-256-
-Manifest, Versions-/ELF-Bericht, SHA256SUMS und das zugehörige Quellenarchiv
-mit Rezepten, Patches und Editions-Buildskripten.
+The edition bootstrap is built entirely from pinned Termux recipes for
+ARM64/Bionic/API 29 and `/data/data/de.agentcodi.pkg/files/usr`. Dash provides
+`sh`; Bash is supplied for package configuration scripts. At that time the
+bootstrap with APT, dpkg, CA certificates and runtime dependencies comprised
+47 packages, before the later edition keyring package was added. Build
+dependencies are also built from source and then excluded from the runtime
+bootstrap. The libc++ compiler runtime comes from the fixed NDK as specified
+in the pinned recipe. Termux app/API/Exec/Tools/Keyring components and foreign
+binary repositories remain excluded.
 
-Das APK enthält ZIP, Manifest und Bericht als Assets. `PackageBootstrap`
-installiert vor dem App-Server-Start in ein privates Staging-Verzeichnis und
-prüft jede Datei gegen Größe, SHA-256 und Dateimodus. Bestehende nicht
-kollidierende Präfixdateien bleiben erhalten; Kollisionen werden gemeldet.
-Veröffentlichung erfolgt über atomare Umbenennungen mit Backup.
-Ein Abbruch beim Entpacken wird beim nächsten Start erneut versucht; ein
-Abbruch zwischen Umbenennungen stellt zuerst den bisherigen Präfix wieder her.
-Der native Initialisierungsschritt führt `dpkg --configure -a` mit expliziter
-Paketumgebung, Zeitlimit und privatem Log aus. Erst nach Erfolg entsteht der
-Ready-Marker. Fehler oder Abbruch lassen die Konfiguration beim nächsten Start
-fortsetzen. Log: `files/agentcodi/logs/package-bootstrap.log`.
+`assemble-bootstrap.py` checks Depends/Pre-Depends with versions, script
+interpreters and ELF dependencies. Package paths, shebangs, RUNPATH, symlinks,
+configuration files and ARM64/Bionic are checked before packing. The dpkg
+database contains complete file lists including jointly registered parent
+directories, checksums, configuration-file MD5 and the “unpacked” state.
+Shared directory entries prevent attempts to remove protected parents when
+later packages are uninstalled; configuration changes can thus be detected
+in later package updates. ZIP order and timestamps are fixed. The artifact
+contains selected DEBs, ZIP, size/SHA-256 manifest, version/ELF report,
+SHA256SUMS and the corresponding source archive with recipes, patches and
+edition build scripts.
 
-Ein bereits initialisierter Präfix wird bei App-Neustart und APK-Update nicht
-erneut entpackt. Installierte Pakete, APT-/dpkg-Zustand und Benutzeränderungen
-bleiben erhalten; HOME, CODEX_HOME und der alte HOME/.local-Präfix ebenso.
-Eine Bootstrap-Version wird nicht über eine bestehende Installation kopiert;
-Paketaktualisierungen erfolgen über den inzwischen veröffentlichten signierten
-APT-Kanal. Die begrenzte Migration eines fehlenden Vertrauensschlüssels ist
-im Repository-Abschnitt beschrieben.
+The APK contains ZIP, manifest and report as assets. `PackageBootstrap`
+installs into private staging before app-server startup and checks every file
+against size, SHA-256 and file mode. Existing noncolliding prefix files are
+preserved; collisions are reported. Installation is committed through atomic
+renames with backup. Interrupted extraction is retried on the next startup;
+interruption between renames first restores the previous prefix. Native
+initialization executes `dpkg --configure -a` with an explicit package
+environment, timeout and private log. The ready marker is created only after
+success. Failure/interruption allows configuration to resume on next startup.
+Log: `files/agentcodi/logs/package-bootstrap.log`.
 
-Die CI-Ursachen wurden behoben: unbenötigte APT-Dokumentations-/Archiver-
-Buildabhängigkeiten, der nicht mehr unterstützte GnuPG-gpgv-only-Schalter,
-verbliebene Perl-Helfer, fehlende dpkg-Prüfsummen sowie der Laufzeitvertrag
-des Testcontainers. libandroid-selinux behält die Editions-CFLAGS in seinem
-Makefile und validiert den Quellcommit
-`1cbcdf624c248c66cd6153311d3e681ba1f9ff2a`; das Quellenarchiv enthält
-seinen sauberen Git-Snapshot. Die Paket-Toolchain nutzt einheitlich `-femulated-tls`:
-Das gepinnte Bionic-CI-Image basiert auf Android 9 und unterstützt die ab
-Compile-API 29 standardmäßig erzeugten nativen TLS-Relokationen nicht.
-API 29 bleibt das Mindestniveau. Der CI-Harness lädt zusätzlich eine ausschließlich
-für Tests gebaute reallocarray-Bibliothek für das API-28-Referenzimage vor.
-Sie entspricht der überlaufgeprüften API-29-Implementierung aus AOSP-Commit
-`290c0cb5044b643e5d6cbcb1a5b275541ca3a89e` und wird auf ARM64/Bionic
-auf Allokation, Vergrößerung, Bestandserhaltung und ENOMEM bei Überlauf geprüft.
-Bibliothek und Quellen liegen in einem separaten CI-Artefakt und werden nicht
-im Bootstrap oder APK installiert; Android 10+ stellt die Funktion selbst bereit. Ein echter NDK-Thread-local-Test und die
-Ablehnung nativer AArch64-TLS-Relokationen sichern den Vertrag ab.
+An initialized prefix is not extracted again on app restart or APK update.
+Installed packages, APT/dpkg state and user changes remain intact, as do
+HOME, CODEX_HOME and the old HOME/.local prefix. A bootstrap version is not
+copied over an existing installation; package updates use the now-published
+signed APT channel. Limited migration of a missing trust key is described
+in the repository section.
 
-Der erfolgreiche [Quellbuild](https://github.com/Mcpasi/AGENTCODI/actions/runs/37215181811/job/111474115967)
-lieferte die quellgebauten DEBs und das ursprüngliche Quellenarchiv. Die damalige
-Assembly lieferte das [Bootstrap- und Quellenartefakt](https://github.com/Mcpasi/AGENTCODI/actions/runs/37219054636/artifacts/11309996366).
-ZIP-SHA-256: `d875abf8f90fe7e70494ce8b268da826e575031275f75ca611e89ae64512041a`.
-Manifest-SHA-256: `275ef6dad15d6cdcfa8a5e7765bc697b5923da1e7400f637bb022f44cd18eccd`.
-Die nachfolgenden Builds dürfen diese DEBs nur bei identischen Paket-
-Buildinputs und geprüftem Artefakt wiederverwenden; aktuelle Assembly- und
-ELF-Prüfungen werden erneut ausgeführt.
+CI issues were fixed: unnecessary APT documentation/archiver build dependencies,
+the unsupported GnuPG gpgv-only switch, leftover Perl helpers, missing dpkg
+checksums and the test-container runtime contract. libandroid-selinux retains
+edition CFLAGS in its Makefile and validates source commit
+`1cbcdf624c248c66cd6153311d3e681ba1f9ff2a`; the source archive contains its
+clean Git snapshot. The package toolchain consistently uses `-femulated-tls`:
+the pinned Bionic CI image is based on Android 9 and does not support native
+TLS relocations generated by default from compile API 29 onward. API 29
+remains the minimum. The CI harness additionally preloads a test-only
+reallocarray library for the API-28 reference image. It matches the
+overflow-checked API-29 implementation from AOSP commit
+`290c0cb5044b643e5d6cbcb1a5b275541ca3a89e` and is tested on ARM64/Bionic for
+allocation, growth, preservation and ENOMEM on overflow. Library and sources
+are in a separate CI artifact and are not installed in bootstrap or APK;
+Android 10+ supplies the function itself. A real NDK thread-local test and
+rejection of native AArch64 TLS relocations verify the contract.
 
-Verifikation: [Tests-Lauf 37219054346](https://github.com/Mcpasi/AGENTCODI/actions/runs/37219054346)
-und [APK-Lauf 37219054636](https://github.com/Mcpasi/AGENTCODI/actions/runs/37219054636)
-für Implementierungscommit `070c37845e19931501d692ad0eb081da16296663` sind erfolgreich.
-Der damalige ARM64/Bionic-Smoke installierte die echte ZIP über den Java-Installer,
-konfigurierte alle 47 Pakete mit Android-dpkg, startete Shell/APT/gpgv und prüfte
-die registrierte APT-Version über apt-cache policy, Zertifikate und
-Konfigurationsdatei-Metadaten. Er installierte, startete und entfernte außerdem
-ein lokales Testpaket. Die 313 Java-Tests enthalten
-Wiederherstellung nach Entpack-/Konfigurationsabbruch, Umbenennungsabbruch,
-Integritäts-/Pfadfehler und Bestandserhaltung über APK-Updates.
-15 Präfix-/TLS-Prüfungen und 9 Bootstrap-Assembly-Tests sind erfolgreich,
-ebenso die acht portablen C++-Suites, Android-Kompilierung und Community-Runtime.
-Der vollständige Debug-APK-Build prüft die eingebetteten Bootstrap-Assets,
-native Kompilierung, Full-access-/PTY-/App-Server-Smokes sowie APK-Identität,
-Signatur und Alignment. Das [Debug-APK-Artefakt](https://github.com/Mcpasi/AGENTCODI/actions/runs/37219054636/artifacts/11309621629)
-enthält die geprüfte Package Edition (
+The successful [source build](https://github.com/Mcpasi/AGENTCODI/actions/runs/37215181811/job/111474115967)
+delivered source-built DEBs and the original source archive. The assembly
+at that time delivered the [bootstrap/source artifact](https://github.com/Mcpasi/AGENTCODI/actions/runs/37219054636/artifacts/11309996366).
+ZIP SHA-256: `d875abf8f90fe7e70494ce8b268da826e575031275f75ca611e89ae64512041a`.
+Manifest SHA-256: `275ef6dad15d6cdcfa8a5e7765bc697b5923da1e7400f637bb022f44cd18eccd`.
+Subsequent builds may reuse these DEBs only with identical package build
+inputs and a verified artifact; current assembly/ELF checks run again.
+
+Verification: [Tests run 37219054346](https://github.com/Mcpasi/AGENTCODI/actions/runs/37219054346)
+and [APK run 37219054636](https://github.com/Mcpasi/AGENTCODI/actions/runs/37219054636)
+for implementation commit `070c37845e19931501d692ad0eb081da16296663` passed.
+The ARM64/Bionic smoke at that milestone installed the real ZIP through the
+Java installer, configured all 47 packages with Android dpkg, started
+shell/APT/gpgv and checked the registered APT version through apt-cache policy,
+certificates and configuration-file metadata. It also installed, started
+and removed a local test package. The 313 Java tests cover recovery after
+extraction/configuration interruption, rename interruption, integrity/path
+errors and preservation across APK updates. The 15 prefix/TLS checks and
+9 bootstrap assembly tests passed, as did the eight portable C++ suites,
+Android compilation and Community runtime. The full debug APK build checks
+embedded bootstrap assets, native compilation, Full-access/PTY/app-server
+smokes and APK identity, signature and alignment. The [debug APK artifact](https://github.com/Mcpasi/AGENTCODI/actions/runs/37219054636/artifacts/11309621629)
+contains the verified Package Edition (
 `AGENTCODI-Package-0.1.0-package.1-arm64-v8a-debug.apk`, 169 MiB;
 SHA-256 `3f395698a6100003854b5884efcb7b58288e9a9216f31f8abc46b1078c9ea987`).
-Gerätetests wurden wie angeordnet übersprungen und bleiben offen.
+Device tests were skipped as instructed and remained open at this milestone.
 
-Startkatalog, Vertrauensschlüssel und signiertes Online-Repository wurden
-anschließend umgesetzt; die folgenden Abschnitte dokumentieren die Nachweise.
-Die Quelle wird ausschließlich mit dem gepinnten Schlüssel authentifiziert;
-es gibt keinen unsicheren Fallback. Weitere Katalogerweiterungen bleiben optional. Die damals noch offene
-APK-Verkleinerung ist inzwischen umgesetzt. Ein `pkg`-Wrapper bleibt optional.
-Kein PR, Merge oder GitHub-Release der APK wurde erstellt. `main` bleibt unverändert.
+Starter catalog, trust key and signed online repository were subsequently
+implemented; the following sections record the evidence. The source is
+authenticated exclusively with the pinned key; there is no insecure fallback.
+Further catalog expansion remains optional. The APK size reduction then still
+pending has since been implemented. A `pkg` wrapper remains optional.
+No PR, merge or GitHub APK release was created during this milestone;
+the APK was subsequently released on 2026-10-06 as recorded above. `main`
+remains unchanged by edition work.
 
-### Paket- und Abhängigkeits-CI mit Startkatalog — 2026-10-04
+<a id="paket--und-abhängigkeits-ci-mit-startkatalog--2026-10-04"></a>
 
-Die branchgebundene Workflow-Datei `.github/workflows/packages.yml` prüft
-den normalen App-Bootstrap sowie vier getrennte Quellbuild-Gruppen:
-Python 3.14.6, Node.js LTS 24.18.0 mit npm 11.20.0, Git 2.56.0 und
-ripgrep 15.2.0. `catalog.json` ergänzt das Bootstrap-Overlay, ohne dessen
-Paketrezepte zu ändern. Python ist ohne Tk ausgelegt; Git verzichtet auf
-GUI und optionale Perl-/Python-Integrationen. npm verwendet einen festen
-Git-Commit. Alle angebotenen Pakete und ihre Ziel-Buildabhängigkeiten
-werden für ARM64/Bionic/API 29 unter dem Editionspräfix aus Quellen gebaut.
+### Package/dependency CI with starter catalog — 2026-10-04
 
-Jedes Katalogartefakt enthält die Laufzeit-DEBs, Paketversionen, Hashes,
-Vorbereitung und zugehörige Quellen einschließlich Build-Abhängigkeiten.
-`all-built-packages.json` dokumentiert die Prüfung aller erzeugten DEBs,
-auch der ausschließlich beim Build benötigten Pakete. Abhängigkeitsversionen,
-Dateikollisionen, ausführbare Skript-Interpreter, ELF-Bibliotheken und
-Präfixpfade werden geprüft. Der ZIP im Katalogartefakt dient ausschließlich
-als CI-Prüfabbild; das APK enthält weiterhin den normalen minimalen Bootstrap.
+The branch-specific `.github/workflows/packages.yml` checks the normal app
+bootstrap and four separate source-build groups: Python 3.14.6, Node.js LTS
+24.18.0 with npm 11.20.0, Git 2.56.0 and ripgrep 15.2.0. `catalog.json`
+extends the bootstrap overlay without changing its package recipes. Python
+is configured without Tk; Git omits GUI and optional Perl/Python integrations.
+npm uses a fixed Git commit. All offered packages and their target build
+dependencies are built from source for ARM64/Bionic/API 29 under the edition
+prefix.
 
-Erfolgreiche Quellbuild-Artefakte desselben Branches dürfen nur nach Prüfung
-der Herkunft, des erfolgreichen Quelljobs, der Prüfsummen und unveränderter
-relevanter Buildinputs wiederverwendet werden. Eine Änderung ausschließlich
-am Git-Rezept kann eine andere Gruppe nur dann unbeeinflusst lassen, wenn
-deren Paketbericht belegt, dass Git nicht gebaut wurde. Aktuelle Validatoren
-und Quellenarchivierung laufen erneut; Herkunft und Verbraucher-Commit
-stehen in `source-build.json`. Geänderte Buildinputs oder abgelaufene
-Artefakte führen zu einem frischen Quellbuild. Ein manueller Lauf mit
-`source_run_id=0` baut vollständig neu.
+Each catalog artifact contains runtime DEBs, package versions, hashes,
+preparation and corresponding sources including build dependencies.
+`all-built-packages.json` documents checks of all generated DEBs, including
+build-only packages. Dependency versions, file collisions, executable script
+interpreters, ELF libraries and prefix paths are checked. The ZIP in the
+catalog artifact is exclusively a CI test image; the APK still contains the
+normal minimal bootstrap.
 
-Die ARM64/Bionic-Laufzeitjobs installieren den echten App-Bootstrap über
-den Java-Initializer. Anschließend installiert APT die lokal quellgebauten
-Katalog-DEBs mit ihrer Abhängigkeitsauflösung. Geprüft werden Python mit
-nativen Modulen, Node mit Crypto/ICU, npm/npx mit Offline-Pack-/Run-Schritten,
-Git mit Commit/fsck und ripgrep mit PCRE2. Jede Gruppe wird danach entfernt
-und über dieselben lokalen DEBs erneut installiert; Paketstatus und
-Funktionsnachweise werden als Artefakte gespeichert. Onlinequellen und
-unsichere APT-Ausnahmen werden dafür nicht benötigt.
+Successful source-build artifacts from the same branch may be reused only
+after checking provenance, successful source job, checksums and unchanged
+relevant build inputs. A change exclusively to the Git recipe can leave another
+group unaffected only if its package report proves that Git was not built.
+Current validators and source archiving run again; provenance and consumer
+commit are recorded in `source-build.json`. Changed build inputs or expired
+artifacts trigger a fresh source build. A manual run with `source_run_id=0`
+rebuilds everything.
 
-Die aufgetretenen CI-Ursachen sind behoben: vollständiger Rezeptgraph trotz
-nicht angebotener Subpakete, Quellenzuordnung synthetischer `-static`-Pakete,
-Archivierung von DEB-Namen mit Doppelpunkten, kanonische RUNPATH-Unterpfade
-innerhalb des eigenen `lib` sowie die Unterscheidung ausführbarer Skripte
-von nicht ausführbaren Bibliotheksvorlagen. Git liefert keine Hook-Vorlage
-mit fehlendem Perl-Interpreter und kein Python-abhängiges `git-p4` mehr aus.
-Der API-28-Testcontainer erhält zusätzlich `getloadavg` aus der
-AOSP-API-29-Implementierung; Grenzen und Ergebnisse werden vor den Smokes
-geprüft. Diese Kompatibilitätsbibliothek bleibt ausschließlich ein CI-Artefakt
-und wird weder im Bootstrap noch im APK installiert. Das native
-Mindestniveau bleibt API 29.
+ARM64/Bionic runtime jobs install the real app bootstrap through the Java
+initializer. APT then installs local source-built catalog DEBs with dependency
+resolution. Checks cover Python with native modules, Node with Crypto/ICU,
+npm/npx with offline pack/run steps, Git with commit/fsck and ripgrep with
+PCRE2. Each group is then removed and reinstalled through the same local DEBs;
+package status and functional evidence are stored as artifacts. Online sources
+and insecure APT exceptions are unnecessary.
 
-Verifikation des CI-Implementierungscommits
+Encountered CI issues were fixed: complete recipe graph despite subpackages
+not offered, source mapping for synthetic `-static` packages, archiving DEB
+names with colons, canonical RUNPATH subpaths inside the edition's own `lib`
+and distinguishing executable scripts from nonexecutable library templates.
+Git no longer supplies a hook template with a missing Perl interpreter or
+Python-dependent `git-p4`. The API-28 test container additionally receives
+`getloadavg` from the AOSP API-29 implementation; limits/results are checked
+before the smokes. This compatibility library remains exclusively a CI artifact
+and is installed in neither bootstrap nor APK. The native minimum remains
+API 29.
+
+Verification of CI implementation commit
 `be4219642e31b1899191fea1bf9ae63bc4c30d2c`:
 [Tests](https://github.com/Mcpasi/AGENTCODI/actions/runs/37241404970)
-mit allen sieben Jobs und
-[Paketkatalog mit ARM64/Bionic-Laufzeitprüfungen](https://github.com/Mcpasi/AGENTCODI/actions/runs/37241405136)
-mit allen zehn Jobs sind erfolgreich.
-Der [vollständige APK-Build](https://github.com/Mcpasi/AGENTCODI/actions/runs/37238815700)
-für `0309a3a32d858dd771f89bfed287833ba128befb` ist ebenfalls erfolgreich;
-danach änderten sich ausschließlich Katalog-Workflow und Test-Harness.
-Die abschließende Laufzeitkorrektur bildet das App-Cache-Verzeichnis für
-APT im Container ab und verwendet vorhandene, leere Quellkonfigurationen. Die CI behauptet keine unabhängige bitweise
-Reproduzierbarkeit aller Compiler-Ausgaben; Quellpins und Artefakthashes
-machen Eingaben und Ergebnisse überprüfbar.
-Gerätetests wurden gemäß Nutzeranweisung übersprungen und bleiben offen.
-Das anschließend umgesetzte eigene signierte APT-Repository ist im folgenden Abschnitt dokumentiert.
-Kein PR, Merge oder GitHub-Release der APK wurde erstellt; `main` bleibt unverändert.
+with all seven jobs and
+[package catalog with ARM64/Bionic runtime checks](https://github.com/Mcpasi/AGENTCODI/actions/runs/37241405136)
+with all ten jobs passed. The [full APK build](https://github.com/Mcpasi/AGENTCODI/actions/runs/37238815700)
+for `0309a3a32d858dd771f89bfed287833ba128befb` also passed; afterward only
+the catalog workflow and test harness changed. The final runtime correction
+maps the app cache directory for APT in the container and uses existing,
+empty source configurations. CI does not claim independent bit-for-bit
+reproducibility of all compiler outputs; source pins and artifact hashes make
+inputs/results inspectable. Device tests were skipped at the user's request
+and remained open at this milestone. The subsequently implemented signed
+APT repository is documented in the next section. No PR, merge or GitHub
+APK release was created during this milestone; the later APK release is
+recorded above. `main` remains unchanged by edition work.
 
-### Signiertes Repository für den Startkatalog — 2026-10-05
+<a id="signiertes-repository-für-den-startkatalog--2026-10-05"></a>
 
-Der Startkatalog mit Python, Node.js LTS/npm, Git und ripgrep ist zusammen
-mit dem Bootstrap und seinen Laufzeitabhängigkeiten für
-`https://mcpasi.github.io/AGENTCODI/apt/package-edition` als eigenes
-ARM64-APT-Repository gebaut, signiert, geprüft und öffentlich veröffentlicht.
-`repository.json` pinnt den
-öffentlichen Primärschlüssel
-`2768291D12B6C3D22CFBAF9EEC79CBDF7E93DC89`, sieben Tage Gültigkeit
-und ein 950-MB-Budget. Die private Signierung erfolgt ausschließlich
-über Actions-Secrets in einem temporären GnuPG-Verzeichnis.
+### Signed repository for the starter catalog — 2026-10-05
 
-Das lokale Paket `agentcodi-package-keyring` wird im Bootstrap installiert
-und besitzt den auf diese Quelle begrenzten Schlüssel unter
-`$PREFIX/etc/apt/keyrings/agentcodi-package.gpg`. Ein bereits initialisierter
-Präfix ohne diesen Schlüssel erhält beim APK-Update ausschließlich die
-manifestgeprüfte öffentliche Datei; Paketdaten und vorhandene Schlüssel
-bleiben erhalten. Die nachträgliche dpkg-Zuordnung erfolgt über
-`apt install agentcodi-package-keyring`. Die neuen Java-Regressionen
-prüfen Bestandserhaltung sowie abgebrochene/beschädigte Schlüsselmigration.
+The starter catalog with Python, Node.js LTS/npm, Git and ripgrep, together
+with bootstrap and its runtime dependencies, has been built, signed, verified
+and publicly published as a dedicated ARM64 APT repository at
+`https://mcpasi.github.io/AGENTCODI/apt/package-edition`. `repository.json`
+pins public primary key `2768291D12B6C3D22CFBAF9EEC79CBDF7E93DC89`, seven
+days of validity and a 950-MB budget. Private signing uses only Actions secrets
+in a temporary GnuPG directory.
 
-Der branchgebundene Katalogworkflow baut nach seinen bisherigen Quell- und
-Laufzeitprüfungen einen vollständig geprüften gemeinsamen Snapshot:
-inhaltadressierter DEB-Pool, Packages/Packages.gz, by-hash, signiertes
-Payload-/Herkunftsmanifest sowie Release, InRelease und Release.gpg.
-Unabhängige Builds gemeinsamer Abhängigkeiten dürfen unterschiedliche
-Installed-Size-Werte haben; alle anderen Laufzeitmetadaten müssen
-übereinstimmen. Der gewählte DEB behält seine tatsächlichen Metadaten.
-Präfix-, ELF-, Interpreter-, Abhängigkeits- und Kollisionsprüfungen laufen
-auch über die gesamte kombinierte Paketmenge.
+The local `agentcodi-package-keyring` package is installed in the bootstrap
+and owns the key scoped to this source at
+`$PREFIX/etc/apt/keyrings/agentcodi-package.gpg`. An initialized prefix without
+that key receives only the manifest-verified public file during APK update;
+package data and existing keys remain intact. Subsequent dpkg ownership is
+established through `apt install agentcodi-package-keyring`. New Java regressions
+check preservation and interrupted/corrupt key migration.
 
-Die vollständigen Quellen einschließlich Buildabhängigkeiten werden über
-gemeinsame komprimierte SHA-256-Objekte und gruppenbezogene Quellmanifeste
-bereitgestellt. Dateien, Rechte, Zeiten und Links bleiben erhalten; die
-Hashes der ursprünglichen Quellarchive stehen in der signierten Herkunft.
-`download-sources.py` authentifiziert Release und sämtliche benötigten
-Quellobjekte und stellt ein vollständiges Archiv wieder her. Regressionen
-prüfen Archiv-Roundtrips sowie die Ablehnung beschädigter Quellen.
-Damit entfällt die mehrfache Speicherung großer identischer Quellarchive,
-die den ersten Snapshot auf 1,36 GB vergrößert hatte.
+After its existing source/runtime checks, the branch-specific catalog workflow
+builds a fully verified combined snapshot: content-addressed DEB pool,
+Packages/Packages.gz, by-hash, signed payload/provenance manifest and Release,
+InRelease and Release.gpg. Independent builds of shared dependencies may have
+different Installed-Size values; all other runtime metadata must match.
+The selected DEB retains its actual metadata. Prefix, ELF, interpreter,
+dependency and collision checks also cover the entire combined package set.
 
-Host-APT prüft die Signaturen und lädt die Laufzeitpakete. Ein zusätzlicher
-ARM64/Bionic-Job nutzt echtes Android-APT/dpkg über einen HTTPS-Testserver:
-Installation, Entfernung und erneute Installation aller Kataloggruppen,
-Versionsprüfung sowie signiertes Testpaket-Upgrade von 1.0 auf 2.0.
-Ungültige Schlüssel, Signaturen, Index-/DEB-Prüfsummen und abgelaufene
-Metadaten müssen abgelehnt werden. Nur nach erfolgreichen Prüfungen
-veröffentlicht GitHub Pages den kompletten Snapshot. Anschließend werden
-öffentliche HTTPS-Auslieferung, aktueller Run/Commit, Signaturen, by-hash,
-Katalog-DEBs und alle referenzierten Quellobjekte geprüft.
+Complete sources including build dependencies are provided through shared
+compressed SHA-256 objects and group-specific source manifests. Files,
+permissions, times and links remain intact; hashes of original source archives
+are recorded in signed provenance. `download-sources.py` authenticates Release
+and all required source objects and reconstructs a complete archive. Regressions
+check archive round trips and rejection of corrupt sources. This avoids storing
+large identical source archives multiple times, which had increased the first
+snapshot to 1.36 GB.
 
-Aktualisierungen bewahren den geprüften vorherigen Pool, Quellen und
-Index-Hashes. Downgrades und veränderte veröffentlichte Paketbytes ohne
-Versionsanhebung werden abgelehnt. Der manuelle Workflow mit
-`repository_action=publish` erneuert den Snapshot vor Ablauf der sieben
-Tage. Für eine reine Signaturerneuerung wird `source_run_id` auf den
-geprüften Kataloglauf aus dem neuesten Ergebnisabschnitt gesetzt, damit unveränderte
-DEBs wiederverwendet werden; `source_run_id=0` baut ausdrücklich neu.
-`repository_previous_run_id=0` ermittelt den letzten abgeschlossenen
-Lauf mit erfolgreichem tatsächlichem Pages-Deployment, auch wenn danach
-die öffentliche Endprüfung fehlgeschlagen ist. Schlüsselwechsel verwenden
-überlappende öffentliche Vertrauensanker und eine angehobene Keyring-Version.
+Host APT verifies signatures and downloads runtime packages. An additional
+ARM64/Bionic job uses real Android APT/dpkg through an HTTPS test server:
+installation, removal and reinstallation of all catalog groups, version checks
+and a signed test-package upgrade from 1.0 to 2.0. Invalid keys, signatures,
+index/DEB checksums and expired metadata must be rejected. Only after successful
+checks does GitHub Pages publish the complete snapshot. Public HTTPS delivery,
+current run/commit, signatures, by-hash, catalog DEBs and all referenced source
+objects are checked afterward.
 
-Die README beschreibt `apt update`, `apt install`, `apt upgrade`,
-`apt remove` und `dpkg-query -W`. Ein zusätzlicher `pkg`-Wrapper
-ist optional und wurde in diesem Schritt nicht ergänzt.
+Updates preserve the verified previous pool, sources and index hashes.
+Downgrades and changes to published package bytes without a version bump
+are rejected. The manual workflow with `repository_action=publish` refreshes
+the snapshot before the seven days expire. For signature refresh alone,
+`source_run_id` is set to the verified catalog run from the latest result
+section so unchanged DEBs can be reused; `source_run_id=0` explicitly rebuilds.
+`repository_previous_run_id=0` finds the last completed run with a successful
+actual Pages deployment, even if subsequent public verification failed.
+Key rotation uses overlapping public trust anchors and an increased keyring
+version.
 
-Verifikation des Implementierungscommits
+The README describes `apt update`, `apt install`, `apt upgrade`, `apt remove`
+and `dpkg-query -W`. An additional `pkg` wrapper is optional and was not added
+in this step.
+
+Verification of implementation commit
 `d9816fac268b1b113019a5cea1bfab5e46056c6a`:
 [Tests](https://github.com/Mcpasi/AGENTCODI/actions/runs/37336548510)
-mit allen sieben Jobs einschließlich 315 Java-Tests sind erfolgreich.
-Der [Paketkatalog](https://github.com/Mcpasi/AGENTCODI/actions/runs/37336548937)
-hat alle 14 Signier-, Quellbuild-, Bootstrap-, Laufzeit- und
-Veröffentlichungsjobs bestanden.
-Der signierte Snapshot umfasst 67 Pakete und vollständige Quellen in
-648.375.829 Bytes; das
-[Repository-Artefakt](https://github.com/Mcpasi/AGENTCODI/actions/runs/37336548937/artifacts/11357750277)
-und der
-[ARM64/Bionic-Prüfnachweis](https://github.com/Mcpasi/AGENTCODI/actions/runs/37336548937/artifacts/11357495578)
-stehen bereit.
-[APK-Build](https://github.com/Mcpasi/AGENTCODI/actions/runs/37336548822)
-und [Debug-APK-Artefakt](https://github.com/Mcpasi/AGENTCODI/actions/runs/37336548822/artifacts/11356239632)
-für `d9816fac268b1b113019a5cea1bfab5e46056c6a` sind erfolgreich.
-Tests, Paket-/Repository-Workflow und APK-Lauf prüfen denselben
-Implementierungscommit; die abschließende Roadmap-Änderung betrifft
-nur die Dokumentation.
+passed all seven jobs including 315 Java tests. The
+[package catalog](https://github.com/Mcpasi/AGENTCODI/actions/runs/37336548937)
+passed all 14 signing, source-build, bootstrap, runtime and publication jobs.
+The signed snapshot comprises 67 packages and complete sources in
+648,375,829 bytes; the
+[repository artifact](https://github.com/Mcpasi/AGENTCODI/actions/runs/37336548937/artifacts/11357750277)
+and [ARM64/Bionic evidence](https://github.com/Mcpasi/AGENTCODI/actions/runs/37336548937/artifacts/11357495578)
+are available. [APK build](https://github.com/Mcpasi/AGENTCODI/actions/runs/37336548822)
+and [debug APK artifact](https://github.com/Mcpasi/AGENTCODI/actions/runs/37336548822/artifacts/11356239632)
+for `d9816fac268b1b113019a5cea1bfab5e46056c6a` passed. Tests, package/repository
+workflow and APK run check the same implementation commit; the final roadmap
+change affects documentation only.
 
-**Öffentliche Veröffentlichung abgeschlossen:** Der Nutzer hat
-`Mcpasi/package-edition` für die Umgebung `github-pages` zugelassen.
-Der wiederholte Veröffentlichungsjob konnte den Snapshot veröffentlichen;
-seine ursprüngliche Endprüfung löste durch Tausende parallele Einzelabfragen
-jedoch HTTP 503/429 bei Pages aus. Die Ursache ist behoben: kleine Quellen
-werden zusätzlich in höchstens 16 signierten ZIP-Dateien angeboten. Die
-CI lädt diese Dateien, prüft jedes enthaltene Quellobjekt gegen den signierten
-Hash und fragt nur die übrigen großen Quellen einzeln ab. HTTP-Anfragen
-sind auf zwei pro Sekunde begrenzt und transiente Antworten werden mit
-Backoff behandelt. Vollständige Quellen und Einzel-URLs bleiben erhalten.
+**Public publication completed:** The user allowed `Mcpasi/package-edition`
+for the `github-pages` environment. The rerun publication job published the
+snapshot; its original final verification triggered HTTP 503/429 from Pages
+through thousands of parallel individual requests. The cause was fixed:
+small sources are additionally offered in at most 16 signed ZIP files. CI
+downloads these files, checks every contained source object against its signed
+hash and requests only the remaining large sources individually. HTTP requests
+are limited to two per second and transient responses handled with backoff.
+Complete sources and individual URLs remain available.
 
-Auch ein tatsächlich veröffentlichter Snapshot mit anschließend
-fehlgeschlagener Endprüfung wird als Vorgänger erkannt und nach erneuter
-Signatur-/Hashprüfung bewahrt. Der korrigierte Kataloglauf
-37336548937 ist vollständig erfolgreich.
-Die öffentliche
-[signierte Release-Datei](https://mcpasi.github.io/AGENTCODI/apt/package-edition/dists/stable/InRelease)
-ist per HTTPS erreichbar. Die CI prüft beide gepinnten Release-Signaturen,
-Gültigkeit, aktuellen Verbraucher-Commit/-Run, Index- und by-hash-Prüfsummen,
-die angebotenen Katalog-DEBs sowie die vollständigen Quellen:
-16 signierte ZIP-Dateien werden einschließlich jedes enthaltenen Objekts
-verifiziert; weitere 219 große Quelldateien werden einzeln auf Erreichbarkeit
-und signierte Größe geprüft. Der Startkatalog und das öffentliche signierte Repository
-sind umgesetzt und abgehakt. Die dokumentierte APT-Bedienung ist ebenfalls
-abgehakt; der nachfolgende Ergebnisabschnitt dokumentiert die inzwischen
-umgesetzten Paketpfad-/Umgebungsarbeiten.
+An actually published snapshot whose final verification failed is also
+recognized as a predecessor and preserved after renewed signature/hash checks.
+Corrected catalog run 37336548937 passed completely. The public
+[signed Release file](https://mcpasi.github.io/AGENTCODI/apt/package-edition/dists/stable/InRelease)
+is accessible over HTTPS. CI checks both pinned Release signatures, validity,
+current consumer commit/run, index/by-hash checksums, offered catalog DEBs
+and complete sources: 16 signed ZIP files are verified including every
+contained object; another 219 large source files are individually checked
+for availability and signed size. Starter catalog and public signed repository
+are implemented and checked off. Documented APT usage is also checked off;
+the next result section records the now-implemented package path/environment
+work.
 
-Gerätetests wurden wie angeordnet übersprungen und bleiben offen.
-Kein PR, Merge oder GitHub-Release der APK wurde erstellt. Alle Zugriffe erfolgten über den
-GitHub Connector; `main` bleibt auf
-`ff27ec7c30d373a864e845e9a7ceeae3380dd103`.
+Device tests were skipped as instructed and remained open at this milestone.
+No PR, merge or GitHub APK release was created in this step; the later APK
+release is recorded above. All access in this historical step used the GitHub
+Connector; `main` remained at `ff27ec7c30d373a864e845e9a7ceeae3380dd103`.
 
-### Gemeinsame Paketumgebung und npm-/Python-Pfade — 2026-10-05
+<a id="gemeinsame-paketumgebung-und-npm-python-pfade--2026-10-05"></a>
 
-Implementierung und erfolgreiche CI-Prüfung dieses Schritts erfolgten ausschließlich
-auf `Mcpasi/package-edition`. Die gemeinsame Prozessumgebung und ihre
-npm-/Python-Pfadvoraussetzung sind umgesetzt; beide Checklistenpunkte sind abgehakt.
+### Shared package environment and npm/Python paths — 2026-10-05
 
-Eine gemeinsame native Definition liefert die Umgebung des App-Servers und
-die Codex-Shell-Konfiguration. Codex ergänzt beim Start sein privates
-Sitzungshilfsverzeichnis im `PATH`. Codex-Kommandos und Terminal übernehmen
-diesen tatsächlich laufenden Server-Pfad über `inherit="core"` und eine explizite
-Variablenliste; ein statischer `PATH`-Override würde dagegen von stdio-MCP
-abweichen. Die übrigen Werte kommen weiter aus der gemeinsamen Definition.
-Der Laufzeittest vergleicht die tatsächlichen Pfade von Codex-Shell, Terminal
-und MCP direkt und prüft zugleich den unveränderten Paket-Suchpfad.
-`PATH/PREFIX/LD_LIBRARY_PATH/HOME/TMPDIR` sowie npm-Präfix und Cache-Home
-werden zusätzlich mit einem echten stdio-MCP-Server unter ARM64/Bionic geprüft.
-`TERMUX_VERSION=agentcodi-package-edition` aktiviert dabei ausschließlich die
-Android-Umgebungsweitergabe des gepinnten Community-Releases. Es wird keine
-Termux-App installiert und kein offizielles Termux-Binärrepository verwendet.
-Explizite Umgebungsüberschreibungen eines MCP-Servers bleiben Nutzerkonfiguration.
+Implementation and successful CI verification of this step took place only
+on `Mcpasi/package-edition`. The shared process environment and its npm/Python
+path prerequisite are implemented; both checklist items are checked off.
 
-npm-Global-Installationen verwenden standardmäßig `$HOME/.local`; npm liest
-wieder die normale Nutzerkonfiguration und nutzt `$HOME/.npm` als Standardcache.
-Python-User-Site bleibt aktiviert; Nutzerpakete und Skripte liegen ebenfalls
-unter `$HOME/.local`. pip verwendet `$HOME/.cache/pip`. venvs behalten ihre
-eigenen Installationspfade. Der Katalog bietet die bereits aus dem gepinnten
-Python-Quellarchiv erzeugten `python-ensurepip-wheels` für `ensurepip --user`
-und Offline-venv-Erstellung an. Der gebündelte Übergangs-Python unterstützt
-User-Site; venv/pip verwenden den durch APT installierten Editions-Python.
+A shared native definition supplies the app-server environment and Codex shell
+configuration. Codex adds its private session helper directory to `PATH` at
+startup. Codex commands and terminal inherit this actually running server path
+through `inherit="core"` and an explicit variable list; a static `PATH` override
+would differ from stdio-MCP. Other values still come from the shared definition.
+The runtime test directly compares actual Codex-shell, terminal and MCP paths
+while checking the unchanged package search path. `PATH/PREFIX/LD_LIBRARY_PATH/HOME/TMPDIR`
+and npm prefix/cache home are additionally checked with a real stdio-MCP server
+under ARM64/Bionic. `TERMUX_VERSION=agentcodi-package-edition` activates only
+Android environment forwarding in the pinned Community release. No Termux app
+is installed and no official Termux binary repository is used. Explicit MCP
+server environment overrides remain user configuration.
 
-npm und das gebündelte Übergangs-npm passen beim Erstellen ihrer ausführbaren
-Links den üblichen Node-Shebang `/usr/bin/env node` auf Androids
-`/system/bin/env node` an. Die restlichen Skriptbytes bleiben erhalten.
-Die Editions-npm-Rezeptrevision wurde auf `11.20.0-1` angehoben, damit bereits veröffentlichte
-Paketbytes nicht unter derselben Version ersetzt werden.
+npm global installations use `$HOME/.local` by default; npm reads normal user
+configuration again and uses `$HOME/.npm` as its default cache. Python user site
+remains enabled; user packages/scripts also reside under `$HOME/.local`. pip
+uses `$HOME/.cache/pip`. venvs retain their own installation paths. The catalog
+offers `python-ensurepip-wheels`, already generated from the pinned Python source
+archive, for `ensurepip --user` and offline venv creation. At this milestone,
+the bundled transitional Python supported user site; venv/pip used the edition
+Python installed through APT. The transitional tool was later removed from
+the APK as documented in section 4.
 
-Die neuen Laufzeitprüfungen installieren und entfernen reine lokale
-npm-/Python-Testpakete ohne Netz-Zugriff. Sie prüfen Global-Prefix, Cache,
-benutzerdefinierte npm-Konfiguration, npx, User-Site und getrennte venvs.
-Quellbuild-Artefakte dürfen bei geänderter Root-Auswahl nur wiederverwendet
-werden, wenn unveränderte relevante Rezepte und der vollständige
-Producer-Bericht alle angeforderten DEBs belegen; aktuelle Assembly und
-Laufzeitprüfungen laufen erneut. Änderungen am npm-Rezept erzwingen für die
-Node-Gruppe einen neuen Quellbuild.
+npm and the then-bundled transitional npm adjust the usual Node shebang
+`/usr/bin/env node` to Android's `/system/bin/env node` when creating executable
+links. Remaining script bytes are preserved. The edition npm recipe revision
+was raised to `11.20.0-1` so already-published package bytes are not replaced
+under the same version.
 
-Verifizierter Implementierungscommit: `f1f1ee3ed7e8d918b40e844a4c1729b4a5502a9c`.
-Die [Tests](https://github.com/Mcpasi/AGENTCODI/actions/runs/37362245260)
-haben alle sieben Jobs bestanden, einschließlich 315 Java-Tests und acht
-portablen C++-Testsuiten. Der
-[APK-Build](https://github.com/Mcpasi/AGENTCODI/actions/runs/37362245644)
-hat alle drei Jobs bestanden; der ARM64/Bionic-Smoke prüft echte
-Codex-Shell-, Terminal- und stdio-MCP-Prozesse mit identischen Umgebungswerten
-sowie die Übergangs-npm-/Python-Pfade. Das
-[Debug-APK-Artefakt](https://github.com/Mcpasi/AGENTCODI/actions/runs/37362245644/artifacts/11367960019)
-steht bereit.
+New runtime checks install and remove purely local npm/Python test packages
+without network access. They check global prefix, cache, custom npm configuration,
+npx, user site and separate venvs. Source-build artifacts may be reused after
+root-selection changes only if unchanged relevant recipes and the complete
+producer report prove all requested DEBs; current assembly/runtime checks
+run again. npm recipe changes force a new source build for the Node group.
 
-Der [Paketkatalog](https://github.com/Mcpasi/AGENTCODI/actions/runs/37362245741)
-hat alle 14 Jobs bestanden. Dazu gehören die erneute Prüfung des neuen Node-/npm-Quellbuilds,
-die geprüfte Python-Wheel-Assembly, reale npm-/pip-Installationen und
-Deinstallationen sowie getrennte venvs unter ARM64/Bionic,
-die signierte APT-Veröffentlichung und ihre öffentliche HTTPS-Endprüfung.
-Der [signierte Repository-Snapshot](https://github.com/Mcpasi/AGENTCODI/actions/runs/37362245741/artifacts/11369690652)
-und sein [ARM64/Bionic-Prüfnachweis](https://github.com/Mcpasi/AGENTCODI/actions/runs/37362245741/artifacts/11370025576)
-sind als CI-Artefakte verfügbar.
-Der [neue Node-/npm-Quellbuild](https://github.com/Mcpasi/AGENTCODI/actions/runs/37346622005/job/111886746281)
-ist als eigener Producer-Job erfolgreich. Der aktuelle Katalog prüft dessen
-unveränderte relevante Build-Eingaben und Paketprüfsummen, stellt die
-aktuelle Assembly zusammen und wiederholt alle Laufzeitprüfungen.
-Die drei Implementierungsnachweise beziehen sich auf denselben Commit
-`f1f1ee3ed7e8d918b40e844a4c1729b4a5502a9c`. Die anschließend geänderte
-Roadmap und CI-Konfiguration verändern den App-Code nicht.
+Verified implementation commit: `f1f1ee3ed7e8d918b40e844a4c1729b4a5502a9c`.
+[Tests](https://github.com/Mcpasi/AGENTCODI/actions/runs/37362245260)
+passed all seven jobs, including 315 Java tests and eight portable C++ suites.
+The [APK build](https://github.com/Mcpasi/AGENTCODI/actions/runs/37362245644)
+passed all three jobs; the ARM64/Bionic smoke checks real Codex-shell,
+terminal and stdio-MCP processes with identical environment values and the
+transitional npm/Python paths. The
+[debug APK artifact](https://github.com/Mcpasi/AGENTCODI/actions/runs/37362245644/artifacts/11367960019)
+is available.
 
-GitHub brach spätere Dokumentationsprüfungen vor dem Teststart ab:
-„The job was not acquired by Runner of type hosted even after multiple
-attempts“. Ein zusätzlicher Diagnoseschritt liest die Abbruchmeldungen des
-vorherigen Commits in das CI-Log. Die unveränderten acht portablen
-C++-Testsuiten verwenden jetzt den verfügbaren `ubuntu-24.04-arm`-Pool;
-ihr Treiber baut native Fixtures und ermittelt den Host-Bibliothekspfad
-über den Systemcompiler. Der zusätzliche
-[Tests-Lauf](https://github.com/Mcpasi/AGENTCODI/actions/runs/37375227949)
-für `da6dae58dcffc513fefcb221828ac2f03cf934ca` hat alle sieben Jobs
-bestanden, einschließlich der vollständigen acht C++-Suiten auf ARM64.
-Der folgende Abschlusscommit ergänzt ausschließlich diesen Roadmap-Nachweis.
+The [package catalog](https://github.com/Mcpasi/AGENTCODI/actions/runs/37362245741)
+passed all 14 jobs. These include renewed checks of the new Node/npm source
+build, verified Python wheel assembly, real npm/pip installations/removal and
+separate venvs under ARM64/Bionic, signed APT publication and its public HTTPS
+final verification. The
+[signed repository snapshot](https://github.com/Mcpasi/AGENTCODI/actions/runs/37362245741/artifacts/11369690652)
+and its [ARM64/Bionic evidence](https://github.com/Mcpasi/AGENTCODI/actions/runs/37362245741/artifacts/11370025576)
+are available as CI artifacts. The
+[new Node/npm source build](https://github.com/Mcpasi/AGENTCODI/actions/runs/37346622005/job/111886746281)
+passed as a separate producer job. The current catalog checks its unchanged
+relevant build inputs and package checksums, creates current assembly and
+repeats all runtime checks. All three implementation records refer to the same
+commit `f1f1ee3ed7e8d918b40e844a4c1729b4a5502a9c`. Subsequent roadmap/CI
+configuration changes do not alter app code.
 
-Gerätetests werden gemäß Nutzeranweisung übersprungen und bleiben offen.
-Kein PR oder Merge; `main` bleibt unverändert.
+GitHub canceled later documentation checks before test startup:
+“The job was not acquired by Runner of type hosted even after multiple
+attempts”. An additional diagnostic step reads cancellation messages from
+the previous commit into the CI log. The unchanged eight portable C++ suites
+now use the available `ubuntu-24.04-arm` pool; their driver builds native
+fixtures and determines the host library path through the system compiler.
+The additional [Tests run](https://github.com/Mcpasi/AGENTCODI/actions/runs/37375227949)
+for `da6dae58dcffc513fefcb221828ac2f03cf934ca` passed all seven jobs, including
+all eight C++ suites on ARM64. The following completion commit adds only
+this roadmap evidence.
 
-### Paketdiagnose im Terminal — 2026-10-05
+Device tests were skipped at the user's request and remained open at this
+milestone.
+No PR or merge; `main` remains unchanged.
 
-Die bisherigen Aktivierungsschaltflächen und festen APK-Versionsanzeigen sind
-durch eine Schaltfläche „Paketdiagnose“ ersetzt. Jeder Aufruf liest die aktuelle
-Terminalumgebung und fragt ausschließlich die verwaltete Datenbank
-`$PREFIX/var/lib/dpkg` mit `$PREFIX/bin/dpkg-query` ab. Paketname, tatsächliche
-Version einschließlich Epoch/Revision und dpkg-Status werden angezeigt.
-Befehlsauflösung und Paketstatus stehen getrennt: ein Legacy-/APK-Befehl
-belegt keine APT-Installation; `config-files` kennzeichnet entfernte Pakete
-mit verbliebener Konfiguration. Fehlende Pfade, Datenbank oder Query-Werkzeug
-sowie Query-Fehler werden ausdrücklich ausgegeben.
+<a id="paketdiagnose-im-terminal--2026-10-05"></a>
 
-Die Diagnose installiert oder aktiviert nichts und benötigt keinen Netzzugriff.
-Sie zeigt nur ausgewählte Paketumgebungsvariablen; Kontodaten werden nicht
-gelesen. Ihre Ausgabe bleibt wie die übrige Terminalausgabe im Speicher.
-Die Bedienelemente und Erläuterungen sind Deutsch/Englisch; technische
-Diagnoseüberschriften und dpkg-Statuswerte bleiben Englisch.
-npm-/pip-/venv-Inventare sind separat abzufragen, wie in der README dokumentiert.
-Zum damaligen Stand blieben die Übergangswerkzeuge und ihr internes
-Aktivierungsverfahren bis zum APK-Verkleinerungsschritt erhalten; die damalige
-README beschrieb den expliziten Legacy-Befehl. Diese Werkzeuge und APIs sind
-inzwischen entfernt, wie die folgenden Ergebnisabschnitte dokumentieren.
+### Package diagnostics in the terminal — 2026-10-05
 
-Fünf neue Java-Regressionen führen den tatsächlichen Diagnosebefehl mit dem
-realen `dpkg-query` gegen isolierte Testdaten aus. Sie prüfen aktuelle Pfade,
-verwaltete Versionen und Status, Update/Entfernung mit Legacy-Fallback,
-fehlende Datenbank/Werkzeuge, fehlerhafte Metadaten und einen fehlenden Präfix.
-Architekturprüfungen verlangen jetzt die Diagnose statt der alten
-Aktivierungsanzeige. Die Java-Suite benötigt dafür `sh` und `dpkg-query` auf
-dem Testhost; beide sind in den Ubuntu-Runnern und im APK-Buildcontainer
-vorhanden und werden nur mit isolierten temporären Metadaten verwendet.
+Former activation buttons and fixed APK version displays are replaced by a
+“Package diagnostics” button. Every invocation reads the current terminal
+environment and queries only the managed `$PREFIX/var/lib/dpkg` database
+with `$PREFIX/bin/dpkg-query`. Package name, actual version including
+epoch/revision and dpkg status are displayed. Command resolution and package
+status are separate: a legacy/APK command does not prove an APT installation;
+`config-files` identifies removed packages with remaining configuration.
+Missing paths, database or query tool and query failures are reported explicitly.
 
-Verifizierter Implementierungscommit: `139fb464ee9a2760e0131b6973f6c3a680d591c9`.
-Der [Tests-Lauf 37382642660](https://github.com/Mcpasi/AGENTCODI/actions/runs/37382642660)
-hat alle sieben Jobs bestanden: 320 Java-Tests, alle acht portablen C++-Suiten,
-Android-Quellen/Ressourcen gegen API 35, Community-Archiv-/ARM64-Bionic-Prüfung
-und Paket-/Toolchain-Verträge. Der
-[APK-Lauf 37382642782](https://github.com/Mcpasi/AGENTCODI/actions/runs/37382642782)
-hat alle drei Jobs bestanden, einschließlich Bootstrap-Build, Bootstrap-Smoke
-und vollständigem APK-Build mit echten App-Server-/PTY-/MCP-Laufzeitprüfungen.
-Das [Debug-APK-Artefakt](https://github.com/Mcpasi/AGENTCODI/actions/runs/37382642782/artifacts/11376077909)
-enthält die separate Package Edition; Identität, Signatur, Alignment, ABI und
-Payload sind geprüft. APK-SHA-256:
+Diagnostics installs or activates nothing and needs no network access. It
+shows only selected package environment variables; account data is not read.
+Its output stays in memory like other terminal output. Controls/explanations
+are German/English; technical diagnostic headings and dpkg status values
+remain English. npm/pip/venv inventories must be queried separately as
+documented in the README. At that time, transitional tools and their internal
+activation process remained until APK size reduction; the then-current README
+described the explicit legacy command. These tools/APIs have since been
+removed as recorded in the following result sections.
+
+Five new Java regressions execute the actual diagnostic command with real
+`dpkg-query` against isolated test data. They check current paths, managed
+versions/status, update/removal with legacy fallback, missing database/tools,
+invalid metadata and a missing prefix. Architecture checks now require
+diagnostics instead of the old activation display. The Java suite needs `sh`
+and `dpkg-query` on the test host; both are present on Ubuntu runners and in
+the APK build container and used only with isolated temporary metadata.
+
+Verified implementation commit: `139fb464ee9a2760e0131b6973f6c3a680d591c9`.
+[Tests run 37382642660](https://github.com/Mcpasi/AGENTCODI/actions/runs/37382642660)
+passed all seven jobs: 320 Java tests, all eight portable C++ suites, Android
+sources/resources against API 35, Community archive/ARM64-Bionic checks and
+package/toolchain contracts. [APK run 37382642782](https://github.com/Mcpasi/AGENTCODI/actions/runs/37382642782)
+passed all three jobs, including bootstrap build, bootstrap smoke and full
+APK build with real app-server/PTY/MCP runtime checks. The
+[debug APK artifact](https://github.com/Mcpasi/AGENTCODI/actions/runs/37382642782/artifacts/11376077909)
+contains the separate Package Edition; identity, signature, alignment, ABI
+and payload are verified. APK SHA-256:
 `13ccd2acd5468d69ec55e99aad507132cf95d9651181a5a482a29a42b06611d6`.
 
-Die Implementierungsläufe hatten keine Fehlschläge. Geräteabhängige
-Linkerprüfungen wurden mit `AGENTCODI_SKIP_DEVICE_LINKER_TESTS=1`
-übersprungen; echte Geräte-/Installations-/Update-Tests bleiben offen.
-Der Abschlusscommit ergänzt ausschließlich diese Nachweise und Hinweise zu
-den CI-Testvoraussetzungen; der App-Code bleibt unverändert.
-Kein PR, Merge oder APK-Release; `main` bleibt auf
+Implementation runs had no failures. Device-dependent linker checks were
+skipped with `AGENTCODI_SKIP_DEVICE_LINKER_TESTS=1`; physical device,
+installation and update tests remained open at this milestone. The completion
+commit adds only this evidence and CI test prerequisites; app code remains
+unchanged. No PR, merge or APK release was created in this step; the later
+APK release is recorded above. `main` remained at
 `ff27ec7c30d373a864e845e9a7ceeae3380dd103`.
 
-### Workspace-Browser und Paketdatei-Import/Export — 2026-10-05
+<a id="workspace-browser-und-paketdatei-importexport--2026-10-05"></a>
 
-Umgesetzt ausschließlich auf `Mcpasi/package-edition`. Der Browser bietet
-die getrennten Bereiche Workspace, APT-Pakete (`files/usr`) und Nutzerpakete
-(`$HOME/.local`) mit eigener Navigation und Vorschau. Paketbereiche sind
-nur lesbar; sie eröffnen weder das gesamte HOME noch CODEX_HOME. Normale
-Workspace-Exporte enthalten weiterhin keinen Paketpräfix.
+### Workspace browser and package file import/export — 2026-10-05
 
-Einzeldateien und ausdrücklich gewählte Paketordner lassen sich über den
-Android-Dokumentdialog exportieren. Bestehende Größen-, Datei-, Scan- und
-Tiefengrenzen sowie quellnahe No-follow-/Hardlink-/Änderungsprüfungen und
-Rollback bleiben aktiv. Native Zugriffe erhalten die geprüfte absolute
-Wurzel unverändert, damit ein ausgetauschter Wurzellink nicht vor
-`O_NOFOLLOW` aufgelöst wird. Ausstehende Exporte behalten ihren ursprünglichen
-Bereich. Paket-ZIP-Namen kennzeichnen die Quelle.
+Implemented only on `Mcpasi/package-edition`. The browser offers separate
+workspace, APT packages (`files/usr`) and user packages (`$HOME/.local`)
+areas with independent navigation/preview. Package areas are read-only;
+they expose neither the entire HOME nor CODEX_HOME. Normal workspace
+exports still exclude package prefixes.
 
-Bekannte Zugangsdaten-Pfade einschließlich `auth.json`, `codex-home`,
-`.codex`, `.ssh`, `.npmrc`, `.pypirc`, `.netrc`, `.git-credentials`
-sowie APT-`auth.conf`/`auth.conf.d` sind in Paketbereichen für Vorschau
-und Export gesperrt, auch bei direkter Auswahl. Links und solche Pfade
-werden beim ZIP-Export ausgelassen und gezählt. Unter beliebigen anderen
-Namen kopierte Geheimnisse kann eine Namensprüfung nicht erkennen; README
-und SECURITY erklären diese Grenze ebenso wie den unveränderten Full access.
+Individual files and explicitly selected package folders can be exported
+through the Android document dialog. Existing size, file, scan and depth
+limits, source-relative no-follow/hard-link/change checks and rollback remain
+active. Native access receives the verified absolute root unchanged so a
+replaced root symlink is not resolved before `O_NOFOLLOW`. Pending exports
+retain their original area. Package ZIP names identify their source.
 
-„Datei importieren“ übernimmt eine einzelne Android-Datei beliebigen Typs,
-einschließlich DEB/ZIP, bytegenau nach `workspace/imports`, mit eigenem
-Zufallsnamen und sicherer Dateiendung. Der Browser zeigt den genauen Pfad.
-Das bestehende Importmodul prüft das temporäre Leserecht, die 512-MiB-Grenze,
-Kontodaten-Dateinamen und den atomaren No-replace-Abschluss; es speichert
-keine URI und installiert, entpackt oder startet nichts. Die Verwendung im
-Terminal erfolgt ausdrücklich durch den Nutzer.
+Known credential paths including `auth.json`, `codex-home`, `.codex`, `.ssh`,
+`.npmrc`, `.pypirc`, `.netrc`, `.git-credentials` and APT `auth.conf`/`auth.conf.d`
+are blocked for preview/export in package areas, including direct selection.
+Links and these paths are omitted and counted during ZIP export. Filename
+checks cannot detect secrets copied under arbitrary other names; README and
+SECURITY explain this limit and the unchanged Full access.
 
-ZIPs sind Dateikopien: Links, leere Ordner und Ausführungsrechte fehlen;
-sie sind keine vollständige Paket- oder dpkg-Wiederherstellung. Verwaltete
-Pakete werden über APT neu installiert. Deutsche/englische Bedienung,
-Settings-Texte, README und SECURITY sind auf diesen Vertrag abgestimmt.
+“Import file” copies a single Android file of any type, including DEB/ZIP,
+byte for byte into `workspace/imports`, with a unique random name and safe
+extension. The browser displays the exact path. The existing import module
+checks temporary read permission, the 512-MiB limit, account-data filenames
+and atomic no-replace completion; it saves no URI and installs, extracts or
+starts nothing. Terminal use is an explicit user action.
 
-Fünf neue Java-Regressionen prüfen Wurzelauswahl, Vorschau/Einzelexport
-beider Präfixe, Kontodaten-/Link-Ausschluss im tatsächlichen ZIP,
-direkte/unsichere Pfade und ausgetauschte Wurzellinks. Eine zusätzliche
-Importregression prüft DEB-/ZIP-Bytes und Endungen ohne Paketinstallation.
-Verifizierter Implementierungsstand: `4949dad012634ef403dae1f03fe72cddcb4ccc2e`.
-Der [Tests-Lauf 37386821181](https://github.com/Mcpasi/AGENTCODI/actions/runs/37386821181)
-hat alle sieben Jobs bestanden: 326 Java-Tests einschließlich der sechs neuen
-Regressionen, acht portable C++-Suiten, Android-Quellen/Ressourcen gegen API 35,
-Community-Archiv-/ARM64-Bionic-Prüfungen sowie Paket-/Toolchain-Verträge.
-Der [APK-Lauf 37386821299](https://github.com/Mcpasi/AGENTCODI/actions/runs/37386821299)
-hat alle drei Jobs bestanden, einschließlich Bootstrap-Build,
-ARM64/Bionic-Bootstrap-Smoke und vollständigem Debug-APK-Build mit
-App-Server-/PTY-/MCP-Laufzeitprüfungen, Identität, Signatur und Alignment.
-Das [Debug-APK-Artefakt](https://github.com/Mcpasi/AGENTCODI/actions/runs/37386821299/artifacts/11380222721)
-enthält die geprüfte separate Package Edition. APK-SHA-256:
+ZIPs are file copies: links, empty folders and executable permissions are
+absent; they are not complete package/dpkg recovery backups. Managed packages
+are reinstalled through APT. German/English controls, settings texts, README
+and SECURITY are aligned with this contract.
+
+Five new Java regressions check root selection, preview/single-file export
+of both prefixes, account-data/link exclusions in the actual ZIP, direct/unsafe
+paths and replaced root symlinks. An additional import regression checks
+DEB/ZIP bytes and extensions without package installation. Verified
+implementation revision: `4949dad012634ef403dae1f03fe72cddcb4ccc2e`.
+[Tests run 37386821181](https://github.com/Mcpasi/AGENTCODI/actions/runs/37386821181)
+passed all seven jobs: 326 Java tests including six new regressions, eight
+portable C++ suites, Android sources/resources against API 35, Community
+archive/ARM64-Bionic checks and package/toolchain contracts.
+[APK run 37386821299](https://github.com/Mcpasi/AGENTCODI/actions/runs/37386821299)
+passed all three jobs, including bootstrap build, ARM64/Bionic bootstrap smoke
+and full debug APK build with app-server/PTY/MCP runtime checks, identity,
+signature and alignment. The
+[debug APK artifact](https://github.com/Mcpasi/AGENTCODI/actions/runs/37386821299/artifacts/11380222721)
+contains the verified separate Package Edition. APK SHA-256:
 `4e71d975344a67d53fd073cf0228f5868d7e2e0a04296ad8ad61c6760c7cfb67`.
 
-Die abschließenden Implementierungsläufe hatten keine Testfehlschläge.
-Frühere laufende Versuche wurden bei nachfolgenden Branch-Commits durch
-die bestehende CI-Concurrency-Regel abgebrochen. Geräteabhängige
-Linkerprüfungen wurden mit `AGENTCODI_SKIP_DEVICE_LINKER_TESTS=1`
-übersprungen; echte Geräte-/Installations-/Update-Tests bleiben offen.
-Der Abschlusscommit ergänzt ausschließlich Dokumentation und diese Nachweise;
-der geprüfte App-Code und die Ressourcen bleiben unverändert.
-Kein PR, Merge oder APK-Release; `main` bleibt unverändert.
+Final implementation runs had no test failures. Earlier active attempts were
+canceled by the existing CI concurrency rule after subsequent branch commits.
+Device-dependent linker checks were skipped with
+`AGENTCODI_SKIP_DEVICE_LINKER_TESTS=1`; physical device, installation and update
+tests remained open at this milestone. The completion commit adds only
+documentation and this evidence; verified app code/resources remain unchanged.
+No PR, merge or APK release was created in this step; the later APK release
+is recorded above. `main` remains unchanged by edition work.
 
-## 4. Build verkleinern und veröffentlichbare Edition erstellen
+<a id="4-build-verkleinern-und-veröffentlichbare-edition-erstellen"></a>
 
-Bootstrap, Startkatalog, signierter Paketkanal und die gemeinsame Paketumgebung funktionieren in CI. Die npm-/Python-Pfadvoraussetzungen sind abgeschlossen. Die bisher enthaltenen nutzerinstallierbaren Pakete sind aus dem APK entfernt. Der aktive Startpfad nutzt ausschließlich die native Codex-Runtime und die installierte Paketbasis. Ungenutzte Legacy-Quellen, Identitätskonstanten und Aktivierungs-/Transport-APIs sind entfernt. Alte private Tool-Verzeichnisse werden nicht mehr angelegt oder als Startvoraussetzung benötigt; vorhandene Nutzerdaten bleiben erhalten. Die Build-Abhängigkeiten, ihre Wiederherstellung und die Cache-Auswahl sind reduziert. Der endgültige Prüfvertrag und der Abgleich gelieferter Lizenzmaterialien sind inzwischen umgesetzt. Die Community-Abhängigkeitstexte und Bootstrap-Lizenzzuordnungen sind ergänzt und geprüft. Offen bleiben die Gerätevalidierung und die anschließende finale APK-Veröffentlichung.
+## 4. Reduce the build and produce a releasable edition
 
-- [x] Bundled Node.js, npm, Python, ripgrep und nur von ihnen benötigte Bibliotheken/Archive/Lizenzen aus dem APK entfernen.
-- [x] Vorher Abhängigkeiten des App-Servers und Code-mode-Hosts auf diese Werkzeuge prüfen; zwingend notwendige Basiswerkzeuge im Bootstrap behalten.
-- [x] PackagedToolRuntime, Tool-Alias-/Activation-/ELF-Attestor-Code und Runtime-Startvalidierung an den Paket-Bootstrap anpassen. Ausgemusterte Quellen/APIs und feste Tool-Pins entfernt; Startup benötigt nur den aktiven Paketvertrag. Alte Nutzerdaten bleiben erhalten.
-- [x] Build-Skript, Dockerfile, CI-Input-Manifest, Restore-/Preflight-Prüfungen und Cache-Schlüssel auf die minimalen Edition-Abhängigkeiten reduzieren.
-- [x] Eigene Debug-APK-Artefakte für diesen Branch erzeugen (`agentcodi-package-debug-apk`); keine regulären Main-Releases überschreiben. Das APK enthält keine Übergangswerkzeuge mehr; die Bereinigung ist inzwischen abgeschlossen. Die finale Veröffentlichung benötigt weiterhin die echten Gerätenachweise.
-- [x] Architekturchecks und Java-/C++-/Android-Smokes auf den endgültigen Paketvertrag ausrichten.
-- [x] Notices, README, SECURITY und Build-Dokumentation mit der tatsächlich ausgelieferten Paketbasis abgleichen. Der Abgleich und die nachfolgende Lizenzergänzung sind umgesetzt; Community-Rust-/V8-Materialien und paketlokale Bootstrap-Zuordnungen sind quellen-/artefaktgebunden. Das Release-Lizenzgate weist jede neu auftretende Lücke zurück.
-- [x] Community-Rust-/V8-Abhängigkeitstexte und fehlende Bootstrap-Lizenzzuordnungen für die gepinnten Artefakte ergänzen; Quell-/Versions-/Hashnachweise, App-Lizenzansicht und finales APK-Lizenzgate prüfen.
-- [ ] Installations-/Update-Test inklusive niedrigem Target SDK, Foreground Service, Notifications, Login, Dateiauswahl und Backups durchführen.
-- [ ] Finales APK auf Gerät testen und erst danach als Package Edition veröffentlichen.
+Bootstrap, starter catalog, signed package channel and shared package environment work in CI. npm/Python path prerequisites are complete. Previously bundled user-installable packages have been removed from the APK. The active startup path uses only the native Codex runtime and installed package base. Unused legacy sources, identity constants and activation/transport APIs have been removed. Old private tool directories are no longer created or required for startup; existing user data is preserved. Build dependencies, their restoration and cache selection are reduced. The final verification contract and reconciliation of delivered legal materials are implemented. Community dependency texts and bootstrap license assignments are supplemented and verified. The signed Package Edition APK was published on 2026-10-06; the user reports release APK tests from APT through MCP passed. The new MPL source-saving feature and complete installation/update/version matrix still need documented hardware validation. The experimental code-mode callback failure remains open.
 
-## Historische Verifikation des Grundlagenabschnitts
+- [x] Remove bundled Node.js, npm, Python, ripgrep and libraries/archives/licenses needed only by them from the APK.
+- [x] First check app-server/code-mode host dependencies on these tools; retain essential base tools in the bootstrap.
+- [x] Adapt PackagedToolRuntime, tool alias/activation/ELF attestor code and runtime startup validation to package bootstrap. Retired sources/APIs and fixed tool pins removed; startup requires only the active package contract. Old user data is preserved.
+- [x] Reduce build script, Dockerfile, CI input manifest, restore/preflight checks and cache keys to minimal edition dependencies.
+- [x] Produce dedicated debug APK artifacts for this branch (`agentcodi-package-debug-apk`); do not overwrite regular main releases. The APK contains no transitional tools; cleanup is complete. The signed release APK has since been published separately.
+- [x] Align architecture checks and Java/C++/Android smokes with the final package contract.
+- [x] Reconcile notices, README, SECURITY and build documentation with the actual delivered package base. Reconciliation and subsequent license supplementation are implemented; Community Rust/V8 materials and package-local bootstrap assignments are source/artifact-bound. The release license gate rejects any new gap.
+- [x] Supplement Community Rust/V8 dependency texts and missing bootstrap license assignments for pinned artifacts; check source/version/hash evidence, app license view and final APK license gate.
+- [ ] Perform installation/update tests including low target SDK, foreground service, notifications, login, file selection and backups. The complete matrix is not documented as completed by the broader user report.
+- [x] Test the release APK on a device and publish it as Package Edition. The user reports successful release APK tests; `v0.1.0-package.3` is published. This does not mark the separate full hardware matrix or new source-saving feature complete.
 
-Erfolgreicher [GitHub-Actions-Lauf](https://github.com/Mcpasi/AGENTCODI/actions/runs/37154718553) für Commit `801f44d82fe5aa4398d12395383a0806bb89ec41`:
+<a id="historische-verifikation-des-grundlagenabschnitts"></a>
 
-- Architekturchecks erfolgreich.
-- 309 Java-Tests erfolgreich.
-- Alle 8 portablen C++-Testsuiten erfolgreich, einschließlich tatsächlicher Ausführung eines selbst installierten Programms über den Supervisor.
-- Android-Java-Quellen und Ressourcen gegen API 35 erfolgreich kompiliert; Target SDK 28, Minimum SDK 29 und Editions-Anzeigename geprüft.
+## Historical verification of the foundation section
 
-Zusätzlich deckt ein Terminal-Shell-Test den Vorrang selbst installierter Programme gegenüber früheren festen Shell-Funktionen ab.
+Successful [GitHub Actions run](https://github.com/Mcpasi/AGENTCODI/actions/runs/37154718553) for commit `801f44d82fe5aa4398d12395383a0806bb89ec41`:
 
-Alle Repository-Zugriffe und Änderungen erfolgen ausschließlich über den GitHub Connector. Die Community-Anbindung aus Abschnitt 2, der minimale Paket-Bootstrap und die Startkatalog-CI aus Abschnitt 3 sind umgesetzt. Das signierte Paketrepository ist einschließlich öffentlicher HTTPS-Veröffentlichung und ARM64-/APT-Laufzeittests umgesetzt. Die Legacy-Quell-/API-Bereinigung ist inzwischen umgesetzt. Die Build-/Cache-Reduktion ist ebenfalls umgesetzt. Weitere Katalogerweiterung bleibt optional. Endgültiger Architektur-/Smoke-Vertrag und Abgleich der gelieferten Lizenzmaterialien sind inzwischen umgesetzt; die nachfolgende Lizenzergänzung ist ebenfalls umgesetzt; echte Gerätetests und finales APK-Release bleiben in Abschnitt 3/4 offen. Die ursprünglichen Verifikationsangaben oben beschreiben den vorausgehenden Grundlagenabschnitt.
+- Architecture checks passed.
+- 309 Java tests passed.
+- All 8 portable C++ suites passed, including actual execution of a user-installed program through the supervisor.
+- Android Java sources/resources compiled successfully against API 35; target SDK 28, minimum SDK 29 and edition display name verified.
 
-## Historische Verifikation der Community-Anbindung
+A terminal shell test additionally covers precedence of user-installed programs over former fixed shell functions.
 
-Geprüfter Implementierungscommit: `1fed889377c980f66cdd6eabc0dba2dbcce0b9de`.
+All repository access/changes in the historical implementation used only the GitHub Connector. Community integration in section 2, minimal package bootstrap and starter catalog CI in section 3 are implemented. The signed package repository is implemented with public HTTPS publication and ARM64/APT runtime tests. Legacy source/API cleanup and build/cache reduction are implemented. Further catalog expansion remains optional. The final architecture/smoke contract and delivered legal-material reconciliation, including subsequent license supplementation, are implemented. The original verification details above describe the preceding foundation milestone. Device tests and APK publication were open then; the later user report and published APK are recorded at the top, with remaining hardware checks in sections 3/4.
 
-- [Tests-Lauf 37165001117](https://github.com/Mcpasi/AGENTCODI/actions/runs/37165001117): alle sechs Jobs erfolgreich — Architektur/Manifest, 303 Java-Tests, acht portable C++-Suites, Android-Kompilierung, Community-Archivprüfung und echter ARM64/Bionic-App-Server.
-- [Runtime-Prüfartefakt](https://github.com/Mcpasi/AGENTCODI/actions/runs/37165001117/artifacts/11289216891): erzeugte Schemas, vollständige ELF-/Archivbefunde und Protokollnachweis.
-- [APK-Lauf 37165001114](https://github.com/Mcpasi/AGENTCODI/actions/runs/37165001114): vollständiger Debug-APK-Build einschließlich nativer Full-access-, PTY-, Import-Kontext- und Übergangswerkzeug-Smokes erfolgreich.
-- Geräteabhängige Linker-Tests wurden mit `AGENTCODI_SKIP_DEVICE_LINKER_TESTS=1` übersprungen; echte Installations-/Hardwaretests bleiben offen.
-- `main` bleibt auf `ff27ec7c30d373a864e845e9a7ceeae3380dd103`. Kein PR, Merge oder GitHub-Release der APK wurde eingereicht.
+<a id="historische-verifikation-der-community-anbindung"></a>
 
-Das [Debug-APK-Artefakt](https://github.com/Mcpasi/AGENTCODI/actions/runs/37165001114/artifacts/11289032769) enthält `AGENTCODI-Package-0.1.0-package.1-arm64-v8a-debug.apk` (149 MiB; SHA-256 `2ebf610159251aea8caa3766d19ded24399efcd05360f19160aab68833529247`). Signatur, Alignment, Application-ID, ABI und enthaltene Runtime wurden erfolgreich geprüft. Dies ist ein CI-Artefakt; ein öffentliches GitHub-Release der finalen APK aus Abschnitt 4 wurde nicht erstellt.
+## Historical verification of Community integration
 
-## Entfernung der APK-Übergangswerkzeuge — 2026-10-05
+Verified implementation commit: `1fed889377c980f66cdd6eabc0dba2dbcce0b9de`.
 
-Umgesetzt ausschließlich auf `Mcpasi/package-edition`. Node.js, npm, Python
-und ripgrep einschließlich ihrer ausschließlich benötigten Bibliotheken,
-Python-Erweiterungen, npm-/Python-Archive und Lizenzassets werden weder
-heruntergeladen noch im APK ausgeliefert. Die Build-Input-Liste enthält
-jetzt 13 statt 33 Downloads. AAPT2-Abhängigkeiten sind ausschließlich
-Build-Werkzeuge. libc++ bleibt für den nativen App-Code; zlib bleibt für
-die PNG-Prüfung und erhält ein eigenes vollständiges Lizenzasset.
+- [Tests run 37165001117](https://github.com/Mcpasi/AGENTCODI/actions/runs/37165001117): all six jobs passed — architecture/manifest, 303 Java tests, eight portable C++ suites, Android compilation, Community archive inspection and real ARM64/Bionic app-server.
+- [Runtime inspection artifact](https://github.com/Mcpasi/AGENTCODI/actions/runs/37165001117/artifacts/11289216891): generated schemas, complete ELF/archive findings and protocol evidence.
+- [APK run 37165001114](https://github.com/Mcpasi/AGENTCODI/actions/runs/37165001114): full debug APK build including native Full-access, PTY, import-context and transitional-tool smokes passed.
+- Device-dependent linker tests were skipped with `AGENTCODI_SKIP_DEVICE_LINKER_TESTS=1`; physical installation/hardware tests remained open at that milestone.
+- `main` remained at `ff27ec7c30d373a864e845e9a7ceeae3380dd103`. No PR, merge or GitHub APK release was submitted during that step; the later release is recorded above.
 
-Die Community-ELFs benötigen dynamisch ausschließlich Android-Systembibliotheken;
-der Code-mode-Host enthält seine eigene JavaScript-Laufzeit. Shell, APT/dpkg,
-Zertifikate und ihre Abhängigkeiten bleiben im unveränderten Editions-Bootstrap.
-Die APK-Assembly prüft die genaue Menge von sechs nativen Dateien, löst jede
-ELF-Abhängigkeit gegen diese Menge oder Android-Systembibliotheken auf und
-vergleicht sämtliche ausgelieferten nativen Bytes mit der geprüften Assembly.
-Ausgemusterte Tool-Assets werden ausdrücklich zurückgewiesen.
+The [debug APK artifact](https://github.com/Mcpasi/AGENTCODI/actions/runs/37165001114/artifacts/11289032769) contains `AGENTCODI-Package-0.1.0-package.1-arm64-v8a-debug.apk` (149 MiB; SHA-256 `2ebf610159251aea8caa3766d19ded24399efcd05360f19160aab68833529247`). Signature, alignment, application ID, ABI and supplied runtime were verified successfully. This remains a CI artifact; at that milestone no public GitHub release of the final APK from section 4 had been created. The later signed APK release is recorded above.
 
-Die aktive Shell reicht Befehle direkt an Androids Shell weiter. App-Server,
-Codex, Terminal und stdio-MCP verwenden `files/usr/bin`, dann
-`$HOME/.local/bin`, dann Android-Systembefehle; `tool-bin` und frühere
-APK-Versions-/Aktivierungsvariablen entfallen aus der Prozessumgebung.
-Der Supervisor startet ohne Node-/Python-/ripgrep-ELFs oder Tool-Aliase.
-Die Java-Startlogik entpackt keinen alten Tool-Runtime-Asset mehr und entfernt
-nur erkannte app-erzeugte Aliase, auch nach einem geänderten APK-Installationspfad.
-Fremde Links, reguläre Dateien und Nutzerpakete bleiben erhalten.
-Ein neuer Java-Test prüft diese idempotente Migration.
+<a id="entfernung-der-apk-übergangswerkzeuge--2026-10-05"></a>
 
-Die aktiven Architekturprüfungen und ARM64/Bionic-Smokes prüfen den minimalen
-APK-Vertrag, PTY, Imports, Präfixvorrang, persistente Nutzerprogramme,
-gemeinsame stdio-MCP-Umgebung und Runtime-Neustart. Reale npm-/Python-
-Paketinstallationen bleiben durch die bereits dokumentierte separate
-Paketkatalog-CI abgedeckt. README und deutsche/englische UI-/Lizenztexte
-beschreiben den neuen Lieferumfang; historische Notices bleiben als historische
-Provenienz getrennt erhalten.
+## Removal of APK transitional tools — 2026-10-05
 
-Dieser damalige Schritt entfernte den APK-Payload und passte den notwendigen
-aktiven Startpfad an. Ungenutzter PackagedToolRuntime-/Activation-/ELF-Attestor-
-Quellcode, alte BuildIdentity-Konstanten und reservierte Transportparameter
-blieben zunächst für den nachfolgenden Bereinigungspunkt erhalten.
-Dieser ist inzwischen umgesetzt; der folgende Ergebnisabschnitt beschreibt ihn.
-Docker-/Preflight-/Cache-Reduktion und Lizenzabgleich waren
-damals eigene offene Punkte. Die Build-Reduktion und der Abgleich gelieferter
-Lizenzmaterialien sind inzwischen umgesetzt. Fehlende vollständige Community-
-Abhängigkeitshinweise bleiben Voraussetzung für die finale Veröffentlichung. Alte entpackte Laufzeitdaten werden
-nicht automatisch gelöscht.
+Implemented only on `Mcpasi/package-edition`. Node.js, npm, Python and ripgrep,
+including libraries needed only by them, Python extensions, npm/Python archives
+and license assets, are neither downloaded nor delivered in the APK. The build
+input list now has 13 rather than 33 downloads at this milestone. AAPT2
+dependencies are exclusively build tools. libc++ remains for native app code;
+zlib remains for PNG verification and receives its own complete license asset.
 
-Verifizierter Implementierungscommit: `fc0f62fc3c36408788fcd8a4403efe56153f13de`.
-Der [Tests-Lauf 37389766041](https://github.com/Mcpasi/AGENTCODI/actions/runs/37389766041)
-hat alle sieben Jobs bestanden: 327 Java-Tests, acht portable C++-Suiten,
-Android-Quellen/Ressourcen gegen API 35, Community-Archiv-/ARM64-Bionic-Prüfungen
-und Paket-/Toolchain-Verträge. Der echte Code-mode-Host führte JavaScript bei
-einem eingeschränkten Werkzeug-PATH ohne Node/npm aus; das Protokoll prüft
-auch Runtime-Neustart und persistente Nutzerprogramme.
-Der [APK-Lauf 37389766895](https://github.com/Mcpasi/AGENTCODI/actions/runs/37389766895)
-hat alle drei Jobs bestanden: Bootstrap-Build, Bootstrap-ARM64/Bionic-Smoke
-und vollständiger Debug-APK-Build mit App-Server-/PTY-/Import-/MCP-Laufzeitprüfungen.
-Identität, Signatur, Alignment, ARM64-ABI, 16-KiB-Segmente, genaue ELF-Menge,
-Abhängigkeiten und ausgelieferte native Bytes sind geprüft.
-Das [Debug-APK-Artefakt](https://github.com/Mcpasi/AGENTCODI/actions/runs/37389766895/artifacts/11380802926)
-enthält die separate Package Edition. APK-SHA-256:
+Community ELFs dynamically require only Android system libraries; the
+code-mode host contains its own JavaScript runtime. Shell, APT/dpkg,
+certificates and dependencies remain in the unchanged edition bootstrap.
+APK assembly checks the exact set of six native files, resolves every ELF
+dependency against this set or Android system libraries and compares all
+delivered native bytes with the verified assembly. Retired tool assets are
+explicitly rejected.
+
+The active shell passes commands directly to Android's shell. App-server,
+Codex, terminal and stdio-MCP use `files/usr/bin`, then `$HOME/.local/bin`,
+then Android system commands; `tool-bin` and former APK version/activation
+variables are removed from the process environment. The supervisor starts
+without Node/Python/ripgrep ELFs or tool aliases. Java startup no longer
+extracts old tool-runtime assets and removes only recognized app-created
+aliases, including after a changed APK installation path. Foreign links,
+regular files and user packages remain intact. A new Java test checks this
+idempotent migration.
+
+Active architecture checks and ARM64/Bionic smokes check the minimal APK
+contract, PTY, imports, prefix precedence, persistent user programs, shared
+stdio-MCP environment and runtime restart. Real npm/Python package installation
+remains covered by the already-documented separate package catalog CI.
+README and German/English UI/license texts describe the new payload;
+historical notices remain separately preserved as historical provenance.
+
+This historical step removed the APK payload and adapted the necessary active
+startup path. Unused PackagedToolRuntime/activation/ELF-attestor source, old
+BuildIdentity constants and reserved transport parameters initially remained
+for subsequent cleanup. That work is now implemented and described in the
+next result section. Docker/preflight/cache reduction and license reconciliation
+were separate open items then. Build reduction and delivered legal-material
+reconciliation have since been implemented. Complete Community dependency
+notices were still required for publication at that milestone; the missing
+materials were later supplemented before the published release. Old extracted
+runtime data is not automatically deleted.
+
+Verified implementation commit: `fc0f62fc3c36408788fcd8a4403efe56153f13de`.
+[Tests run 37389766041](https://github.com/Mcpasi/AGENTCODI/actions/runs/37389766041)
+passed all seven jobs: 327 Java tests, eight portable C++ suites, Android
+sources/resources against API 35, Community archive/ARM64-Bionic checks and
+package/toolchain contracts. The real code-mode host executed JavaScript
+with a restricted tool PATH without Node/npm; protocol checks also cover
+runtime restart and persistent user programs.
+[APK run 37389766895](https://github.com/Mcpasi/AGENTCODI/actions/runs/37389766895)
+passed all three jobs: bootstrap build, bootstrap ARM64/Bionic smoke and
+full debug APK build with app-server/PTY/import/MCP runtime checks. Identity,
+signature, alignment, ARM64 ABI, 16-KiB segments, exact ELF set, dependencies
+and delivered native bytes are verified. The
+[debug APK artifact](https://github.com/Mcpasi/AGENTCODI/actions/runs/37389766895/artifacts/11380802926)
+contains the separate Package Edition. APK SHA-256:
 `435d7295a53410cf8aafcbe2bc3c168c9fcdf482c8847bd18c448619eba25c30`.
-Die gerundete `du -h`-Größe sinkt von 169 MiB beim zuvor dokumentierten
-Workspace-Browser-Build (`4949dad012634ef403dae1f03fe72cddcb4ccc2e`)
-auf 123 MiB. Dies bleibt ein CI-Artefakt; eine APK-Veröffentlichung oder
-Geräte-/Installationsprüfung wurde nicht vorgenommen.
+Rounded `du -h` size drops from 169 MiB in the previously documented workspace
+browser build (`4949dad012634ef403dae1f03fe72cddcb4ccc2e`) to 123 MiB. This
+remains a CI artifact; APK publication and device/installation verification
+were not performed in this step. The later signed release is recorded above.
 
-Der erste Implementierungslauf fand einen fehlenden `LinkOption`-Import im
-neuen Java-Migrationstest; derselbe Compilerfehler blockierte auch den
-Community-Runtime-Job. Die Ursache ist behoben. Die abschließenden
-Implementierungsläufe haben keine Testfehlschläge. Der Abschlusscommit
-ergänzt ausschließlich Dokumentation; der geprüfte App-Code bleibt unverändert.
-Gerätetests werden gemäß Nutzeranweisung übersprungen und bleiben offen.
-Kein PR, Merge oder APK-Release; `main` bleibt unverändert.
+The first implementation run found a missing `LinkOption` import in the new
+Java migration test; the same compiler error also blocked the Community runtime
+job. The cause was fixed. Final implementation runs have no test failures.
+The completion commit adds only documentation; verified app code remains
+unchanged. Device tests were skipped at the user's request and remained open
+at this milestone. No PR, merge or APK release was created in this step;
+the later release is recorded above. `main` remains unchanged by edition work.
 
-## Bereinigung der alten Tool-Runtime und Start-APIs — 2026-10-06
+<a id="bereinigung-der-alten-tool-runtime-und-start-apis--2026-10-06"></a>
 
-Umgesetzt und in CI verifiziert ausschließlich auf `Mcpasi/package-edition`.
+## Cleanup of old tool runtime and startup APIs — 2026-10-06
 
-PackagedToolRuntime, Alias-Erstellung, Aktivierungsmarker-Abfragen,
-ToolchainCommand mit festen APK-Versionen sowie der ungenutzte native
-Toolchain-/ripgrep-Policy-/ELF-Guard-/Attestor-/Injector-Code und seine
-ausgemusterten Tests sind entfernt. Java, JNI und ProcessConfig übergeben
-nur den aktiven nativen App-Server, Code-mode-Host, Shell und die benötigten
-Paket-/Privatverzeichnisse. Der alte JIT-Parameter entfällt aus diesem Start-API;
-bestehende Launch-Intents werden weiterhin auf Full access migriert.
+Implemented and verified in CI only on `Mcpasi/package-edition`.
 
-Neue Installationen legen `tool-bin`, `tool-runtime` und
-`workspace/toolchain` nicht mehr an. Vorhandene Archive, Aktivierungsmarker
-und Nutzerdateien bleiben erhalten, werden jedoch weder interpretiert noch
-als Startvoraussetzung geprüft. Die eng begrenzte Migration erkannter alter
-APK-Aliase bleibt idempotent; verlinkte oder nicht als Verzeichnis vorhandene
-Alt-Wurzeln werden ignoriert, ohne ihnen zu folgen.
+PackagedToolRuntime, alias creation, activation-marker queries, ToolchainCommand
+with fixed APK versions and unused native toolchain/ripgrep-policy/ELF-guard/
+attestor/injector code and retired tests are removed. Java, JNI and ProcessConfig
+pass only the active native app-server, code-mode host, shell and required
+package/private directories. The old JIT parameter is removed from this startup
+API; existing launch intents are still migrated to Full access.
 
-Die Paketbasis und ihr Bootstrap-/Reparaturvertrag bleiben erhalten.
-Kanonische ausführbare APK-Dateien, separate Paket-/Privatwurzeln, private
-Bildzustandsdaten und Codex-Konfigurationen werden weiterhin validiert.
-Der verwaltete Präfix muss auch vom temporären Verzeichnis getrennt sein.
-Der lokale Testtreiber und GitHub-CI bauen jetzt dieselbe aktive Package-Shell.
-Sieben portable C++-Suiten behalten Supervisor-, PNG-, Framing-, Lifecycle-
-und Dateizugriffsprüfungen. Zwei zusätzliche Java-Regressionen prüfen den
-Erhalt alter Daten und das Ignorieren verlinkter Altverzeichnisse;
-Layout- und Alias-Migrationstests prüfen außerdem fehlende Altverzeichnisse
-und den Erhalt fremder Dateien. Der ARM64/Bionic-APK-Smoke verwendet denselben
-reduzierten Startvertrag ohne alte Werkzeuge oder Aktivierungsverzeichnisse.
+New installations no longer create `tool-bin`, `tool-runtime` or
+`workspace/toolchain`. Existing archives, activation markers and user files
+are preserved but neither interpreted nor checked as startup prerequisites.
+The narrowly scoped migration of recognized old APK aliases remains idempotent;
+linked or nondirectory legacy roots are ignored without following them.
 
-README, SECURITY und CI-Dokumentation sind angepasst. Die damals folgende
-vollständige Build-/Docker-/Preflight-/Cache-Reduktion ist inzwischen umgesetzt.
-Der anschließend abgeschlossene Abgleich gelieferter Lizenzmaterialien und
-die Ausrichtung aller Architektur-/Smoke-Verträge stehen im folgenden
-Ergebnisabschnitt. Vollständige Community-Abhängigkeitshinweise bleiben
-Voraussetzung für eine finale APK-Veröffentlichung. Gerätetests werden gemäß Nutzeranweisung übersprungen
-und bleiben offen. Kein PR, Merge oder APK-Release; `main` bleibt unverändert.
+The package base and its bootstrap/repair contract remain intact. Canonical
+executable APK files, separate package/private roots, private image-state data
+and Codex configurations are still validated. The managed prefix must also
+be separate from the temporary directory. Local test driver and GitHub CI
+now build the same active Package shell. Seven portable C++ suites retain
+supervisor, PNG, framing, lifecycle and file-access checks. Two additional
+Java regressions check preservation of old data and ignoring linked legacy
+directories; layout/alias migration tests also check missing legacy directories
+and preservation of foreign files. The ARM64/Bionic APK smoke uses the same
+reduced startup contract without old tools or activation directories.
 
-Verifizierter Implementierungscommit: `28a79dff30d966a5056ac80f5e67476ed9acafd5`.
-Der [Tests-Lauf 37392093277](https://github.com/Mcpasi/AGENTCODI/actions/runs/37392093277)
-hat alle sieben Jobs bestanden: 320 Java-Tests, alle sieben aktuellen portablen
-C++-Suiten (293 Engine-Assertions), Android-Quellen/Ressourcen gegen API 35,
-Community-Archiv-/ARM64-Bionic-Prüfungen und Paket-/Toolchain-Verträge.
-Der [APK-Lauf 37392093667](https://github.com/Mcpasi/AGENTCODI/actions/runs/37392093667)
-hat alle drei Jobs bestanden: Bootstrap-Build, Bootstrap-ARM64/Bionic-Smoke
-und vollständiger Debug-APK-Build mit App-Server-/PTY-/Import-/MCP-Prüfungen,
-Runtime-Neustart, Präfixvorrang und persistenten Nutzerprogrammen.
-Identität, Signatur, Alignment, ARM64-ABI, 16-KiB-Segmente, genaue ELF-Menge,
-Abhängigkeiten und ausgelieferte native Bytes sind weiterhin geprüft.
-Das [Debug-APK-Artefakt](https://github.com/Mcpasi/AGENTCODI/actions/runs/37392093667/artifacts/11381199454)
-enthält die separate Package Edition. APK-SHA-256:
+README, SECURITY and CI documentation are adapted. Full build/Docker/preflight/
+cache reduction, which followed this step, is now implemented. Subsequently
+completed delivered legal-material reconciliation and alignment of all
+architecture/smoke contracts are described in the next result section.
+Complete Community dependency notices were still a prerequisite for APK
+publication at this milestone; they were later supplemented before release.
+Device tests were skipped at the user's request and remained open then.
+No PR, merge or APK release was created in this step; the later release is
+recorded above. `main` remains unchanged by edition work.
+
+Verified implementation commit: `28a79dff30d966a5056ac80f5e67476ed9acafd5`.
+[Tests run 37392093277](https://github.com/Mcpasi/AGENTCODI/actions/runs/37392093277)
+passed all seven jobs: 320 Java tests, all seven current portable C++ suites
+(293 engine assertions), Android sources/resources against API 35, Community
+archive/ARM64-Bionic checks and package/toolchain contracts.
+[APK run 37392093667](https://github.com/Mcpasi/AGENTCODI/actions/runs/37392093667)
+passed all three jobs: bootstrap build, bootstrap ARM64/Bionic smoke and full
+debug APK build with app-server/PTY/import/MCP checks, runtime restart, prefix
+precedence and persistent user programs. Identity, signature, alignment,
+ARM64 ABI, 16-KiB segments, exact ELF set, dependencies and delivered native
+bytes remain verified. The
+[debug APK artifact](https://github.com/Mcpasi/AGENTCODI/actions/runs/37392093667/artifacts/11381199454)
+contains the separate Package Edition. APK SHA-256:
 `0e161e1a9d9ae4b91123cbe6c690376405b61c349db3d8c68fd25e4c894e48b9`.
-Die gerundete APK-Größe bleibt 123 MiB.
+Rounded APK size remains 123 MiB.
 
-Die erste CI fand einen verbliebenen Verweis auf die entfernte Aktivierungsvariable
-im Android-Dialog, eine Browser-Testannahme über den früher automatisch angelegten
-Toolchain-Ordner und einen falsch maskierten Zeilenumbruch im neuen C++-Sollwert.
-Alle drei Ursachen sind behoben. Der Community-Runtime-Job war durch dieselbe
-Java-Testannahme blockiert. Die abschließenden Implementierungsläufe haben
-keine Testfehlschläge; der frühere APK-Versuch wurde beim Korrekturcommit
-durch die bestehende CI-Concurrency-Regel abgebrochen.
+Initial CI found a remaining reference to the removed activation variable in
+the Android dialog, a browser test assumption about the previously auto-created
+toolchain folder and an incorrectly escaped newline in the new C++ expected
+value. All three causes were fixed. The Community runtime job was blocked
+by the same Java test assumption. Final implementation runs have no test
+failures; the earlier APK attempt was canceled by the existing CI concurrency
+rule at the correction commit.
 
-Die entfernten geräteabhängigen Guard-/Attestor-Tests gehören zum ausgemusterten
-Code; der aktive CI-Vertrag benötigt `AGENTCODI_SKIP_DEVICE_LINKER_TESTS` nicht
-mehr. Echte Geräte-/Installations-/Update-Tests bleiben ausdrücklich offen.
-Der folgende Abschlusscommit ergänzt ausschließlich diese Roadmap-Nachweise
-und kennzeichnet den Punkt als umgesetzt; geprüfter App-Code, Ressourcen und
-Build-Konfiguration bleiben unverändert. Kein PR, Merge oder APK-Release;
-`main` bleibt auf `ff27ec7c30d373a864e845e9a7ceeae3380dd103`.
+Removed device-dependent guard/attestor tests belong to retired code; the
+active CI contract no longer needs `AGENTCODI_SKIP_DEVICE_LINKER_TESTS`.
+Physical device/installation/update tests explicitly remained open at this
+milestone. The following completion commit adds only this roadmap evidence
+and marks the item implemented; verified app code, resources and build
+configuration remain unchanged. No PR, merge or APK release was created in
+this step; the later release is recorded above. `main` remained at
+`ff27ec7c30d373a864e845e9a7ceeae3380dd103`.
 
-## Reduktion der APK-Build-Abhängigkeiten — 2026-10-06
+<a id="reduktion-der-apk-build-abhängigkeiten--2026-10-06"></a>
 
-Umgesetzt ausschließlich auf `Mcpasi/package-edition`. Der APK-Build lädt
-`patchelf` nicht mehr herunter, entpackt es nicht und verlangt dessen
-Versionsprüfung nicht mehr. Die ungenutzte `llvm-objcopy`-Voraussetzung,
-der `script`-Befehl und der unbenutzte allgemeine ELF-Relokationshelfer sind
-entfernt. Die benötigte gezielte Codex-Host-/zlib-Relokation bleibt erhalten.
-Clang, lld und llvm-strip bleiben für Engine, Shell und Bionic-Smokes gepinnt.
+## Reduction of APK build dependencies — 2026-10-06
 
-Das generierte CI-Input-Manifest enthält 12 statt 13 Downloads: Community-Codex,
-Android-Plattform, R8 und die benötigten AAPT2-/libc++-/zlib-Pakete.
-Der source-gebaute Paket-Bootstrap behält seinen separaten geprüften
-Wiederherstellungspfad. Der Input-Restorer berücksichtigt ausschließlich das
-aktuelle Manifest; die Prüfung bricht jetzt auch dann ab, wenn dessen
-Neuerzeugung fehlschlägt. Alte oder beschädigte Manifeste und fehlende oder
-veränderte Bytes werden zurückgewiesen. Fünf neue Host-Regressionen prüfen
-diese Fälle, die Wiederherstellung nur gelisteter Inputs, den Erhalt fremder
-Cache-Dateien und die sichere Auswahl der Cache-Pfade.
+Implemented only on `Mcpasi/package-edition`. The APK build no longer downloads
+or extracts `patchelf` or requires its version check. The unused `llvm-objcopy`
+prerequisite, `script` command and unused general ELF relocation helper are
+removed. Required targeted Codex-host/zlib relocation remains. Clang, lld
+and llvm-strip remain pinned for engine, shell and Bionic smokes.
 
-Der APK-Workflow verwendet einen eigenen Editions-Cache mit OS, Architektur
-und dem Hash von Manifest/Cache-Auswahl im Schlüssel. Er enthält nur die
-elf aktuellen Nicht-SDK-Dateien, keine ganzen Alt-Caches oder Build-Ausgaben;
-es gibt keine Fallback-Schlüssel. Die Bytes werden vor Verwendung erneut gegen
-SHA-256 geprüft und erst nach erfolgreicher Manifest-/Input-Prüfung gespeichert.
-Die Android-SDK-Datei bleibt ausschließlich im vorhandenen privaten Mirror
-oder beim Upstream. Der Community-Archivpfad bleibt SHA-256-adressiert.
+The generated CI input manifest contains 12 rather than 13 downloads:
+Community Codex, Android platform, R8 and required AAPT2/libc++/zlib packages.
+The source-built package bootstrap retains its separate verified restoration
+path. The input restorer considers only the current manifest; verification
+now also fails if manifest regeneration fails. Old/corrupt manifests and
+missing/changed bytes are rejected. Five new host regressions check these
+cases, restoration of listed inputs only, preservation of foreign cache
+files and safe cache-path selection.
 
-Docker verlangt Ubuntu gcc/libc6-dev und bsdutils nicht mehr. Das finale Image
-übernimmt ausschließlich den benötigten Termux-Präfix, ohne Home-/Cache-Daten,
-APT-Paketlisten oder das temporäre rekonstruierte Sysroot-DEB.
-Die gepinnten NDK-r29-Header/CRT und ihre Termux-Patches bleiben notwendige
-Compile-/Link-Inputs; sie werden weiterhin aus verifizierten Quellen
-rekonstruiert. Preflight prüft Java 17, ARM64, kanonische System-Shell,
-ausführbaren Android-Linker und die aktive LLVM-Version. Eine temporäre
-API-29-C++/JNI/zlib-Probe prüft Kompilierung und tatsächliche Bionic-Ausführung.
-Die alten manuellen Linker-/Guard-/ptrace-/seccomp-Proben sind entfernt.
+The APK workflow uses a dedicated edition cache with OS, architecture and
+manifest/cache-selection hash in its key. It contains only the eleven current
+non-SDK files, no entire old caches or build outputs; there are no fallback
+keys. Bytes are checked again against SHA-256 before use and stored only
+after successful manifest/input validation. The Android SDK file remains
+exclusively in the existing private mirror or upstream. The Community archive
+path remains SHA-256-addressed.
 
-README und CI-Build-Dokumentation beschreiben denselben Liefer- und
-Build-Vertrag. Die historische Verifikation bleibt an ihre früheren Commits
-gebunden; ihr damaliger offener Build-Bereinigungspunkt ist jetzt umgesetzt.
-Der anschließend abgeschlossene Architektur-/Smoke-Abgleich und der Abgleich
-gelieferter Lizenzmaterialien stehen im folgenden Ergebnisabschnitt.
-Vollständige Community-Abhängigkeitshinweise bleiben Veröffentlichungsvoraussetzung. Echte Gerätetests wurden
-gemäß Nutzeranweisung übersprungen und bleiben offen.
+Docker no longer requires Ubuntu gcc/libc6-dev and bsdutils. The final image
+copies only the required Termux prefix, without home/cache data, APT package
+lists or the temporary reconstructed sysroot DEB. Pinned NDK-r29 headers/CRT
+and their Termux patches remain required compile/link inputs and are still
+reconstructed from verified sources. Preflight checks Java 17, ARM64,
+canonical system shell, executable Android linker and active LLVM version.
+A temporary API-29 C++/JNI/zlib probe checks compilation and actual Bionic
+execution. Old manual linker/guard/ptrace/seccomp probes are removed.
 
-Verifizierter Implementierungscommit: `28c77f3444e1c54b741f3a55513fb2125641f10d`.
-Der [Tests-Lauf 37442948418](https://github.com/Mcpasi/AGENTCODI/actions/runs/37442948418)
-hat alle sieben Jobs bestanden: 320 Java-Tests, sieben portable C++-Suiten
-(293 Engine-Assertions), Android-Quellen/Ressourcen gegen API 35,
-Community-Archiv-/ARM64-Bionic-Prüfungen und Paket-/Toolchain-Verträge,
-einschließlich der fünf neuen Build-Input-Regressionen.
+README and CI build documentation describe the same delivery/build contract.
+Historical verification remains tied to its earlier commits; its then-open
+build cleanup is now implemented. The subsequently completed architecture/smoke
+alignment and delivered legal-material reconciliation are described in the
+next result section. Complete Community dependency notices were still a
+publication prerequisite at this milestone; they were later supplemented
+before release. Physical device tests were skipped at the user's request
+and remained open then.
 
-Der [APK-Lauf 37442949060](https://github.com/Mcpasi/AGENTCODI/actions/runs/37442949060)
-hat alle drei Jobs bestanden: Bootstrap-Build, Bootstrap-ARM64/Bionic-Smoke
-und vollständiger Debug-APK-Build. Der neue Cache wurde mit genau den
-ausgewählten Dateien gespeichert; alle zwölf Build-Inputs sind SHA-256-geprüft.
-Container-Preflight einschließlich der neuen nativen Probe, App-Server-/PTY-/
-Import-/MCP-Smokes, Runtime-Neustart, Präfixvorrang und persistente Nutzerprogramme
-sind erfolgreich. APK-Identität, Signatur, Alignment, ARM64-ABI,
-16-KiB-Segmente, genaue ELF-Menge, Abhängigkeiten und ausgelieferte native
-Bytes bleiben geprüft.
-Das [Debug-APK-Artefakt](https://github.com/Mcpasi/AGENTCODI/actions/runs/37442949060/artifacts/11402117477)
-enthält die separate Package Edition. APK-SHA-256:
+Verified implementation commit: `28c77f3444e1c54b741f3a55513fb2125641f10d`.
+[Tests run 37442948418](https://github.com/Mcpasi/AGENTCODI/actions/runs/37442948418)
+passed all seven jobs: 320 Java tests, seven portable C++ suites (293 engine
+assertions), Android sources/resources against API 35, Community
+archive/ARM64-Bionic checks and package/toolchain contracts, including five
+new build-input regressions.
+
+[APK run 37442949060](https://github.com/Mcpasi/AGENTCODI/actions/runs/37442949060)
+passed all three jobs: bootstrap build, bootstrap ARM64/Bionic smoke and full
+debug APK build. The new cache was saved with exactly the selected files;
+all twelve build inputs are SHA-256-verified. Container preflight including
+the new native probe, app-server/PTY/import/MCP smokes, runtime restart,
+prefix precedence and persistent user programs passed. APK identity,
+signature, alignment, ARM64 ABI, 16-KiB segments, exact ELF set, dependencies
+and delivered native bytes remain verified. The
+[debug APK artifact](https://github.com/Mcpasi/AGENTCODI/actions/runs/37442949060/artifacts/11402117477)
+contains the separate Package Edition. APK SHA-256:
 `723f76120cc70f698b3b146f3f51d2dbf753d1a0be167fb6fe18b7a1d0c7a0dd`.
-Die gerundete APK-Größe bleibt 123 MiB; dieser Schritt reduziert die
-Build-Voraussetzungen und die Container-/Input-/Cache-Daten.
+Rounded APK size remains 123 MiB; this step reduces build prerequisites
+and container/input/cache data.
 
-Die Implementierungsläufe hatten keine Fehlschläge. Der Abschlusscommit
-ergänzt ausschließlich diese Roadmap-Nachweise und die Umsetzungsmarkierung;
-geprüfter App-Code, Ressourcen und Build-Konfiguration bleiben unverändert.
-Kein PR, Merge oder APK-Release; `main` bleibt auf
-`ff27ec7c30d373a864e845e9a7ceeae3380dd103`.
+Implementation runs had no failures. The completion commit adds only this
+roadmap evidence and implementation marker; verified app code, resources
+and build configuration remain unchanged. No PR, merge or APK release was
+created in this step; the later release is recorded above. `main` remained
+at `ff27ec7c30d373a864e845e9a7ceeae3380dd103`.
 
-## Finaler Testvertrag und Lizenzabgleich — 2026-10-06
+<a id="finaler-testvertrag-und-lizenzabgleich--2026-10-06"></a>
 
-Umgesetzt ausschließlich auf `Mcpasi/package-edition`. Die beiden
-Nicht-Hardware-Punkte in Abschnitt 4 sind abgehakt. Der
-[finale Testvertrag](scripts/package-edition/TEST_CONTRACT.md) ordnet
-Architektur-, Java-, sieben portable C++-, Android-Kompilier- und echte
-ARM64/Bionic-Prüfungen dem tatsächlich ausgelieferten Paketvertrag zu.
+## Final test contract and license reconciliation — 2026-10-06
 
-`apk-contract.json` ist die gemeinsame Definition der sechs nativen ARM64-Dateien
-und der erlaubten Assets. Architekturprüfung und APK-Assembly verwenden
-denselben Vertrag. Der neue Prüfer vergleicht sämtliche nativen Dateien,
-Lizenzassets und Raw-Lizenzressourcen bytegenau mit den geprüften Staging-/Quellen.
-Zusätzliche ABIs, unbekannte/alte Assets, doppelte ZIP-Dateien, veränderte Bytes,
-Bootstrap-Manifest-/Lizenzindex-/Quellnachweisfehler und vorzeitige Release-Builds
-werden zurückgewiesen. Vierzehn neue Host-Regressionen prüfen diese Fälle.
-Die vorhandenen ELF-, Identitäts-, Signatur-, Alignment- und Runtime-Prüfungen
-bleiben erhalten.
+Implemented only on `Mcpasi/package-edition`. The two non-hardware items in
+section 4 are checked off. The
+[final test contract](scripts/package-edition/TEST_CONTRACT.md) maps architecture,
+Java, seven portable C++, Android compilation and real ARM64/Bionic checks
+to the actually delivered package contract.
 
-Java prüft den Erhalt der vier nutzerinstallierten Befehlsnamen `node`, `npm`,
-`python` und `rg`, ihrer Ausführungsrechte, der verwalteten dpkg-Datenbank und
-von Nutzer-Caches. Die native Host-Regression injiziert alte Aktivierungsvariablen
-in den Elternprozess und verlangt ihre Entfernung im Kindprozess. Der echte
-APK-Smoke verlangt denselben bereinigten Vertrag bei Codex-Kommandos, Package-Shell
-und stdio-MCP; die bisherigen Full-access-/PTY-/Import-/Präfix-/Neustartprüfungen
-bleiben aktiv. Der Code-mode-Host benötigt weiterhin kein externes Node/npm.
+`apk-contract.json` is the shared definition of the six native ARM64 files
+and allowed assets. Architecture checks and APK assembly use the same
+contract. The new verifier compares all native files, license assets and
+raw license resources byte for byte with verified staging/sources. Additional
+ABIs, unknown/old assets, duplicate ZIP files, changed bytes, bootstrap
+manifest/license-index/source-evidence errors and premature release builds
+are rejected. Fourteen new host regressions check these cases. Existing
+ELF, identity, signature, alignment and runtime checks remain intact.
 
-Die Bootstrap-Assembly indexiert originale Lizenzdateien einschließlich der
-paketzugehörigen Copyright-Links auf gemeinsame Texte unter `share/LICENSES`.
-Die Auflösung erfolgt ausschließlich anhand geprüfter Manifestdateien/-links,
-ohne fremde Hostpfade zu lesen. Index und Bericht nennen den installierten
-paketzugehörigen Pfad, den tatsächlichen ZIP-Text, Größe und SHA-256.
-Elf Bootstrap-Assembly-Regressionen prüfen auch gemeinsame und fehlende Ziele.
-Der aktuelle Bootstrap umfasst 48 Pakete mit 56 konkreten Lizenztexten,
-106 paketbezogenen Datensätzen und 31 Paketen mit gemeinsamen Lizenzverweisen.
+Java checks preservation of the four user-installed command names `node`,
+`npm`, `python` and `rg`, their executable permissions, managed dpkg database
+and user caches. The native host regression injects old activation variables
+into the parent process and requires their removal in the child. The real
+APK smoke requires the same cleaned contract for Codex commands, Package
+shell and stdio-MCP; existing Full-access/PTY/import/prefix/restart checks
+remain active. The code-mode host still needs no external Node/npm.
 
-Die Lizenzansicht bietet den paketweisen Bootstrap-Index und liest die
-originalen Texte aus der mitgelieferten ZIP. Sie beschreibt den APK-Bootstrap;
-später installierte oder aktualisierte Pakete behalten ihre eigenen aktuellen
-Hinweise im Präfix. Der libc++-Build prüft den Copyright-Verweis auf das
-unveränderte, im Repository festgehaltene Termux-NCSA-Quellmaterial. Vollständige
-libc++-/libc++abi-/libunwind-Lizenztexte aus einem dokumentierten LLVM-Quellpin
-ergänzen die generische Vorlage. Codex- und zlib-Distributorhinweise bleiben
-unverändert. Host-Python ist ausschließlich ein Build-Werkzeug; die zwölf
-gepinnten Downloads und der minimale APK-Werkzeugumfang bleiben erhalten.
-Historische Sandbox-/Tool-Provenienz bleibt in `NOTICE.md`; sie wird nicht
-als aktueller APK-Lieferumfang ausgegeben.
+Bootstrap assembly indexes original license files including package-owned
+copyright links to shared texts under `share/LICENSES`. Resolution uses only
+verified manifest files/links without reading foreign host paths. Index and
+report identify the installed package-owned path, actual ZIP text, size and
+SHA-256. Eleven bootstrap assembly regressions also check shared/missing
+targets. The current bootstrap comprises 48 packages with 56 concrete license
+texts, 106 package-related records and 31 packages with shared license references.
 
-**Historisches Ergebnis des Lizenzabgleichs für den unten genannten Commit:**
-Die ausgelieferte Menge und die damals gelieferten Nachweise sind abgeglichen.
-Die folgenden vier Befunde wurden anschließend im Ergebnisabschnitt
-„Ergänzung der fehlenden Lizenzen“ behoben. Das Community-Archiv liefert weiterhin keine
-vollständigen Rust-/V8-Abhängigkeitshinweise für den exakten statisch gelinkten
-Release-Build. Außerdem hatten `bzip2`, `gpgv` und `xz-utils` damals keine eigene
-paketlokale Lizenzdatei im ausgewählten DEB; diese Befunde sind im historischen
-Bericht enthalten. Gemeinsame Texte und die korrespondierenden Quellen
-waren verfügbar; daraus wurde keine vollständige paketbezogene Attribution
-abgeleitet. Das öffentliche Editions-Keyring-Metadatenpaket verwendet den
-AGENTCODI-Apache-2.0-Hinweis. Der damalige Debug-Bericht enthält vier
-Lizenzblocker und `final_release_ready=false`; Release-Builds dieses Stands
-scheiterten am Lizenzgate. Die verbleibenden Zuordnungen/Nachweise wurden
-anschließend ergänzt und werden im aktuellen Format-2-Bericht geprüft.
-Die historischen vier Blocker bleiben im damaligen Bericht nachvollziehbar.
+The license view offers the per-package bootstrap index and reads original
+texts from the supplied ZIP. It describes the APK bootstrap; packages installed
+or updated later retain their own current notices in the prefix. The libc++
+build checks the copyright reference against unchanged Termux NCSA source
+material recorded in the repository. Complete libc++/libc++abi/libunwind
+license texts from a documented LLVM source pin supplement the generic
+template. Codex and zlib distributor notices remain unchanged. Host Python
+is only a build tool; twelve pinned downloads and minimal APK tool set remain.
+Historical sandbox/tool provenance remains in `NOTICE.md`; it is not presented
+as the current APK payload.
 
-Verifizierter Code-/Lizenzindex-Commit:
+**Historical license reconciliation result for the commit specified below:**
+The delivered set and then-supplied evidence are reconciled. The following
+four findings were subsequently resolved in “Supplementing the missing
+licenses”. The Community archive itself still lacks complete Rust/V8 dependency
+notices for the exact statically linked release build. Also, `bzip2`, `gpgv`
+and `xz-utils` then lacked their own package-local license file in the selected
+DEB; these findings remain in the historical report. Shared texts and
+corresponding sources were available; complete package-specific attribution
+was not inferred from them. The public edition keyring metadata package
+uses the AGENTCODI Apache-2.0 notice. The historical debug report contains
+four license blockers and `final_release_ready=false`; release builds at
+that revision failed the license gate. Remaining mappings/evidence were
+subsequently supplemented and are checked in the current format-2 report.
+The historical four blockers remain traceable in the original report.
+
+Verified code/license-index commit:
 `c04fdf3c93a5f0313c1df675416a73582df75e24`.
-Der nachfolgende Commit
-`80fc2b0ed134a120a5d6edb5dc254566c8df08d8`
-korrigiert ausschließlich die Pfadangaben der ausgelieferten Lizenzhinweise
-und der Repository-Dokumentation; die folgenden Tests-/APK-Nachweise beziehen
-sich auf diesen tatsächlichen Payload-Stand.
+The subsequent commit `80fc2b0ed134a120a5d6edb5dc254566c8df08d8` corrects only
+paths in delivered legal notices and repository documentation; the following
+Tests/APK evidence refers to this actual payload revision.
 
-Der [Tests-Lauf 37448382223](https://github.com/Mcpasi/AGENTCODI/actions/runs/37448382223)
-hat alle sieben Jobs bestanden: 320 Java-Tests, sieben portable C++-Suiten
-(294 Engine-Assertions), Android-Quellen/Ressourcen gegen API 35,
-Community-Archiv-/ARM64-Bionic-Prüfungen sowie Paket-/Toolchain-Verträge.
-Die Architekturprüfung besteht einschließlich der 14 APK-Vertragsregressionen;
-die elf Bootstrap-Assembly- und fünf Build-Input-Regressionen sind ebenfalls grün.
+[Tests run 37448382223](https://github.com/Mcpasi/AGENTCODI/actions/runs/37448382223)
+passed all seven jobs: 320 Java tests, seven portable C++ suites (294 engine
+assertions), Android sources/resources against API 35, Community
+archive/ARM64-Bionic checks and package/toolchain contracts. Architecture
+checks pass including 14 APK contract regressions; eleven bootstrap assembly
+and five build-input regressions are also green.
 
-Der [APK-Lauf 37448382664](https://github.com/Mcpasi/AGENTCODI/actions/runs/37448382664)
-hat alle drei Jobs bestanden: Bootstrap-Build, Bootstrap-ARM64/Bionic-Smoke
-und vollständiger Debug-APK-Build. App-Server-, Codex-/PTY-/Import-/MCP-Smokes,
-Runtime-Neustart, Präfixvorrang und persistente Nutzerprogramme sind erfolgreich.
-Der finale APK-Verifier bestätigt die exakte Payload und unveränderte
-gelieferte Lizenzbytes; er meldet erwartungsgemäß vier offene Lizenzblocker.
-Das [Debug-APK-Artefakt](https://github.com/Mcpasi/AGENTCODI/actions/runs/37448382664/artifacts/11404469000)
-enthält die separate Package Edition; der
-[APK-Vertragsbericht](https://github.com/Mcpasi/AGENTCODI/actions/runs/37448382664/artifacts/11404995462)
-enthält Datei-/Lizenzhashes, Paket-/Quellnachweise und die Veröffentlichungsblocker.
-APK-SHA-256:
+[APK run 37448382664](https://github.com/Mcpasi/AGENTCODI/actions/runs/37448382664)
+passed all three jobs: bootstrap build, bootstrap ARM64/Bionic smoke and full
+debug APK build. App-server, Codex/PTY/import/MCP smokes, runtime restart,
+prefix precedence and persistent user programs passed. The final APK verifier
+confirms exact payload and unchanged delivered license bytes; it reports
+four open license blockers as expected for that revision. The
+[debug APK artifact](https://github.com/Mcpasi/AGENTCODI/actions/runs/37448382664/artifacts/11404469000)
+contains the separate Package Edition; the
+[APK contract report](https://github.com/Mcpasi/AGENTCODI/actions/runs/37448382664/artifacts/11404995462)
+contains file/license hashes, package/source evidence and publication blockers.
+APK SHA-256:
 `5f93a77255498029e44e23a29c54ba83938403163dd4f4b983dc55292ad1d2cf`.
-Die gerundete APK-Größe bleibt 123 MiB.
+Rounded APK size remains 123 MiB.
 
-Der [Paketkatalog-Lauf 37447449356](https://github.com/Mcpasi/AGENTCODI/actions/runs/37447449356)
-für den Code-/Lizenzindex-Commit hat alle 14 Jobs bestanden:
-Quellbuilds für Git, Python, ripgrep und Node.js/npm, Bootstrap-/Werkzeug-Smokes,
-signierter APT-Build, ARM64-Installations-/Updateprüfungen und öffentliche
-HTTPS-Prüfung einschließlich vollständiger Quellenverfügbarkeit.
-Die bestehende CI veröffentlicht dabei automatisch das separate APT-Repository;
-dies erstellt kein finales APK-Release.
+[Package catalog run 37447449356](https://github.com/Mcpasi/AGENTCODI/actions/runs/37447449356)
+for the code/license-index commit passed all 14 jobs: source builds for Git,
+Python, ripgrep and Node.js/npm, bootstrap/tool smokes, signed APT build,
+ARM64 installation/update checks and public HTTPS verification including
+complete source availability. Existing CI automatically publishes the
+separate APT repository; that workflow does not create an APK release.
+The later GitHub APK release is recorded above.
 
-Der erste Tests-Lauf fand eine veraltete Fixture-Erwartung: die dpkg-MD5-Liste
-enthält nach der Ergänzung der Lizenzdatei auch deren Prüfsumme. Der Sollwert
-ist korrigiert. Die gemeinsame Termux-Lizenzsammlung und die Copyright-Links
-wurden anhand der echten Paketberichte ergänzt; auch der libc++-Lizenzlink
-wird nun ohne zusätzlichen Download gegen festgehaltene Quellbytes aufgelöst.
-Die finalen Implementierungsläufe sind nach diesen Ursachenbehebungen vollständig grün.
+The first Tests run found an outdated fixture expectation: after adding the
+license file, the dpkg MD5 list also contains its checksum. The expected value
+was corrected. Shared Termux license collection and copyright links were
+supplemented using real package reports; the libc++ license link is now also
+resolved against recorded source bytes without an additional download.
+Final implementation runs are fully green after these fixes.
 
-Geräteabhängige Installation, Parallelbetrieb, APK-Updates, Foreground-Service,
-Notifications, Login, Dateiauswahl/Backups und reale Hardware-Linkerprüfungen
-wurden gemäß Nutzeranweisung nicht ausgeführt und bleiben offen. Hosted
-ARM64/Bionic-Container ersetzen diese Tests nicht. Kein PR, Merge oder finales
-APK-Release; `main` bleibt auf
+Device-dependent installation, parallel operation, APK updates, foreground
+service, notifications, login, file selection/backups and physical hardware
+linker checks were not performed at the user's request and remained open
+at this milestone. Hosted ARM64/Bionic containers do not replace these tests.
+No PR, merge or final APK release was created in this step; the later release
+and user device-test report are recorded above. `main` remained at
 `ff27ec7c30d373a864e845e9a7ceeae3380dd103`.
 
-Der Abschlusscommit ergänzt ausschließlich Roadmap-Nachweise und Markierungen.
-Die historische Verifikation bleibt an ihre jeweils genannten Commits gebunden.
+The completion commit adds only roadmap evidence/markers. Historical
+verification remains bound to the respective specified commits.
 
-## Ergänzung der fehlenden Lizenzen — 2026-10-06
+<a id="ergänzung-der-fehlenden-lizenzen--2026-10-06"></a>
 
-Umgesetzt ausschließlich auf `Mcpasi/package-edition`. Der Lizenzpunkt in
-Abschnitt 4 ist getrennt von Geräteprüfung und finaler Veröffentlichung
-abgehakt. Alle echten Geräte-/Installations-/Update-Tests bleiben offen.
+## Supplementing the missing licenses — 2026-10-06
 
-Die unveränderten LICENSE/NOTICE des Community-Archivs werden durch
-[quellengebundene Abhängigkeitstexte](third_party/community-codex/README.md)
-ergänzt: 1.033 Cargo-Komponenten der Android-Normal-/Build-Abhängigkeiten,
-Rust-Standardbibliothek und exakte rusty_v8-/V8-Quellen mit 20 rekursiven
-Submodul-Pins. Die Sammlung enthält 669 unterschiedliche Texte und keine
-offenen Komponenten. Cargo.lock, Ziel, Quellrevision, Originalautoren,
-Archiv-/Dateihashes und die nativen Release-Hashes sind gebunden.
-64 ausgelassene Crate-Dateien wurden aus exakt belegten Git-Revisionen
-wiedergewonnen. 16 weitere Fälle verwenden vollständig ausgeschriebene,
-im checksum-geprüften Crate erklärte MIT-/Apache-Bedingungen; vorhandene
-Autoren-/Copyright-Hinweise bleiben erhalten und diese Ergänzungen sind
-ausdrücklich gekennzeichnet. Jahreszahlen oder Copyright-Inhaber werden
-nicht erfunden. Konservative Build-/V8-Testquellen werden mitgeführt;
-dies ist kein Nachweis einer unabhängig reproduzierten nativen Binärdatei.
+Implemented only on `Mcpasi/package-edition`. The license item in section 4
+is checked off separately from device verification and publication. At this
+milestone all physical device/installation/update tests remained open; the
+later release and device-test report are recorded above.
 
-[Lizenzsammlung 37454140926](https://github.com/Mcpasi/AGENTCODI/actions/runs/37454140926)
-besteht einschließlich vier Auswahl-/Attributionsregressionen. Ihre erneute
-Erzeugung stimmt bytegenau mit dem festgehaltenen Index und ZIP überein.
-Die laufende Regeneration benötigt kein später ablaufendes CI-Artefakt.
-Die App bietet eine Komponenten-/Dateiauswahl, einschließlich lesbarer
-Darstellung des unverändert aufbewahrten Rust-Copyright-HTMLs.
+Unchanged LICENSE/NOTICE from the Community archive are supplemented by
+[source-bound dependency texts](third_party/community-codex/README.md):
+1,033 Cargo components in Android normal/build dependencies, Rust standard
+library and exact rusty_v8/V8 sources with 20 recursive submodule pins.
+The collection contains 669 distinct texts and no unresolved components.
+Cargo.lock, target, source revision, original authors, archive/file hashes
+and native release hashes are bound. 64 omitted crate files were recovered
+from precisely evidenced Git revisions. Another 16 cases use fully written-out
+MIT/Apache terms declared in the checksum-verified crate; existing author/
+copyright notices remain intact and these supplements are explicitly marked.
+Years or copyright holders are not invented. Conservative build/V8 test
+sources are included; this does not prove an independently reproduced native
+binary.
 
-`bzip2`, `gpgv` und `xz-utils` erhalten die vollständigen rechtlichen Dateien
-ihrer Elternpakete unter eigenen, von dpkg verwalteten Pfaden. libbz2/bzip2
-verwenden Revision 9, GnuPG/gpgv und liblzma/xz-utils Revision 2.
-Der zusätzliche Abgleich fand die unvollständige GPL-only-Deklaration von
-`attr` und die im bisherigen XZ-Rezept ausgelassene explizite 0BSD-Zuordnung:
-attr nennt nun GPL-2.0 und LGPL-2.1; attr/libacl behalten originale
-`doc/COPYING` und `doc/COPYING.LGPL`, GnuPG/gpgv originales `COPYING`.
-liblzma/xz-utils behalten auch originales `COPYING.0BSD` neben Zusammenfassung
-und GNU-Lizenztexten. attr/libacl verwenden Revision 1. APT kann die
-ergänzten Dateien damit auch über Paket-Updates ausliefern.
+[License collection 37454140926](https://github.com/Mcpasi/AGENTCODI/actions/runs/37454140926)
+passes including four selection/attribution regressions. Regeneration matches
+the recorded index/ZIP byte for byte. Ongoing regeneration needs no CI artifact
+that expires later. The app offers component/file selection, including readable
+display of the unchanged Rust copyright HTML.
 
-Savannah war über HTTP und HTTPS nicht erreichbar; die geprüften Spiegel
-lieferten die exakten attr-/acl-Versionen nicht. Die vollständigen Originalarchive
-wurden aus früherer erfolgreicher, checksum-geprüfter Quell-CI
-[wiederhergestellt](https://github.com/Mcpasi/AGENTCODI/actions/runs/37456334585).
-[Originalquellen und Provenienz](third_party/package-source-archives/README.md)
-liegen unverändert auf diesem Branch; immutable GitHub-URLs ersetzen den
-unzuverlässigen Bezug bei identischen Original-SHA-256 und Versionen.
-[Archivprüfung 37456619360](https://github.com/Mcpasi/AGENTCODI/actions/runs/37456619360)
-bestätigt beide Hashes und originale GPL-/LGPL-Dateien. Es werden keine
-Binärpakete als Build-Seeds eingeführt; die zwölf APK-Inputs bleiben unverändert.
+`bzip2`, `gpgv` and `xz-utils` receive complete legal files from their parent
+packages under their own dpkg-managed paths. libbz2/bzip2 use revision 9,
+GnuPG/gpgv and liblzma/xz-utils revision 2. Additional reconciliation found
+the incomplete GPL-only declaration of `attr` and the explicit 0BSD assignment
+omitted in the previous XZ recipe: attr now names GPL-2.0 and LGPL-2.1;
+attr/libacl retain original `doc/COPYING` and `doc/COPYING.LGPL`, GnuPG/gpgv
+original `COPYING`. liblzma/xz-utils also retain original `COPYING.0BSD`
+alongside the summary and GNU license texts. attr/libacl use revision 1.
+APT can thus deliver supplemented files through package updates too.
 
-Ein frischer Python-Quellbau deckte außerdem einen Fehler in der Katalog-
-Rezeptauswahl auf: `python-ensurepip-wheels` wurde nach erfolgreichem Python-Bau
-als selbständiges Quellrezept aufgerufen. Der Build löst nun ausgewählte DEBs
-auf eindeutige Elternrezepte auf, baut Python einmal und behält beide
-Runtime-Pakete in der Auswahl. Vier Katalog-Quellregressionen prüfen
-Quellabdeckung sowie Elternauflösung und verweigern unbekannte/mehrdeutige
-Rezepte ohne Binärrepository-Fallback.
+Savannah was inaccessible over HTTP and HTTPS; checked mirrors did not
+provide the exact attr/acl versions. Complete original archives were
+[restored](https://github.com/Mcpasi/AGENTCODI/actions/runs/37456334585)
+from earlier successful checksum-verified source CI.
+[Original sources and provenance](third_party/package-source-archives/README.md)
+remain unchanged on this branch; immutable GitHub URLs replace unreliable
+retrieval with identical original SHA-256 and versions.
+[Archive verification 37456619360](https://github.com/Mcpasi/AGENTCODI/actions/runs/37456619360)
+confirms both hashes and original GPL/LGPL files. No binary packages are
+introduced as build seeds; twelve APK inputs remain unchanged.
 
-Geprüfter Implementierungscommit: `7c4ef061ff96841621c30710267a6427435c1640`.
+A fresh Python source build also exposed a catalog recipe-selection bug:
+`python-ensurepip-wheels` was invoked as an independent source recipe after
+successful Python compilation. The build now resolves selected DEBs to
+unambiguous parent recipes, builds Python once and retains both runtime
+packages in the selection. Four catalog source regressions check source
+coverage and parent resolution and reject unknown/ambiguous recipes without
+binary-repository fallback.
+
+Verified implementation commit: `7c4ef061ff96841621c30710267a6427435c1640`.
 [Tests 37459913151](https://github.com/Mcpasi/AGENTCODI/actions/runs/37459913151)
-besteht mit allen sieben Jobs: Java, sieben portable C++-Suiten,
-Android-Kompilierung, Community-Archiv-/ARM64-Bionic-Vertrag und Paket-/
-Toolchain-Prüfungen. Dazu gehören 20 APK-Vertragsregressionen, elf Bootstrap-
-Assembly- und vier Katalog-Quellregressionen.
+passed all seven jobs: Java, seven portable C++ suites, Android compilation,
+Community archive/ARM64-Bionic contract and package/toolchain checks. These
+include 20 APK contract regressions, eleven bootstrap assembly and four
+catalog source regressions.
 
 [APK 37459913761](https://github.com/Mcpasi/AGENTCODI/actions/runs/37459913761)
-besteht mit allen drei Jobs: frischer Bootstrap-Quellbau, ARM64/Bionic-Smoke
-und vollständiger Debug-APK-Build. Der neue Bootstrap umfasst 48 Pakete,
-113 paketbezogene Lizenzdatensätze und 66 konkrete Lizenzdateien ohne Lücke.
-Der finale Verifier bestätigt sämtliche nativen/Asset-/Lizenzbytes,
-Cargo-/Quell-/Release-Bindungen und dpkg-Eigentümerschaft. Er meldet
-**null Lizenzblocker**, entsprechend `license_release_ready=true` im
-Format-2-Bericht. `device_tests` bleibt ausdrücklich unausgeführt.
+passed all three jobs: fresh bootstrap source build, ARM64/Bionic smoke and
+full debug APK build. The new bootstrap comprises 48 packages, 113 package-related
+license records and 66 concrete license files without a gap. The final verifier
+confirms all native/asset/license bytes, Cargo/source/release bindings and
+dpkg ownership. It reports **zero license blockers**, corresponding to
+`license_release_ready=true` in the format-2 report. `device_tests` explicitly
+remains unperformed in CI.
 
-[Debug-APK-Artefakt](https://github.com/Mcpasi/AGENTCODI/actions/runs/37459913761/artifacts/11413840550)
-und [APK-Vertragsbericht](https://github.com/Mcpasi/AGENTCODI/actions/runs/37459913761/artifacts/11413935702)
-sind verfügbar. Der Bericht hält APK-, Datei- und Lizenz-SHA-256 sowie Paket-/
-Quellnachweise fest. Die gerundete APK-Größe ist 124 MiB. Identität, Signatur,
-Alignment, ARM64-ABI, 16-KiB-Segmente und bestehende Runtime-Prüfungen bleiben
-erfolgreich. Die sechs nativen Dateien und zwölf gepinnten APK-Inputs bleiben
-der aktive Vertrag.
+[Debug APK artifact](https://github.com/Mcpasi/AGENTCODI/actions/runs/37459913761/artifacts/11413840550)
+and [APK contract report](https://github.com/Mcpasi/AGENTCODI/actions/runs/37459913761/artifacts/11413935702)
+are available. The report records APK, file and license SHA-256 and package/
+source evidence. Rounded APK size is 124 MiB. Identity, signature, alignment,
+ARM64 ABI, 16-KiB segments and existing runtime checks remain successful.
+Six native files and twelve pinned APK inputs remain the active contract.
 
-Der zusätzliche [Paketkatalog-Lauf 37459913693](https://github.com/Mcpasi/AGENTCODI/actions/runs/37459913693)
-führt die frischen Quellbuilds für Git, Python, ripgrep und Node.js/npm,
-Bootstrap-/Katalog-ARM64-Bionic-Smokes, signierte Repository-Erzeugung und
-öffentliche HTTPS-/Quellenprüfung für denselben Implementierungscommit aus.
-Die bestehende Branch-CI veröffentlicht das separate APT-Repository erst
-nach erfolgreichen Katalogprüfungen; dies erstellt kein finales APK-Release.
-Die Jobergebnisse und zugehörigen Quellen-/DEB-Artefakte bleiben in diesem
-Lauf nachvollziehbar.
+Additional [package catalog run 37459913693](https://github.com/Mcpasi/AGENTCODI/actions/runs/37459913693)
+executes fresh source builds for Git, Python, ripgrep and Node.js/npm,
+bootstrap/catalog ARM64-Bionic smokes, signed repository assembly and public
+HTTPS/source verification for the same implementation commit. Existing
+branch CI publishes the separate APT repository only after successful catalog
+checks; this does not create an APK release. The later GitHub APK release is
+recorded above. Job results and corresponding source/DEB artifacts remain
+inspectable in that run.
 
-Der abschließende Dokumentationsabgleich aktualisiert ausschließlich
-`ROADMAP-package-edition.md`, `.github/ci/README.md` und `NOTICE.md`.
-Der Code-/Payload-Vertrag bleibt an den oben geprüften Implementierungscommit
-gebunden. Echte Android-Hardware-, Installations-, Update- und Service-Tests
-bleiben gemäß Nutzeranweisung offen. Kein PR, Merge oder finales APK-Release;
-`main` bleibt auf `ff27ec7c30d373a864e845e9a7ceeae3380dd103`.
+The final documentation reconciliation for this milestone updated only
+`ROADMAP-package-edition.md`, `.github/ci/README.md` and `NOTICE.md`.
+The code/payload contract remains bound to the verified implementation commit
+above. Physical Android hardware, installation, update and service tests
+remained open at the user's request then. No PR, merge or final APK release
+was created in this step; the later release and device-test report are recorded
+above. `main` remained at `ff27ec7c30d373a864e845e9a7ceeae3380dd103`.
 
-## MCP-Tool-Freigaben und Versionsbump — 2026-10-06
+<a id="mcp-tool-freigaben-und-versionsbump--2026-10-06"></a>
 
-Ausschließlich `Mcpasi/package-edition`; kein PR oder Merge nach `main`.
-Der Nutzer meldet erfolgreiche Installation und Benutzung von Paketen auf einem
-Gerät. Die MCP-Tool-Nutzung scheiterte: `prompt` fordert korrekt eine Freigabe,
-doch der Client kannte `mcpServer/elicitation/request` nicht. Er antwortete mit
-`-32601 / Client request is not supported`; die Runtime lehnte das Tool ab,
-ohne dass ein Dialog sichtbar wurde.
+## MCP tool approvals and version bump — 2026-10-06
 
-Der reine [Reproduktionscommit](https://github.com/Mcpasi/AGENTCODI/commit/b3aa230e77e1ee7f00962bfc5ebc05a9d7cf15aa)
-und [Tests-Lauf 37492914015](https://github.com/Mcpasi/AGENTCODI/actions/runs/37492914015)
-weisen genau diese Ablehnung im Java-Job nach. Die ebenfalls fehlschlagende
-Community-Runtime-Prüfung verwendet dieselbe Java-Suite.
+Only `Mcpasi/package-edition`; no PR or merge into `main`.
+The user reported successful package installation/use on a device. MCP tool
+use failed: `prompt` correctly requested approval, but the client did not
+recognize `mcpServer/elicitation/request`. It answered with
+`-32601 / Client request is not supported`; the runtime rejected the tool
+without displaying a dialog.
 
-Die Korrektur verarbeitet message-only Form-Anfragen mit
-`codex_approval_kind=mcp_tool_call` als eigene MCP-Tool-Freigabe. Anders als
-Kommando-/Dateifreigaben haben diese Anfragen keine `itemId` oder
-`startedAtMs`; `turnId` darf null sein. Thread und vorhandener Turn werden
-geprüft. Der Dialog zeigt Server, Anfrage und begrenzte, redigierte Parameter
-in Chat, Einstellungen und MCP-Verwaltung. Erlauben gilt einmal; Ablehnen und
-Abbrechen führen das Tool nicht aus. Die Antwort verwendet
-`action/content/_meta` mit null-Inhalt/-Metadaten, keine Kommando-`decision`.
-Stale, volle oder abgelaufene Anfragen werden mit MCP-`cancel` geschlossen.
-Serverseitig aufgelöste Anfragen lassen sich nicht nachträglich freigeben.
-Formulare mit zusätzlichen Eingabefeldern und URL-Elicitations bleiben
-ausdrücklich ununterstützt und werden sicher zurückgewiesen.
+The reproduction-only [commit](https://github.com/Mcpasi/AGENTCODI/commit/b3aa230e77e1ee7f00962bfc5ebc05a9d7cf15aa)
+and [Tests run 37492914015](https://github.com/Mcpasi/AGENTCODI/actions/runs/37492914015)
+demonstrate exactly this rejection in the Java job. The also-failing Community
+runtime check uses the same Java suite.
 
-Fünf Java-Regressionen prüfen diesen Vertrag einschließlich aller drei
-Entscheidungen, null-Turn, Warteschlangenlimit, ungültiger Anfragen,
-serverseitiger Auflösung und Ablauf. Die Community-CI validiert die tatsächlich
-erzeugten Java-MCP-Anfragen/-Antworten gegen die vom gepinnten ELF erzeugten
-Schemas. Zusätzlich prüft ein synthetischer lokaler HTTP-MCP-Server mit
-deterministischem Modellfixture die echte ARM64/Bionic-`prompt`-Sperre:
-kein Aufruf vor Freigabe, genau ein Aufruf nach Erlauben, kein Aufruf nach
-Ablehnen oder Abbrechen. Die abgeschlossenen CI-/APK-Nachweise dieses Implementierungsstands
-stehen unten.
+The fix handles message-only form requests with
+`codex_approval_kind=mcp_tool_call` as dedicated MCP tool approvals. Unlike
+command/file approvals, these requests have no `itemId` or `startedAtMs`;
+`turnId` may be null. Thread and any existing turn are checked. The dialog
+shows server, request and bounded, redacted parameters in chat, settings and
+MCP management. Allow applies once; decline/cancel do not execute the tool.
+The response uses `action/content/_meta` with null content/metadata, not
+command `decision`. Stale, full-queue or expired requests are closed with
+MCP `cancel`. Server-resolved requests cannot be approved afterward. Forms
+with additional input fields and URL elicitations explicitly remain unsupported
+and are safely rejected.
 
-Version: `0.1.0-package.2`, Android `versionCode 2`. Manifest, BuildIdentity,
-Build-Skript, Identitätstests, Architekturvertrag und aktive Dokumentation
-verwenden denselben Stand; frühere Artefakte/Versionsangaben bleiben an ihre
-historischen Commits gebunden. Paketinstallation/-benutzung ist als
-Nutzerbericht dokumentiert, ohne die vollständige Geräte-/Versionsmatrix als
-bestanden zu markieren. Weitere echte Geräteprüfungen und ein Hardware-Retest
-des MCP-Fixes werden gemäß Nutzeranweisung übersprungen und bleiben offen.
+Five Java regressions check this contract including all three decisions,
+null turn, queue limit, invalid requests, server resolution and expiry.
+Community CI validates actual generated Java MCP requests/responses against
+schemas generated by the pinned ELF. Additionally, a synthetic local HTTP
+MCP server with a deterministic model fixture checks the real ARM64/Bionic
+`prompt` gate: no invocation before approval, exactly one after allow and
+none after decline/cancel. Completed CI/APK evidence for this implementation
+revision is recorded below.
 
-Der erste erweiterte [Runtime-Lauf](https://github.com/Mcpasi/AGENTCODI/actions/runs/37493948718)
-bestand Java, Schema, Kommandos, PTY und den bisherigen Code-mode-Host-Smoke,
-scheiterte aber am zusätzlich erzwungenen experimentellen Code-mode-Callback:
-der gepinnte Host meldete SIGSEGV, bevor eine MCP-Anfrage entstand. Die
-MCP-Freigabeprüfung verwendet jetzt den in der gepinnten Upstream-Testsuite
-verwendeten nativen Modell-Funktionsaufruf mit MCP-Namespace in einem eigenen
-Runtime-Prozess. Sie prüft weiterhin den echten `prompt`-Pfad und die realen
-Java-Antworten; der vorhandene Code-mode-Host-Smoke bleibt erhalten.
-Dies ist kein Nachweis einer Reparatur des Community-Hosts für verschachtelte
-experimentelle Code-mode-Callbacks. Ein solcher Callback-/Hardware-Nachweis
-bleibt außerhalb der hier bestätigten MCP-Freigabeprüfung.
+Version at this milestone: `0.1.0-package.2`, Android `versionCode 2`.
+Manifest, BuildIdentity, build script, identity tests, architecture contract
+and then-active documentation use the same revision; earlier artifacts/version
+details remain tied to historical commits. Package installation/use is recorded
+as a user report without marking the full device/version matrix passed.
+Further physical device checks and a hardware retest of the MCP fix were
+skipped at the user's request and remained open then. The later user report
+confirms release APK tests through MCP, as recorded above; it does not resolve
+the separate experimental callback failure below.
 
-### Verifikation des MCP-Fixes
+The first extended [runtime run](https://github.com/Mcpasi/AGENTCODI/actions/runs/37493948718)
+passed Java, schema, commands, PTY and the existing code-mode host smoke,
+but failed on the additionally forced experimental code-mode callback:
+the pinned host reported SIGSEGV before an MCP request was created.
+MCP approval verification now uses the native model function call with MCP
+namespace used in the pinned upstream test suite, in a separate runtime
+process. It still checks the real `prompt` path and actual Java responses;
+the existing code-mode host smoke is retained. This does not prove a repair
+of the Community host for nested experimental code-mode callbacks. Such
+callback/hardware evidence remains outside the MCP approval verification
+confirmed here. **The experimental code-mode callback failure remains open
+and still needs reproduction; publishing the APK and passing the normal
+code-mode host smoke do not close it.**
 
-App-/Versions-/Payload-Commit:
+<a id="verifikation-des-mcp-fixes"></a>
+
+### MCP fix verification
+
+App/version/payload commit:
 `0968f19930113e3f62090171e93faa278cf96366`.
-Die nachfolgende native MCP-Testfixture und ihr Dokumentationsabgleich liegen
-auf `6ff314b864ff7848d123165db927bccc6d72a4e9`; App, Ressourcen,
-Versionspins und APK-Lieferumfang sind dabei unverändert.
+The subsequent native MCP test fixture and documentation reconciliation are
+on `6ff314b864ff7848d123165db927bccc6d72a4e9`; app, resources, version pins
+and APK payload are unchanged by that work.
 
-[Tests-Lauf 37494809156](https://github.com/Mcpasi/AGENTCODI/actions/runs/37494809156)
-hat alle sieben Jobs bestanden: 325 Java-Tests, alle sieben portablen
-C++-Suiten (294 Engine-Assertions), Architektur-/Paket-/Toolchain-Verträge,
-Android-Quellen/Ressourcen gegen API 35, Community-Archiv und echte
-ARM64/Bionic-Runtime. Die generierten Schemas validieren 418 tatsächliche
-Java-RPCs sowie 15 MCP-Freigabeanfragen/-antworten. Der
-[Runtime-Nachweis](https://github.com/Mcpasi/AGENTCODI/actions/runs/37494809156/artifacts/11427551406)
-hält die drei echten MCP-`prompt`-Entscheidungen fest: nur Erlauben erhöht
-den Tool-Aufrufzähler auf eins; Ablehnen und Abbrechen erhöhen ihn nicht.
-Der separate bisherige Code-mode-Host-, PTY-, Import-, Full-access- und
-Neustartvertrag ist ebenfalls erfolgreich.
+[Tests run 37494809156](https://github.com/Mcpasi/AGENTCODI/actions/runs/37494809156)
+passed all seven jobs: 325 Java tests, all seven portable C++ suites (294
+engine assertions), architecture/package/toolchain contracts, Android
+sources/resources against API 35, Community archive and real ARM64/Bionic
+runtime. Generated schemas validate 418 actual Java RPCs and 15 MCP approval
+requests/responses. [Runtime evidence](https://github.com/Mcpasi/AGENTCODI/actions/runs/37494809156/artifacts/11427551406)
+records the three real MCP `prompt` decisions: only allow increases the tool
+invocation count to one; decline/cancel do not increase it. The separate
+existing code-mode host, PTY, import, Full-access and restart contract also
+passes.
 
-[APK-Lauf 37493949315](https://github.com/Mcpasi/AGENTCODI/actions/runs/37493949315)
-ist erfolgreich abgeschlossen: neuer Bootstrap aus gepinnten Quellen,
-ARM64/Bionic-Bootstrap-Smoke und Debug-APK-Bau auf dem oben genannten
-App-/Payload-Commit. Der Build wiederholt 325 Java-Tests, die C++-Hostprüfungen
-einschließlich 674 Terminal-Bootstrap-Assertions und die Architekturverträge.
-Die fertige APK meldet `de.agentcodi.pkg`, `versionCode 2` und
-`versionName 0.1.0-package.2`; Signatur, Alignment, ARM64-ABI sowie
-Payload- und Lizenzbytes sind geprüft. Der Payload-/Lizenzprüfer meldet
-null Blocker innerhalb dieses Prüfvertrags.
+[APK run 37493949315](https://github.com/Mcpasi/AGENTCODI/actions/runs/37493949315)
+completed successfully: new bootstrap from pinned sources, ARM64/Bionic
+bootstrap smoke and debug APK build on the specified app/payload commit.
+The build repeats 325 Java tests, C++ host checks including 674 terminal
+bootstrap assertions and architecture contracts. The completed APK reports
+`de.agentcodi.pkg`, `versionCode 2` and `versionName 0.1.0-package.2`;
+signature, alignment, ARM64 ABI and payload/license bytes are verified.
+The payload/license verifier reports zero blockers within this verification
+contract.
 
-- [APK-Artefakt](https://github.com/Mcpasi/AGENTCODI/actions/runs/37493949315/artifacts/11427764122):
+- [APK artifact](https://github.com/Mcpasi/AGENTCODI/actions/runs/37493949315/artifacts/11427764122):
   `AGENTCODI-Package-0.1.0-package.2-arm64-v8a-debug.apk`
-  (debug-signiert, nicht debuggable).
-- APK-Datei-SHA-256: `7e929e795da754b21b493c1066110def67a4e6901b0d66159d88dcf3e92269eb`.
-- [Payload-/Lizenzbericht](https://github.com/Mcpasi/AGENTCODI/actions/runs/37493949315/artifacts/11428327399).
-- [Bootstrap und korrespondierende Quellen](https://github.com/Mcpasi/AGENTCODI/actions/runs/37493949315/artifacts/11428401113).
+  (debug-signed, not debuggable).
+- APK file SHA-256: `7e929e795da754b21b493c1066110def67a4e6901b0d66159d88dcf3e92269eb`.
+- [Payload/license report](https://github.com/Mcpasi/AGENTCODI/actions/runs/37493949315/artifacts/11428327399).
+- [Bootstrap and corresponding sources](https://github.com/Mcpasi/AGENTCODI/actions/runs/37493949315/artifacts/11428401113).
 
-Der durch den Paket-Testvertrag automatisch mitgestartete
-[Paketkatalog-Neubau 37493949752](https://github.com/Mcpasi/AGENTCODI/actions/runs/37493949752)
-ist zum Stand dieser Dokumentation (2026-10-06, 16:45 UTC) noch nicht komplett:
-Signatur-Voraussetzungen, Bootstrap, dessen ARM64/Bionic-Smoke und der
-ripgrep-Quellbau sind erfolgreich; Git-, Python- und Node-Quellbau laufen noch.
-Es ist zu diesem Zeitpunkt kein Job fehlgeschlagen. Dieser Zwischenstand
-belegt keinen abgeschlossenen Katalog-/APT-Publikationslauf und ändert nicht
-die abgeschlossenen Tests-/APK-Nachweise oben. Die Katalog-Rezept-Eingaben
-wurden für den MCP-Fix nicht geändert.
+The [package catalog rebuild 37493949752](https://github.com/Mcpasi/AGENTCODI/actions/runs/37493949752),
+automatically triggered by the package test contract, was not yet complete
+at the time of that record (2026-10-06, 16:45 UTC): signature prerequisites,
+bootstrap, its ARM64/Bionic smoke and ripgrep source build passed; Git,
+Python and Node source builds were still running. No job had failed at that
+time. This historical intermediate status does not prove a completed catalog/
+APT publication run and does not change completed Tests/APK evidence above.
+Catalog recipe inputs were not changed for the MCP fix.
+That run has since completed with a failure; it is not evidence of a
+successful catalog/APT publication. This does not change the successful
+Tests/APK evidence for the MCP fix recorded above.
 
-Der abschließende Nachweis-Commit ändert ausschließlich diese Roadmap und
-den Package-Edition-Changelog; App, Versionspins und Build-Lieferumfang
-bleiben unverändert. Physische Geräteprüfungen bleiben übersprungen/offen.
-Es wurde kein PR, Merge oder finales APK-Release erstellt; `main` bleibt
-auf `ff27ec7c30d373a864e845e9a7ceeae3380dd103`.
+The final evidence commit changes only this roadmap and the Package Edition
+changelog; app, version pins and build payload remain unchanged. Physical
+device checks were skipped/open at this milestone. No PR, merge or final
+APK release was created in this step; the later release and user device-test
+report are recorded above. `main` remained at
+`ff27ec7c30d373a864e845e9a7ceeae3380dd103`.
 
-## Stabile Debug-Signierung und Versionsbump — 2026-10-06
+<a id="stabile-debug-signierung-und-versionsbump--2026-10-06"></a>
 
-Der Nutzer meldet einen Installations-/Updatekonflikt trotz vollständigem
-Android-Versionsbump; der aktuell verwendete Build hat `versionCode 2`.
-Die Debug-Keystores wurden ausschließlich auf CI-Runnern erzeugt.
+## Stable debug signing and version bump — 2026-10-06
 
-Der Signaturvergleich bestätigt die Ursache:
-[APK-Lauf 37459913761](https://github.com/Mcpasi/AGENTCODI/actions/runs/37459913761)
-(`0.1.0-package.1` / Code 1) meldet Zertifikats-SHA-256
+The user reported an installation/update conflict despite a complete Android
+version bump; the build in use at that time had `versionCode 2`. Debug
+keystores were generated exclusively on CI runners.
+
+Signature comparison confirms the cause:
+[APK run 37459913761](https://github.com/Mcpasi/AGENTCODI/actions/runs/37459913761)
+(`0.1.0-package.1` / code 1) reports certificate SHA-256
 `3e15a999a522f3c7179ea99b89df80b4e08853819a9417f10d4efdac88bcdc55`;
-[APK-Lauf 37493949315](https://github.com/Mcpasi/AGENTCODI/actions/runs/37493949315)
-(`0.1.0-package.2` / Code 2) meldet
+[APK run 37493949315](https://github.com/Mcpasi/AGENTCODI/actions/runs/37493949315)
+(`0.1.0-package.2` / code 2) reports
 `66eaf52ce0fe2ff694d15e22b9e22af0cae96c833c36ac28722073d3254a4399`.
-`build-debug-apk.sh` erzeugte bei fehlendem lokalem Keystore jeweils ein
-zufälliges Schlüsselpaar. Der explizite CI-Input-Cache und die hochgeladenen
-Artefakte enthalten diesen Keystore nicht. Die Prüfung des Zertifikatsnamens
-erkannte den wechselnden Schlüssel nicht. Gleiche App-ID und höherer
-Versionscode reichen Android bei inkompatibler Signatur nicht für ein Update.
+`build-debug-apk.sh` generated a random key pair whenever the local keystore
+was missing. The explicit CI input cache and uploaded artifacts do not contain
+that keystore. Checking the certificate name did not detect the changing key.
+The same app ID and a higher version code are insufficient for Android to
+update an installation with an incompatible signature.
 
-Der [reine Reproduktionscommit](https://github.com/Mcpasi/AGENTCODI/commit/87edf38c52c5ec0a1d62638ec14e02e780ae0e4d)
-und [Tests-Lauf 37501539976](https://github.com/Mcpasi/AGENTCODI/actions/runs/37501539976)
-führen den tatsächlichen Debug-Signierungsblock mit zwei AAPT2-APKs
-in leeren, unabhängigen Build-Caches aus.
-Der Android-Job scheitert genau am unterschiedlichen Zertifikatsfingerabdruck;
-die übrigen sechs Jobs bestehen.
+The [reproduction-only commit](https://github.com/Mcpasi/AGENTCODI/commit/87edf38c52c5ec0a1d62638ec14e02e780ae0e4d)
+and [Tests run 37501539976](https://github.com/Mcpasi/AGENTCODI/actions/runs/37501539976)
+execute the actual debug-signing block with two AAPT2 APKs in empty,
+independent build caches. The Android job fails precisely on the differing
+certificate fingerprint; the other six jobs pass.
 
-Die Korrektur verwendet ausschließlich für Entwicklungs-APKs den versionierten,
-öffentlichen AOSP-Testsignierer. [Herkunft, Lizenz und SHA-256-Pins](scripts/debug-signing/README.md)
-sind nachvollziehbar; `sign-debug-apk.py` prüft Schlüssel-/Zertifikatsbytes
-und anschließend die tatsächlich signierte APK. Der stabile Zertifikats-Pin ist
+The fix uses the versioned public AOSP test signer exclusively for development
+APKs. [Provenance, license and SHA-256 pins](scripts/debug-signing/README.md)
+are inspectable; `sign-debug-apk.py` checks key/certificate bytes and then
+the actual signed APK. The stable certificate pin is
 `a40da80a59d170caa950cf15c18c454d47a39b26989d8b640ecd745ba71bf5dc`.
-Fehlendes oder verändertes Material beendet den Build; es gibt keine
-Schlüssel-Neuerzeugung als Ersatz. Ein vorhandener alter Cache-Keystore wird
-ignoriert und erhalten. Der private Testschlüssel bleibt ein öffentliches
-Build-Fixture und wird nicht als App-Asset ausgeliefert. Er authentifiziert
-kein offizielles Release. Der Release-Pfad behält seine externe private
-Keystore-Konfiguration und lehnt dieses öffentliche Testzertifikat explizit ab.
+Missing/changed material stops the build; no replacement key is generated.
+An existing old cache keystore is ignored and preserved. The private test
+key remains a public build fixture and is not delivered as an app asset.
+It does not authenticate an official release. The release path retains its
+external private-keystore configuration and explicitly rejects this public
+test certificate.
 
-Fünf Signierungsregressionen prüfen kalte Builds/höheren Versionscode,
-alte Cache-Keystores, fehlendes Material, manipulierten Schlüssel bzw.
-Zertifikat und die Release-Ablehnung. Der neue Stand ist
-`0.1.0-package.3` / `versionCode 3`. Java-Identität, Manifest,
-Build-Skript, Architekturvertrag und die drei beim vorigen Bump ausgelassenen
-nativen Versionspins sind abgeglichen. Historische Build-/CI-Angaben oben
-bleiben an ihre ursprünglichen Commits und Artefakte gebunden.
+Five signing regressions check cold builds/higher version code, old cache
+keystores, missing material, tampered key/certificate and release rejection.
+The new revision is `0.1.0-package.3` / `versionCode 3`. Java identity,
+manifest, build script, architecture contract and the three native version
+pins omitted in the previous bump are aligned. Historical build/CI records
+above remain tied to their original commits/artifacts.
 
-Die APK-CI darf den in Lauf `37493949315` erfolgreich aus gepinnten Quellen
-gebauten Bootstrap wiederverwenden. Der bestehende wiederverwendbare Workflow
-prüft Branch, Quell-/Build-Eingaben, erfolgreichen Producer, nicht abgelaufenes
-Artefakt, SHA-256-Summen und Lock; der aktuelle APK-Bau und dessen Tests laufen
-vollständig weiter. Paket-Rezepte wurden für diesen Signierungsfix nicht geändert.
+APK CI may reuse the bootstrap successfully built from pinned sources in
+run `37493949315`. The existing reusable workflow checks branch, source/build
+inputs, successful producer, unexpired artifact, SHA-256 sums and lock;
+current APK assembly and its tests still run completely. Package recipes
+were not changed for this signing fix.
 
-**Übergang vorhandener Installationen:** Der ursprüngliche private
-CI-Schlüssel wurde nicht aufbewahrt und lässt sich aus einer APK bzw. ihrem
-öffentlichen Zertifikat nicht zurückgewinnen. Daher kann dieser Fix die
-bestehende zufällig signierte Installation nicht ohne diesen Schlüssel
-aktualisieren. Vor dem einmaligen Entfernen/Neuinstallieren sind alle benötigten
-Daten zu exportieren und die Sicherungen zu prüfen. Workspace-ZIPs enthalten
-nicht automatisch private Chats, Zugangsdaten oder installierte Pakete;
-Deinstallation löscht private App-Daten. Spätere APKs mit dem stabilen
-Zertifikat und höherem Versionscode erfüllen die Signaturvoraussetzung.
-Physische Installations-, Update- und Datenerhaltungsprüfungen bleiben gemäß
-Nutzeranweisung übersprungen/offen. Die abgeschlossenen CI- und APK-Nachweise dieses Fixes stehen unten. Ausschließlich `Mcpasi/package-edition`,
-kein PR, kein Merge nach `main`.
+**Transition for existing installations:** The original private CI key was
+not retained and cannot be recovered from an APK or its public certificate.
+This fix therefore cannot update an existing randomly signed installation
+without that key. Before one-time removal/reinstallation, export all required
+data and verify backups. Workspace ZIPs do not automatically contain private
+chats, credentials or installed packages; uninstalling deletes private app
+data. Later APKs with the stable certificate and higher version code satisfy
+the signature prerequisite. Physical installation/update/data-retention checks
+were skipped/open at the user's request at this milestone. Completed CI/APK
+evidence for this fix is recorded below. Only `Mcpasi/package-edition`, no PR,
+no merge into `main`.
 
-Der erste [erweiterte Testlauf 37502585222](https://github.com/Mcpasi/AGENTCODI/actions/runs/37502585222)
-bestätigt bereits gleiche Debug-Signierer sowie alle vier weiteren
-Signierungsregressionen, scheitert aber an der zusätzlich geprüften
-Versionsdifferenz der Fixture: AAPT2 übernimmt die Version aus einem bereits
-versionierten Manifest statt sie allein durch CLI-Optionen zu ersetzen.
-Die Fixture erstellt deshalb jetzt ein eigenes Manifest mit um eins erhöhtem
-Versionscode. Der Test liest beide tatsächlichen APK-Identitäten mit
-`aapt2 dump badging` und verlangt gleiche App-ID und steigenden Code.
-Die Korrektur betrifft ausschließlich Test-/Dokumentationsdateien; die
-App-/Signer-/Versions-/Payload-Dateien auf `5f0632e4286823b6b52a73282c305545d589f6b5`
-bleiben unverändert.
+The first [extended Tests run 37502585222](https://github.com/Mcpasi/AGENTCODI/actions/runs/37502585222)
+already confirms identical debug signers and all four other signing regressions,
+but fails on the additionally checked fixture version difference: AAPT2
+uses the version from an already-versioned manifest instead of replacing
+it solely through CLI options. The fixture now creates its own manifest
+with version code increased by one. The test reads both actual APK identities
+with `aapt2 dump badging` and requires identical app ID and increasing code.
+The correction affects only test/documentation files; app/signer/version/
+payload files on `5f0632e4286823b6b52a73282c305545d589f6b5` remain unchanged.
 
-### Verifikation der stabilen Debug-Signierung
+<a id="verifikation-der-stabilen-debug-signierung"></a>
 
-App-/Signer-/Versions-/Payload-Commit:
+### Stable debug signing verification
+
+App/signer/version/payload commit:
 `5f0632e4286823b6b52a73282c305545d589f6b5`.
-Die korrigierte Testfixture und deren Dokumentation liegen auf
-`d92f1ac6f09be5b1b6313d096563ecc48b4df69b`; der Vergleich dieser
-Commits zeigt ausschließlich Test-/Dokumentationsänderungen, keinen
-geänderten APK-Lieferumfang.
+Corrected test fixture and its documentation are on
+`d92f1ac6f09be5b1b6313d096563ecc48b4df69b`; comparing these commits shows
+only test/documentation changes, no changed APK payload.
 
-[Tests-Lauf 37503097714](https://github.com/Mcpasi/AGENTCODI/actions/runs/37503097714)
-besteht alle sieben Jobs: 325 Java-Tests, sieben portable C++-Suiten,
-Architektur-/Paket-/Toolchain-Verträge, Android-Quellen/Ressourcen gegen
-API 35, Community-Release-Inspektion und echte ARM64/Bionic-Runtime.
-Alle fünf neuen Signierungsregressionen bestehen. Die tatsächlichen
-Fixture-APKs haben dieselbe App-ID und `versionCode 3 → 4`; ihre
-Signaturen sind mit dem SDK-apksigner geprüft und verwenden beide
+[Tests run 37503097714](https://github.com/Mcpasi/AGENTCODI/actions/runs/37503097714)
+passes all seven jobs: 325 Java tests, seven portable C++ suites, architecture/
+package/toolchain contracts, Android sources/resources against API 35,
+Community release inspection and real ARM64/Bionic runtime. All five new
+signing regressions pass. Actual fixture APKs have the same app ID and
+`versionCode 3 → 4`; SDK apksigner verifies their signatures and both use
 `a40da80a59d170caa950cf15c18c454d47a39b26989d8b640ecd745ba71bf5dc`.
 
-[APK-Lauf 37502586391](https://github.com/Mcpasi/AGENTCODI/actions/runs/37502586391)
-ist vollständig erfolgreich: geprüfte Bootstrap-Wiederverwendung,
-ARM64/Bionic-Smoke und vollständiger APK-Bau. Der Build wiederholt alle
-Hosttests (325 Java-Tests, unter anderem 294 Engine- und 674
-Terminal-Bootstrap-Assertions) und die Architekturverträge.
-Die fertige `de.agentcodi.pkg`-APK meldet `versionCode 3`,
-`versionName 0.1.0-package.3` und tatsächlich den gepinnten
-AOSP-Testsignierer
+[APK run 37502586391](https://github.com/Mcpasi/AGENTCODI/actions/runs/37502586391)
+passes completely: verified bootstrap reuse, ARM64/Bionic smoke and full APK
+build. The build repeats all host tests (325 Java tests, including 294 engine
+and 674 terminal bootstrap assertions) and architecture contracts. The
+completed `de.agentcodi.pkg` APK reports `versionCode 3`,
+`versionName 0.1.0-package.3` and actually uses the pinned AOSP test signer
 `a40da80a59d170caa950cf15c18c454d47a39b26989d8b640ecd745ba71bf5dc`.
-Signatur, Alignment, ABI, Payload und ausgelieferte Lizenzbytes sind geprüft;
-der Payload-/Lizenzvertrag meldet innerhalb seines Umfangs null Blocker.
+Signature, alignment, ABI, payload and delivered license bytes are verified;
+the payload/license contract reports zero blockers within its scope.
 
-- [APK-Artefakt](https://github.com/Mcpasi/AGENTCODI/actions/runs/37502586391/artifacts/11430427890):
+- [APK artifact](https://github.com/Mcpasi/AGENTCODI/actions/runs/37502586391/artifacts/11430427890):
   `AGENTCODI-Package-0.1.0-package.3-arm64-v8a-debug.apk`.
-- APK-Datei-SHA-256:
+- APK file SHA-256:
   `3816238666301182bae8d53d4534c67a19ee16442580f111ac971e76b2e6e430`.
-- [Payload-/Lizenzbericht](https://github.com/Mcpasi/AGENTCODI/actions/runs/37502586391/artifacts/11430582818).
+- [Payload/license report](https://github.com/Mcpasi/AGENTCODI/actions/runs/37502586391/artifacts/11430582818).
 
-Der abschließende Dokumentationsabgleich ändert nur Roadmap, Changelog,
-Security Policy und NOTICE-Provenienz; die geprüfte App und ihr Lieferumfang
-bleiben unverändert. Die Signierungsfixture und dieser Build ersetzen keine
-physische Android-Update-/Datenerhaltungsprüfung. Der Schlüsselwechsel
-von einer früheren zufälligen CI-Identität bleibt ohne Originalschlüssel
-ein einmaliger Wechsel durch gesicherte Neuinstallation.
-Kein PR, Merge oder finales APK-Release. `main` bleibt unverändert auf
+The final documentation reconciliation for this milestone changes only
+roadmap, changelog, Security Policy and NOTICE provenance; verified app and
+payload remain unchanged. Signing fixture and this build do not replace
+physical Android update/data-retention checks. Switching from an earlier
+random CI identity without the original key remains a one-time transition
+through backed-up reinstallation. No PR, merge or final APK release was
+created in this step; the later privately signed release is recorded at the
+top. `main` remains unchanged at
 `ff27ec7c30d373a864e845e9a7ceeae3380dd103`.

@@ -37,6 +37,39 @@ The [0.1.1 changelog](CHANGELOG.md#011--package-edition-android-versioncode-4--u
 records these fixes under Package Edition. No tag, APK release, PR or merge
 is created for 0.1.1.
 
+<a id="architecture-ci-host-ripgrep--2026-10-07"></a>
+
+### Architecture CI host ripgrep installation — 2026-10-07
+
+[Tests run 37680369242](https://github.com/Mcpasi/AGENTCODI/actions/runs/37680369242)
+at `40025bb` and
+[Tests run 37683333419](https://github.com/Mcpasi/AGENTCODI/actions/runs/37683333419)
+at `7452b24` exceeded the architecture job's ten-minute timeout during
+`apt-get update`, before ripgrep installation or architecture checks ran.
+Their logs show repeated failures at `http://azure.archive.ubuntu.com/ubuntu`;
+some InRelease requests reached the official HTTPS fallback, but package-index
+requests stalled on the Azure mirror. The other six test jobs passed in both
+runs, including the API-29 isolated host probes and native/nested MCP checks.
+
+The Bionic fix changed only the separate Community ARM64 runtime job and its
+CI image. The Ubuntu architecture job's ripgrep installation was unchanged;
+the original Bionic fix run `37676838798` also passed architecture checks.
+API 29 remains the app's existing minimum and is required by the Community
+host's native ELF TLS. This host package-download failure provides no reason
+to revert that corrected Android test environment.
+
+The architecture job now pins Ubuntu 24.04 amd64 and installs ripgrep through
+`.github/ci/install-host-ripgrep.py`. It selects the official Ubuntu archive
+and security sources over HTTPS for both APT commands, retains archive-key
+authentication and uses fresh temporary lists. Existing runner sources are
+not rewritten. Connection/retry and whole-command limits bound acquisition;
+incomplete updates and installation errors fail the job. Seven regressions
+cover source isolation, successful installation, existing/broken ripgrep,
+update/install failures, missing trust material and unsupported hosts. All
+architecture, generated-input, signing, APK and MPL checks remain required.
+The ten-minute job budget, Android runtime image, catalog recipes, bootstrap,
+APK inputs and `0.1.1` / versionCode 4 identity are unchanged.
+
 <a id="code-mode-sigsegv-ci-fix--2026-10-07"></a>
 
 ### Code-mode SIGSEGV: reproduced and resolved — 2026-10-07

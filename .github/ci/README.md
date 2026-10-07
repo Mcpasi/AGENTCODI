@@ -39,6 +39,20 @@ historical evidence for that earlier version.
 
 ## Running them locally
 
+The architecture job is pinned to Ubuntu 24.04 amd64. Its host ripgrep installer
+uses fresh, isolated APT lists and the official Ubuntu archive/security HTTPS
+sources, authenticated by the runner's Ubuntu archive keyring. Both update and
+install use the same temporary source configuration; the runner's configured
+mirror lists and third-party sources remain untouched. Per-connection timeouts,
+two retries and 180/120-second command limits prevent a stalled mirror from
+consuming the ten-minute job budget. Any index/signature/download/install error
+fails the job, as does an unusable existing `rg`; no architecture check is skipped.
+
+`python3 -B .github/ci/test-host-ripgrep.py` checks successful installation,
+source isolation and mandatory failures before the CI installer runs. This is
+Ubuntu host tooling only; the API-29 Bionic image, Android package catalog,
+bootstrap and APK build inputs are independent.
+
 ```sh
 .github/ci/run-java-tests.sh
 .github/ci/setup-system-shim.sh   # once, see below

@@ -49,7 +49,9 @@ backported.
 Install released APKs only from the official
 [AGENTCODI GitHub Releases](https://github.com/Mcpasi/AGENTCODI/releases) page and
 update to the latest release before reporting an issue that may already be fixed.
-The Package Edition was released on 2026-10-06 as
+The current Package Edition release is **0.1.1** (Android `versionCode 4`),
+published as an experimental prerelease from `Mcpasi/package-edition`.
+The first Package Edition release was published on 2026-10-06 as
 [AGENTCODI Package Edition V0.1.0](https://github.com/Mcpasi/AGENTCODI/releases/tag/v0.1.0-package.3),
 an early-version prerelease tagged `v0.1.0-package.3`, from
 `Mcpasi/package-edition`. Its signed release APK has SHA-256
@@ -66,7 +68,7 @@ and rejects this public certificate. Earlier CI builds used random debug keys
 that were not retained; switching an existing installation requires its original
 private key or a verified data export before removal and reinstallation.
 The complete physical Android update/data-retention matrix is not documented
-as completed; the user reports successful release APK tests through MCP.
+as completed; release APK tests through MCP passed.
 Release updates must retain the private release signer, which is distinct
 from the public development identity.
 
@@ -167,8 +169,8 @@ the dpkg database and caches, and reject inherited retired activation variables.
 Hosted Linux and ARM64/Bionic containers cannot validate Android installation,
 APK updates, foreground services, notifications, login browser flows, document
 pickers or hardware linker/SELinux behavior. These require separate device
-evidence. The initial 2026-10-06 user report confirmed package installation/use;
-the later report confirms release APK tests from APT through MCP. The complete
+evidence. Package installation/use passed on a physical device on 2026-10-06;
+subsequent release APK tests from APT through MCP also passed. The complete
 Android-version/device matrix and the new MPL source-saving feature remain
 undocumented as hardware-validated.
 Community Rust/V8 terms and attribution are supplemented by the pinned

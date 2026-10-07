@@ -1,8 +1,8 @@
 # Package Edition
 
-## 0.1.1 — Package Edition (Android versionCode 4) — Unreleased
+## 0.1.1 — Package Edition (Android versionCode 4) — Published
 
-**Experimental prerelease. Device tests: passed.** Device tests successful 2026-10-07
+**Experimental prerelease (published). Device tests: passed on 2026-10-07.**
 
 - Fix architecture CI timing out during host ripgrep installation on the Azure
   Ubuntu APT mirror. Use authenticated official Ubuntu HTTPS sources with fresh
@@ -52,7 +52,7 @@
 - Validation: [Tests CI](https://github.com/Mcpasi/AGENTCODI/actions/runs/37503097714) passed all seven jobs, including the five signing regressions. [APK build](https://github.com/Mcpasi/AGENTCODI/actions/runs/37502586391) passed with the pinned actual signer, code 3, and final payload/license checks.
 - [Debug APK artifact](https://github.com/Mcpasi/AGENTCODI/actions/runs/37502586391/artifacts/11430427890); APK SHA-256: `3816238666301182bae8d53d4534c67a19ee16442580f111ac971e76b2e6e430`.
 - Existing randomly signed CI installations cannot upgrade to the new identity without their original private key. Export and verify required data before the one-time removal/reinstallation; private app data is deleted by uninstalling. Future APKs retain the same debug signing identity.
-- The user reports successful release APK device tests from APT through MCP. The experimental nested code-mode callback failure was subsequently reproduced and resolved as a CI Bionic-version mismatch on 2026-10-07; details are retained in the [roadmap](ROADMAP-package-edition.md#code-mode-sigsegv-ci-fix--2026-10-07).
+- Release APK device tests from APT through MCP passed. The experimental nested code-mode callback failure was subsequently reproduced and resolved as a CI Bionic-version mismatch on 2026-10-07; details are retained in the [roadmap](ROADMAP-package-edition.md#code-mode-sigsegv-ci-fix--2026-10-07).
 
 
 ## 0.1.0-package.2 (Android versionCode 2) — 2026-10-06
@@ -62,7 +62,7 @@
 - Add reproduction and regression coverage for allow/decline/cancel, nullable turn IDs, stale/overloaded requests, invalid forms, server resolution and timeout. Verify actual Java request/response shapes and the real ARM64/Bionic MCP prompt gate in CI.
 - Validation: [Tests CI](https://github.com/Mcpasi/AGENTCODI/actions/runs/37494809156) passed all seven jobs with 325 Java tests, generated-schema checks and real ARM64/Bionic MCP accept/decline/cancel coverage. [APK build](https://github.com/Mcpasi/AGENTCODI/actions/runs/37493949315) passed, including final identity, payload and license-byte verification.
 - [Debug APK artifact](https://github.com/Mcpasi/AGENTCODI/actions/runs/37493949315/artifacts/11427764122); APK SHA-256: `7e929e795da754b21b493c1066110def67a4e6901b0d66159d88dcf3e92269eb`.
-- Physical device tests are skipped in hosted CI. At this milestone the user reported working package installation/use; full device validation and a device retest of the MCP fix were outstanding. The later release APK test report is recorded under `0.1.0-package.3` above.
+- Physical device tests are skipped in hosted CI. At this milestone package installation/use worked on a physical device; full device validation and a device retest of the MCP fix were outstanding. The later release APK test report is recorded under `0.1.0-package.3` above.
 
 # Historical regular-edition changelog
 

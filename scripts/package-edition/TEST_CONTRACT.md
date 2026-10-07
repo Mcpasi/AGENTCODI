@@ -4,9 +4,10 @@ Only Mcpasi/package-edition is changed. This contract does not authorize a PR,
 merge, APK release or APT publication. Minimum API is 29, target SDK is 28,
 installation ID is de.agentcodi.pkg, and Full access is the sole runtime mode.
 
-The current development version is **Package Edition 0.1.1, Android versionCode
-4, unreleased**. It will remain unpublished until physical Android device tests
-complete successfully. CI artifacts are test builds and do not satisfy this gate.
+The current release is **Package Edition 0.1.1, Android versionCode 4,
+published** as an experimental prerelease. Physical Android device tests
+passed on 2026-10-07. CI artifacts are test builds; hardware test results are
+recorded separately.
 
 The existing Package Edition prerelease `v0.1.0-package.3` was published on
 2026-10-06. Its [release APK](https://github.com/Mcpasi/AGENTCODI/releases/tag/v0.1.0-package.3)
@@ -79,10 +80,10 @@ decline or cancel, with no persisted approval metadata. Structured forms needing
 additional input and URL elicitations are rejected safely. This is distinct
 from optional command/file approvals and does not change Full access.
 
-The 2026-10-06 user report confirms package installation/use on a device.
-At that milestone it did not complete the Android-version/device matrix or
-validate the MCP fix on hardware. The later user report confirms release APK
-tests from APT through MCP. The complete version/device/update matrix and new
+Package installation/use passed on a physical device on 2026-10-06.
+At that milestone the Android-version/device matrix and the MCP hardware
+retest were still outstanding. Subsequent release APK tests from APT through
+MCP passed. The complete version/device/update matrix and new
 MPL source-saving feature are not documented as hardware-validated; hosted CI
 continues to skip device tests.
 

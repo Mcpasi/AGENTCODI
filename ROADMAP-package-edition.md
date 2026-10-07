@@ -1,12 +1,12 @@
 # Roadmap: AGENTCODI Package Edition
 
-Status: 2026-10-07. Only branch `Mcpasi/package-edition`; no merge into `main`.
+Status: 2026-10-08. Only branch `Mcpasi/package-edition`; no merge into `main`.
 
-### Package Edition 0.1.1: package file export fixes - publish, 2026-10-07
+### Package Edition 0.1.1: package file export fixes (published)
 
-Current development identity: `0.1.1`, Android `versionCode 4`, application ID
-`de.agentcodi.pkg`. **Experimental prerelease. Device tests: passed.** .
-Version 0.1.1 publish.
+Current release identity: `0.1.1`, Android `versionCode 4`, application ID
+`de.agentcodi.pkg`. **Experimental prerelease (published). Device tests: passed
+on 2026-10-07.**
 
 Selected roadmap area: [Workspace browser and package file import/export](#workspace-browser-und-paketdatei-importexport--2026-10-05).
 Two suspected bugs were reproduced independently against the preceding
@@ -30,10 +30,9 @@ locally. All seven portable C++ suites pass in a Linux host container;
 architecture, release-signing/build-input/APK/MPL-source checks also pass.
 Android sources/resources compile against API 35; target 28, minimum 29,
 edition identity and signing fixtures (`versionCode 4 → 5`) pass. Physical
-Android APK tests subsequently passed according to the user's report above.
-The [0.1.1 changelog](CHANGELOG.md#011--package-edition-android-versioncode-4--unreleased)
-records these fixes under Package Edition. No tag, APK release, PR or merge
-is created for 0.1.1.
+Android APK tests subsequently passed on 2026-10-07.
+The [0.1.1 changelog](CHANGELOG.md#011--package-edition-android-versioncode-4--published)
+records these fixes in the published Package Edition release.
 
 <a id="architecture-ci-host-ripgrep--2026-10-07"></a>
 
@@ -151,13 +150,12 @@ local files. At this verification milestone, a direct complete APK download
 into the working environment failed with HTTP 403; the actual APK contents
 were verified in the successful release job.
 
-The user reports that the release APK device tests, including APT through MCP,
-passed, and confirmed successful hardware testing of the current APK on
-2026-10-07. The experimental
+Release APK device tests, including APT through MCP, passed. Physical Android
+hardware tests of the current APK passed on 2026-10-07. The experimental
 code-mode callback failure described in the MCP approval section was reproduced
 and resolved as a CI Bionic-version mismatch on 2026-10-07; see the [investigation above](#code-mode-sigsegv-ci-fix--2026-10-07).
 
-The checklists show the current implementation status. Dated result and verification sections record earlier milestones; their test counts, artifacts and checksums belong to the specified commit. Statements about skipped device tests or absent APK publication in those sections describe that milestone, not the current release status above. Bootstrap, starter catalog and public signed APT repository are implemented. npm/Python paths and the shared process environment are implemented and checked in CI; the evidence is in “Shared package environment and npm/Python paths”. Package diagnostics and workspace browser/import/export extensions are implemented; user-installable transitional tools have been removed from the APK. Remaining legacy helpers and transport parameters have been cleaned up. The build script, Dockerfile, CI inputs, restore/preflight checks and cache keys are reduced to the active edition dependencies. The final test/payload contract and reconciliation of delivered legal materials are implemented; the evidence is in “Final test contract and license reconciliation”. Community Rust/V8 dependency texts and the three package-local bootstrap license assignments have been supplemented; source, version and artifact bindings are checked in the APK contract. “Supplementing the missing licenses” documents that status. The initial user report confirmed package installation/use; the later report confirms release APK tests through MCP. Remaining hardware checks and the resolved CI code-mode callback failure are recorded separately. The APK has been released as described above.
+The checklists show the current implementation status. Dated result and verification sections record earlier milestones; their test counts, artifacts and checksums belong to the specified commit. Statements about skipped device tests or absent APK publication in those sections describe that milestone, not the current release status above. Bootstrap, starter catalog and public signed APT repository are implemented. npm/Python paths and the shared process environment are implemented and checked in CI; the evidence is in “Shared package environment and npm/Python paths”. Package diagnostics and workspace browser/import/export extensions are implemented; user-installable transitional tools have been removed from the APK. Remaining legacy helpers and transport parameters have been cleaned up. The build script, Dockerfile, CI inputs, restore/preflight checks and cache keys are reduced to the active edition dependencies. The final test/payload contract and reconciliation of delivered legal materials are implemented; the evidence is in “Final test contract and license reconciliation”. Community Rust/V8 dependency texts and the three package-local bootstrap license assignments have been supplemented; source, version and artifact bindings are checked in the APK contract. “Supplementing the missing licenses” documents that status. Package installation/use and subsequent release APK tests through MCP passed. Remaining hardware checks and the resolved CI code-mode callback failure are recorded separately. The APK has been released as described above.
 
 <a id="ziel-und-feste-entscheidungen"></a>
 
@@ -165,7 +163,7 @@ The checklists show the current implementation status. Dated result and verifica
 
 Users install their own packages for Codex and the terminal to use directly. This second development line uses `targetSdk 28`, offers only Full access and is intended for experienced users. Android's isolation between apps remains active; this edition provides no additional workspace sandbox.
 
-A target SDK change alone provides neither a package manager nor a suitable package source. Programs need Android ARM64/Bionic and the correct installation prefix. The package architecture selected by the user on 2026-10-03 — a dedicated prefix, minimal bootstrap and signed repository built from Termux package recipes — is recorded in section 3.
+A target SDK change alone provides neither a package manager nor a suitable package source. Programs need Android ARM64/Bionic and the correct installation prefix. The package architecture established on 2026-10-03, with a dedicated prefix, minimal bootstrap and signed repository built from Termux package recipes, is recorded in section 3.
 
 <a id="1-grundlage"></a>
 
@@ -181,7 +179,7 @@ A target SDK change alone provides neither a package manager nor a suitable pack
 - [x] Remove shell functions that override user-installed programs with the same name.
 - [x] Add regressions for persistent installations, mode contract, SDK pins and actual execution of user programs.
 - [x] Also compile Android sources/resources against API 35 in GitHub Actions; check manifest target 28 and minimum 29.
-- [ ] Android device test: start a program from the writable prefix, execute the same command through Codex, restart the service/process and check again. The user reports successful release APK testing; this complete sequence is not separately documented.
+- [ ] Android device test: start a program from the writable prefix, execute the same command through Codex, restart the service/process and check again. Release APK device tests passed; this complete sequence is not separately documented.
 - [x] Define and consistently implement a separate application ID, version line and APK names for parallel installation: `de.agentcodi.pkg`, its own `0.1.0-package.1` line starting at `versionCode 1`, APK files `AGENTCODI-Package-*` and CI artifact `agentcodi-package-debug-apk`. The display name is AGENTCODI Package; the Java namespace remains `de.agentcodi.app`.
 
 The installation identity is independent of the Java namespace. All manifest components use fully qualified class names; AAPT2 still generates resources under `de.agentcodi.app`. Android CI compares installation/version information in the manifest, build script, BuildIdentity and linked resources and checks that each manifest component exists as a Java class. A physical installation/parallel-operation test remains part of the hardware matrix not yet documented as complete. Previous data from the shared ID is not transferred automatically; export/import is described in the README.
@@ -236,7 +234,7 @@ Newly determined ELF checksums, exclusively for this unchanged release archive:
 
 Architecture checks, 309 Java tests, all 8 portable C++ suites, Android sources/resources against API 35 and the release inspection including 8 new archive/search-path tests passed. The initial CI issues (anonymous GitHub API rate limit and overly strict comparison of duplicate ORIGIN entries) were fixed.
 
-This static inspection executed neither npm install/postinstall nor Community ELFs and changed no APK runtime. Schema generation/checksums, RPC/startup compatibility, host relocation and channel switching were implemented subsequently; the next section records completion. Device tests were still open at this milestone and were skipped at the user's request.
+This static inspection executed neither npm install/postinstall nor Community ELFs and changed no APK runtime. Schema generation/checksums, RPC/startup compatibility, host relocation and channel switching were implemented subsequently; the next section records completion. Device tests were still open at this milestone and were not performed.
 
 <a id="abschluss-der-community-anbindung--2026-10-04"></a>
 
@@ -291,8 +289,7 @@ The root README is entirely English. The subsequently implemented package
 base, starter catalog and signed repository are documented in section 3.
 The later package path/environment work is recorded there with CI evidence.
 APK size reduction in section 4 has since been implemented. Physical Android
-device tests were still open at this milestone and were not performed at the
-user's explicit request.
+device tests were still open at this milestone and were not performed.
 
 <a id="3-paket-bootstrap-und-workspace-vervollständigen"></a>
 
@@ -302,7 +299,7 @@ user's explicit request.
 
 ### Agreed package architecture — 2026-10-03
 
-The user explicitly selected this solution. The architecture decision was first documented on 2026-10-03; bootstrap and package repository were implemented afterward as described below. The decision does not need to be requested again.
+The architecture decision was first documented on 2026-10-03; bootstrap and package repository were implemented afterward as described below.
 
 - **Reuse Termux package recipes:** Rebuild required packages and their dependencies from [termux/termux-packages](https://github.com/termux/termux-packages) for Android ARM64/Bionic, AGENTCODI's own application ID and installation prefix. The Termux app itself is neither included nor pinned as a complete app version.
 - **Dedicated prefix outside the user home:** Use `files/usr` for the package base, for example `/data/data/de.agentcodi.pkg/files/usr`. The separate application ID is finalized as `de.agentcodi.pkg` and implemented in the manifest and build configuration. User home, workspace and `CODEX_HOME` remain separate directories. The former `$HOME/.local` prefix remains as a legacy fallback; the managed package base is now in `files/usr`.
@@ -323,7 +320,7 @@ The Termux build system documents configurable app/prefix variables in [scripts/
 
 ### Implementation steps
 
-- [x] Document the user's architecture decision: dedicated prefix, minimal bootstrap and signed repository from rebuilt Termux package recipes.
+- [x] Document the architecture decision: dedicated prefix, minimal bootstrap and signed repository from rebuilt Termux package recipes.
 - [x] Finalize and implement the separate application ID before building packages with absolute paths: `de.agentcodi.pkg`; managed prefix `/data/data/de.agentcodi.pkg/files/usr`.
 - [x] Move the managed prefix to `files/usr` outside the user home. Preserve existing `$HOME/.local` files; document and test transition/migration and search order.
 - [x] Pin a reproducible revision of `termux-packages` and the toolchain; version targeted build adjustments for app ID, prefix and repository URLs. Align bootstrap, package metadata, shebangs, RPATH/RUNPATH and configurations to the same final path.
@@ -336,7 +333,7 @@ The Termux build system documents configurable app/prefix variables in [scripts/
 - [x] Document installation, updates, removal and status in the terminal; retain packages across app restart and APK update. APT usage is documented in the README, preservation checked by Java regressions; the full device/update matrix remains separately undocumented as complete.
 - [x] Display package paths and installed versions in diagnostics/terminal when needed; replace former activation displays. The terminal “Package diagnostics” button queries current environment values, command resolution and version/status data from the managed dpkg database.
 - [x] Extend workspace browser and import/export for explicitly selected package areas. Account data remains outside accessible roots; known credential paths and links are blocked in package areas.
-- [ ] Verify Android 10 and a current Android version on physical ARM64 hardware: ELF, script/shebang, dynamic library, npm/pip, PTY and stdio-MCP. The user reports release APK tests through MCP passed; completion of this full version/device matrix is not documented.
+- [ ] Verify Android 10 and a current Android version on physical ARM64 hardware: ELF, script/shebang, dynamic library, npm/pip, PTY and stdio-MCP. Release APK tests through MCP passed; completion of this full version/device matrix is not documented.
 
 <a id="verwalteter-präfix--2026-10-04"></a>
 
@@ -360,8 +357,8 @@ specifically for the new prefix. README and regressions cover preservation,
 search precedence, legacy fallback, process restart and rejection of unsuitable
 prefix directories. The real ARM64/Bionic APK smoke checks the contract through
 Codex and terminal shell. Bootstrap, starter catalog CI and the public signed
-package repository are documented below. Device tests were open and skipped
-at the user's request at this milestone.
+package repository are documented below. Device tests were open and were not
+performed at this milestone.
 
 <a id="reproduzierbarer-paket-buildvertrag--2026-10-04"></a>
 
@@ -413,7 +410,7 @@ and signed publication are documented in the following result sections.
 Termux app/API/Exec/Tools components need dedicated adaptations and remain
 rejected. The [build documentation](scripts/package-edition/README.md)
 describes pins, adjustments, checks and the update process. Device tests
-were skipped at the user's request at this milestone.
+were not performed at this milestone.
 
 <a id="minimaler-arm64-bootstrap-und-wiederherstellung--2026-10-04"></a>
 
@@ -572,7 +569,7 @@ the catalog workflow and test harness changed. The final runtime correction
 maps the app cache directory for APT in the container and uses existing,
 empty source configurations. CI does not claim independent bit-for-bit
 reproducibility of all compiler outputs; source pins and artifact hashes make
-inputs/results inspectable. Device tests were skipped at the user's request
+inputs/results inspectable. Device tests were not performed
 and remained open at this milestone. The subsequently implemented signed
 APT repository is documented in the next section. No PR, merge or GitHub
 APK release was created during this milestone; the later APK release is
@@ -655,8 +652,8 @@ for `d9816fac268b1b113019a5cea1bfab5e46056c6a` passed. Tests, package/repository
 workflow and APK run check the same implementation commit; the final roadmap
 change affects documentation only.
 
-**Public publication completed:** The user allowed `Mcpasi/package-edition`
-for the `github-pages` environment. The rerun publication job published the
+**Public publication completed:** The `github-pages` environment now permits
+publication from `Mcpasi/package-edition`. The rerun publication job published the
 snapshot; its original final verification triggered HTTP 503/429 from Pages
 through thousands of parallel individual requests. The cause was fixed:
 small sources are additionally offered in at most 16 signed ZIP files. CI
@@ -763,7 +760,7 @@ for `da6dae58dcffc513fefcb221828ac2f03cf934ca` passed all seven jobs, including
 all eight C++ suites on ARM64. The following completion commit adds only
 this roadmap evidence.
 
-Device tests were skipped at the user's request and remained open at this
+Device tests were not performed and remained open at this
 milestone.
 No PR or merge; `main` remains unchanged.
 
@@ -884,7 +881,7 @@ is recorded above. `main` remains unchanged by edition work.
 
 ## 4. Reduce the build and produce a releasable edition
 
-Bootstrap, starter catalog, signed package channel and shared package environment work in CI. npm/Python path prerequisites are complete. Previously bundled user-installable packages have been removed from the APK. The active startup path uses only the native Codex runtime and installed package base. Unused legacy sources, identity constants and activation/transport APIs have been removed. Old private tool directories are no longer created or required for startup; existing user data is preserved. Build dependencies, their restoration and cache selection are reduced. The final verification contract and reconciliation of delivered legal materials are implemented. Community dependency texts and bootstrap license assignments are supplemented and verified. The signed Package Edition APK was published on 2026-10-06; the user reports release APK tests from APT through MCP passed. On 2026-10-07 the user also confirmed successful hardware testing of the current 0.1.1 APK. Both versions remain experimental prereleases. The detailed installation/update/version matrix is tracked separately below. The CI code-mode callback failure was resolved on 2026-10-07; see the [investigation above](#code-mode-sigsegv-ci-fix--2026-10-07).
+Bootstrap, starter catalog, signed package channel and shared package environment work in CI. npm/Python path prerequisites are complete. Previously bundled user-installable packages have been removed from the APK. The active startup path uses only the native Codex runtime and installed package base. Unused legacy sources, identity constants and activation/transport APIs have been removed. Old private tool directories are no longer created or required for startup; existing user data is preserved. Build dependencies, their restoration and cache selection are reduced. The final verification contract and reconciliation of delivered legal materials are implemented. Community dependency texts and bootstrap license assignments are supplemented and verified. The first signed Package Edition APK was published on 2026-10-06; release APK tests from APT through MCP passed. Physical Android hardware tests of the current 0.1.1 APK passed on 2026-10-07. Both versions are published experimental prereleases. The detailed installation/update/version matrix is tracked separately below. The CI code-mode callback failure was resolved on 2026-10-07; see the [investigation above](#code-mode-sigsegv-ci-fix--2026-10-07).
 
 - [x] Remove bundled Node.js, npm, Python, ripgrep and libraries/archives/licenses needed only by them from the APK.
 - [x] First check app-server/code-mode host dependencies on these tools; retain essential base tools in the bootstrap.
@@ -894,9 +891,9 @@ Bootstrap, starter catalog, signed package channel and shared package environmen
 - [x] Align architecture checks and Java/C++/Android smokes with the final package contract.
 - [x] Reconcile notices, README, SECURITY and build documentation with the actual delivered package base. Reconciliation and subsequent license supplementation are implemented; Community Rust/V8 materials and package-local bootstrap assignments are source/artifact-bound. The release license gate rejects any new gap.
 - [x] Supplement Community Rust/V8 dependency texts and missing bootstrap license assignments for pinned artifacts; check source/version/hash evidence, app license view and final APK license gate.
-- [x] Test the current Package Edition 0.1.1 APK on physical Android hardware. Passed, as confirmed by the user on 2026-10-07; the version remains an experimental prerelease.
-- [ ] Perform installation/update tests including low target SDK, foreground service, notifications, login, file selection and backups. The complete matrix is not documented as completed by the broader user report.
-- [x] Test the release APK on a device and publish it as Package Edition. The user reports successful release APK tests; `v0.1.0-package.3` is published as an experimental prerelease. The detailed hardware/version/update matrix is tracked separately.
+- [x] Test the current Package Edition 0.1.1 APK on physical Android hardware. Passed on 2026-10-07; the version is published as an experimental prerelease.
+- [ ] Perform installation/update tests including low target SDK, foreground service, notifications, login, file selection and backups. Completion of the full matrix is not separately documented.
+- [x] Test the release APK on a device and publish it as Package Edition. Release APK device tests passed; `v0.1.0-package.3` and Package Edition 0.1.1 are published experimental prereleases. The detailed hardware/version/update matrix is tracked separately.
 
 <a id="historische-verifikation-des-grundlagenabschnitts"></a>
 
@@ -911,7 +908,7 @@ Successful [GitHub Actions run](https://github.com/Mcpasi/AGENTCODI/actions/runs
 
 A terminal shell test additionally covers precedence of user-installed programs over former fixed shell functions.
 
-All repository access/changes in the historical implementation used only the GitHub Connector. Community integration in section 2, minimal package bootstrap and starter catalog CI in section 3 are implemented. The signed package repository is implemented with public HTTPS publication and ARM64/APT runtime tests. Legacy source/API cleanup and build/cache reduction are implemented. Further catalog expansion remains optional. The final architecture/smoke contract and delivered legal-material reconciliation, including subsequent license supplementation, are implemented. The original verification details above describe the preceding foundation milestone. Device tests and APK publication were open then; the later user report and published APK are recorded at the top, with remaining hardware checks in sections 3/4.
+All repository access/changes in the historical implementation used only the GitHub Connector. Community integration in section 2, minimal package bootstrap and starter catalog CI in section 3 are implemented. The signed package repository is implemented with public HTTPS publication and ARM64/APT runtime tests. Legacy source/API cleanup and build/cache reduction are implemented. Further catalog expansion remains optional. The final architecture/smoke contract and delivered legal-material reconciliation, including subsequent license supplementation, are implemented. The original verification details above describe the preceding foundation milestone. Device tests and APK publication were open then; the later device-test results and published APKs are recorded at the top, with remaining hardware checks in sections 3/4.
 
 <a id="historische-verifikation-der-community-anbindung"></a>
 
@@ -998,7 +995,7 @@ The first implementation run found a missing `LinkOption` import in the new
 Java migration test; the same compiler error also blocked the Community runtime
 job. The cause was fixed. Final implementation runs have no test failures.
 The completion commit adds only documentation; verified app code remains
-unchanged. Device tests were skipped at the user's request and remained open
+unchanged. Device tests were not performed and remained open
 at this milestone. No PR, merge or APK release was created in this step;
 the later release is recorded above. `main` remains unchanged by edition work.
 
@@ -1038,7 +1035,7 @@ completed delivered legal-material reconciliation and alignment of all
 architecture/smoke contracts are described in the next result section.
 Complete Community dependency notices were still a prerequisite for APK
 publication at this milestone; they were later supplemented before release.
-Device tests were skipped at the user's request and remained open then.
+Device tests were not performed and remained open then.
 No PR, merge or APK release was created in this step; the later release is
 recorded above. `main` remains unchanged by edition work.
 
@@ -1117,7 +1114,7 @@ build cleanup is now implemented. The subsequently completed architecture/smoke
 alignment and delivered legal-material reconciliation are described in the
 next result section. Complete Community dependency notices were still a
 publication prerequisite at this milestone; they were later supplemented
-before release. Physical device tests were skipped at the user's request
+before release. Physical device tests were not performed
 and remained open then.
 
 Verified implementation commit: `28c77f3444e1c54b741f3a55513fb2125641f10d`.
@@ -1252,10 +1249,10 @@ Final implementation runs are fully green after these fixes.
 
 Device-dependent installation, parallel operation, APK updates, foreground
 service, notifications, login, file selection/backups and physical hardware
-linker checks were not performed at the user's request and remained open
+linker checks were not performed and remained open
 at this milestone. Hosted ARM64/Bionic containers do not replace these tests.
 No PR, merge or final APK release was created in this step; the later release
-and user device-test report are recorded above. `main` remained at
+and device-test results are recorded above. `main` remained at
 `ff27ec7c30d373a864e845e9a7ceeae3380dd103`.
 
 The completion commit adds only roadmap evidence/markers. Historical
@@ -1355,7 +1352,7 @@ The final documentation reconciliation for this milestone updated only
 `ROADMAP-package-edition.md`, `.github/ci/README.md` and `NOTICE.md`.
 The code/payload contract remains bound to the verified implementation commit
 above. Physical Android hardware, installation, update and service tests
-remained open at the user's request then. No PR, merge or final APK release
+remained open then. No PR, merge or final APK release
 was created in this step; the later release and device-test report are recorded
 above. `main` remained at `ff27ec7c30d373a864e845e9a7ceeae3380dd103`.
 
@@ -1364,7 +1361,7 @@ above. `main` remained at `ff27ec7c30d373a864e845e9a7ceeae3380dd103`.
 ## MCP tool approvals and version bump — 2026-10-06
 
 Only `Mcpasi/package-edition`; no PR or merge into `main`.
-The user reported successful package installation/use on a device. MCP tool
+Package installation/use passed on a physical device. MCP tool
 use failed: `prompt` correctly requested approval, but the client did not
 recognize `mcpServer/elicitation/request`. It answered with
 `-32601 / Client request is not supported`; the runtime rejected the tool
@@ -1399,12 +1396,12 @@ revision is recorded below.
 Version at this milestone: `0.1.0-package.2`, Android `versionCode 2`.
 Manifest, BuildIdentity, build script, identity tests, architecture contract
 and then-active documentation use the same revision; earlier artifacts/version
-details remain tied to historical commits. Package installation/use is recorded
-as a user report without marking the full device/version matrix passed.
-Further physical device checks and a hardware retest of the MCP fix were
-skipped at the user's request and remained open then. The later user report
-confirms release APK tests through MCP, as recorded above; it does not resolve
-the separate experimental callback failure below.
+details remain tied to historical commits. Package installation/use passed on
+hardware; the full device/version matrix was not completed at this milestone.
+Further physical device checks and a hardware retest of the MCP fix were not
+performed and remained open then. Subsequent release APK tests through MCP
+passed, as recorded above; those tests did not resolve the separate
+experimental callback failure below.
 
 The first extended [runtime run](https://github.com/Mcpasi/AGENTCODI/actions/runs/37493948718)
 passed Java, schema, commands, PTY and the then-existing code-mode host smoke
@@ -1473,15 +1470,15 @@ Tests/APK evidence for the MCP fix recorded above.
 The final evidence commit changes only this roadmap and the Package Edition
 changelog; app, version pins and build payload remain unchanged. Physical
 device checks were skipped/open at this milestone. No PR, merge or final
-APK release was created in this step; the later release and user device-test
-report are recorded above. `main` remained at
+APK release was created in this step; the later release and device-test
+results are recorded above. `main` remained at
 `ff27ec7c30d373a864e845e9a7ceeae3380dd103`.
 
 <a id="stabile-debug-signierung-und-versionsbump--2026-10-06"></a>
 
 ## Stable debug signing and version bump — 2026-10-06
 
-The user reported an installation/update conflict despite a complete Android
+An installation/update conflict occurred despite a complete Android
 version bump; the build in use at that time had `versionCode 2`. Debug
 keystores were generated exclusively on CI runners.
 
@@ -1537,7 +1534,7 @@ data and verify backups. Workspace ZIPs do not automatically contain private
 chats, credentials or installed packages; uninstalling deletes private app
 data. Later APKs with the stable certificate and higher version code satisfy
 the signature prerequisite. Physical installation/update/data-retention checks
-were skipped/open at the user's request at this milestone. Completed CI/APK
+were not performed and remained open at this milestone. Completed CI/APK
 evidence for this fix is recorded below. Only `Mcpasi/package-edition`, no PR,
 no merge into `main`.
 

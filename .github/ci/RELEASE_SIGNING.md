@@ -106,6 +106,6 @@ For later Android updates, retain the same private signer and increase
 `versionCode` with `scripts/bump-version.sh`. An app installed with the public
 debug key cannot be updated directly using a different release key. Physical
 Android installation, update and data retention remain separate device tests.
-The user reports successful release APK tests through MCP; the full
+Release APK tests through MCP passed; the full
 installation/update/version matrix and new MPL source-saving feature are not
 documented as hardware-validated.

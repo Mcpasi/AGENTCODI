@@ -272,6 +272,9 @@ def main():
     parser.add_argument("audit", type=Path)
     parser.add_argument("--trace", type=Path, required=True)
     parser.add_argument("--mcp-approvals", type=Path, required=True)
+    parser.add_argument("--nested-mcp", action="store_true",
+                        help="Reproduce the original code-mode MCP callback in the warmed host")
+    parser.add_argument("--diagnose-gdb", action="store_true")
     args = parser.parse_args()
     audit = args.audit.resolve()
     bundle = json.loads((audit / "report/schema/codex_app_server_protocol.schemas.json").read_text())
@@ -398,13 +401,18 @@ def main():
         assert "failed to spawn" not in follow_up and "failed to initialize" not in follow_up
         print("Relocated sibling code-mode host executed JavaScript successfully.")
     finally:
-        runtime.close()
+        if not args.nested_mcp:
+            runtime.close()
     # MCP tools are normally dispatched as model function calls. Do not force
     # experimental code-mode callbacks to test the native MCP approval protocol.
-    runtime = Runtime(audit, client, model.url, code_mode_only=False)
+    if not args.nested_mcp:
+        runtime = Runtime(audit, client, model.url, code_mode_only=False)
     mcp = McpApprovalFixture()
+    debugger = None
+    debugger_output = None
     try:
-        runtime.initialize()
+        if not args.nested_mcp:
+            runtime.initialize()
         runtime.request("config/batchWrite", {"edits": [{
             "keyPath": "mcp_servers.approval_probe",
             "value": {"url": mcp.url, "enabled": True, "required": False,
@@ -417,7 +425,34 @@ def main():
             "approvalPolicy": "on-request", "permissions": PROFILE,
             "persistExtendedHistory": True})
         probe_id = probe["thread"]["id"]
-        model.mcp_probe = True
+        model.mcp_probe = not args.nested_mcp
+        if args.nested_mcp:
+            model.probe_code = 'text(await tools.mcp__approval_probe__echo({message:"mcp-approved-once-ok"}));'
+        if args.diagnose_gdb:
+            processes = subprocess.check_output([
+                "docker", "top", runtime.name, "-eo", "pid,args"], text=True).splitlines()
+            hosts = [int(line.split()[0]) for line in processes
+                     if line.split()[1] == "/audit/payload/package/bin/libcodex-codehost.so"]
+            assert len(hosts) == 1, processes
+            pid = hosts[0]
+            debugger_output = (audit / "report/nested-mcp.gdb.txt").open("w")
+            debugger = subprocess.Popen([
+                "sudo", "gdb", "-q", "-batch", "-ex", "set pagination off",
+                "-ex", "set sysroot /proc/" + str(pid) + "/root",
+                "-ex", "file " + str(audit / "payload/package/bin/libcodex-codehost.so"),
+                "-ex", "attach " + str(pid), "-ex", "continue",
+                "-ex", "thread apply all bt", "-ex", "info registers",
+                "-ex", "info proc mappings", "-ex", "x/20i $pc-32"],
+                stdout=debugger_output, stderr=subprocess.STDOUT)
+            deadline = time.monotonic() + 10
+            while time.monotonic() < deadline:
+                status = Path("/proc/" + str(pid) + "/status").read_text()
+                if any(line.startswith("TracerPid:") and int(line.split()[1]) for line in status.splitlines()):
+                    break
+                assert debugger.poll() is None, "GDB could not attach"
+                time.sleep(0.1)
+            else:
+                raise AssertionError("GDB attach timed out")
         for action in ("accept", "decline", "cancel"):
             before = len(mcp.calls)
             runtime.request("turn/start", {"threadId": probe_id,
@@ -449,6 +484,13 @@ def main():
     finally:
         mcp.close()
         runtime.close()
+        if debugger:
+            try:
+                debugger.wait(timeout=5)
+            except subprocess.TimeoutExpired:
+                debugger.terminate()
+                debugger.wait(timeout=5)
+            debugger_output.close()
     restarted = Runtime(audit, client, model.url)
     try:
         restarted.initialize()

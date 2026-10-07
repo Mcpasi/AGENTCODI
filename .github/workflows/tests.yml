@@ -193,6 +193,7 @@ jobs:
         run: |
           sudo apt-get update
           sudo apt-get install -y gdb
+          python3 .github/ci/probe-code-mode-callbacks.py "$RUNNER_TEMP/community-runtime" || true
           python3 .github/ci/probe-code-mode-callbacks.py "$RUNNER_TEMP/community-runtime" --diagnose
       - uses: actions/setup-java@v4
         with:
@@ -209,6 +210,14 @@ jobs:
           "$RUNNER_TEMP/community-validator/bin/python" .github/ci/verify-community-protocol.py \
             "$RUNNER_TEMP/community-runtime" --trace "$AGENTCODI_RPC_AUDIT" \
             --mcp-approvals "$AGENTCODI_MCP_APPROVAL_AUDIT"
+      - name: Reproduce the original nested MCP callback with a host backtrace
+        env:
+          AGENTCODI_RPC_AUDIT: ${{ runner.temp }}/community-rpc.jsonl
+          AGENTCODI_MCP_APPROVAL_AUDIT: ${{ runner.temp }}/community-mcp-approvals.jsonl
+        run: |
+          "$RUNNER_TEMP/community-validator/bin/python" -u .github/ci/verify-community-protocol.py \
+            "$RUNNER_TEMP/community-runtime" --trace "$AGENTCODI_RPC_AUDIT" \
+            --mcp-approvals "$AGENTCODI_MCP_APPROVAL_AUDIT" --nested-mcp --diagnose-gdb
       - uses: actions/upload-artifact@v4
         if: always()
         with:

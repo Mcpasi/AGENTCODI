@@ -18,10 +18,8 @@ AGENTCODI Package Edition brings Codex workflows to Android with an interactive 
 
 The Package Edition has its own application ID, `de.agentcodi.pkg`, so it can be installed alongside the regular AGENTCODI app.
 
-**Package Edition 0.1.1 (Android versionCode 4) — experimental prerelease, not yet published.**
 
-**Device tests: passed.** The user confirmed successful APK tests on physical
-Android hardware on 2026-10-07.
+**Device tests: passed.** Hardware tests were passed on real hardware. 2026-10-07
 
 The latest published Package Edition is
 [`0.1.0` (`v0.1.0-package.3`)](https://github.com/Mcpasi/AGENTCODI/releases/tag/v0.1.0-package.3),

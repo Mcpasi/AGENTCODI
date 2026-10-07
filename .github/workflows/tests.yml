@@ -188,6 +188,12 @@ jobs:
               /audit/payload/package/bin/libcodex.so --version'
       - name: Record binary and generated schema pins
         run: python3 .github/ci/community-runtime-pins.py "$RUNNER_TEMP/community-runtime"
+      - name: Diagnose isolated code-mode host callbacks
+        continue-on-error: true
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y gdb
+          python3 .github/ci/probe-code-mode-callbacks.py "$RUNNER_TEMP/community-runtime" --diagnose
       - uses: actions/setup-java@v4
         with:
           distribution: temurin
@@ -204,6 +210,7 @@ jobs:
             "$RUNNER_TEMP/community-runtime" --trace "$AGENTCODI_RPC_AUDIT" \
             --mcp-approvals "$AGENTCODI_MCP_APPROVAL_AUDIT"
       - uses: actions/upload-artifact@v4
+        if: always()
         with:
           name: community-codex-runtime
           path: ${{ runner.temp }}/community-runtime/report/

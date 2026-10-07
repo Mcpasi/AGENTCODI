@@ -2,6 +2,37 @@
 
 Status: 2026-10-07. Only branch `Mcpasi/package-edition`; no merge into `main`.
 
+<a id="code-mode-sigsegv-ci-fix--2026-10-07"></a>
+
+### Code-mode SIGSEGV: reproduced and resolved — 2026-10-07
+
+The failure in runtime run `37493948718` was a CI runtime mismatch. The
+pinned Termux container supplies Android 9 `aosp-libs 9.0.0-r76-4`, while
+the Community V8 host uses native ELF thread-local storage supported from
+Android 10 / API 29. Native ARM64 GDB captures identify the invalid pointer
+read in `v8::internal::Isolate::Enter()`. Six isolated controls reproduce
+SIGSEGV even without MCP, relocation or a model. This is an invalid memory
+access signaled by the runner's Linux kernel, not a GitHub cancellation.
+
+The earlier host smoke had a false positive: it searched the whole model
+history, including the source containing its success marker. It now checks
+the actual matching tool output, with four regressions for that error.
+The CI-only runtime image uses pinned Android 10 Bionic libraries; the
+Community host, app-server, schemas, APK bytes and application remain unchanged.
+The original nested MCP path is now a required test alongside native dispatch.
+
+[Fix run 37676838798](https://github.com/Mcpasi/AGENTCODI/actions/runs/37676838798)
+at `35211867a10aef2dc85a3208dcb54d18fcbf7275` passed all seven jobs.
+All six isolated probes return exit 0, the actual relocated-host marker is
+verified, and native/nested MCP each verify accept/decline/cancel with the
+real Java responses. The downloaded
+[runtime artifact](https://github.com/Mcpasi/AGENTCODI/actions/runs/37676838798/artifacts/11507383509)
+confirms the results and unchanged binary/schema pins. The recorded CI crash
+is closed. Physical Android device/version/update checks remain separate.
+See the [complete diagnosis and reproduction commands](.github/ci/CODE_MODE_SIGSEGV.md).
+All work stays on `Mcpasi/package-edition`; `main` remains
+`ff27ec7c30d373a864e845e9a7ceeae3380dd103`, with no PR or merge.
+
 ### Published Package Edition release — 2026-10-06
 
 [AGENTCODI Package Edition V0.1.0](https://github.com/Mcpasi/AGENTCODI/releases/tag/v0.1.0-package.3)
@@ -52,11 +83,10 @@ The user reports that the preceding release APK device tests, including APT
 through MCP, passed. The new source-saving feature compiled successfully in
 CI but has not yet been tested on an Android device. The complete Android
 version/device matrix is not documented as completed. The experimental
-code-mode callback failure described in the MCP approval section remains
-open and still needs reproduction; the successful existing code-mode host
-smoke does not resolve it.
+code-mode callback failure described in the MCP approval section was reproduced
+and resolved as a CI Bionic-version mismatch on 2026-10-07; see the [investigation above](#code-mode-sigsegv-ci-fix--2026-10-07).
 
-The checklists show the current implementation status. Dated result and verification sections record earlier milestones; their test counts, artifacts and checksums belong to the specified commit. Statements about skipped device tests or absent APK publication in those sections describe that milestone, not the current release status above. Bootstrap, starter catalog and public signed APT repository are implemented. npm/Python paths and the shared process environment are implemented and checked in CI; the evidence is in “Shared package environment and npm/Python paths”. Package diagnostics and workspace browser/import/export extensions are implemented; user-installable transitional tools have been removed from the APK. Remaining legacy helpers and transport parameters have been cleaned up. The build script, Dockerfile, CI inputs, restore/preflight checks and cache keys are reduced to the active edition dependencies. The final test/payload contract and reconciliation of delivered legal materials are implemented; the evidence is in “Final test contract and license reconciliation”. Community Rust/V8 dependency texts and the three package-local bootstrap license assignments have been supplemented; source, version and artifact bindings are checked in the APK contract. “Supplementing the missing licenses” documents that status. The initial user report confirmed package installation/use; the later report confirms release APK tests through MCP. Remaining hardware checks and the experimental code-mode callback failure are recorded separately. The APK has been released as described above.
+The checklists show the current implementation status. Dated result and verification sections record earlier milestones; their test counts, artifacts and checksums belong to the specified commit. Statements about skipped device tests or absent APK publication in those sections describe that milestone, not the current release status above. Bootstrap, starter catalog and public signed APT repository are implemented. npm/Python paths and the shared process environment are implemented and checked in CI; the evidence is in “Shared package environment and npm/Python paths”. Package diagnostics and workspace browser/import/export extensions are implemented; user-installable transitional tools have been removed from the APK. Remaining legacy helpers and transport parameters have been cleaned up. The build script, Dockerfile, CI inputs, restore/preflight checks and cache keys are reduced to the active edition dependencies. The final test/payload contract and reconciliation of delivered legal materials are implemented; the evidence is in “Final test contract and license reconciliation”. Community Rust/V8 dependency texts and the three package-local bootstrap license assignments have been supplemented; source, version and artifact bindings are checked in the APK contract. “Supplementing the missing licenses” documents that status. The initial user report confirmed package installation/use; the later report confirms release APK tests through MCP. Remaining hardware checks and the resolved CI code-mode callback failure are recorded separately. The APK has been released as described above.
 
 <a id="ziel-und-feste-entscheidungen"></a>
 
@@ -783,7 +813,7 @@ is recorded above. `main` remains unchanged by edition work.
 
 ## 4. Reduce the build and produce a releasable edition
 
-Bootstrap, starter catalog, signed package channel and shared package environment work in CI. npm/Python path prerequisites are complete. Previously bundled user-installable packages have been removed from the APK. The active startup path uses only the native Codex runtime and installed package base. Unused legacy sources, identity constants and activation/transport APIs have been removed. Old private tool directories are no longer created or required for startup; existing user data is preserved. Build dependencies, their restoration and cache selection are reduced. The final verification contract and reconciliation of delivered legal materials are implemented. Community dependency texts and bootstrap license assignments are supplemented and verified. The signed Package Edition APK was published on 2026-10-06; the user reports release APK tests from APT through MCP passed. The new MPL source-saving feature and complete installation/update/version matrix still need documented hardware validation. The experimental code-mode callback failure remains open.
+Bootstrap, starter catalog, signed package channel and shared package environment work in CI. npm/Python path prerequisites are complete. Previously bundled user-installable packages have been removed from the APK. The active startup path uses only the native Codex runtime and installed package base. Unused legacy sources, identity constants and activation/transport APIs have been removed. Old private tool directories are no longer created or required for startup; existing user data is preserved. Build dependencies, their restoration and cache selection are reduced. The final verification contract and reconciliation of delivered legal materials are implemented. Community dependency texts and bootstrap license assignments are supplemented and verified. The signed Package Edition APK was published on 2026-10-06; the user reports release APK tests from APT through MCP passed. The new MPL source-saving feature and complete installation/update/version matrix still need documented hardware validation. The CI code-mode callback failure was resolved on 2026-10-07; see the [investigation above](#code-mode-sigsegv-ci-fix--2026-10-07).
 
 - [x] Remove bundled Node.js, npm, Python, ripgrep and libraries/archives/licenses needed only by them from the APK.
 - [x] First check app-server/code-mode host dependencies on these tools; retain essential base tools in the bootstrap.
@@ -1305,7 +1335,8 @@ confirms release APK tests through MCP, as recorded above; it does not resolve
 the separate experimental callback failure below.
 
 The first extended [runtime run](https://github.com/Mcpasi/AGENTCODI/actions/runs/37493948718)
-passed Java, schema, commands, PTY and the existing code-mode host smoke,
+passed Java, schema, commands, PTY and the then-existing code-mode host smoke
+(later found to allow a false positive; see the 2026-10-07 diagnosis),
 but failed on the additionally forced experimental code-mode callback:
 the pinned host reported SIGSEGV before an MCP request was created.
 MCP approval verification now uses the native model function call with MCP
@@ -1314,9 +1345,8 @@ process. It still checks the real `prompt` path and actual Java responses;
 the existing code-mode host smoke is retained. This does not prove a repair
 of the Community host for nested experimental code-mode callbacks. Such
 callback/hardware evidence remains outside the MCP approval verification
-confirmed here. **The experimental code-mode callback failure remains open
-and still needs reproduction; publishing the APK and passing the normal
-code-mode host smoke do not close it.**
+confirmed here. **This failure remained open at that milestone. It was reproduced and
+resolved as a CI Bionic-version mismatch on 2026-10-07, as [recorded above](#code-mode-sigsegv-ci-fix--2026-10-07).**
 
 <a id="verifikation-des-mcp-fixes"></a>
 

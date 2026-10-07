@@ -184,8 +184,11 @@ it separately records that device validation was not performed. A release
 build fails if any legal gap reappears. Clearing that gate does not establish
 the Android behaviors listed above.
 
-The experimental nested code-mode callback failure (SIGSEGV before an MCP
-request in runtime run `37493948718`) remains open and needs reproduction.
-The normal code-mode host smoke and native MCP approval tests do not establish
-a fix for that callback. See the [roadmap](ROADMAP-package-edition.md#mcp-tool-approvals-and-version-bump--2026-10-06)
-for the retained failure details and verification scope.
+The nested code-mode callback SIGSEGV in runtime run `37493948718` was
+reproduced and resolved as a CI environment mismatch on 2026-10-07. Android 9
+Bionic in the old container lacks the native ELF TLS required by V8; API 29
+Bionic fixes the failure without changing the Community binaries or APK.
+The corrected smoke checks actual tool output, and native ARM64 CI now checks
+isolated callbacks plus all approval decisions through both native and nested
+MCP paths. See the [diagnosis](.github/ci/CODE_MODE_SIGSEGV.md) and
+[roadmap](ROADMAP-package-edition.md#code-mode-sigsegv-ci-fix--2026-10-07).

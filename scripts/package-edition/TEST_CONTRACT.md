@@ -82,7 +82,11 @@ tests from APT through MCP. The complete version/device/update matrix and new
 MPL source-saving feature are not documented as hardware-validated; hosted CI
 continues to skip device tests.
 
-The experimental nested code-mode callback failure in runtime run
-`37493948718` (SIGSEGV before an MCP request) remains open and needs
-reproduction. The normal code-mode JavaScript smoke and native MCP prompt
-gate tests remain required and do not establish a repair of that callback.
+The nested code-mode SIGSEGV in runtime run `37493948718` was reproduced
+and resolved as an Android 9 CI Bionic / native ELF TLS mismatch on 2026-10-07.
+The Community runtime CI image now supplies Android 10 / API 29 Bionic,
+matching the app's minimum API. The actual JavaScript result, six isolated
+host probes and native/nested MCP accept/decline/cancel checks are required.
+All pass in run `37676838798`; binary/schema pins and APK bytes are unchanged.
+See [the diagnosis](../../.github/ci/CODE_MODE_SIGSEGV.md). This hosted evidence
+does not replace the separate physical device matrix.

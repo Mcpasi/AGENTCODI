@@ -398,12 +398,18 @@ and responses in a separate audit. The generated pinned Community schema checks
 those records, including nullable turn IDs and `action/content/_meta` answers.
 A local synthetic HTTP MCP server and deterministic model fixture exercise
 `prompt` with the real ARM64/Bionic app-server through model function calls. The
-existing relocated code-mode host smoke remains a separate check.
-The experimental nested code-mode callback failure in runtime run
-`37493948718` (SIGSEGV before an MCP request) remains open and needs
-reproduction. These native MCP approval tests and the normal code-mode smoke
-do not establish a repair of that callback; its details remain in the
-[roadmap](../../ROADMAP-package-edition.md#mcp-tool-approvals-and-version-bump--2026-10-06).
+same workflow also repeats the original nested code-mode MCP path using
+`--nested-mcp`. Both paths check all three decisions. Six isolated host probes
+check real JavaScript output, serialization and delegate callbacks.
+
+The SIGSEGV in run `37493948718` was reproduced and resolved on 2026-10-07:
+the pinned Termux image's Android 9 Bionic predates native ELF TLS required by
+V8. `community-runtime.Dockerfile` supplies pinned Android 10 / API 29 Bionic
+only to the CI runtime job. The Community binaries and APK payload are unchanged.
+The host smoke now checks the actual matching call output; a marker in the
+submitted source cannot satisfy it. All seven jobs of fix run `37676838798`
+passed. See [the diagnosis and reproduction commands](CODE_MODE_SIGSEGV.md)
+and [the roadmap](../../ROADMAP-package-edition.md#code-mode-sigsegv-ci-fix--2026-10-07).
 The invocation counter must stay unchanged before approval and after decline
 or cancel; an explicit per-call accept runs the tool once. No OpenAI credentials,
 external model inference or physical Android device is required.

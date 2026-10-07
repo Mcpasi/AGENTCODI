@@ -2,7 +2,7 @@
 
 Status: 2026-10-07. Only branch `Mcpasi/package-edition`; no merge into `main`.
 
-### Package Edition 0.1.1: package file export fixes — Unreleased, 2026-10-07
+### Package Edition 0.1.1: package file export fixes - publish, 2026-10-07
 
 Current development identity: `0.1.1`, Android `versionCode 4`, application ID
 `de.agentcodi.pkg`. **Experimental prerelease. Device tests: passed.** .

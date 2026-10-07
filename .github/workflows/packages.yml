@@ -84,7 +84,7 @@ jobs:
           jq -e --arg repo "$GITHUB_REPOSITORY" '.head_branch == "Mcpasi/package-edition" and .event == "push" and .head_repository.full_name == $repo' "$RUNNER_TEMP/source-run.json" >/dev/null || exit 0
           source_sha="$(jq -r .head_sha "$RUNNER_TEMP/source-run.json")"
           git fetch --depth=1 origin "$source_sha"
-          git diff --quiet "$source_sha" HEAD -- scripts/package-edition/lock.json scripts/package-edition/overlay.json scripts/package-edition/prepare.py scripts/package-edition/prepare-catalog.py scripts/package-edition/build-catalog.sh || exit 0
+          git diff --quiet "$source_sha" HEAD -- scripts/package-edition/lock.json scripts/package-edition/overlay.json scripts/package-edition/prepare.py scripts/package-edition/installed-size.py scripts/package-edition/prepare-catalog.py scripts/package-edition/build-catalog.sh || exit 0
           python3 - "$source_sha" "$GROUP" <<'PY' || exit 0
           import json, subprocess, sys
           from pathlib import Path

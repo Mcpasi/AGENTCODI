@@ -26,7 +26,8 @@ python3 -B "$repo_root/.github/ci/test-package-edition.py" \
     --source "$source_dir" --prepared "$prepared_dir"
 for path in scripts/properties.sh build-package.sh scripts/build-bootstraps.sh \
     scripts/build/termux_step_setup_variables.sh scripts/build/termux_step_get_dependencies.sh \
-    scripts/build/termux_step_start_build.sh packages/apt/build.sh agentcodi-build-package.sh; do
+    scripts/build/termux_step_start_build.sh scripts/build/termux_step_create_debian_package.sh \
+    scripts/build/termux_create_debian_subpackages.sh packages/apt/build.sh agentcodi-build-package.sh; do
     bash -n "$prepared_dir/$path"
 done
 # The complete host toolchain and SDK are immutable container bytes, not a

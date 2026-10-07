@@ -178,6 +178,51 @@ def check_prepared(source, prepared):
         for name in ("ndk", "sdk"):
             assert lock["toolchain"][name]["sha256"] in sdk_setup
 
+        # Execute both real packaging paths without compiling Android code.
+        # A fake du makes accidental use of host allocation visible.
+        fake_bin = temp / "bin"
+        fake_bin.mkdir()
+        (fake_bin / "du").write_text("#!/bin/sh\necho '999999 .'\n")
+        (fake_bin / "du").chmod(0o755)
+        massage = temp / "massage"
+        prefix = massage / verify.PREFIX.lstrip("/")
+        (prefix / "lib").mkdir(parents=True)
+        (prefix / "lib/fixture").write_bytes(b"x" * 1025)
+        (prefix / "lib/alias").symlink_to("fixture")
+        package_dir, cache_dir, output_dir = temp / "package", temp / "cache", temp / "debs"
+        for directory in (package_dir, cache_dir, output_dir, temp / "recipes", temp / "tmp"):
+            directory.mkdir()
+        package_env = {
+            "PATH": str(fake_bin) + ":" + os.environ["PATH"],
+            "TERMUX_SCRIPTDIR": str(prepared), "TERMUX_PKG_NAME": "fixture",
+            "TERMUX_PKG_PACKAGEDIR": str(package_dir), "TERMUX_PKG_FULLVERSION": "1.0",
+            "TERMUX_PKG_MAINTAINER": "AGENTCODI", "TERMUX_PKG_DESCRIPTION": "size fixture",
+            "TERMUX_PKG_HOMEPAGE": "https://example.invalid", "TERMUX_ARCH": "aarch64",
+            "TERMUX_COMMON_CACHEDIR": str(cache_dir), "TERMUX_OUTPUT_DIR": str(output_dir),
+            "SOURCE_DATE_EPOCH": str(lock["source"]["source_date_epoch"]),
+            "TERMUX_PKG_METAPACKAGE": "false", "TERMUX_PKG_PLATFORM_INDEPENDENT": "false",
+            "TERMUX_PREFIX_CLASSICAL": verify.PREFIX, "FIXTURE": str(massage),
+        }
+        hooks = ('termux_step_create_debscripts() { :; }\n'
+                 'termux_step_create_alternatives() { :; }\n'
+                 'termux_step_create_python_debscripts() { :; }\n')
+        bash('. ./scripts/build/termux_step_create_debian_package.sh\n' + hooks +
+             'cd "$FIXTURE"\ntermux_step_create_debian_package', prepared, package_env)
+        expected_size = str(len(Path(verify.PREFIX).parts) + 4)
+        assert subprocess.check_output(["dpkg-deb", "-f", str(output_dir / "fixture_1.0_aarch64.deb"),
+                                        "Installed-Size"], text=True).strip() == expected_size
+        (temp / "recipes/fixture-sub.subpackage.sh").write_text(
+            'TERMUX_SUBPKG_INCLUDE="lib/fixture lib/alias"\nTERMUX_SUBPKG_DESCRIPTION="size fixture"\n')
+        package_env.update({"TERMUX_PKG_NO_STATICSPLIT": "true", "TERMUX_PKG_DEPENDS": "",
+                            "TERMUX_PACKAGE_LIBRARY": "bionic", "TERMUX_TOPDIR": str(temp / "build"),
+                            "TERMUX_PKG_BUILDER_DIR": str(temp / "recipes"),
+                            "TERMUX_PKG_TMPDIR": str(temp / "tmp"),
+                            "TERMUX_PKG_MASSAGEDIR": str(massage), "FIXTURE": str(prefix)})
+        bash('. ./scripts/build/termux_create_debian_subpackages.sh\n' + hooks +
+             'cd "$FIXTURE"\ntermux_create_debian_subpackages', prepared, package_env)
+        assert subprocess.check_output(["dpkg-deb", "-f", str(output_dir / "fixture-sub_1.0_aarch64.deb"),
+                                        "Installed-Size"], text=True).strip() == expected_size
+
         # Exercise upstream's actual shebang massage block in isolation, retaining
         # its local variables and loops; the remaining massage stages build packages.
         massage = (prepared / "scripts/build/termux_step_massage.sh").read_text()

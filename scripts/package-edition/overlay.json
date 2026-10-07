@@ -2,6 +2,16 @@
   "format_version": 1,
   "edits": [
     {
+      "path": "scripts/build/termux_step_create_debian_package.sh",
+      "upstream_blob": "114038a15b0c1ab04bdc4dceefb5065595bc62d0",
+      "replacements": [
+        {
+          "old": "\tTERMUX_PKG_INSTALLSIZE=$(du -sk . | cut -f 1)",
+          "new": "\tTERMUX_PKG_INSTALLSIZE=$(python3 \"$TERMUX_SCRIPTDIR/scripts/agentcodi-installed-size.py\" \"$TERMUX_PKG_PACKAGEDIR/data.tar.xz\")"
+        }
+      ]
+    },
+    {
       "path": "scripts/properties.sh",
       "upstream_blob": "fe062eaa77406a5a64c7b5435f8abb7b95c73e69",
       "replacements": [
@@ -242,6 +252,14 @@
         {
           "old": "\t\tsource \"$subpackage\"\n",
           "new": "\t\tsource \"$subpackage\"\n\n\t\t# AGENTCODI: executable subpackages retain their parent's original legal files.\n\t\tcase \"$SUB_PKG_NAME\" in\n\t\t\tbzip2|gpgv|xz-utils)\n\t\t\t\tparent_legal=\"share/doc/$TERMUX_PKG_NAME\"\n\t\t\t\ttest -d \"$parent_legal\" || termux_error_exit \"Missing parent legal material: $TERMUX_PKG_NAME\"\n\t\t\t\tmkdir -p \"share/doc/$SUB_PKG_NAME\"\n\t\t\t\tcp -a \"$parent_legal/.\" \"share/doc/$SUB_PKG_NAME/\"\n\t\t\t\tTERMUX_SUBPKG_INCLUDE+=\" share/doc/$SUB_PKG_NAME/\"\n\t\t\t\t;;\n\t\tesac\n"
+        },
+        {
+          "old": "\t\tSUB_PKG_INSTALLSIZE=$(du -sk . | cut -f 1)\n",
+          "new": ""
+        },
+        {
+          "old": "\t\t\t-cJf \"$SUB_PKG_PACKAGE_DIR/data.tar.xz\" .\n",
+          "new": "\t\t\t-cJf \"$SUB_PKG_PACKAGE_DIR/data.tar.xz\" .\n\t\tSUB_PKG_INSTALLSIZE=$(python3 \"$TERMUX_SCRIPTDIR/scripts/agentcodi-installed-size.py\" \"$SUB_PKG_PACKAGE_DIR/data.tar.xz\")\n"
         }
       ]
     },

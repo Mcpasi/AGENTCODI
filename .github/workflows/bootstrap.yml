@@ -36,7 +36,7 @@ jobs:
           fi
           source_sha="$(jq -r .head_sha "$RUNNER_TEMP/source-run.json")"
           git fetch --depth=1 origin "$source_sha"
-          if ! git diff --quiet "$source_sha" HEAD -- scripts/package-edition/lock.json scripts/package-edition/overlay.json scripts/package-edition/prepare.py scripts/package-edition/build-bootstrap.sh scripts/package-edition/check-toolchain.sh; then
+          if ! git diff --quiet "$source_sha" HEAD -- scripts/package-edition/lock.json scripts/package-edition/overlay.json scripts/package-edition/prepare.py scripts/package-edition/installed-size.py scripts/package-edition/build-bootstrap.sh scripts/package-edition/check-toolchain.sh; then
             echo 'Package source/build inputs changed; rebuilding.'
             exit 0
           fi

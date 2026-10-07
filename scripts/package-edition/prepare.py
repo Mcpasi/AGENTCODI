@@ -95,6 +95,8 @@ def prepare(source, output):
             (output / removal["path"]).unlink()
         for path, text in edited.items():
             (output / path).write_text(text)
+        size_script = "scripts/agentcodi-installed-size.py"
+        shutil.copy2(HERE / "installed-size.py", output / size_script)
         repo = lock["repository"]
         (output / "repo.json").write_text(json.dumps({
             "pkg_format": "debian",
@@ -136,7 +138,7 @@ exec ./build-package.sh --format debian --library bionic -a aarch64 "$@"
         (output / "agentcodi-build-package.sh").chmod(0o755)
         (output / "agentcodi-bootstrap-plan.json").write_text(
             json.dumps(lock["bootstrap"], indent=2) + "\n")
-        paths = sorted([*edited, "repo.json", "agentcodi.env",
+        paths = sorted([*edited, size_script, "repo.json", "agentcodi.env",
                         "agentcodi-build-package.sh", "agentcodi-bootstrap-plan.json"])
         report = {
             "source": lock["source"], "builder": lock["builder"],

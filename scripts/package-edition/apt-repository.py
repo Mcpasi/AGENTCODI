@@ -6,6 +6,7 @@ from email.utils import format_datetime
 import gzip
 import hashlib
 import importlib.util
+import io
 import json
 import os
 from pathlib import Path, PurePosixPath
@@ -27,6 +28,49 @@ source_spec.loader.exec_module(sources)
 def digest(path):
     with path.open("rb") as stream:
         return hashlib.file_digest(stream, "sha256").hexdigest()
+
+
+def control_identity(deb):
+    """Keep every control entry and attribute except the Installed-Size field."""
+    data = subprocess.check_output(["dpkg-deb", "--ctrl-tarfile", str(deb)])
+    entries = []
+    with tarfile.open(fileobj=io.BytesIO(data), mode="r:") as archive:
+        for entry in archive:
+            content = archive.extractfile(entry).read() if entry.isfile() else None
+            size = entry.size
+            if entry.isfile() and entry.name in ("control", "./control"):
+                content = re.sub(rb"(?m)^Installed-Size: [0-9]+\n", b"", content, count=1)
+                size = len(content)
+            entries.append((entry.name, entry.type, entry.mode, entry.uid, entry.gid,
+                            entry.mtime, entry.linkname, entry.uname, entry.gname,
+                            entry.devmajor, entry.devminor, entry.pax_headers, size, content))
+    return entries
+
+
+def payload_digest(deb):
+    with subprocess.Popen(["dpkg-deb", "--fsys-tarfile", str(deb)],
+                          stdout=subprocess.PIPE) as process:
+        result = hashlib.file_digest(process.stdout, "sha256").hexdigest()
+        if process.wait() != 0:
+            raise subprocess.CalledProcessError(process.returncode, process.args)
+    return result
+
+
+def retain_published_package(deb, metadata, old, previous):
+    """Preserve published bytes; allow only an equivalent same-version rebuild."""
+    name = metadata["Package"]
+    if subprocess.run(["dpkg", "--compare-versions", metadata["Version"], "lt",
+                       old["Version"]]).returncode == 0:
+        raise ValueError("Repository update would downgrade: " + name)
+    if metadata["Version"] != old["Version"] or digest(deb) == old["sha256"]:
+        return deb, metadata
+    published = previous / relative(old["filename"])
+    if published.is_symlink() or digest(published) != old["sha256"]:
+        raise ValueError("Published DEB checksum mismatch: " + name)
+    if (control_identity(deb) != control_identity(published)
+            or payload_digest(deb) != payload_digest(published)):
+        raise ValueError("Changed published bytes require a version bump: " + name)
+    return published, assembly.fields(assembly.command("dpkg-deb", "-f", str(published)))
 
 
 def relative(value):
@@ -260,7 +304,7 @@ def build(artifacts, output, previous):
                 raise ValueError("Foreign package architecture: " + name)
             variants.setdefault(name, []).append({"group": group, "sha256": digest(deb),
                                                    "installed_size": metadata.get("Installed-Size")})
-            # Installed-Size describes this build's bytes, not dependency identity.
+            # Installed-Size is an estimate, not dependency identity.
             # Keep the chosen DEB's actual value in Packages and record all variants.
             if name in chosen:
                 previous_metadata = {k: v for k, v in chosen[name][1].items() if k != "Installed-Size"}
@@ -277,6 +321,18 @@ def build(artifacts, output, previous):
     with tempfile.TemporaryDirectory() as temporary:
         work = Path(temporary)
         chosen["agentcodi-package-keyring"] = keyring_package(work, settings, keyring)
+        reused_packages = {}
+        for name, (deb, metadata) in list(chosen.items()):
+            if prior and name in prior["packages"]:
+                published, published_metadata = retain_published_package(
+                    deb, metadata, prior["packages"][name], previous)
+                if published != deb:
+                    reused_packages[name] = {
+                        "candidate_sha256": digest(deb),
+                        "published_sha256": digest(published),
+                        "published_run": prior.get("consumer_run"),
+                        "comparison": "Identical payload and control apart from Installed-Size"}
+                chosen[name] = published, published_metadata
         selected = assembly.select(chosen, roots)
         if set(selected) != set(chosen):
             raise ValueError("Artifact union includes packages outside the runtime closure")
@@ -294,13 +350,6 @@ def build(artifacts, output, previous):
                                 "original_archive_sha256": digest(source_temp)}
         records, package_manifest = [], {}
         for name, (deb, metadata) in sorted(chosen.items()):
-            if prior and name in prior["packages"]:
-                old = prior["packages"][name]
-                if subprocess.run(["dpkg", "--compare-versions", metadata["Version"], "lt",
-                                   old["Version"]]).returncode == 0:
-                    raise ValueError("Repository update would downgrade: " + name)
-                if metadata["Version"] == old["Version"] and digest(deb) != old["sha256"]:
-                    raise ValueError("Changed published bytes require a version bump: " + name)
             filename = "pool/main/" + name + "/" + digest(deb) + "/" + name + ".deb"
             dest = output / filename
             dest.parent.mkdir(parents=True, exist_ok=True)
@@ -327,7 +376,8 @@ def build(artifacts, output, previous):
                 "consumer_run": os.environ.get("GITHUB_RUN_ID"),
                 "signing_fingerprint": settings["signing_fingerprint"],
                 "packages": package_manifest, "provenance": provenance,
-                "input_variants": variants, "source_packs": source_packs, "files": files}
+                "input_variants": variants, "reused_packages": reused_packages,
+                "source_packs": source_packs, "files": files}
     release_dir = output / "dists/stable"
     (release_dir / "repository-manifest.json").write_text(json.dumps(manifest, indent=2) + "\n")
     now = datetime.now(timezone.utc).replace(microsecond=0)

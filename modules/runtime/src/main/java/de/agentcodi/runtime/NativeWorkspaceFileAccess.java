@@ -52,6 +52,7 @@ final class NativeWorkspaceFileAccess {
         private long handle;
         private final long byteCount;
         private final FileTime lastModifiedTime;
+        private final FileTime changeTime;
         private final String fileKey;
 
         private NativeSource(long handle, long[] metadata, long maximumBytes)
@@ -65,17 +66,19 @@ final class NativeWorkspaceFileAccess {
                 throw new IOException("Native workspace file metadata is outside its bounds");
             }
             final FileTime modified;
+            final FileTime changed;
             try {
                 modified = FileTime.from(
                     Instant.ofEpochSecond(metadata[1], metadata[2])
                 );
-                Instant.ofEpochSecond(metadata[3], metadata[4]);
+                changed = FileTime.from(Instant.ofEpochSecond(metadata[3], metadata[4]));
             } catch (DateTimeException error) {
                 throw new IOException("Native workspace file timestamp is invalid", error);
             }
             this.handle = handle;
             this.byteCount = metadata[0];
             this.lastModifiedTime = modified;
+            this.changeTime = changed;
             this.fileKey = "(dev=" + Long.toHexString(metadata[5])
                 + ",ino=" + Long.toUnsignedString(metadata[6]) + ")";
         }
@@ -88,6 +91,11 @@ final class NativeWorkspaceFileAccess {
         @Override
         public FileTime getLastModifiedTime() {
             return lastModifiedTime;
+        }
+
+        @Override
+        public FileTime getChangeTime() {
+            return changeTime;
         }
 
         @Override

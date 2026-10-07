@@ -1078,6 +1078,11 @@ public final class WorkspaceExportTest {
                             }
 
                             @Override
+                            public FileTime getChangeTime() {
+                                return delegate.getChangeTime();
+                            }
+
+                            @Override
                             public Object getFileKey() {
                                 return delegate.getFileKey();
                             }

@@ -4,6 +4,10 @@ Only Mcpasi/package-edition is changed. This contract does not authorize a PR,
 merge, APK release or APT publication. Minimum API is 29, target SDK is 28,
 installation ID is de.agentcodi.pkg, and Full access is the sole runtime mode.
 
+The current development version is **Package Edition 0.1.1, Android versionCode
+4, unreleased**. It will remain unpublished until physical Android device tests
+complete successfully. CI artifacts are test builds and do not satisfy this gate.
+
 The existing Package Edition prerelease `v0.1.0-package.3` was published on
 2026-10-06. Its [release APK](https://github.com/Mcpasi/AGENTCODI/releases/tag/v0.1.0-package.3)
 has SHA-256 `028679df0ebeb2f1a5f9d8b373320122cba1778e67e0f198ac877c2771bc25ed`.
@@ -22,7 +26,7 @@ identity and native-runtime checks remain required.
 | Layer | Required evidence |
 | --- | --- |
 | Architecture / host contract regressions | Same active C++ suite set in local and hosted drivers; Package shell fixture; exact APK native/asset and legal-byte contract. Twenty-two mutation/acceptance regressions exercise assembled fixture ZIPs; nine MPL-source regressions check complete source coverage and notice preservation. |
-| Java host suite | Full-access identity/protocol, bootstrap interruption/recovery and update preservation; managed and user prefixes; all four user tool names, executable permissions, dpkg state and caches; alias retirement; file-browser/import/export checks; MCP tool approval allow/decline/cancel, nullable turn IDs, stale/overloaded rejection, invalid elicitation, server resolution and timeout. |
+| Java host suite | Full-access identity/protocol, bootstrap interruption/recovery and update preservation; managed and user prefixes; all four user tool names, executable permissions, dpkg state and caches; alias retirement; file-browser/import/export checks, including replaced package roots and same-size ZIP member changes with restored mtime; MCP tool approval allow/decline/cancel, nullable turn IDs, stale/overloaded rejection, invalid elicitation, server resolution and timeout. |
 | Seven portable C++ suites | Supervisor environment, process lifecycle, framing, PNG and file operations; actual Package shell; prefix precedence; inherited retired activation variables stripped. |
 | Android compilation | All sources/resources against API 35, manifest target 28/minimum 29, separate installation identity and compiled component classes; German/English legal UI. |
 | Community ARM64/Bionic runtime | Pinned archive/relocation/schemas and actual controller RPCs; real app-server, code-mode JavaScript without external Node/npm, restart and persistent user program; actual Java MCP approval records validated against generated schemas and a real MCP prompt gate with invocation counts for accept/decline/cancel. |

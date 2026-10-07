@@ -243,7 +243,7 @@ class Runtime:
 
     def initialize(self):
         result = self.request("initialize", {
-            "clientInfo": {"name": "agentcodi_android", "title": "AGENTCODI Package", "version": "0.1.0-package.2"},
+            "clientInfo": {"name": "agentcodi_android", "title": "AGENTCODI Package", "version": "0.1.1"},
             "capabilities": {"experimentalApi": True,
                              "optOutNotificationMethods": ["rawResponseItem/completed", "rawResponse/completed", "app/list/updated"]}
         })

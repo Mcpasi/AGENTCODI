@@ -51,6 +51,9 @@ public final class WorkspaceFileAccess {
 
         FileTime getLastModifiedTime();
 
+        /** Unix status-change time captured with the opened file's identity. */
+        FileTime getChangeTime();
+
         Object getFileKey();
 
         int read(byte[] buffer, int offset, int length) throws IOException;
@@ -99,7 +102,8 @@ public final class WorkspaceFileAccess {
                     workspace,
                     relative,
                     maximumBytes,
-                    opened.attributes
+                    opened.attributes,
+                    opened.changeTime
                 );
             } catch (IOException | RuntimeException | Error error) {
                 closeAfterFailure(channel, root, error);
@@ -115,6 +119,7 @@ public final class WorkspaceFileAccess {
         private final Path relative;
         private final long maximumBytes;
         private final BasicFileAttributes attributes;
+        private final FileTime changeTime;
         private boolean closed;
 
         private SecureNioSource(
@@ -123,7 +128,8 @@ public final class WorkspaceFileAccess {
             Path workspace,
             Path relative,
             long maximumBytes,
-            BasicFileAttributes attributes
+            BasicFileAttributes attributes,
+            FileTime changeTime
         ) {
             this.root = root;
             this.channel = channel;
@@ -131,6 +137,7 @@ public final class WorkspaceFileAccess {
             this.relative = relative;
             this.maximumBytes = maximumBytes;
             this.attributes = attributes;
+            this.changeTime = changeTime;
         }
 
         @Override
@@ -141,6 +148,11 @@ public final class WorkspaceFileAccess {
         @Override
         public FileTime getLastModifiedTime() {
             return attributes.lastModifiedTime();
+        }
+
+        @Override
+        public FileTime getChangeTime() {
+            return changeTime;
         }
 
         @Override
@@ -186,7 +198,8 @@ public final class WorkspaceFileAccess {
             }
             OpenSnapshot current = openRelative(root, workspace, relative, maximumBytes);
             try {
-                if (!sameSnapshot(attributes, current.attributes)) {
+                if (!sameSnapshot(attributes, current.attributes)
+                    || !changeTime.equals(current.changeTime)) {
                     throw new IOException("Workspace file changed during export");
                 }
             } finally {
@@ -242,7 +255,7 @@ public final class WorkspaceFileAccess {
             }
             Path name = relative.getName(relative.getNameCount() - 1);
             BasicFileAttributes before = readRegularAttributes(parent, name, maximumBytes);
-            WorkspaceFileBoundary.requireSingleLink(
+            FileTime beforeChangeTime = WorkspaceFileBoundary.requireSingleLink(
                 workspace.resolve(relative),
                 before.fileKey()
             );
@@ -258,18 +271,19 @@ public final class WorkspaceFileAccess {
                 name,
                 maximumBytes
             );
-            WorkspaceFileBoundary.requireSingleLink(
+            FileTime afterChangeTime = WorkspaceFileBoundary.requireSingleLink(
                 workspace.resolve(relative),
                 after.fileKey()
             );
-            if (channel.size() != after.size() || !sameSnapshot(before, after)) {
+            if (channel.size() != after.size() || !sameSnapshot(before, after)
+                || !beforeChangeTime.equals(afterChangeTime)) {
                 throw new IOException("Workspace file changed while it was opened");
             }
             if (parent != root) {
                 parent.close();
                 parent = root;
             }
-            OpenSnapshot opened = new OpenSnapshot(channel, after);
+            OpenSnapshot opened = new OpenSnapshot(channel, after, afterChangeTime);
             channel = null;
             return opened;
         } catch (IOException | RuntimeException | Error error) {
@@ -350,13 +364,16 @@ public final class WorkspaceFileAccess {
     private static final class OpenSnapshot {
         private final SeekableByteChannel channel;
         private final BasicFileAttributes attributes;
+        private final FileTime changeTime;
 
         private OpenSnapshot(
             SeekableByteChannel channel,
-            BasicFileAttributes attributes
+            BasicFileAttributes attributes,
+            FileTime changeTime
         ) {
             this.channel = channel;
             this.attributes = attributes;
+            this.changeTime = changeTime;
         }
     }
 }

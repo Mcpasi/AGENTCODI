@@ -17,6 +17,7 @@ import java.io.IOException;
 import java.nio.file.Files;
 import java.nio.file.LinkOption;
 import java.nio.file.Path;
+import java.nio.file.attribute.FileTime;
 import java.util.HashSet;
 import java.util.Set;
 import java.util.zip.ZipEntry;
@@ -32,7 +33,9 @@ public final class WorkspaceFileScopeTest {
         excludesAccountLinksAndCredentialPathsFromArchives();
         rejectsTraversalAndDirectCredentialAccess();
         rejectsReplacedPackageRoots();
-        return 5;
+        rejectsSingleFileExportThroughReplacedPackageRoots();
+        rejectsArchiveMutationWithRestoredModificationTime();
+        return 7;
     }
 
     private static void selectsOnlyExplicitPackageRoots() throws Exception {
@@ -201,6 +204,96 @@ public final class WorkspaceFileScopeTest {
                 }, "existing browser does not follow a replacement root");
                 Files.delete(root);
                 Files.move(saved, root);
+            }
+        } finally {
+            delete(base);
+        }
+    }
+
+    private static void rejectsSingleFileExportThroughReplacedPackageRoots() throws Exception {
+        Path base = Files.createTempDirectory("agentcodi-package-export-root-");
+        try {
+            WorkspaceLayout layout = WorkspaceLayout.create(base.toFile());
+            Files.write(layout.getCodexHome().toPath().resolve("report.bin"), new byte[] {9, 8});
+            for (WorkspaceFileScope scope : new WorkspaceFileScope[] {
+                    WorkspaceFileScope.MANAGED_PACKAGES, WorkspaceFileScope.USER_PACKAGES}) {
+                final File root = scope.root(layout);
+                final WorkspaceFileAccess.Opener opener =
+                    scope.opener(WorkspaceFileAccess.secureNioOpener());
+                Path saved = root.toPath().resolveSibling(root.getName() + "-saved");
+                Files.move(root.toPath(), saved);
+                Files.createSymbolicLink(root.toPath(), layout.getCodexHome().toPath());
+                try {
+                    TestSupport.expectThrows(IOException.class, new TestSupport.ThrowingRunnable() {
+                        @Override
+                        public void run() throws Exception {
+                            WorkspaceExportFile.inspect(root, new File(root, "report.bin").getPath(),
+                                1024L, opener);
+                        }
+                    }, "single-file inspection must reject a replaced package root");
+                    final ByteArrayOutputStream destination = new ByteArrayOutputStream();
+                    TestSupport.expectThrows(IOException.class, new TestSupport.ThrowingRunnable() {
+                        @Override
+                        public void run() throws Exception {
+                            WorkspaceExportFile.copyTo(root, new File(root, "report.bin").getPath(),
+                                1024L, destination, opener);
+                        }
+                    }, "single-file export must not follow a replaced package root");
+                    TestSupport.assertEquals(Integer.valueOf(0), Integer.valueOf(destination.size()),
+                        "no bytes outside the selected package area reach the destination");
+                } finally {
+                    Files.delete(root.toPath());
+                    Files.move(saved, root.toPath());
+                }
+            }
+        } finally {
+            delete(base);
+        }
+    }
+
+    private static void rejectsArchiveMutationWithRestoredModificationTime() throws Exception {
+        Path base = Files.createTempDirectory("agentcodi-package-export-ctime-");
+        try {
+            final WorkspaceLayout layout = WorkspaceLayout.create(base.toFile());
+            for (final WorkspaceFileScope scope : new WorkspaceFileScope[] {
+                    WorkspaceFileScope.MANAGED_PACKAGES, WorkspaceFileScope.USER_PACKAGES}) {
+                final Path source = scope.root(layout).toPath().resolve("bin/example");
+                Files.write(source, new byte[] {1, 2, 3, 4});
+                final FileTime modified = Files.getLastModifiedTime(source);
+                final Object changeTime = Files.getAttribute(source, "unix:ctime");
+                final Object fileKey = Files.getAttribute(source, "unix:fileKey");
+                final ByteArrayOutputStream destination = new ByteArrayOutputStream() {
+                    private boolean mutated;
+
+                    @Override
+                    public synchronized void write(byte[] bytes, int offset, int length) {
+                        if (!mutated) {
+                            mutated = true;
+                            try {
+                                // ZIP headers are written after inspection, before copying a member.
+                                Files.write(source, new byte[] {9, 8, 7, 6});
+                                Files.setLastModifiedTime(source, modified);
+                                TestSupport.assertEquals(modified, Files.getLastModifiedTime(source),
+                                    "fixture restores the exact original mtime");
+                                TestSupport.assertEquals(fileKey,
+                                    Files.getAttribute(source, "unix:fileKey"),
+                                    "fixture changes bytes in place, preserving the inode");
+                                TestSupport.assertFalse(changeTime.equals(
+                                    Files.getAttribute(source, "unix:ctime")),
+                                    "fixture changes ctime while preserving size and mtime");
+                            } catch (IOException error) {
+                                throw new IllegalStateException("Cannot mutate archive fixture", error);
+                            }
+                        }
+                        super.write(bytes, offset, length);
+                    }
+                };
+                TestSupport.expectThrows(IOException.class, new TestSupport.ThrowingRunnable() {
+                    @Override
+                    public void run() throws Exception {
+                        archive(layout, scope, destination);
+                    }
+                }, "package ZIP must reject changed bytes even when size, inode and mtime match");
             }
         } finally {
             delete(base);

@@ -1,5 +1,28 @@
 # Package Edition
 
+## 0.1.1 — Package Edition (Android versionCode 4) — Unreleased
+
+**This version remains unpublished until physical Android device tests have
+completed successfully.** Hosted tests and CI APK artifacts do not complete
+that requirement. The latest published Package Edition remains `v0.1.0-package.3`.
+
+- Fix single-file inspection/export following a replaced package root symlink.
+  Reject noncanonical roots and pass the original selected root to the no-follow
+  opener, preventing exports from a symlink target outside the selected area.
+- Fix ZIP export accepting an in-place file change when size, inode and original
+  modification time are preserved. Retain the opened file's Unix change time
+  (`ctime`) in Java/native metadata and compare it across archive snapshots.
+- Add two reproducible regressions covering both the managed APT prefix and the
+  user package prefix. Both fail on the previous implementation and pass with
+  these fixes; existing export rollback and timestamp-precision coverage remain.
+- Align manifest, Java/native identities, build scripts, architecture checks,
+  runtime fixtures and current documentation at `0.1.1` / Android versionCode 4.
+- Local validation: 327 Java tests, all seven portable C++ suites, architecture
+  checks and release-signing/build-input/APK/MPL-source contracts pass. Android
+  API 35 source/resource compilation, Package Edition identity and stable-signing
+  fixtures with versionCode 4 → 5 pass. Physical Android device/update tests
+  remain pending.
+
 ## 0.1.0-package.3 (Android versionCode 3) — 2026-10-06
 
 - Published [AGENTCODI Package Edition V0.1.0](https://github.com/Mcpasi/AGENTCODI/releases/tag/v0.1.0-package.3) as an early-version prerelease, tagged `v0.1.0-package.3`, on 2026-10-06. The signed release asset is `AGENTCODI-Package-0.1.0-package.3-arm64-v8a-release.apk`; SHA-256: `028679df0ebeb2f1a5f9d8b373320122cba1778e67e0f198ac877c2771bc25ed`.

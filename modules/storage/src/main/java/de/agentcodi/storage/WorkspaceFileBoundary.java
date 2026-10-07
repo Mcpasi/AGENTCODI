@@ -76,9 +76,9 @@ final class WorkspaceFileBoundary {
             requestedPath,
             maximumBytes
         );
-        Path workspace = requireWorkspace(workspaceDirectory);
+        requireWorkspace(workspaceDirectory);
         WorkspaceFileAccess.Source source = opener.open(
-            workspace.toFile(),
+            workspaceDirectory,
             resolved.relativePath,
             maximumBytes
         );
@@ -88,7 +88,7 @@ final class WorkspaceFileBoundary {
             if (byteCount < 0L || byteCount > maximumBytes) {
                 throw new IOException("Workspace file size is outside the export limit");
             }
-            if (source.getLastModifiedTime() == null) {
+            if (source.getLastModifiedTime() == null || source.getChangeTime() == null) {
                 throw new IOException("Workspace file timestamp is unavailable");
             }
             OpenedFile opened = new OpenedFile(
@@ -110,8 +110,10 @@ final class WorkspaceFileBoundary {
             throw new IllegalArgumentException("workspaceDirectory must not be null");
         }
         File workspace = workspaceDirectory.getCanonicalFile();
-        Path workspacePath = workspace.toPath();
-        if (Files.isSymbolicLink(workspacePath)
+        Path workspacePath = workspaceDirectory.toPath();
+        // Keep the selected root intact for the descriptor-relative opener.
+        // Canonicalizing a replacement link here would authorize its target.
+        if (!workspaceDirectory.equals(workspace) || Files.isSymbolicLink(workspacePath)
             || !Files.isDirectory(workspacePath, LinkOption.NOFOLLOW_LINKS)) {
             throw new IOException("Workspace root is not a canonical directory");
         }
@@ -144,16 +146,16 @@ final class WorkspaceFileBoundary {
         return portable;
     }
 
-    static void requireSingleLink(Path path) throws IOException {
-        requireSingleLink(path, null);
+    static FileTime requireSingleLink(Path path) throws IOException {
+        return requireSingleLink(path, null);
     }
 
-    static void requireSingleLink(Path path, Object expectedFileKey) throws IOException {
+    static FileTime requireSingleLink(Path path, Object expectedFileKey) throws IOException {
         final Map<String, Object> attributes;
         try {
             attributes = Files.readAttributes(
                 path,
-                "unix:nlink,fileKey",
+                "unix:nlink,fileKey,ctime",
                 LinkOption.NOFOLLOW_LINKS
             );
         } catch (UnsupportedOperationException error) {
@@ -169,6 +171,11 @@ final class WorkspaceFileBoundary {
         if (expectedFileKey != null && !expectedFileKey.equals(fileKey)) {
             throw new IOException("Workspace file changed while its link count was checked");
         }
+        Object changeTime = attributes.get("ctime");
+        if (!(changeTime instanceof FileTime)) {
+            throw new IOException("Workspace file change timestamp is unavailable");
+        }
+        return (FileTime) changeTime;
     }
 
     private static void rejectSymbolicComponents(Path workspace, Path requested)

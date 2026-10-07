@@ -2,6 +2,41 @@
 
 Status: 2026-10-07. Only branch `Mcpasi/package-edition`; no merge into `main`.
 
+### Package Edition 0.1.1: package file export fixes — Unreleased, 2026-10-07
+
+Current development identity: `0.1.1`, Android `versionCode 4`, application ID
+`de.agentcodi.pkg`. **This version remains unpublished until physical Android
+device tests complete successfully.** The published `v0.1.0-package.3` release
+and all earlier CI/artifact records below retain their original version/status;
+they do not validate or publish 0.1.1.
+
+Selected roadmap area: [Workspace browser and package file import/export](#workspace-browser-und-paketdatei-importexport--2026-10-05).
+Two suspected bugs were reproduced independently against the preceding
+implementation, using only synthetic files in temporary directories:
+
+1. Save the selected package root, rename it and replace it with a symlink to
+   another private directory containing `report.bin`. Single-file inspection
+   and export previously resolved the replacement root to its target. The
+   shared boundary now rejects noncanonical roots and passes the original
+   selected path unchanged to the descriptor-relative no-follow opener.
+2. After ZIP inspection, change a member's bytes in place before it is copied,
+   preserving its size/inode and restoring the exact original mtime. The ZIP
+   previously succeeded. The source/export snapshots now retain and compare
+   Unix `ctime`; the native metadata already supplied it but Java discarded it.
+   Changes fail export through the existing destination-rollback transaction.
+
+`WorkspaceFileScopeTest` covers both cases for managed APT and user package
+roots. Each new regression failed separately before the fixes and passes
+afterward. Reproduce through `.github/ci/run-java-tests.sh`: 327 Java tests pass
+locally. All seven portable C++ suites pass in a Linux host container;
+architecture, release-signing/build-input/APK/MPL-source checks also pass.
+Android sources/resources compile against API 35; target 28, minimum 29,
+edition identity and signing fixtures (`versionCode 4 → 5`) pass. Physical
+Android installation/update/picker tests remain pending for this version.
+The [0.1.1 changelog](CHANGELOG.md#011--package-edition-android-versioncode-4--unreleased)
+records these fixes under Package Edition. No tag, APK release, PR or merge
+is created for 0.1.1.
+
 <a id="code-mode-sigsegv-ci-fix--2026-10-07"></a>
 
 ### Code-mode SIGSEGV: reproduced and resolved — 2026-10-07

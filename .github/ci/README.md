@@ -25,12 +25,17 @@ Ubuntu runner. They are additional entry points only:
 | Android sources and resources | `compile-android-sources.sh` | Compile against API 35, check SDK pins and Package Edition identity, and resolve every manifest component against its compiled Java class. |
 
 Package Edition builds use installation ID `de.agentcodi.pkg`, their own
-`0.1.0-package.N` version line (currently `0.1.0-package.3` / Android versionCode 3; started at 1), and APK names
+version line (currently `0.1.1` / Android versionCode 4, unreleased; started at
+`0.1.0-package.1` / code 1), and APK names
 starting with `AGENTCODI-Package-`. The APK workflow on this branch
 uploads `agentcodi-package-debug-apk`. Java classes and resources retain the
 `de.agentcodi.app` namespace via AAPT2's `--custom-package`; manifest components
 use their full Java class names. Host compilation does not replace an APK
 installation and parallel-app test on Android hardware.
+
+Package Edition 0.1.1 remains unpublished until physical Android device tests
+complete successfully. The published `v0.1.0-package.3` artifacts below are
+historical evidence for that earlier version.
 
 ## Running them locally
 

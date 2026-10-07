@@ -23,6 +23,7 @@ public final class WorkspaceExportFile {
     private final String displayName;
     private final long byteCount;
     private final FileTime lastModifiedTime;
+    private final FileTime changeTime;
     private final Object fileKey;
 
     private WorkspaceExportFile(
@@ -30,6 +31,7 @@ public final class WorkspaceExportFile {
         String relativePath,
         long byteCount,
         FileTime lastModifiedTime,
+        FileTime changeTime,
         Object fileKey
     ) {
         this.file = file;
@@ -37,6 +39,7 @@ public final class WorkspaceExportFile {
         this.displayName = safeDisplayName(file.getName());
         this.byteCount = byteCount;
         this.lastModifiedTime = lastModifiedTime;
+        this.changeTime = changeTime;
         this.fileKey = fileKey == null ? null : fileKey.toString();
     }
 
@@ -216,6 +219,7 @@ public final class WorkspaceExportFile {
             && relativePath.equals(other.relativePath)
             && byteCount == other.byteCount
             && sameValue(lastModifiedTime, other.lastModifiedTime)
+            && sameValue(changeTime, other.changeTime)
             && sameValue(fileKey, other.fileKey);
     }
 
@@ -227,6 +231,7 @@ public final class WorkspaceExportFile {
                 lastModifiedTime,
                 other.lastModifiedTime
             )
+            && sameFileTimeAtMicrosecondPrecision(changeTime, other.changeTime)
             && sameValue(fileKey, other.fileKey);
     }
 
@@ -303,12 +308,15 @@ public final class WorkspaceExportFile {
                         "Workspace regular-file count exceeds the export limit"
                     );
                 }
-                WorkspaceFileBoundary.requireSingleLink(canonicalChild);
+                FileTime changeTime = WorkspaceFileBoundary.requireSingleLink(
+                    canonicalChild, attributes.fileKey()
+                );
                 files.add(new WorkspaceExportFile(
                     canonicalChild.toFile(),
                     relativePath,
                     attributes.size(),
                     attributes.lastModifiedTime(),
+                    changeTime,
                     attributes.fileKey()
                 ));
             } else {
@@ -335,6 +343,7 @@ public final class WorkspaceExportFile {
             opened.relativePath,
             opened.getByteCount(),
             opened.getLastModifiedTime(),
+            opened.source.getChangeTime(),
             opened.getFileKey()
         );
     }

@@ -2,10 +2,7 @@
 
 ## 0.1.1 — Package Edition (Android versionCode 4) — Unreleased
 
-**Experimental prerelease. Device tests: passed.** The user confirmed successful
-APK tests on physical Android hardware on 2026-10-07. Version 0.1.1 is not yet
-published; the latest published Package Edition remains `v0.1.0-package.3`,
-also an experimental prerelease.
+**Experimental prerelease. Device tests: passed.** Device tests successful 2026-10-07
 
 - Fix architecture CI timing out during host ripgrep installation on the Azure
   Ubuntu APT mirror. Use authenticated official Ubuntu HTTPS sources with fresh
@@ -44,7 +41,7 @@ also an experimental prerelease.
 
 ## 0.1.0-package.3 (Android versionCode 3) — 2026-10-06
 
-**Experimental prerelease (published). Device tests: passed, as reported by the user.**
+**Experimental prerelease (published). Device tests: passed.**
 
 - Published [AGENTCODI Package Edition V0.1.0](https://github.com/Mcpasi/AGENTCODI/releases/tag/v0.1.0-package.3) as an experimental prerelease, tagged `v0.1.0-package.3`, on 2026-10-06. The signed release asset is `AGENTCODI-Package-0.1.0-package.3-arm64-v8a-release.apk`; SHA-256: `028679df0ebeb2f1a5f9d8b373320122cba1778e67e0f198ac877c2771bc25ed`.
 - Deliver complete original sources for all twelve MPL components in the APK, with offline saving through the license view. [Tests CI](https://github.com/Mcpasi/AGENTCODI/actions/runs/37533009175) and [signed release APK build](https://github.com/Mcpasi/AGENTCODI/actions/runs/37533013532) passed.

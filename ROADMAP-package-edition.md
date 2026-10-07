@@ -5,11 +5,8 @@ Status: 2026-10-07. Only branch `Mcpasi/package-edition`; no merge into `main`.
 ### Package Edition 0.1.1: package file export fixes — Unreleased, 2026-10-07
 
 Current development identity: `0.1.1`, Android `versionCode 4`, application ID
-`de.agentcodi.pkg`. **Experimental prerelease. Device tests: passed.** The user
-confirmed successful APK tests on physical Android hardware on 2026-10-07.
-Version 0.1.1 is not yet published. The published `0.1.0` (`v0.1.0-package.3`)
-also remains an experimental prerelease. Earlier CI/artifact records below
-retain their original version/status; they do not validate or publish 0.1.1.
+`de.agentcodi.pkg`. **Experimental prerelease. Device tests: passed.** .
+Version 0.1.1 publish.
 
 Selected roadmap area: [Workspace browser and package file import/export](#workspace-browser-und-paketdatei-importexport--2026-10-05).
 Two suspected bugs were reproduced independently against the preceding

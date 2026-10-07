@@ -43,7 +43,7 @@ class HostRipgrepTest(unittest.TestCase):
 
     def test_installs_from_fresh_signed_official_https_sources(self):
         installer.install()
-        update, install, version = self.calls
+        update, install, cleanup, version = self.calls
         self.assertEqual(["sudo", "timeout", "--kill-after=10s", "180s", "apt-get"], update[:5])
         self.assertEqual(["sudo", "timeout", "--kill-after=10s", "120s", "apt-get"], install[:5])
         self.assertEqual("update", update[-1])
@@ -68,6 +68,11 @@ class HostRipgrepTest(unittest.TestCase):
                                  for item in command))
         source = next(item.split("=", 1)[1] for item in update
                       if item.startswith("Dir::Etc::sourcelist="))
+        self.assertEqual(Path("/tmp"), Path(source).parent.parent, "_apt can traverse parents")
+        self.assertEqual(
+            ["sudo", "rm", "-rf", "--", str(Path(source).parent / "lists")], cleanup,
+            "privileged cleanup is limited to freshly created APT lists",
+        )
         self.assertFalse(Path(source).exists(), "temporary source/lists are cleaned up")
 
     def test_existing_ripgrep_still_has_to_execute(self):
@@ -77,11 +82,22 @@ class HostRipgrepTest(unittest.TestCase):
         self.architecture.assert_not_called()
 
     def test_update_error_stops_before_install_and_verification(self):
-        self.run_command.side_effect = subprocess.CalledProcessError(100, "apt-get update")
-        with self.assertRaises(subprocess.CalledProcessError):
-            installer.install()
-        self.assertEqual(1, self.run_command.call_count)
-        self.assertEqual("update", self.run_command.call_args.args[0][-1])
+        for exit_code in (100, 124):
+            with self.subTest(exit_code=exit_code):
+                self.calls.clear()
+                self.run_command.reset_mock()
+                def fail_update(command, **kwargs):
+                    if command[-1] == "update":
+                        self.calls.append(command)
+                        raise subprocess.CalledProcessError(exit_code, command)
+                    return self.record(command, **kwargs)
+                self.run_command.side_effect = fail_update
+                with self.assertRaises(subprocess.CalledProcessError) as error:
+                    installer.install()
+                self.assertEqual(exit_code, error.exception.returncode)
+                self.assertEqual(2, self.run_command.call_count)
+                self.assertEqual("update", self.calls[0][-1])
+                self.assertEqual(["sudo", "rm"], self.calls[1][:2])
 
     def test_install_error_stops_before_verification(self):
         def fail_install(command, **kwargs):
@@ -91,7 +107,18 @@ class HostRipgrepTest(unittest.TestCase):
         self.run_command.side_effect = fail_install
         with self.assertRaises(subprocess.CalledProcessError):
             installer.install()
-        self.assertEqual(2, self.run_command.call_count)
+        self.assertEqual(3, self.run_command.call_count)
+        self.assertEqual(["sudo", "rm"], self.calls[-1][:2])
+
+    def test_cleanup_error_is_fatal_before_verification(self):
+        def fail_cleanup(command, **kwargs):
+            if command[:2] == ["sudo", "rm"]:
+                raise subprocess.CalledProcessError(1, command)
+            return self.record(command, **kwargs)
+        self.run_command.side_effect = fail_cleanup
+        with self.assertRaises(subprocess.CalledProcessError):
+            installer.install()
+        self.assertEqual(3, self.run_command.call_count)
 
     def test_installed_but_broken_ripgrep_is_an_error(self):
         self.which.return_value = "/usr/bin/rg"

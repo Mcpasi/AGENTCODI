@@ -63,12 +63,18 @@ The architecture job now pins Ubuntu 24.04 amd64 and installs ripgrep through
 and security sources over HTTPS for both APT commands, retains archive-key
 authentication and uses fresh temporary lists. Existing runner sources are
 not rewritten. Connection/retry and whole-command limits bound acquisition;
-incomplete updates and installation errors fail the job. Seven regressions
+incomplete updates and installation errors fail the job. Eight regressions
 cover source isolation, successful installation, existing/broken ripgrep,
-update/install failures, missing trust material and unsupported hosts. All
+update/install failures, cleanup, missing trust material and unsupported hosts. All
 architecture, generated-input, signing, APK and MPL checks remain required.
 The ten-minute job budget, Android runtime image, catalog recipes, bootstrap,
 APK inputs and `0.1.1` / versionCode 4 identity are unchanged.
+
+The first correction run `37686252962` successfully installed ripgrep in
+17 seconds, then caught a cleanup permissions error: APT had created
+root/_apt-owned `lists/partial` below an unprivileged temporary directory.
+The corrected installer puts lists under traversable `/tmp`, always removes
+only its own generated lists with sudo, and keeps cleanup failures fatal.
 
 <a id="code-mode-sigsegv-ci-fix--2026-10-07"></a>
 

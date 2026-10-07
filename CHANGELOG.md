@@ -10,7 +10,8 @@ that requirement. The latest published Package Edition remains `v0.1.0-package.3
   Ubuntu APT mirror. Use authenticated official Ubuntu HTTPS sources with fresh
   isolated lists and bounded downloads on Ubuntu 24.04. Update/install failures
   remain fatal; all architecture and package/license checks remain mandatory.
-  Add seven installer regressions. Android API-29 Bionic and APK inputs are
+  Add eight installer regressions, including privileged temporary-list cleanup.
+  Android API-29 Bionic and APK inputs are
   unchanged.
 - Add a complete Simplified Chinese interface, including dialogs, accessibility
   labels, runtime status and notifications. Offer 简体中文 in Settings and Android

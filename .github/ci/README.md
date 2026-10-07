@@ -48,8 +48,11 @@ two retries and 180/120-second command limits prevent a stalled mirror from
 consuming the ten-minute job budget. Any index/signature/download/install error
 fails the job, as does an unusable existing `rg`; no architecture check is skipped.
 
+Temporary lists reside under `/tmp` so APT's download user can traverse their
+parents. The installer always removes its own root/_apt-owned lists with sudo
+before unprivileged temporary-directory cleanup; cleanup errors are fatal too.
 `python3 -B .github/ci/test-host-ripgrep.py` checks successful installation,
-source isolation and mandatory failures before the CI installer runs. This is
+source isolation, cleanup and mandatory failures before the CI installer runs. This is
 Ubuntu host tooling only; the API-29 Bionic image, Android package catalog,
 bootstrap and APK build inputs are independent.
 

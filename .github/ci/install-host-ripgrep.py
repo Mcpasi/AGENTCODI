@@ -1,6 +1,5 @@
 #!/usr/bin/env python3
 """Install the Ubuntu architecture-check tool from signed official HTTPS sources."""
-import os
 from pathlib import Path
 import platform
 import shutil
@@ -40,18 +39,19 @@ def install():
 
     # Scope both commands to these sources. Leave the runner's mirror lists,
     # third-party sources and shared APT lists unchanged.
-    with tempfile.TemporaryDirectory(
-        prefix="agentcodi-host-apt-", dir=os.environ.get("RUNNER_TEMP")
-    ) as temporary:
+    # /tmp is traversable by _apt; RUNNER_TEMP can have private parent directories.
+    with tempfile.TemporaryDirectory(prefix="agentcodi-host-apt-", dir="/tmp") as temporary:
         directory = Path(temporary)
         directory.chmod(0o755)  # APT's _apt download user needs traversal access.
         sources = directory / "ubuntu.sources"
         sources.write_text(SOURCES, encoding="utf-8")
-        (directory / "lists").mkdir(mode=0o755)
+        lists = directory / "lists"
+        lists.mkdir()
+        lists.chmod(0o755)
         options = [
             "-o", "Dir::Etc::sourcelist=" + str(sources),
             "-o", "Dir::Etc::sourceparts=-",
-            "-o", "Dir::State::lists=" + str(directory / "lists"),
+            "-o", "Dir::State::lists=" + str(lists),
             "-o", "Dir::Cache::pkgcache=",
             "-o", "Dir::Cache::srcpkgcache=",
             "-o", "Acquire::Languages=none",
@@ -60,16 +60,21 @@ def install():
             "-o", "Acquire::https::Timeout=20",
             "-o", "APT::Update::Error-Mode=any",
         ]
-        subprocess.run(
-            ["sudo", "timeout", "--kill-after=10s", "180s", "apt-get"]
-            + options + ["update"],
-            check=True,
-        )
-        subprocess.run(
-            ["sudo", "timeout", "--kill-after=10s", "120s", "apt-get"]
-            + options + ["install", "-y", "--no-install-recommends", "ripgrep"],
-            check=True,
-        )
+        try:
+            subprocess.run(
+                ["sudo", "timeout", "--kill-after=10s", "180s", "apt-get"]
+                + options + ["update"],
+                check=True,
+            )
+            subprocess.run(
+                ["sudo", "timeout", "--kill-after=10s", "120s", "apt-get"]
+                + options + ["install", "-y", "--no-install-recommends", "ripgrep"],
+                check=True,
+            )
+        finally:
+            # APT creates root/_apt-owned partial directories. Only remove the
+            # lists under this freshly created temporary directory with sudo.
+            subprocess.run(["sudo", "rm", "-rf", "--", str(lists)], check=True)
 
     subprocess.run(["rg", "--version"], check=True)
 

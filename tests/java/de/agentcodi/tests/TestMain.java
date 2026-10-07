@@ -33,6 +33,7 @@ public final class TestMain {
         passed += RuntimeReportFormatterTest.run();
         passed += UiStartupStateTest.run();
         passed += UiLanguageTest.run();
+        passed += ChineseLanguageResourcesTest.run();
         passed += WorkspaceLayoutTest.run();
         passed += PackageBootstrapTest.run();
         passed += WorkspaceImportTest.run();

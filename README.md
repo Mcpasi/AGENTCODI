@@ -40,7 +40,7 @@ No Termux installation, WebView shell, or separate gateway setup is required.
 - Workspace import, preview and export
 - Read-only browsing and export of installed package files
 - MCP server management with per-request tool approval
-- German and English interface
+- German, English and Simplified Chinese interface with device-language detection
 - Package diagnostics for paths, installed packages and command resolution
 - Separate installation from the regular AGENTCODI edition
 

@@ -5,7 +5,8 @@ import java.util.Locale;
 public enum UiLanguage {
     SYSTEM("system", ""),
     ENGLISH("english", "en"),
-    GERMAN("german", "de");
+    GERMAN("german", "de"),
+    SIMPLIFIED_CHINESE("simplified_chinese", "zh-Hans");
 
     public static final String PREFERENCE_FILE = "agentcodi-ui";
     public static final String PREFERENCE_KEY = "language";
@@ -46,12 +47,32 @@ public enum UiLanguage {
         if (!choice.followsSystem()) {
             return choice.languageTag;
         }
-        String normalized = deviceLanguageTag == null
-            ? ""
-            : deviceLanguageTag.trim().toLowerCase(Locale.ROOT);
-        return normalized.equals("de") || normalized.startsWith("de-")
-            || normalized.startsWith("de_")
-            ? GERMAN.languageTag
-            : ENGLISH.languageTag;
+        UiLanguage device = fromLanguageTag(deviceLanguageTag);
+        return device.followsSystem() ? ENGLISH.languageTag : device.languageTag;
+    }
+
+    public static UiLanguage fromLanguageTag(String languageTag) {
+        if (languageTag == null || languageTag.trim().isEmpty()) {
+            return SYSTEM;
+        }
+        Locale locale = Locale.forLanguageTag(languageTag.trim().replace('_', '-'));
+        if ("de".equals(locale.getLanguage())) {
+            return GERMAN;
+        }
+        if ("en".equals(locale.getLanguage())) {
+            return ENGLISH;
+        }
+        if (!"zh".equals(locale.getLanguage())) {
+            return SYSTEM;
+        }
+        // An explicit script takes precedence over the region. Without a script,
+        // Chinese defaults to Hans except in Taiwan, Hong Kong and Macao.
+        if (!locale.getScript().isEmpty()) {
+            return "Hans".equals(locale.getScript()) ? SIMPLIFIED_CHINESE : SYSTEM;
+        }
+        String region = locale.getCountry();
+        return "TW".equals(region) || "HK".equals(region) || "MO".equals(region)
+            ? SYSTEM
+            : SIMPLIFIED_CHINESE;
     }
 }

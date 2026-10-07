@@ -88,14 +88,7 @@ final class AppLanguage {
             if (locales.isEmpty()) {
                 return UiLanguage.SYSTEM;
             }
-            String language = locales.get(0).getLanguage();
-            if ("de".equalsIgnoreCase(language)) {
-                return UiLanguage.GERMAN;
-            }
-            if ("en".equalsIgnoreCase(language)) {
-                return UiLanguage.ENGLISH;
-            }
-            return UiLanguage.SYSTEM;
+            return UiLanguage.fromLanguageTag(locales.get(0).toLanguageTag());
         }
 
         static boolean select(Context context, UiLanguage language) {

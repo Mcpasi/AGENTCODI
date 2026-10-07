@@ -752,18 +752,22 @@ fi
 
 default_strings="$PROJECT_ROOT/app/src/main/res/values/strings.xml"
 german_strings="$PROJECT_ROOT/app/src/main/res/values-de/strings.xml"
+chinese_strings="$PROJECT_ROOT/app/src/main/res/values-b+zh+Hans/strings.xml"
 default_names="$(rg -o 'name="[a-z0-9_]+"' "$default_strings" | sort -u)"
 german_names="$(rg -o 'name="[a-z0-9_]+"' "$german_strings" | sort -u)"
+chinese_names="$(rg -o 'name="[a-z0-9_]+"' "$chinese_strings" | sort -u)"
 if [ "$default_names" != "$german_names" ] \
+    || [ "$default_names" != "$chinese_names" ] \
     || ! rg -q '<locale android:name="en"' "$PROJECT_ROOT/app/src/main/res/xml/locales_config.xml" \
     || ! rg -q '<locale android:name="de"' "$PROJECT_ROOT/app/src/main/res/xml/locales_config.xml" \
+    || ! rg -q '<locale android:name="zh-Hans"' "$PROJECT_ROOT/app/src/main/res/xml/locales_config.xml" \
     || ! rg -q 'android:localeConfig="@xml/locales_config"' "$PROJECT_ROOT/app/src/main/AndroidManifest.xml" \
     || ! rg -q 'AppLanguage\.attach' "$PROJECT_ROOT/app/src/main/java/de/agentcodi/app/MainActivity.java" \
     || ! rg -q 'AppLanguage\.attach' "$settings_activity" \
     || ! rg -q 'UiLanguage\.SYSTEM' "$settings_activity" \
     || ! rg -q 'LocaleManager' "$PROJECT_ROOT/app/src/main/java/de/agentcodi/app/AppLanguage.java" \
     || ! rg -q 'LocaleManager' "$PROJECT_ROOT/modules/runtime/src/main/java/de/agentcodi/runtime/RuntimeText.java"; then
-  echo "English/German resources or the device-language selection contract are incomplete." >&2
+  echo "English/German/Simplified Chinese resources or the device-language selection contract are incomplete." >&2
   exit 1
 fi
 

@@ -6,6 +6,18 @@
 completed successfully.** Hosted tests and CI APK artifacts do not complete
 that requirement. The latest published Package Edition remains `v0.1.0-package.3`.
 
+- Add a complete Simplified Chinese interface, including dialogs, accessibility
+  labels, runtime status and notifications. Offer 简体中文 in Settings and Android
+  app-language settings, and detect Simplified Chinese device locales (including
+  `zh-Hans`, `zh-CN` and `zh-SG`) using the same language resolution throughout.
+  Explicit script tags take precedence over regions; unsupported Traditional
+  Chinese device locales retain the English fallback. Version and versionCode
+  remain unchanged; physical device language-switching tests remain pending.
+- Simplified Chinese validation: all 333 Java host tests, architecture checks,
+  Android API 35 source/resource compilation and six signing regressions pass.
+  Resource checks cover the complete translation inventory, Chinese plurals and
+  format arguments; locale regressions cover device detection, saved selection,
+  explicit overrides and script-versus-region precedence.
 - Fix single-file inspection/export following a replaced package root symlink.
   Reject noncanonical roots and pass the original selected root to the no-follow
   opener, preventing exports from a symlink target outside the selected area.

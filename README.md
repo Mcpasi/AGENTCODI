@@ -21,11 +21,6 @@ The Package Edition has its own application ID, `de.agentcodi.pkg`, so it can be
 
 **Device tests: passed.** Hardware tests were passed on real hardware. 2026-10-07
 
-The latest published Package Edition is
-[`0.1.0` (`v0.1.0-package.3`)](https://github.com/Mcpasi/AGENTCODI/releases/tag/v0.1.0-package.3),
-which also remains an **experimental prerelease**.
-See the [0.1.1 changelog](CHANGELOG.md#011--package-edition-android-versioncode-4--unreleased).
-
 No Termux installation, WebView shell, or separate gateway setup is required.
 
 > [!IMPORTANT]

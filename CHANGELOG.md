@@ -1,5 +1,21 @@
 # Package Edition
 
+## 0.1.2 — Package Edition (Android versionCode 5) — 2026-10-08
+
+- Wrap terminal output to the available screen width so long directory paths,
+  command lines and package diagnostics remain readable on smartphones.
+- Show long command input across up to three visible lines while retaining Send,
+  keyboard submission and the existing terminal controls.
+- Calculate PTY columns and rows from the actual monospace font metrics and
+  viewport padding. Resize the PTY when the output viewport changes size.
+- Bump the application, build and native runtime identities to `0.1.2` and
+  Android versionCode 5.
+- Validation: all 333 Java host tests, seven portable C++ suites, architecture
+  checks, Android API 35 source/resource compilation and six APK signing
+  regressions pass. Four Android UI checks cover smartphone widths from 320 to
+  430 dp, tablet layouts, viewport resizing, larger terminal fonts and command
+  submission. Physical-device validation remains pending.
+
 ## 0.1.1 — Package Edition (Android versionCode 4) — Published
 
 **Experimental prerelease (published). Device tests: passed on 2026-10-07.**

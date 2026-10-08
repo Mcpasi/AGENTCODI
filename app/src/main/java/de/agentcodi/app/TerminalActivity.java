@@ -209,7 +209,7 @@ public final class TerminalActivity extends Activity {
         outputView = theme.text(getString(R.string.terminal_output_empty), 13, 0xFFE5EEF8);
         outputView.setTypeface(Typeface.MONOSPACE);
         outputView.setTextIsSelectable(false);
-        outputView.setHorizontallyScrolling(true);
+        outputView.setHorizontallyScrolling(false);
         outputView.setLineSpacing(0.0f, 1.05f);
         outputView.setPadding(theme.dp(12), theme.dp(12), theme.dp(12), theme.dp(12));
         outputScroll.addView(outputView, new ScrollView.LayoutParams(
@@ -223,6 +223,18 @@ public final class TerminalActivity extends Activity {
         );
         outputParams.topMargin = theme.dp(8);
         root.addView(outputScroll, outputParams);
+        outputScroll.addOnLayoutChangeListener(new View.OnLayoutChangeListener() {
+            @Override
+            public void onLayoutChange(
+                View view, int left, int top, int right, int bottom,
+                int oldLeft, int oldTop, int oldRight, int oldBottom
+            ) {
+                if (right - left != oldRight - oldLeft
+                    || bottom - top != oldBottom - oldTop) {
+                    resizeTerminal();
+                }
+            }
+        });
 
         LinearLayout controls = new LinearLayout(this);
         controls.setOrientation(LinearLayout.HORIZONTAL);
@@ -253,7 +265,6 @@ public final class TerminalActivity extends Activity {
         inputView.setHintTextColor(theme.secondary);
         inputView.setTextColor(theme.primary);
         inputView.setTypeface(Typeface.MONOSPACE);
-        inputView.setSingleLine(true);
         inputView.setSaveEnabled(false);
         inputView.setFreezesText(false);
         inputView.setInputType(
@@ -261,6 +272,9 @@ public final class TerminalActivity extends Activity {
                 | InputType.TYPE_TEXT_FLAG_NO_SUGGESTIONS
                 | InputType.TYPE_TEXT_VARIATION_VISIBLE_PASSWORD
         );
+        // Keep single-line input semantics so the soft keyboard retains its Send action.
+        inputView.setHorizontallyScrolling(false);
+        inputView.setMaxLines(3);
         inputView.setImeOptions(EditorInfo.IME_ACTION_SEND | EditorInfo.IME_FLAG_NO_EXTRACT_UI);
         if (Build.VERSION.SDK_INT >= 26) {
             inputView.setImportantForAutofill(View.IMPORTANT_FOR_AUTOFILL_NO_EXCLUDE_DESCENDANTS);
@@ -426,17 +440,24 @@ public final class TerminalActivity extends Activity {
     }
 
     private int terminalRows() {
-        if (outputScroll == null || outputScroll.getHeight() <= 0) {
+        if (outputScroll == null || outputView == null || outputScroll.getHeight() <= 0) {
             return 24;
         }
-        return Math.max(4, Math.min(1000, outputScroll.getHeight() / theme.dp(18)));
+        int availableHeight = outputScroll.getHeight()
+            - outputScroll.getPaddingTop() - outputScroll.getPaddingBottom()
+            - outputView.getCompoundPaddingTop() - outputView.getCompoundPaddingBottom();
+        return Math.max(1, Math.min(1000,
+            availableHeight / Math.max(1, outputView.getLineHeight())));
     }
 
     private int terminalColumns() {
-        if (outputScroll == null || outputScroll.getWidth() <= 0) {
+        if (outputView == null || outputView.getWidth() <= 0) {
             return 80;
         }
-        return Math.max(20, Math.min(1000, outputScroll.getWidth() / theme.dp(8)));
+        int availableWidth = outputView.getWidth()
+            - outputView.getCompoundPaddingLeft() - outputView.getCompoundPaddingRight();
+        float characterWidth = Math.max(1.0f, outputView.getPaint().measureText("M"));
+        return Math.max(1, Math.min(1000, (int) (availableWidth / characterWidth)));
     }
 
     private void wipeInput() {

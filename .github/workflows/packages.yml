@@ -33,7 +33,7 @@ permissions:
   contents: read
   actions: read
 env:
-  CATALOG_SOURCE_RUN_ID: ${{ github.event_name == 'workflow_dispatch' && format('{0}', inputs.source_run_id) || '37336548937' }}
+  CATALOG_SOURCE_RUN_ID: ${{ github.event_name == 'workflow_dispatch' && format('{0}', inputs.source_run_id) || '37703982102' }}
 concurrency:
   group: package-catalog-${{ github.ref }}-${{ github.sha }}
   cancel-in-progress: true
@@ -55,7 +55,7 @@ jobs:
     if: github.ref == 'refs/heads/Mcpasi/package-edition'
     uses: ./.github/workflows/bootstrap.yml
     with:
-      source_run_id: 37215181811
+      source_run_id: 37703982102
   build:
     name: Source build (${{ matrix.group }})
     needs: signing-prerequisites
@@ -63,7 +63,7 @@ jobs:
     runs-on: ubuntu-latest
     timeout-minutes: 300
     env:
-      CATALOG_SOURCE_RUN_ID: ${{ github.event_name == 'workflow_dispatch' && format('{0}', inputs.source_run_id) || matrix.group == 'node' && '37346622005' || '37336548937' }}
+      CATALOG_SOURCE_RUN_ID: ${{ github.event_name == 'workflow_dispatch' && format('{0}', inputs.source_run_id) || '37703982102' }}
     strategy:
       fail-fast: false
       matrix:

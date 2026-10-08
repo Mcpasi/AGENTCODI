@@ -4,6 +4,7 @@ set -euo pipefail
 recipe_dir="$(realpath "$1")"
 report_dir="$(realpath "$2")"
 cd "$recipe_dir"
+export TERMUX_SCRIPTDIR="$recipe_dir"
 . ./agentcodi.env
 . ./scripts/properties.sh
 test "$(uname -m)" = x86_64

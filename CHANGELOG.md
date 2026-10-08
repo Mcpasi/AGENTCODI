@@ -2,6 +2,9 @@
 
 ## 0.1.2 — Package Edition (Android versionCode 5) — 2026-10-08
 
+**Experimental prerelease (published). Device tests: passed on physical Android hardware.**
+
+- Published [AGENTCODI Package Edition V0.1.2](https://github.com/Mcpasi/AGENTCODI/releases/tag/v0.1.2-package.3) as an experimental prerelease, tagged `v0.1.2-package.3`.
 - Wrap terminal output to the available screen width so long directory paths,
   command lines and package diagnostics remain readable on smartphones.
 - Show long command input across up to three visible lines while retaining Send,
@@ -33,7 +36,7 @@
   model/effort changes, attachment inspection/detachment, navigation and action
   handlers, credential validation, larger German text, Chinese labels and night
   mode. Chat checks and rendered previews are included in CI.
-  Physical-device validation remains pending.
+  Physical-device validation for version 0.1.2 passed.
 
 ## 0.1.1 — Package Edition (Android versionCode 4) — Published
 

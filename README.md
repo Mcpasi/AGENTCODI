@@ -4,11 +4,11 @@
 
 ### Codex workflows on Android with a real local toolchain
 
-[Downloads](../../releases) · [Website](https://devsblog.com/) · [Issues](../../issues) · [Roadmap](ROADMAP-package-edition.md)
+[Downloads](https://github.com/Mcpasi/AGENTCODI/releases/tag/v0.1.2-package.3) · [Website](https://devsblog.com/) · [Issues](../../issues) · [Roadmap](ROADMAP-package-edition.md)
 
 ![Android](https://img.shields.io/badge/Android-10%2B-3DDC84?logo=android&logoColor=white)
 ![Architecture](https://img.shields.io/badge/Architecture-ARM64-555555)
-![Version](https://img.shields.io/badge/Package%20Edition-0.1.1-blue)
+![Version](https://img.shields.io/badge/Package%20Edition-0.1.2-blue)
 ![Status](https://img.shields.io/badge/Status-published%20experimental%20prerelease-orange)
 ![License](https://img.shields.io/badge/License-Apache%202.0-blue)
 
@@ -18,8 +18,8 @@ AGENTCODI Package Edition brings Codex workflows to Android with an interactive 
 
 The Package Edition has its own application ID, `de.agentcodi.pkg`, so it can be installed alongside the regular AGENTCODI app.
 
-**Package Edition 0.1.1 is published as an experimental prerelease.**
-**Device tests: passed on physical Android hardware on 2026-10-07.**
+**[Package Edition 0.1.2](https://github.com/Mcpasi/AGENTCODI/releases/tag/v0.1.2-package.3) is published as an experimental prerelease.**
+**Device tests for version 0.1.2: passed on physical Android hardware.**
 
 No Termux installation, WebView shell, or separate gateway setup is required.
 
@@ -56,7 +56,7 @@ Recent Android versions may display a warning during installation because of the
 
 ## Install
 
-Download the current Package Edition APK from [GitHub Releases](../../releases) and install it on your Android device.
+Download the Package Edition 0.1.2 APK from [GitHub Releases](https://github.com/Mcpasi/AGENTCODI/releases/tag/v0.1.2-package.3) and install it on your Android device.
 
 Release APKs use the package name:
 

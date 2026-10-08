@@ -113,16 +113,15 @@ public final class ChatUiIconResourcesTest {
             TestSupport.assertContains(activity, binding, "chat icon binding");
         }
 
+        int inputPosition = activity.indexOf("editorContent.addView(composerInput, inputParams);");
         int importPosition = activity.indexOf("composerRow.addView(importButton);");
-        int inputPosition = activity.indexOf("composerRow.addView(composerInput, inputParams);");
         TestSupport.assertTrue(
-            importPosition >= 0 && inputPosition > importPosition,
-            "file-import plus remains immediately to the left of the composer input"
+            inputPosition >= 0 && importPosition > inputPosition,
+            "file import remains in the action row below the full-width input"
         );
-        TestSupport.assertContains(
-            activity,
-            "reviewButton.setVisibility(steering ? View.GONE : View.VISIBLE);",
-            "review action yields its compact slot during an active turn"
+        TestSupport.assertFalse(
+            activity.contains("reviewButton.setVisibility("),
+            "review action remains visible while the stop action is available"
         );
         TestSupport.assertContains(
             activity,

@@ -150,6 +150,8 @@
 
   <string name="model_section">MODELL</string>
   <string name="reasoning_effort_section">DENKSTUFE</string>
+  <string name="chat_reasoning_label">Denkstufe</string>
+  <string name="chat_model_details">Details zu Modell und Denkstufe</string>
   <string name="models_loading">Modelle werden vom App-Server geladen.</string>
   <string name="models_unavailable">Keine Modelle verfügbar.</string>
   <string name="reasoning_low">Niedrig</string>

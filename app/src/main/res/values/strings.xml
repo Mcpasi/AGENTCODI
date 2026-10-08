@@ -150,6 +150,8 @@
 
   <string name="model_section">MODEL</string>
   <string name="reasoning_effort_section">REASONING EFFORT</string>
+  <string name="chat_reasoning_label">Thinking</string>
+  <string name="chat_model_details">Model and thinking details</string>
   <string name="models_loading">Models are being loaded from the app-server.</string>
   <string name="models_unavailable">No models available.</string>
   <string name="reasoning_low">Low</string>

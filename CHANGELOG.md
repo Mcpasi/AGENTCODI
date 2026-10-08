@@ -10,11 +10,30 @@
   viewport padding. Resize the PTY when the output viewport changes size.
 - Bump the application, build and native runtime identities to `0.1.2` and
   Android versionCode 5.
+- Redesign the conversation view with compact, labelled model and thinking
+  selectors, a full-width multiline prompt editor and a separate action row.
+  Keep file import, connectors, review, Send, steering and Stop accessible with
+  48 dp touch targets; review remains visible while a turn is active.
+- Open model and thinking descriptions in a scrollable details dialog. Show
+  compact attachment summaries with independent detach controls and inspectable
+  lists containing every selected file and connector.
+- Adapt the editor to the available viewport height. Keep the action row fixed
+  when the keyboard or landscape orientation reduces space, move selectors into
+  the scrollable editor area when needed and restore them above the transcript
+  when space returns. Preserve prompt text, selection and caret visibility.
+- Retain thread navigation, workspace and terminal access, settings, runtime
+  status, model-specific thinking options and existing send/import validation.
+  Keep selector adapters stable across session refreshes.
 - Validation: all 333 Java host tests, seven portable C++ suites, architecture
   checks, Android API 35 source/resource compilation and six APK signing
   regressions pass. Four Android UI checks cover smartphone widths from 320 to
   430 dp, tablet layouts, viewport resizing, larger terminal fonts and command
-  submission. Physical-device validation remains pending.
+  submission. Twenty additional Android chat UI checks run on API 29 and 35 and
+  cover smartphone/tablet widths, keyboard and landscape resizing, long drafts,
+  model/effort changes, attachment inspection/detachment, navigation and action
+  handlers, credential validation, larger German text, Chinese labels and night
+  mode. Chat checks and rendered previews are included in CI.
+  Physical-device validation remains pending.
 
 ## 0.1.1 — Package Edition (Android versionCode 4) — Published
 

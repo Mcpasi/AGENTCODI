@@ -16,10 +16,12 @@ import android.os.Looper;
 import android.text.Editable;
 import android.text.InputType;
 import android.view.Gravity;
+import android.view.MotionEvent;
 import android.view.View;
 import android.view.ViewGroup;
+import android.view.WindowManager;
+import android.view.inputmethod.EditorInfo;
 import android.widget.AdapterView;
-import android.widget.ArrayAdapter;
 import android.widget.BaseAdapter;
 import android.widget.EditText;
 import android.widget.ImageButton;
@@ -85,6 +87,8 @@ public final class MainActivity extends Activity {
         new ArrayList<ImportedWorkspaceFile>();
     private final List<ConnectorSelection> pendingConnectors =
         new ArrayList<ConnectorSelection>();
+    private final List<String> renderedModelLabels = new ArrayList<String>();
+    private final List<String> renderedEffortLabels = new ArrayList<String>();
     private final Runnable refreshTask = new Runnable() {
         @Override
         public void run() {
@@ -130,7 +134,7 @@ public final class MainActivity extends Activity {
     private ThreadAdapter threadAdapter;
     private Spinner modelSpinner;
     private Spinner effortSpinner;
-    private TextView modelDescription;
+    private ImageButton modelDetailsButton;
     private ScrollView messageScroll;
     private LinearLayout messagesContainer;
     private EditText composerInput;
@@ -163,6 +167,7 @@ public final class MainActivity extends Activity {
     private RuntimePhase lastRuntimePhase;
     private CrashDiagnostics crashDiagnostics;
     private InteractiveRequestDialog interactiveRequestDialog;
+    private AlertDialog chatDetailsDialog;
 
     @Override
     protected void attachBaseContext(Context base) {
@@ -173,6 +178,7 @@ public final class MainActivity extends Activity {
     protected void onCreate(Bundle savedInstanceState) {
         super.onCreate(savedInstanceState);
         try {
+            getWindow().setSoftInputMode(WindowManager.LayoutParams.SOFT_INPUT_ADJUST_RESIZE);
             startupState.enter("chat-theme");
             theme = new UiTheme(this);
             interactiveRequestDialog = new InteractiveRequestDialog(this, theme);
@@ -201,6 +207,7 @@ public final class MainActivity extends Activity {
     @Override
     protected void onStop() {
         handler.removeCallbacks(refreshTask);
+        dismissChatDetails();
         if (interactiveRequestDialog != null) {
             interactiveRequestDialog.dismissForLifecycle();
         }
@@ -209,6 +216,7 @@ public final class MainActivity extends Activity {
 
     @Override
     protected void onDestroy() {
+        dismissChatDetails();
         CodexFileMentionTransaction abandonedSend;
         synchronized (preparedImportSendLock) {
             destroyed = true;
@@ -299,7 +307,8 @@ public final class MainActivity extends Activity {
         LinearLayout root = new LinearLayout(this);
         root.setOrientation(LinearLayout.VERTICAL);
         root.setFitsSystemWindows(true);
-        root.setPadding(theme.dp(16), theme.dp(18), theme.dp(16), theme.dp(12));
+        root.setFocusableInTouchMode(true);
+        root.setPadding(theme.dp(12), theme.dp(8), theme.dp(12), theme.dp(8));
         root.setBackgroundColor(theme.page);
 
         LinearLayout topBar = new LinearLayout(this);
@@ -322,7 +331,7 @@ public final class MainActivity extends Activity {
             ViewGroup.LayoutParams.WRAP_CONTENT
         ));
 
-        screenTitle = theme.text(getString(R.string.chat_title), 24, theme.primary);
+        screenTitle = theme.text(getString(R.string.chat_title), 20, theme.primary);
         screenTitle.setTypeface(Typeface.DEFAULT_BOLD);
         screenTitle.setSingleLine(true);
         screenTitle.setEllipsize(android.text.TextUtils.TruncateAt.END);
@@ -376,7 +385,7 @@ public final class MainActivity extends Activity {
         statusBanner = new LinearLayout(this);
         statusBanner.setOrientation(LinearLayout.HORIZONTAL);
         statusBanner.setGravity(Gravity.CENTER_VERTICAL);
-        statusBanner.setPadding(theme.dp(14), theme.dp(12), theme.dp(12), theme.dp(12));
+        statusBanner.setPadding(theme.dp(10), theme.dp(6), theme.dp(10), theme.dp(6));
         statusBanner.setBackground(theme.background(theme.surfaceRaised, theme.border, 16));
         statusIndicator = theme.statusDot(theme.accent);
         LinearLayout.LayoutParams indicatorParams = new LinearLayout.LayoutParams(
@@ -407,7 +416,7 @@ public final class MainActivity extends Activity {
         );
         statusActionParams.leftMargin = theme.dp(10);
         statusBanner.addView(statusSettingsButton, statusActionParams);
-        theme.addWithTopMargin(root, statusBanner, 14);
+        theme.addWithTopMargin(root, statusBanner, 6);
 
         threadPage = buildThreadPage();
         LinearLayout.LayoutParams contentParams = new LinearLayout.LayoutParams(
@@ -425,7 +434,7 @@ public final class MainActivity extends Activity {
             0,
             1.0f
         );
-        conversationParams.topMargin = theme.dp(14);
+        conversationParams.topMargin = theme.dp(6);
         root.addView(conversationPage, conversationParams);
         return root;
     }
@@ -567,49 +576,46 @@ public final class MainActivity extends Activity {
     }
 
     private LinearLayout buildConversationPage() {
-        LinearLayout page = new LinearLayout(this);
-        page.setOrientation(LinearLayout.VERTICAL);
+        ConversationLayout page = new ConversationLayout(this, theme);
 
         LinearLayout selectors = new LinearLayout(this);
-        selectors.setOrientation(LinearLayout.VERTICAL);
-        selectors.setPadding(theme.dp(14), theme.dp(12), theme.dp(14), theme.dp(12));
-        selectors.setBackground(theme.background(theme.surface, theme.border, 16));
-
-        LinearLayout selectorRow = new LinearLayout(this);
-        selectorRow.setOrientation(LinearLayout.HORIZONTAL);
-        LinearLayout modelColumn = new LinearLayout(this);
-        modelColumn.setOrientation(LinearLayout.VERTICAL);
-        TextView modelLabel = theme.sectionLabel(getString(R.string.model_section));
-        modelColumn.addView(modelLabel);
-        modelSpinner = new Spinner(this);
+        selectors.setOrientation(LinearLayout.HORIZONTAL);
+        selectors.setGravity(Gravity.CENTER_VERTICAL);
+        modelSpinner = new Spinner(this, Spinner.MODE_DIALOG);
+        modelSpinner.setPrompt(getString(R.string.model_section));
         styleSpinner(modelSpinner);
-        theme.addWithTopMargin(modelColumn, modelSpinner, 6);
-        selectorRow.addView(modelColumn, new LinearLayout.LayoutParams(
+        selectors.addView(modelSpinner, new LinearLayout.LayoutParams(
             0,
             ViewGroup.LayoutParams.WRAP_CONTENT,
-            1.15f
+            1.2f
         ));
 
-        LinearLayout effortColumn = new LinearLayout(this);
-        effortColumn.setOrientation(LinearLayout.VERTICAL);
-        effortColumn.setPadding(theme.dp(10), 0, 0, 0);
-        effortColumn.addView(theme.sectionLabel(getString(R.string.reasoning_effort_section)));
-        effortSpinner = new Spinner(this);
+        effortSpinner = new Spinner(this, Spinner.MODE_DIALOG);
+        effortSpinner.setPrompt(getString(R.string.reasoning_effort_section));
         styleSpinner(effortSpinner);
-        theme.addWithTopMargin(effortColumn, effortSpinner, 6);
-        selectorRow.addView(effortColumn, new LinearLayout.LayoutParams(
+        LinearLayout.LayoutParams effortParams = new LinearLayout.LayoutParams(
             0,
             ViewGroup.LayoutParams.WRAP_CONTENT,
-            0.85f
-        ));
-        selectors.addView(selectorRow);
-        modelDescription = theme.text(
-            getString(R.string.models_loading),
-            12,
-            theme.secondary
+            1.0f
         );
-        modelDescription.setLineSpacing(0.0f, 1.15f);
-        theme.addWithTopMargin(selectors, modelDescription, 6);
+        effortParams.setMarginStart(theme.dp(6));
+        selectors.addView(effortSpinner, effortParams);
+        modelDetailsButton = theme.iconButton(
+            R.drawable.ic_chat_more,
+            getString(R.string.chat_model_details)
+        );
+        modelDetailsButton.setOnClickListener(new View.OnClickListener() {
+            @Override
+            public void onClick(View view) {
+                CodexSessionSnapshot snapshot = AgentRuntimeService.sessionSnapshot();
+                CodexModelOption model = selectedModel(snapshot);
+                String description = selectorDescription(model, snapshot.getSelectedReasoningEffort());
+                String selection = model == null ? "" : model.getDisplayName() + " · "
+                    + reasoningLabel(snapshot.getSelectedReasoningEffort()) + "\n\n";
+                showChatDetails(getString(R.string.chat_model_details), selection + description);
+            }
+        });
+        selectors.addView(modelDetailsButton, iconMarginParams(6));
         page.addView(selectors);
 
         modelSpinner.setOnItemSelectedListener(new AdapterView.OnItemSelectedListener() {
@@ -659,7 +665,7 @@ public final class MainActivity extends Activity {
         messageScroll.setFillViewport(true);
         messagesContainer = new LinearLayout(this);
         messagesContainer.setOrientation(LinearLayout.VERTICAL);
-        messagesContainer.setPadding(0, theme.dp(14), 0, theme.dp(10));
+        messagesContainer.setPadding(0, theme.dp(8), 0, theme.dp(8));
         messageScroll.addView(messagesContainer, new ScrollView.LayoutParams(
             ViewGroup.LayoutParams.MATCH_PARENT,
             ViewGroup.LayoutParams.WRAP_CONTENT
@@ -672,8 +678,23 @@ public final class MainActivity extends Activity {
 
         LinearLayout composer = new LinearLayout(this);
         composer.setOrientation(LinearLayout.VERTICAL);
-        composer.setPadding(theme.dp(12), theme.dp(10), theme.dp(12), theme.dp(10));
+        composer.setPadding(theme.dp(10), theme.dp(8), theme.dp(10), theme.dp(8));
         composer.setBackground(theme.background(theme.surface, theme.border, 16));
+
+        LinearLayout editorContent = new LinearLayout(this);
+        editorContent.setOrientation(LinearLayout.VERTICAL);
+        ScrollView editorScroll = new ScrollView(this);
+        editorScroll.setFillViewport(false);
+        editorScroll.addView(editorContent, new ScrollView.LayoutParams(
+            ViewGroup.LayoutParams.MATCH_PARENT, ViewGroup.LayoutParams.WRAP_CONTENT
+        ));
+        composer.addView(editorScroll, new LinearLayout.LayoutParams(
+            ViewGroup.LayoutParams.MATCH_PARENT, ViewGroup.LayoutParams.WRAP_CONTENT
+        ));
+
+        LinearLayout attachments = new LinearLayout(this);
+        attachments.setOrientation(LinearLayout.HORIZONTAL);
+        editorContent.addView(attachments);
 
         connectorStatusRow = new LinearLayout(this);
         connectorStatusRow.setOrientation(LinearLayout.HORIZONTAL);
@@ -681,8 +702,9 @@ public final class MainActivity extends Activity {
         connectorStatusRow.setVisibility(View.GONE);
         connectorStatus = theme.text("", 12, theme.secondary);
         connectorStatus.setLineSpacing(0.0f, 1.15f);
-        connectorStatus.setMaxLines(3);
+        connectorStatus.setSingleLine(true);
         connectorStatus.setEllipsize(android.text.TextUtils.TruncateAt.END);
+        styleSelectionSummary(connectorStatus, R.string.chat_connectors);
         connectorStatusRow.addView(connectorStatus, new LinearLayout.LayoutParams(
             0,
             ViewGroup.LayoutParams.WRAP_CONTENT,
@@ -698,8 +720,10 @@ public final class MainActivity extends Activity {
                 detachPendingConnectors();
             }
         });
-        connectorStatusRow.addView(clearConnectorsButton, iconMarginParams(8));
-        composer.addView(connectorStatusRow);
+        connectorStatusRow.addView(clearConnectorsButton, iconMarginParams(0));
+        attachments.addView(connectorStatusRow, new LinearLayout.LayoutParams(
+            0, ViewGroup.LayoutParams.WRAP_CONTENT, 1.0f
+        ));
 
         importStatusRow = new LinearLayout(this);
         importStatusRow.setOrientation(LinearLayout.HORIZONTAL);
@@ -707,8 +731,9 @@ public final class MainActivity extends Activity {
         importStatusRow.setVisibility(View.GONE);
         importStatus = theme.text("", 12, theme.secondary);
         importStatus.setLineSpacing(0.0f, 1.15f);
-        importStatus.setMaxLines(4);
+        importStatus.setSingleLine(true);
         importStatus.setEllipsize(android.text.TextUtils.TruncateAt.END);
+        styleSelectionSummary(importStatus, R.string.chat_import_files);
         importStatusRow.addView(importStatus, new LinearLayout.LayoutParams(
             0,
             ViewGroup.LayoutParams.WRAP_CONTENT,
@@ -725,8 +750,55 @@ public final class MainActivity extends Activity {
                 detachPendingImports();
             }
         });
-        importStatusRow.addView(clearImportsButton, iconMarginParams(8));
-        composer.addView(importStatusRow);
+        importStatusRow.addView(clearImportsButton, iconMarginParams(0));
+        attachments.addView(importStatusRow, new LinearLayout.LayoutParams(
+            0, ViewGroup.LayoutParams.WRAP_CONTENT, 1.0f
+        ));
+
+        composerInput = new EditText(this);
+        composerInput.setHint(R.string.composer_hint);
+        composerInput.setHintTextColor(theme.secondary);
+        composerInput.setTextColor(theme.primary);
+        composerInput.setTextSize(16);
+        composerInput.setBackground(theme.background(theme.surfaceRaised, theme.border, 14));
+        composerInput.setPadding(theme.dp(12), theme.dp(10), theme.dp(12), theme.dp(10));
+        composerInput.setGravity(Gravity.TOP | Gravity.START);
+        composerInput.setMinLines(2);
+        composerInput.setMaxLines(6);
+        composerInput.setMinimumHeight(theme.dp(48));
+        composerInput.setInputType(
+            InputType.TYPE_CLASS_TEXT
+                | InputType.TYPE_TEXT_FLAG_MULTI_LINE
+                | InputType.TYPE_TEXT_FLAG_CAP_SENTENCES
+        );
+        composerInput.setImeOptions(EditorInfo.IME_FLAG_NO_EXTRACT_UI | EditorInfo.IME_FLAG_NO_FULLSCREEN);
+        composerInput.setVerticalScrollBarEnabled(true);
+        composerInput.setOnTouchListener(new View.OnTouchListener() {
+            private float lastY;
+
+            @Override
+            public boolean onTouch(View view, MotionEvent event) {
+                if (event.getActionMasked() == MotionEvent.ACTION_DOWN) {
+                    lastY = event.getY();
+                    view.getParent().requestDisallowInterceptTouchEvent(
+                        view.canScrollVertically(-1) || view.canScrollVertically(1)
+                    );
+                } else if (event.getActionMasked() == MotionEvent.ACTION_MOVE) {
+                    int direction = event.getY() < lastY ? 1 : -1;
+                    view.getParent().requestDisallowInterceptTouchEvent(view.canScrollVertically(direction));
+                    lastY = event.getY();
+                } else if (event.getActionMasked() == MotionEvent.ACTION_UP
+                    || event.getActionMasked() == MotionEvent.ACTION_CANCEL) {
+                    view.getParent().requestDisallowInterceptTouchEvent(false);
+                }
+                return false;
+            }
+        });
+        LinearLayout.LayoutParams inputParams = new LinearLayout.LayoutParams(
+            ViewGroup.LayoutParams.MATCH_PARENT,
+            ViewGroup.LayoutParams.WRAP_CONTENT
+        );
+        editorContent.addView(composerInput, inputParams);
 
         LinearLayout composerRow = new LinearLayout(this);
         composerRow.setOrientation(LinearLayout.HORIZONTAL);
@@ -755,30 +827,6 @@ public final class MainActivity extends Activity {
         });
         composerRow.addView(connectorButton, iconMarginParams(4));
 
-        composerInput = new EditText(this);
-        composerInput.setHint(R.string.composer_hint);
-        composerInput.setHintTextColor(theme.secondary);
-        composerInput.setTextColor(theme.primary);
-        composerInput.setTextSize(15);
-        composerInput.setBackground(theme.background(theme.surfaceRaised, theme.border, 14));
-        composerInput.setPadding(theme.dp(12), theme.dp(10), theme.dp(12), theme.dp(10));
-        composerInput.setGravity(Gravity.TOP | Gravity.START);
-        composerInput.setMinLines(2);
-        composerInput.setMaxLines(7);
-        composerInput.setInputType(
-            InputType.TYPE_CLASS_TEXT
-                | InputType.TYPE_TEXT_FLAG_MULTI_LINE
-                | InputType.TYPE_TEXT_FLAG_CAP_SENTENCES
-        );
-        LinearLayout.LayoutParams inputParams = new LinearLayout.LayoutParams(
-            0,
-            ViewGroup.LayoutParams.WRAP_CONTENT,
-            1.0f
-        );
-        inputParams.leftMargin = theme.dp(6);
-        inputParams.rightMargin = theme.dp(6);
-        composerRow.addView(composerInput, inputParams);
-
         reviewButton = theme.iconButton(
             R.drawable.ic_chat_review,
             getString(R.string.review_mode_action)
@@ -799,7 +847,8 @@ public final class MainActivity extends Activity {
                 );
             }
         });
-        composerRow.addView(reviewButton);
+        composerRow.addView(reviewButton, iconMarginParams(4));
+        composerRow.addView(new View(this), new LinearLayout.LayoutParams(0, 0, 1.0f));
 
         stopButton = theme.dangerIconButton(
             R.drawable.ic_chat_stop,
@@ -826,13 +875,52 @@ public final class MainActivity extends Activity {
         });
         composerRow.addView(sendButton, iconMarginParams(6));
         theme.addWithTopMargin(composer, composerRow, 6);
-        page.addView(composer);
+        page.addView(composer, new LinearLayout.LayoutParams(
+            ViewGroup.LayoutParams.MATCH_PARENT, ViewGroup.LayoutParams.WRAP_CONTENT
+        ));
+        page.bindComposer(selectors, composer, editorScroll, composerInput);
         return page;
     }
 
     private void styleSpinner(Spinner spinner) {
         spinner.setBackground(theme.background(theme.surfaceRaised, theme.border, 12));
-        spinner.setPadding(theme.dp(10), theme.dp(8), theme.dp(6), theme.dp(8));
+        spinner.setPadding(theme.dp(10), 0, theme.dp(8), 0);
+        spinner.setMinimumHeight(theme.dp(48));
+    }
+
+    private void styleSelectionSummary(final TextView summary, final int titleResource) {
+        summary.setMinimumHeight(theme.dp(48));
+        summary.setGravity(Gravity.CENTER_VERTICAL);
+        summary.setPadding(theme.dp(6), 0, theme.dp(6), 0);
+        summary.setBackground(theme.touchBackground(theme.surfaceRaised, Color.TRANSPARENT, 10));
+        summary.setOnClickListener(new View.OnClickListener() {
+            @Override
+            public void onClick(View view) {
+                showChatDetails(getString(titleResource), summary.getText());
+            }
+        });
+    }
+
+    private void showChatDetails(String title, CharSequence details) {
+        dismissChatDetails();
+        TextView body = theme.body(details.toString());
+        body.setTextIsSelectable(true);
+        body.setPadding(theme.dp(20), theme.dp(12), theme.dp(20), theme.dp(12));
+        ScrollView scroll = new ScrollView(this);
+        scroll.addView(body);
+        chatDetailsDialog = new AlertDialog.Builder(this)
+            .setTitle(title)
+            .setView(scroll)
+            .setPositiveButton(android.R.string.ok, null)
+            .create();
+        chatDetailsDialog.show();
+    }
+
+    private void dismissChatDetails() {
+        if (chatDetailsDialog != null) {
+            chatDetailsDialog.dismiss();
+            chatDetailsDialog = null;
+        }
     }
 
     private LinearLayout.LayoutParams iconMarginParams(int leftMarginDp) {
@@ -840,7 +928,7 @@ public final class MainActivity extends Activity {
             ViewGroup.LayoutParams.WRAP_CONTENT,
             ViewGroup.LayoutParams.WRAP_CONTENT
         );
-        params.leftMargin = theme.dp(leftMarginDp);
+        params.setMarginStart(theme.dp(leftMarginDp));
         return params;
     }
 
@@ -1466,15 +1554,11 @@ public final class MainActivity extends Activity {
         }
         long totalBytes = WorkspaceImportSelection.totalBytes(pendingImports);
         StringBuilder names = new StringBuilder();
-        int visible = Math.min(3, pendingImports.size());
-        for (int index = 0; index < visible; index++) {
+        for (int index = 0; index < pendingImports.size(); index++) {
             if (names.length() != 0) {
                 names.append(" · ");
             }
             names.append(pendingImports.get(index).getDisplayName());
-        }
-        if (pendingImports.size() > visible) {
-            names.append(" · …");
         }
         String summary = getResources().getQuantityString(
             R.plurals.chat_import_selected,
@@ -1607,7 +1691,6 @@ public final class MainActivity extends Activity {
                 && !session.getActiveThreadId().isEmpty()
                 && pendingImports.isEmpty()
         );
-        reviewButton.setVisibility(steering ? View.GONE : View.VISIBLE);
         renderConnectorSelection();
         renderImportSelection();
         stopButton.setVisibility(steering ? View.VISIBLE : View.GONE);
@@ -1744,14 +1827,8 @@ public final class MainActivity extends Activity {
                     modelIndex = index;
                 }
             }
-            ArrayAdapter<String> modelAdapter = new ArrayAdapter<String>(
-                this,
-                android.R.layout.simple_spinner_item,
-                modelLabels
-            );
-            modelAdapter.setDropDownViewResource(android.R.layout.simple_spinner_dropdown_item);
-            modelSpinner.setAdapter(modelAdapter);
-            if (!modelLabels.isEmpty()) {
+            bindSelectorLabels(modelSpinner, R.string.model_section, modelLabels, renderedModelLabels);
+            if (!modelLabels.isEmpty() && modelSpinner.getSelectedItemPosition() != modelIndex) {
                 modelSpinner.setSelection(modelIndex, false);
             }
 
@@ -1767,26 +1844,42 @@ public final class MainActivity extends Activity {
                     }
                 }
             }
-            ArrayAdapter<String> effortAdapter = new ArrayAdapter<String>(
-                this,
-                android.R.layout.simple_spinner_item,
-                effortLabels
+            bindSelectorLabels(
+                effortSpinner, R.string.chat_reasoning_label, effortLabels, renderedEffortLabels
             );
-            effortAdapter.setDropDownViewResource(android.R.layout.simple_spinner_dropdown_item);
-            effortSpinner.setAdapter(effortAdapter);
-            if (!effortLabels.isEmpty()) {
+            if (!effortLabels.isEmpty() && effortSpinner.getSelectedItemPosition() != effortIndex) {
                 effortSpinner.setSelection(effortIndex, false);
             }
             modelSpinner.setEnabled(enabled && !modelLabels.isEmpty());
             effortSpinner.setEnabled(enabled && !effortLabels.isEmpty());
             modelSpinner.setAlpha(modelSpinner.isEnabled() ? 1.0f : 0.5f);
             effortSpinner.setAlpha(effortSpinner.isEnabled() ? 1.0f : 0.5f);
-            modelDescription.setText(selectorDescription(
-                selected,
-                session.getSelectedReasoningEffort()
-            ));
+            String modelSelection = getString(R.string.model_section) + ": "
+                + (selected == null ? getString(R.string.models_unavailable) : selected.getDisplayName());
+            String effortSelection = getString(R.string.reasoning_effort_section) + ": "
+                + reasoningLabel(session.getSelectedReasoningEffort());
+            modelSpinner.setContentDescription(modelSelection);
+            modelSpinner.setTooltipText(modelSelection);
+            effortSpinner.setContentDescription(effortSelection);
+            effortSpinner.setTooltipText(effortSelection);
         } finally {
             bindingSelectors = false;
+        }
+    }
+
+    private void bindSelectorLabels(
+        Spinner spinner, int labelResource, List<String> labels, List<String> renderedLabels
+    ) {
+        if (spinner.getAdapter() == null || !renderedLabels.equals(labels)) {
+            renderedLabels.clear();
+            renderedLabels.addAll(labels);
+            List<String> displayLabels = new ArrayList<String>(labels);
+            if (displayLabels.isEmpty()) {
+                displayLabels.add("—");
+            }
+            spinner.setAdapter(new ChatSelectorAdapter(
+                this, theme, getString(labelResource), displayLabels
+            ));
         }
     }
 

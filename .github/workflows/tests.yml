@@ -129,6 +129,17 @@ jobs:
       - name: Compile Android sources and resources
         run: .github/ci/compile-android-sources.sh
 
+      - name: Check responsive chat widgets on Android 10 and 15
+        run: AGENTCODI_CHAT_UI_REPORT="$RUNNER_TEMP/agentcodi-chat-ui" .github/ci/run-chat-ui-tests.sh
+
+      - name: Upload chat UI checks and previews
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: chat-ui-checks
+          path: ${{ runner.temp }}/agentcodi-chat-ui
+          if-no-files-found: ignore
+
   community-codex:
     name: Community Codex release inspection
     if: github.ref == 'refs/heads/Mcpasi/package-edition'

@@ -146,6 +146,8 @@
 
   <string name="model_section">模型</string>
   <string name="reasoning_effort_section">推理强度</string>
+  <string name="chat_reasoning_label">推理强度</string>
+  <string name="chat_model_details">模型与推理详情</string>
   <string name="models_loading">正在从 app-server 加载模型。</string>
   <string name="models_unavailable">暂无可用模型。</string>
   <string name="reasoning_low">低</string>

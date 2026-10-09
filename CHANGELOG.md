@@ -5,6 +5,16 @@
 **Experimental prerelease (published). Device tests: passed on physical Android hardware.**
 
 - Published [AGENTCODI Package Edition V0.1.2](https://github.com/Mcpasi/AGENTCODI/releases/tag/v0.1.2-package.3) as an experimental prerelease, tagged `v0.1.2-package.3`.
+- Post-publication maintenance within version `0.1.2` / versionCode 5: split
+  MainActivity into focused chat-screen, composer/import/connector, transcript/
+  image-export, model-selector and thread-list components, with shared byte-size
+  formatting. Preserve navigation, rendering, Send/steering/Stop/review, picker
+  permissions, credential checks and asynchronous transaction/lifecycle cleanup.
+- Refactor validation: all 333 Java host tests, architecture checks, Android API
+  35 source/resource compilation and six APK signing regressions pass. All 28
+  Android chat UI checks pass on API 29 and 35, including new regressions for
+  picker result routing, canceled image exports, abandoned/stale prepared sends
+  and transcript updates across thread changes.
 - Wrap terminal output to the available screen width so long directory paths,
   command lines and package diagnostics remain readable on smartphones.
 - Show long command input across up to three visible lines while retaining Send,

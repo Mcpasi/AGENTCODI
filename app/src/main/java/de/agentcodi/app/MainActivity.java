@@ -2,93 +2,34 @@ package de.agentcodi.app;
 
 import android.app.Activity;
 import android.app.AlertDialog;
-import android.content.ClipData;
 import android.content.Context;
 import android.content.DialogInterface;
 import android.content.Intent;
 import android.graphics.Color;
-import android.graphics.Typeface;
-import android.graphics.drawable.ColorDrawable;
-import android.net.Uri;
 import android.os.Bundle;
 import android.os.Handler;
 import android.os.Looper;
-import android.text.Editable;
-import android.text.InputType;
-import android.view.Gravity;
-import android.view.MotionEvent;
 import android.view.View;
-import android.view.ViewGroup;
 import android.view.WindowManager;
-import android.view.inputmethod.EditorInfo;
-import android.widget.AdapterView;
-import android.widget.BaseAdapter;
-import android.widget.EditText;
 import android.widget.ImageButton;
-import android.widget.ImageView;
-import android.widget.LinearLayout;
-import android.widget.ListView;
-import android.widget.ScrollView;
-import android.widget.Spinner;
 import android.widget.TextView;
-import android.widget.Toast;
 
-import de.agentcodi.connectors.ConnectorSelection;
-import de.agentcodi.core.ChatMessage;
-import de.agentcodi.core.CodexAppMention;
-import de.agentcodi.core.CodexFileMentionTransaction;
-import de.agentcodi.core.CodexModelOption;
-import de.agentcodi.core.CodexReasoningOption;
 import de.agentcodi.core.CodexSessionSnapshot;
 import de.agentcodi.core.CodexThreadSummary;
-import de.agentcodi.core.CodexTranscriptItem;
 import de.agentcodi.core.CrashReportFormatter;
-import de.agentcodi.core.CredentialGuard;
 import de.agentcodi.core.RuntimePhase;
 import de.agentcodi.core.RuntimeSnapshot;
 import de.agentcodi.core.UiStartupState;
-import de.agentcodi.imports.ImportedWorkspaceFile;
-import de.agentcodi.imports.WorkspaceImportGrant;
-import de.agentcodi.imports.WorkspaceImportLimits;
-import de.agentcodi.imports.WorkspaceImportSelection;
 import de.agentcodi.runtime.AgentRuntimeService;
 import de.agentcodi.runtime.CrashDiagnostics;
-import de.agentcodi.runtime.WorkspaceFileImporter;
-import de.agentcodi.runtime.WorkspaceImageExporter;
 
-import java.io.IOException;
-import java.text.DateFormat;
-import java.util.ArrayList;
-import java.util.Date;
-import java.util.List;
-import java.util.concurrent.ExecutorService;
-import java.util.concurrent.Executors;
-import java.util.concurrent.RejectedExecutionException;
-
-public final class MainActivity extends Activity {
+/** Coordinates the chat lifecycle, runtime refreshes and navigation. */
+public final class MainActivity extends Activity implements ChatScreenView.Actions {
     private static final long ACTIVE_REFRESH_INTERVAL_MS = 250L;
     private static final long IDLE_REFRESH_INTERVAL_MS = 900L;
-    private static final int MAX_VISIBLE_THREADS = 80;
-    private static final int IMAGE_EXPORT_REQUEST_CODE = 7001;
-    private static final int FILE_IMPORT_REQUEST_CODE = 7002;
-    private static final int CONNECTOR_REQUEST_CODE = 7003;
 
     private final Handler handler = new Handler(Looper.getMainLooper());
     private final UiStartupState startupState = new UiStartupState();
-    private final List<String> renderedTranscriptKeys = new ArrayList<String>();
-    private final List<TranscriptRow> renderedTranscriptRows =
-        new ArrayList<TranscriptRow>();
-    private final TranscriptCardPresentation.ExpansionState transcriptExpansion =
-        new TranscriptCardPresentation.ExpansionState();
-    private final ExecutorService imageOperations = Executors.newSingleThreadExecutor();
-    private final ExecutorService importOperations = Executors.newSingleThreadExecutor();
-    private final Object preparedImportSendLock = new Object();
-    private final List<ImportedWorkspaceFile> pendingImports =
-        new ArrayList<ImportedWorkspaceFile>();
-    private final List<ConnectorSelection> pendingConnectors =
-        new ArrayList<ConnectorSelection>();
-    private final List<String> renderedModelLabels = new ArrayList<String>();
-    private final List<String> renderedEffortLabels = new ArrayList<String>();
     private final Runnable refreshTask = new Runnable() {
         @Override
         public void run() {
@@ -116,58 +57,20 @@ public final class MainActivity extends Activity {
     };
 
     private UiTheme theme;
-    private LinearLayout statusBanner;
-    private View statusIndicator;
-    private TextView statusText;
-    private ImageButton statusSettingsButton;
-    private ImageButton backToThreadsButton;
-    private TextView screenTitle;
-    private LinearLayout threadPage;
-    private LinearLayout conversationPage;
-    private ImageButton newThreadButton;
-    private ImageButton refreshThreadsButton;
-    private ImageButton activeThreadsButton;
-    private ImageButton archivedThreadsButton;
-    private TextView threadSectionLabel;
-    private TextView threadEmptyView;
-    private ListView threadList;
-    private ThreadAdapter threadAdapter;
-    private Spinner modelSpinner;
-    private Spinner effortSpinner;
-    private ImageButton modelDetailsButton;
-    private ScrollView messageScroll;
-    private LinearLayout messagesContainer;
-    private EditText composerInput;
-    private LinearLayout connectorStatusRow;
-    private TextView connectorStatus;
-    private ImageButton connectorButton;
-    private ImageButton clearConnectorsButton;
-    private LinearLayout importStatusRow;
-    private TextView importStatus;
-    private ImageButton importButton;
-    private ImageButton clearImportsButton;
-    private ImageButton reviewButton;
-    private ImageButton sendButton;
-    private ImageButton stopButton;
-    private boolean bindingSelectors;
+    private ChatScreenView views;
+    private ChatModelSelectors modelSelectors;
+    private ChatTranscriptController transcript;
+    private ChatComposerController composer;
     private boolean conversationVisible;
     private String pendingThreadId = "";
     private boolean pendingNewThread;
     private String newThreadBaseline = "";
-    private String renderedThreadId = "";
-    private String pendingImageExportPath = "";
-    private String pendingImportsThreadId = "";
-    private String pendingConnectorsThreadId = "";
-    private boolean importOperationActive;
-    private boolean sendPreparationActive;
-    private CodexFileMentionTransaction preparedImportSend;
     private boolean destroyed;
     private long lastSessionRevision = Long.MIN_VALUE;
     private long lastRuntimeGeneration = Long.MIN_VALUE;
     private RuntimePhase lastRuntimePhase;
     private CrashDiagnostics crashDiagnostics;
     private InteractiveRequestDialog interactiveRequestDialog;
-    private AlertDialog chatDetailsDialog;
 
     @Override
     protected void attachBaseContext(Context base) {
@@ -183,7 +86,20 @@ public final class MainActivity extends Activity {
             theme = new UiTheme(this);
             interactiveRequestDialog = new InteractiveRequestDialog(this, theme);
             startupState.enter("chat-content");
-            setContentView(buildContent());
+            views = new ChatScreenView(this, theme, this);
+            setContentView(views.buildContent());
+            modelSelectors = new ChatModelSelectors(
+                this, theme, views.modelSpinner, views.effortSpinner, views
+            );
+            transcript = new ChatTranscriptController(
+                this, theme, handler, views.messageScroll, views.messagesContainer
+            );
+            composer = new ChatComposerController(this, theme, handler, views, new Runnable() {
+                @Override
+                public void run() {
+                    refreshLocalComposerState();
+                }
+            });
             startupState.complete();
         } catch (Throwable error) {
             String source = startupState.failureSource();
@@ -207,7 +123,9 @@ public final class MainActivity extends Activity {
     @Override
     protected void onStop() {
         handler.removeCallbacks(refreshTask);
-        dismissChatDetails();
+        if (views != null) {
+            views.dismissChatDetails();
+        }
         if (interactiveRequestDialog != null) {
             interactiveRequestDialog.dismissForLifecycle();
         }
@@ -216,81 +134,27 @@ public final class MainActivity extends Activity {
 
     @Override
     protected void onDestroy() {
-        dismissChatDetails();
-        CodexFileMentionTransaction abandonedSend;
-        synchronized (preparedImportSendLock) {
-            destroyed = true;
-            abandonedSend = preparedImportSend;
-            preparedImportSend = null;
+        if (views != null) {
+            views.dismissChatDetails();
         }
-        closeFileTransaction(abandonedSend);
+        destroyed = true;
+        if (composer != null) {
+            composer.close();
+        }
+        if (transcript != null) {
+            transcript.close();
+        }
         handler.removeCallbacksAndMessages(null);
-        imageOperations.shutdownNow();
-        importOperations.shutdownNow();
         super.onDestroy();
     }
 
     @Override
     protected void onActivityResult(int requestCode, int resultCode, Intent data) {
-        if (requestCode == CONNECTOR_REQUEST_CODE) {
-            if (resultCode == RESULT_OK && data != null) {
-                acceptConnectorSelection(data);
-            }
+        if (composer != null && composer.handleActivityResult(requestCode, resultCode, data)) {
             return;
         }
-        if (requestCode == FILE_IMPORT_REQUEST_CODE) {
-            if (resultCode == RESULT_OK && data != null) {
-                WorkspaceImportGrant sourceGrant =
-                    WorkspaceImportGrant.fromResultIntentFlags(
-                        data.getFlags(),
-                        Intent.FLAG_GRANT_READ_URI_PERMISSION
-                    );
-                if (!sourceGrant.hasTransientReadPermission()) {
-                    Toast.makeText(
-                        this,
-                        R.string.chat_import_read_grant_missing,
-                        Toast.LENGTH_LONG
-                    ).show();
-                    return;
-                }
-                beginDocumentImport(selectedDocumentUris(data), sourceGrant);
-            }
-            return;
-        }
-        if (requestCode != IMAGE_EXPORT_REQUEST_CODE) {
+        if (transcript == null || !transcript.handleActivityResult(requestCode, resultCode, data)) {
             super.onActivityResult(requestCode, resultCode, data);
-            return;
-        }
-        final String sourcePath = pendingImageExportPath;
-        pendingImageExportPath = "";
-        final Uri destination = data == null ? null : data.getData();
-        if (resultCode != RESULT_OK || destination == null || sourcePath.isEmpty()) {
-            return;
-        }
-        final android.content.Context applicationContext = getApplicationContext();
-        if (!submitImageOperation(new Runnable() {
-            @Override
-            public void run() {
-                try {
-                    final WorkspaceImageExporter.ImageExport exported =
-                        WorkspaceImageExporter.export(
-                            applicationContext,
-                            sourcePath,
-                            destination
-                    );
-                    showExportToast(
-                        getString(R.string.image_exported, exported.getDisplayName()),
-                        Toast.LENGTH_LONG
-                    );
-                } catch (Throwable error) {
-                    showExportFailure(sourcePath, error);
-                }
-            }
-        })) {
-            showExportToast(
-                getString(R.string.image_export_start_failed),
-                Toast.LENGTH_LONG
-            );
         }
     }
 
@@ -303,1284 +167,29 @@ public final class MainActivity extends Activity {
         super.onBackPressed();
     }
 
-    private View buildContent() {
-        LinearLayout root = new LinearLayout(this);
-        root.setOrientation(LinearLayout.VERTICAL);
-        root.setFitsSystemWindows(true);
-        root.setFocusableInTouchMode(true);
-        root.setPadding(theme.dp(12), theme.dp(8), theme.dp(12), theme.dp(8));
-        root.setBackgroundColor(theme.page);
-
-        LinearLayout topBar = new LinearLayout(this);
-        topBar.setOrientation(LinearLayout.HORIZONTAL);
-        topBar.setGravity(Gravity.CENTER_VERTICAL);
-
-        backToThreadsButton = theme.iconButton(
-            R.drawable.ic_chat_back,
-            getString(R.string.navigation_chats)
-        );
-        backToThreadsButton.setVisibility(View.GONE);
-        backToThreadsButton.setOnClickListener(new View.OnClickListener() {
-            @Override
-            public void onClick(View view) {
-                showThreadPage();
-            }
-        });
-        topBar.addView(backToThreadsButton, new LinearLayout.LayoutParams(
-            ViewGroup.LayoutParams.WRAP_CONTENT,
-            ViewGroup.LayoutParams.WRAP_CONTENT
-        ));
-
-        screenTitle = theme.text(getString(R.string.chat_title), 20, theme.primary);
-        screenTitle.setTypeface(Typeface.DEFAULT_BOLD);
-        screenTitle.setSingleLine(true);
-        screenTitle.setEllipsize(android.text.TextUtils.TruncateAt.END);
-        LinearLayout.LayoutParams titleParams = new LinearLayout.LayoutParams(
-            0,
-            ViewGroup.LayoutParams.WRAP_CONTENT,
-            1.0f
-        );
-        titleParams.leftMargin = theme.dp(8);
-        titleParams.rightMargin = theme.dp(4);
-        topBar.addView(screenTitle, titleParams);
-
-        ImageButton filesButton = theme.iconButton(
-            R.drawable.ic_chat_folder,
-            getString(R.string.navigation_files)
-        );
-        filesButton.setOnClickListener(new View.OnClickListener() {
-            @Override
-            public void onClick(View view) {
-                openFiles();
-            }
-        });
-        topBar.addView(filesButton, iconMarginParams(0));
-
-        ImageButton terminalButton = theme.iconButton(
-            R.drawable.ic_chat_terminal,
-            getString(R.string.navigation_terminal)
-        );
-        terminalButton.setOnClickListener(new View.OnClickListener() {
-            @Override
-            public void onClick(View view) {
-                openTerminal();
-            }
-        });
-        topBar.addView(terminalButton, iconMarginParams(4));
-
-        ImageButton settingsButton = theme.iconButton(
-            R.drawable.ic_chat_settings,
-            getString(R.string.navigation_settings)
-        );
-        settingsButton.setOnClickListener(new View.OnClickListener() {
-            @Override
-            public void onClick(View view) {
-                openSettings();
-            }
-        });
-        topBar.addView(settingsButton, iconMarginParams(4));
-
-        root.addView(topBar);
-
-        statusBanner = new LinearLayout(this);
-        statusBanner.setOrientation(LinearLayout.HORIZONTAL);
-        statusBanner.setGravity(Gravity.CENTER_VERTICAL);
-        statusBanner.setPadding(theme.dp(10), theme.dp(6), theme.dp(10), theme.dp(6));
-        statusBanner.setBackground(theme.background(theme.surfaceRaised, theme.border, 16));
-        statusIndicator = theme.statusDot(theme.accent);
-        LinearLayout.LayoutParams indicatorParams = new LinearLayout.LayoutParams(
-            theme.dp(8), theme.dp(8)
-        );
-        indicatorParams.rightMargin = theme.dp(10);
-        statusBanner.addView(statusIndicator, indicatorParams);
-        statusText = theme.text(getString(R.string.chat_runtime_checking), 13, theme.primary);
-        statusText.setLineSpacing(0.0f, 1.15f);
-        statusBanner.addView(statusText, new LinearLayout.LayoutParams(
-            0,
-            ViewGroup.LayoutParams.WRAP_CONTENT,
-            1.0f
-        ));
-        statusSettingsButton = theme.iconButton(
-            R.drawable.ic_chat_settings,
-            getString(R.string.chat_open_settings)
-        );
-        statusSettingsButton.setOnClickListener(new View.OnClickListener() {
-            @Override
-            public void onClick(View view) {
-                openSettings();
-            }
-        });
-        LinearLayout.LayoutParams statusActionParams = new LinearLayout.LayoutParams(
-            ViewGroup.LayoutParams.WRAP_CONTENT,
-            ViewGroup.LayoutParams.WRAP_CONTENT
-        );
-        statusActionParams.leftMargin = theme.dp(10);
-        statusBanner.addView(statusSettingsButton, statusActionParams);
-        theme.addWithTopMargin(root, statusBanner, 6);
-
-        threadPage = buildThreadPage();
-        LinearLayout.LayoutParams contentParams = new LinearLayout.LayoutParams(
-            ViewGroup.LayoutParams.MATCH_PARENT,
-            0,
-            1.0f
-        );
-        contentParams.topMargin = theme.dp(14);
-        root.addView(threadPage, contentParams);
-
-        conversationPage = buildConversationPage();
-        conversationPage.setVisibility(View.GONE);
-        LinearLayout.LayoutParams conversationParams = new LinearLayout.LayoutParams(
-            ViewGroup.LayoutParams.MATCH_PARENT,
-            0,
-            1.0f
-        );
-        conversationParams.topMargin = theme.dp(6);
-        root.addView(conversationPage, conversationParams);
-        return root;
+    @Override
+    public void sendComposerInput() {
+        composer.sendComposerInput();
     }
 
-    private LinearLayout buildThreadPage() {
-        LinearLayout page = new LinearLayout(this);
-        page.setOrientation(LinearLayout.VERTICAL);
-
-        LinearLayout actions = new LinearLayout(this);
-        actions.setOrientation(LinearLayout.HORIZONTAL);
-        actions.setGravity(Gravity.CENTER_VERTICAL);
-        TextView intro = theme.text(getString(R.string.chat_intro), 14, theme.secondary);
-        actions.addView(intro, new LinearLayout.LayoutParams(
-            0,
-            ViewGroup.LayoutParams.WRAP_CONTENT,
-            1.0f
-        ));
-        newThreadButton = theme.primaryIconButton(
-            R.drawable.ic_chat_add_thread,
-            getString(R.string.chat_new)
-        );
-        newThreadButton.setOnClickListener(new View.OnClickListener() {
-            @Override
-            public void onClick(View view) {
-                CodexSessionSnapshot snapshot = AgentRuntimeService.sessionSnapshot();
-                pendingNewThread = true;
-                pendingThreadId = "";
-                newThreadBaseline = snapshot.getActiveThreadId();
-                AgentRuntimeService.startNewThread();
-            }
-        });
-        actions.addView(newThreadButton, iconMarginParams(8));
-
-        refreshThreadsButton = theme.iconButton(
-            R.drawable.ic_chat_refresh,
-            getString(R.string.chat_refresh)
-        );
-        refreshThreadsButton.setOnClickListener(new View.OnClickListener() {
-            @Override
-            public void onClick(View view) {
-                AgentRuntimeService.refreshThreads();
-            }
-        });
-        actions.addView(refreshThreadsButton, iconMarginParams(4));
-        page.addView(actions);
-
-        LinearLayout threadViews = new LinearLayout(this);
-        threadViews.setOrientation(LinearLayout.HORIZONTAL);
-        threadViews.setGravity(Gravity.CENTER_VERTICAL);
-        threadSectionLabel = theme.sectionLabel(getString(R.string.chat_active_threads));
-        threadViews.addView(threadSectionLabel, new LinearLayout.LayoutParams(
-            0, ViewGroup.LayoutParams.WRAP_CONTENT, 1.0f
-        ));
-        LinearLayout filters = new LinearLayout(this);
-        filters.setOrientation(LinearLayout.HORIZONTAL);
-        filters.setPadding(theme.dp(4), theme.dp(4), theme.dp(4), theme.dp(4));
-        filters.setBackground(theme.background(theme.surface, theme.border, 18));
-        activeThreadsButton = theme.iconButton(
-            R.drawable.ic_chat_active_threads,
-            getString(R.string.chat_active_threads)
-        );
-        activeThreadsButton.setOnClickListener(new View.OnClickListener() {
-            @Override
-            public void onClick(View view) {
-                AgentRuntimeService.showActiveThreads();
-            }
-        });
-        filters.addView(activeThreadsButton, iconMarginParams(0));
-        archivedThreadsButton = theme.iconButton(
-            R.drawable.ic_chat_archived_threads,
-            getString(R.string.chat_archived_threads)
-        );
-        archivedThreadsButton.setOnClickListener(new View.OnClickListener() {
-            @Override
-            public void onClick(View view) {
-                AgentRuntimeService.showArchivedThreads();
-            }
-        });
-        filters.addView(archivedThreadsButton, iconMarginParams(4));
-        threadViews.addView(filters);
-        theme.addWithTopMargin(page, threadViews, 14);
-
-        threadEmptyView = theme.text(
-            getString(R.string.chat_empty),
-            15,
-            theme.secondary
-        );
-        threadEmptyView.setGravity(Gravity.CENTER);
-        threadEmptyView.setLineSpacing(0.0f, 1.25f);
-        threadEmptyView.setPadding(
-            theme.dp(24),
-            theme.dp(48),
-            theme.dp(24),
-            theme.dp(48)
-        );
-        page.addView(threadEmptyView, new LinearLayout.LayoutParams(
-            ViewGroup.LayoutParams.MATCH_PARENT,
-            0,
-            1.0f
-        ));
-
-        threadList = new ListView(this);
-        threadList.setBackgroundColor(Color.TRANSPARENT);
-        threadList.setDivider(new ColorDrawable(Color.TRANSPARENT));
-        threadList.setDividerHeight(theme.dp(10));
-        threadList.setSelector(theme.touchBackground(Color.TRANSPARENT, Color.TRANSPARENT, 20));
-        threadList.setDrawSelectorOnTop(true);
-        threadList.setClipToPadding(false);
-        threadList.setPadding(0, theme.dp(4), 0, theme.dp(4));
-        threadAdapter = new ThreadAdapter();
-        threadList.setAdapter(threadAdapter);
-        threadList.setEmptyView(threadEmptyView);
-        threadList.setOnItemClickListener(new AdapterView.OnItemClickListener() {
-            @Override
-            public void onItemClick(AdapterView<?> parent, View view, int position, long id) {
-                CodexThreadSummary thread = threadAdapter.item(position);
-                if (thread.isArchived()) {
-                    showThreadActions(thread);
-                    return;
-                }
-                CodexSessionSnapshot snapshot = AgentRuntimeService.sessionSnapshot();
-                if (thread.getId().equals(snapshot.getActiveThreadId())) {
-                    showConversationPage(snapshot);
-                    return;
-                }
-                pendingNewThread = false;
-                pendingThreadId = thread.getId();
-                AgentRuntimeService.openThread(thread.getId());
-            }
-        });
-        LinearLayout.LayoutParams listParams = new LinearLayout.LayoutParams(
-            ViewGroup.LayoutParams.MATCH_PARENT,
-            0,
-            1.0f
-        );
-        listParams.topMargin = theme.dp(12);
-        page.addView(threadList, listParams);
-        return page;
+    @Override
+    public void openDocumentImportPicker() {
+        composer.openDocumentImportPicker();
     }
 
-    private LinearLayout buildConversationPage() {
-        ConversationLayout page = new ConversationLayout(this, theme);
-
-        LinearLayout selectors = new LinearLayout(this);
-        selectors.setOrientation(LinearLayout.HORIZONTAL);
-        selectors.setGravity(Gravity.CENTER_VERTICAL);
-        modelSpinner = new Spinner(this, Spinner.MODE_DIALOG);
-        modelSpinner.setPrompt(getString(R.string.model_section));
-        styleSpinner(modelSpinner);
-        selectors.addView(modelSpinner, new LinearLayout.LayoutParams(
-            0,
-            ViewGroup.LayoutParams.WRAP_CONTENT,
-            1.2f
-        ));
-
-        effortSpinner = new Spinner(this, Spinner.MODE_DIALOG);
-        effortSpinner.setPrompt(getString(R.string.reasoning_effort_section));
-        styleSpinner(effortSpinner);
-        LinearLayout.LayoutParams effortParams = new LinearLayout.LayoutParams(
-            0,
-            ViewGroup.LayoutParams.WRAP_CONTENT,
-            1.0f
-        );
-        effortParams.setMarginStart(theme.dp(6));
-        selectors.addView(effortSpinner, effortParams);
-        modelDetailsButton = theme.iconButton(
-            R.drawable.ic_chat_more,
-            getString(R.string.chat_model_details)
-        );
-        modelDetailsButton.setOnClickListener(new View.OnClickListener() {
-            @Override
-            public void onClick(View view) {
-                CodexSessionSnapshot snapshot = AgentRuntimeService.sessionSnapshot();
-                CodexModelOption model = selectedModel(snapshot);
-                String description = selectorDescription(model, snapshot.getSelectedReasoningEffort());
-                String selection = model == null ? "" : model.getDisplayName() + " · "
-                    + reasoningLabel(snapshot.getSelectedReasoningEffort()) + "\n\n";
-                showChatDetails(getString(R.string.chat_model_details), selection + description);
-            }
-        });
-        selectors.addView(modelDetailsButton, iconMarginParams(6));
-        page.addView(selectors);
-
-        modelSpinner.setOnItemSelectedListener(new AdapterView.OnItemSelectedListener() {
-            @Override
-            public void onItemSelected(AdapterView<?> parent, View view, int position, long id) {
-                if (bindingSelectors) {
-                    return;
-                }
-                CodexSessionSnapshot snapshot = AgentRuntimeService.sessionSnapshot();
-                List<CodexModelOption> models = snapshot.getModels();
-                if (position >= 0 && position < models.size()
-                    && !models.get(position).getId().equals(snapshot.getSelectedModelId())) {
-                    AgentRuntimeService.selectModel(models.get(position).getId());
-                }
-            }
-
-            @Override
-            public void onNothingSelected(AdapterView<?> parent) {
-            }
-        });
-        effortSpinner.setOnItemSelectedListener(new AdapterView.OnItemSelectedListener() {
-            @Override
-            public void onItemSelected(AdapterView<?> parent, View view, int position, long id) {
-                if (bindingSelectors) {
-                    return;
-                }
-                CodexSessionSnapshot snapshot = AgentRuntimeService.sessionSnapshot();
-                CodexModelOption model = selectedModel(snapshot);
-                if (model != null && position >= 0
-                    && position < model.getReasoningOptions().size()
-                    && !model.getReasoningOptions().get(position).getEffort().equals(
-                        snapshot.getSelectedReasoningEffort()
-                    )) {
-                    AgentRuntimeService.selectReasoningEffort(model
-                        .getReasoningOptions()
-                        .get(position)
-                        .getEffort());
-                }
-            }
-
-            @Override
-            public void onNothingSelected(AdapterView<?> parent) {
-            }
-        });
-
-        messageScroll = new ScrollView(this);
-        messageScroll.setFillViewport(true);
-        messagesContainer = new LinearLayout(this);
-        messagesContainer.setOrientation(LinearLayout.VERTICAL);
-        messagesContainer.setPadding(0, theme.dp(8), 0, theme.dp(8));
-        messageScroll.addView(messagesContainer, new ScrollView.LayoutParams(
-            ViewGroup.LayoutParams.MATCH_PARENT,
-            ViewGroup.LayoutParams.WRAP_CONTENT
-        ));
-        page.addView(messageScroll, new LinearLayout.LayoutParams(
-            ViewGroup.LayoutParams.MATCH_PARENT,
-            0,
-            1.0f
-        ));
-
-        LinearLayout composer = new LinearLayout(this);
-        composer.setOrientation(LinearLayout.VERTICAL);
-        composer.setPadding(theme.dp(10), theme.dp(8), theme.dp(10), theme.dp(8));
-        composer.setBackground(theme.background(theme.surface, theme.border, 16));
-
-        LinearLayout editorContent = new LinearLayout(this);
-        editorContent.setOrientation(LinearLayout.VERTICAL);
-        ScrollView editorScroll = new ScrollView(this);
-        editorScroll.setFillViewport(false);
-        editorScroll.addView(editorContent, new ScrollView.LayoutParams(
-            ViewGroup.LayoutParams.MATCH_PARENT, ViewGroup.LayoutParams.WRAP_CONTENT
-        ));
-        composer.addView(editorScroll, new LinearLayout.LayoutParams(
-            ViewGroup.LayoutParams.MATCH_PARENT, ViewGroup.LayoutParams.WRAP_CONTENT
-        ));
-
-        LinearLayout attachments = new LinearLayout(this);
-        attachments.setOrientation(LinearLayout.HORIZONTAL);
-        editorContent.addView(attachments);
-
-        connectorStatusRow = new LinearLayout(this);
-        connectorStatusRow.setOrientation(LinearLayout.HORIZONTAL);
-        connectorStatusRow.setGravity(Gravity.CENTER_VERTICAL);
-        connectorStatusRow.setVisibility(View.GONE);
-        connectorStatus = theme.text("", 12, theme.secondary);
-        connectorStatus.setLineSpacing(0.0f, 1.15f);
-        connectorStatus.setSingleLine(true);
-        connectorStatus.setEllipsize(android.text.TextUtils.TruncateAt.END);
-        styleSelectionSummary(connectorStatus, R.string.chat_connectors);
-        connectorStatusRow.addView(connectorStatus, new LinearLayout.LayoutParams(
-            0,
-            ViewGroup.LayoutParams.WRAP_CONTENT,
-            1.0f
-        ));
-        clearConnectorsButton = theme.iconButton(
-            R.drawable.ic_chat_detach,
-            getString(R.string.chat_connector_detach)
-        );
-        clearConnectorsButton.setOnClickListener(new View.OnClickListener() {
-            @Override
-            public void onClick(View view) {
-                detachPendingConnectors();
-            }
-        });
-        connectorStatusRow.addView(clearConnectorsButton, iconMarginParams(0));
-        attachments.addView(connectorStatusRow, new LinearLayout.LayoutParams(
-            0, ViewGroup.LayoutParams.WRAP_CONTENT, 1.0f
-        ));
-
-        importStatusRow = new LinearLayout(this);
-        importStatusRow.setOrientation(LinearLayout.HORIZONTAL);
-        importStatusRow.setGravity(Gravity.CENTER_VERTICAL);
-        importStatusRow.setVisibility(View.GONE);
-        importStatus = theme.text("", 12, theme.secondary);
-        importStatus.setLineSpacing(0.0f, 1.15f);
-        importStatus.setSingleLine(true);
-        importStatus.setEllipsize(android.text.TextUtils.TruncateAt.END);
-        styleSelectionSummary(importStatus, R.string.chat_import_files);
-        importStatusRow.addView(importStatus, new LinearLayout.LayoutParams(
-            0,
-            ViewGroup.LayoutParams.WRAP_CONTENT,
-            1.0f
-        ));
-        clearImportsButton = theme.iconButton(
-            R.drawable.ic_chat_detach,
-            getString(R.string.chat_import_detach)
-        );
-        clearImportsButton.setVisibility(View.GONE);
-        clearImportsButton.setOnClickListener(new View.OnClickListener() {
-            @Override
-            public void onClick(View view) {
-                detachPendingImports();
-            }
-        });
-        importStatusRow.addView(clearImportsButton, iconMarginParams(0));
-        attachments.addView(importStatusRow, new LinearLayout.LayoutParams(
-            0, ViewGroup.LayoutParams.WRAP_CONTENT, 1.0f
-        ));
-
-        composerInput = new EditText(this);
-        composerInput.setHint(R.string.composer_hint);
-        composerInput.setHintTextColor(theme.secondary);
-        composerInput.setTextColor(theme.primary);
-        composerInput.setTextSize(16);
-        composerInput.setBackground(theme.background(theme.surfaceRaised, theme.border, 14));
-        composerInput.setPadding(theme.dp(12), theme.dp(10), theme.dp(12), theme.dp(10));
-        composerInput.setGravity(Gravity.TOP | Gravity.START);
-        composerInput.setMinLines(2);
-        composerInput.setMaxLines(6);
-        composerInput.setMinimumHeight(theme.dp(48));
-        composerInput.setInputType(
-            InputType.TYPE_CLASS_TEXT
-                | InputType.TYPE_TEXT_FLAG_MULTI_LINE
-                | InputType.TYPE_TEXT_FLAG_CAP_SENTENCES
-        );
-        composerInput.setImeOptions(EditorInfo.IME_FLAG_NO_EXTRACT_UI | EditorInfo.IME_FLAG_NO_FULLSCREEN);
-        composerInput.setVerticalScrollBarEnabled(true);
-        composerInput.setOnTouchListener(new View.OnTouchListener() {
-            private float lastY;
-
-            @Override
-            public boolean onTouch(View view, MotionEvent event) {
-                if (event.getActionMasked() == MotionEvent.ACTION_DOWN) {
-                    lastY = event.getY();
-                    view.getParent().requestDisallowInterceptTouchEvent(
-                        view.canScrollVertically(-1) || view.canScrollVertically(1)
-                    );
-                } else if (event.getActionMasked() == MotionEvent.ACTION_MOVE) {
-                    int direction = event.getY() < lastY ? 1 : -1;
-                    view.getParent().requestDisallowInterceptTouchEvent(view.canScrollVertically(direction));
-                    lastY = event.getY();
-                } else if (event.getActionMasked() == MotionEvent.ACTION_UP
-                    || event.getActionMasked() == MotionEvent.ACTION_CANCEL) {
-                    view.getParent().requestDisallowInterceptTouchEvent(false);
-                }
-                return false;
-            }
-        });
-        LinearLayout.LayoutParams inputParams = new LinearLayout.LayoutParams(
-            ViewGroup.LayoutParams.MATCH_PARENT,
-            ViewGroup.LayoutParams.WRAP_CONTENT
-        );
-        editorContent.addView(composerInput, inputParams);
-
-        LinearLayout composerRow = new LinearLayout(this);
-        composerRow.setOrientation(LinearLayout.HORIZONTAL);
-        composerRow.setGravity(Gravity.CENTER_VERTICAL);
-        importButton = theme.iconButton(
-            R.drawable.ic_chat_add,
-            getString(R.string.chat_import_files)
-        );
-        importButton.setOnClickListener(new View.OnClickListener() {
-            @Override
-            public void onClick(View view) {
-                openDocumentImportPicker();
-            }
-        });
-        composerRow.addView(importButton);
-
-        connectorButton = theme.iconButton(
-            R.drawable.ic_chat_connectors,
-            getString(R.string.chat_connectors)
-        );
-        connectorButton.setOnClickListener(new View.OnClickListener() {
-            @Override
-            public void onClick(View view) {
-                openConnectorPicker();
-            }
-        });
-        composerRow.addView(connectorButton, iconMarginParams(4));
-
-        reviewButton = theme.iconButton(
-            R.drawable.ic_chat_review,
-            getString(R.string.review_mode_action)
-        );
-        reviewButton.setOnClickListener(new View.OnClickListener() {
-            @Override
-            public void onClick(View view) {
-                ReviewModeDialog.show(
-                    MainActivity.this,
-                    theme,
-                    AgentRuntimeService.maximumReviewInstructionsCharacters(),
-                    new ReviewModeDialog.Starter() {
-                        @Override
-                        public boolean start(String instructions) {
-                            return AgentRuntimeService.startCustomReview(instructions);
-                        }
-                    }
-                );
-            }
-        });
-        composerRow.addView(reviewButton, iconMarginParams(4));
-        composerRow.addView(new View(this), new LinearLayout.LayoutParams(0, 0, 1.0f));
-
-        stopButton = theme.dangerIconButton(
-            R.drawable.ic_chat_stop,
-            getString(R.string.turn_stop)
-        );
-        stopButton.setVisibility(View.GONE);
-        stopButton.setOnClickListener(new View.OnClickListener() {
-            @Override
-            public void onClick(View view) {
-                AgentRuntimeService.interruptTurn();
-            }
-        });
-        composerRow.addView(stopButton);
-
-        sendButton = theme.primaryIconButton(
-            R.drawable.ic_chat_send,
-            getString(R.string.message_send)
-        );
-        sendButton.setOnClickListener(new View.OnClickListener() {
-            @Override
-            public void onClick(View view) {
-                sendComposerInput();
-            }
-        });
-        composerRow.addView(sendButton, iconMarginParams(6));
-        theme.addWithTopMargin(composer, composerRow, 6);
-        page.addView(composer, new LinearLayout.LayoutParams(
-            ViewGroup.LayoutParams.MATCH_PARENT, ViewGroup.LayoutParams.WRAP_CONTENT
-        ));
-        page.bindComposer(selectors, composer, editorScroll, composerInput);
-        return page;
+    @Override
+    public void detachPendingImports() {
+        composer.detachPendingImports();
     }
 
-    private void styleSpinner(Spinner spinner) {
-        spinner.setBackground(theme.background(theme.surfaceRaised, theme.border, 12));
-        spinner.setPadding(theme.dp(10), 0, theme.dp(8), 0);
-        spinner.setMinimumHeight(theme.dp(48));
+    @Override
+    public void openConnectorPicker() {
+        composer.openConnectorPicker();
     }
 
-    private void styleSelectionSummary(final TextView summary, final int titleResource) {
-        summary.setMinimumHeight(theme.dp(48));
-        summary.setGravity(Gravity.CENTER_VERTICAL);
-        summary.setPadding(theme.dp(6), 0, theme.dp(6), 0);
-        summary.setBackground(theme.touchBackground(theme.surfaceRaised, Color.TRANSPARENT, 10));
-        summary.setOnClickListener(new View.OnClickListener() {
-            @Override
-            public void onClick(View view) {
-                showChatDetails(getString(titleResource), summary.getText());
-            }
-        });
-    }
-
-    private void showChatDetails(String title, CharSequence details) {
-        dismissChatDetails();
-        TextView body = theme.body(details.toString());
-        body.setTextIsSelectable(true);
-        body.setPadding(theme.dp(20), theme.dp(12), theme.dp(20), theme.dp(12));
-        ScrollView scroll = new ScrollView(this);
-        scroll.addView(body);
-        chatDetailsDialog = new AlertDialog.Builder(this)
-            .setTitle(title)
-            .setView(scroll)
-            .setPositiveButton(android.R.string.ok, null)
-            .create();
-        chatDetailsDialog.show();
-    }
-
-    private void dismissChatDetails() {
-        if (chatDetailsDialog != null) {
-            chatDetailsDialog.dismiss();
-            chatDetailsDialog = null;
-        }
-    }
-
-    private LinearLayout.LayoutParams iconMarginParams(int leftMarginDp) {
-        LinearLayout.LayoutParams params = new LinearLayout.LayoutParams(
-            ViewGroup.LayoutParams.WRAP_CONTENT,
-            ViewGroup.LayoutParams.WRAP_CONTENT
-        );
-        params.setMarginStart(theme.dp(leftMarginDp));
-        return params;
-    }
-
-    private void sendComposerInput() {
-        if (importOperationActive || sendPreparationActive) {
-            return;
-        }
-        Editable editable = composerInput.getText();
-        if (CredentialGuard.containsLikelyCredential(editable)) {
-            editable.clear();
-            Toast.makeText(
-                MainActivity.this,
-                R.string.user_input_credential_warning,
-                Toast.LENGTH_LONG
-            ).show();
-            return;
-        }
-        final String prompt = editable.toString();
-        if (prompt.trim().isEmpty() && pendingImports.isEmpty()) {
-            return;
-        }
-        final CodexSessionSnapshot snapshot = AgentRuntimeService.sessionSnapshot();
-        if (!pendingImports.isEmpty()
-            && !snapshot.getActiveThreadId().equals(pendingImportsThreadId)) {
-            Toast.makeText(this, R.string.chat_import_context_changed, Toast.LENGTH_LONG).show();
-            detachPendingImports();
-            return;
-        }
-        if (!pendingConnectors.isEmpty()
-            && !snapshot.getActiveThreadId().equals(pendingConnectorsThreadId)) {
-            Toast.makeText(
-                this,
-                R.string.chat_connector_context_changed,
-                Toast.LENGTH_LONG
-            ).show();
-            pendingConnectors.clear();
-            pendingConnectorsThreadId = "";
-            refreshLocalComposerState();
-            return;
-        }
-        final List<ConnectorSelection> connectorSelections =
-            ConnectorSelection.copyOf(pendingConnectors);
-        if (!connectorSelections.isEmpty()
-            && !AgentRuntimeService.areConnectorsCallable(connectorSelections)) {
-            AgentRuntimeService.refreshConnectorCatalog(true);
-            Toast.makeText(
-                this,
-                R.string.chat_connector_unavailable,
-                Toast.LENGTH_LONG
-            ).show();
-            return;
-        }
-        final List<CodexAppMention> appMentions = appMentions(connectorSelections);
-        if (pendingImports.isEmpty()) {
-            boolean accepted = snapshot.isTurnActive()
-                ? AgentRuntimeService.steerTurn(prompt, appMentions)
-                : AgentRuntimeService.sendMessage(prompt, appMentions);
-            if (accepted) {
-                editable.clear();
-                pendingConnectors.clear();
-                pendingConnectorsThreadId = "";
-                refreshLocalComposerState();
-            }
-            return;
-        }
-
-        final List<ImportedWorkspaceFile> files = WorkspaceImportSelection.copyOf(
-            pendingImports
-        );
-        final boolean steering = snapshot.isTurnActive();
-        final String threadId = snapshot.getActiveThreadId();
-        final String turnId = snapshot.getActiveTurnId();
-        final android.content.Context applicationContext = getApplicationContext();
-        sendPreparationActive = true;
-        refreshLocalComposerState();
-        if (!submitImportOperation(new Runnable() {
-            @Override
-            public void run() {
-                try {
-                    final CodexFileMentionTransaction fileTransaction =
-                        WorkspaceFileImporter.prepareForCodex(
-                            applicationContext,
-                            files
-                        );
-                    boolean posted = false;
-                    try {
-                        if (!registerPreparedImportSend(fileTransaction)) {
-                            return;
-                        }
-                        posted = handler.post(new Runnable() {
-                            @Override
-                            public void run() {
-                                completePreparedSend(
-                                    prompt,
-                                    files,
-                                    fileTransaction,
-                                    steering,
-                                    threadId,
-                                    turnId,
-                                    connectorSelections,
-                                    appMentions
-                                );
-                            }
-                        });
-                    } finally {
-                        if (!posted) {
-                            releasePreparedImportSend(fileTransaction);
-                            closeFileTransaction(fileTransaction);
-                        }
-                    }
-                } catch (Throwable error) {
-                    final String reason = importFailureReason(error);
-                    handler.post(new Runnable() {
-                        @Override
-                        public void run() {
-                            sendPreparationActive = false;
-                            refreshLocalComposerState();
-                            if (!destroyed && !isFinishing()) {
-                                Toast.makeText(
-                                    MainActivity.this,
-                                    getString(R.string.chat_import_verify_failed, reason),
-                                    Toast.LENGTH_LONG
-                                ).show();
-                            }
-                        }
-                    });
-                }
-            }
-        })) {
-            sendPreparationActive = false;
-            refreshLocalComposerState();
-            Toast.makeText(
-                this,
-                R.string.chat_import_operation_start_failed,
-                Toast.LENGTH_LONG
-            ).show();
-        }
-    }
-
-    private void completePreparedSend(
-        String prompt,
-        List<ImportedWorkspaceFile> preparedFiles,
-        CodexFileMentionTransaction fileTransaction,
-        boolean steering,
-        String threadId,
-        String turnId,
-        List<ConnectorSelection> preparedConnectors,
-        List<CodexAppMention> appMentions
-    ) {
-        if (!releasePreparedImportSend(fileTransaction)) {
-            closeFileTransaction(fileTransaction);
-            return;
-        }
-        if (destroyed) {
-            closeFileTransaction(fileTransaction);
-            return;
-        }
-        sendPreparationActive = false;
-        CodexSessionSnapshot current = AgentRuntimeService.sessionSnapshot();
-        boolean sameContext = threadId.equals(current.getActiveThreadId())
-            && steering == current.isTurnActive()
-            && (!steering || turnId.equals(current.getActiveTurnId()))
-            && preparedFiles.equals(WorkspaceImportSelection.copyOf(pendingImports))
-            && preparedConnectors.equals(ConnectorSelection.copyOf(pendingConnectors))
-            && (preparedConnectors.isEmpty()
-                || AgentRuntimeService.areConnectorsCallable(preparedConnectors));
-        if (!sameContext) {
-            closeFileTransaction(fileTransaction);
-            refreshLocalComposerState();
-            Toast.makeText(
-                this,
-                R.string.chat_import_context_changed,
-                Toast.LENGTH_LONG
-            ).show();
-            return;
-        }
-        boolean accepted = steering
-            ? AgentRuntimeService.steerTurn(prompt, fileTransaction, appMentions)
-            : AgentRuntimeService.sendMessage(prompt, fileTransaction, appMentions);
-        if (accepted) {
-            composerInput.getText().clear();
-            pendingImports.clear();
-            pendingImportsThreadId = "";
-            pendingConnectors.clear();
-            pendingConnectorsThreadId = "";
-        }
-        refreshLocalComposerState();
-    }
-
-    private boolean registerPreparedImportSend(
-        CodexFileMentionTransaction fileTransaction
-    ) {
-        synchronized (preparedImportSendLock) {
-            if (destroyed || preparedImportSend != null) {
-                return false;
-            }
-            preparedImportSend = fileTransaction;
-            return true;
-        }
-    }
-
-    private boolean releasePreparedImportSend(
-        CodexFileMentionTransaction fileTransaction
-    ) {
-        synchronized (preparedImportSendLock) {
-            if (preparedImportSend != fileTransaction) {
-                return false;
-            }
-            preparedImportSend = null;
-            return true;
-        }
-    }
-
-    private static void closeFileTransaction(
-        CodexFileMentionTransaction fileTransaction
-    ) {
-        if (fileTransaction == null) {
-            return;
-        }
-        try {
-            fileTransaction.close();
-        } catch (IOException ignored) {
-            // The verified batch is already unusable and remains fail-closed.
-        }
-    }
-
-    private void openDocumentImportPicker() {
-        if (importOperationActive || sendPreparationActive) {
-            return;
-        }
-        CodexSessionSnapshot snapshot = AgentRuntimeService.sessionSnapshot();
-        if (snapshot.getActiveThreadId().isEmpty()) {
-            Toast.makeText(this, R.string.chat_import_requires_chat, Toast.LENGTH_LONG).show();
-            return;
-        }
-        if (pendingImports.size() >= WorkspaceImportLimits.MAXIMUM_FILES_PER_MESSAGE
-            || WorkspaceImportSelection.totalBytes(pendingImports)
-                >= WorkspaceImportLimits.MAXIMUM_TOTAL_BYTES) {
-            Toast.makeText(this, R.string.chat_import_limit_reached, Toast.LENGTH_LONG).show();
-            return;
-        }
-        try {
-            Intent intent = new Intent(Intent.ACTION_OPEN_DOCUMENT);
-            intent.addCategory(Intent.CATEGORY_OPENABLE);
-            intent.setType("*/*");
-            intent.putExtra(Intent.EXTRA_ALLOW_MULTIPLE, true);
-            intent.addFlags(Intent.FLAG_GRANT_READ_URI_PERMISSION);
-            startActivityForResult(intent, FILE_IMPORT_REQUEST_CODE);
-        } catch (Throwable error) {
-            Toast.makeText(
-                this,
-                R.string.document_picker_open_failed,
-                Toast.LENGTH_LONG
-            ).show();
-        }
-    }
-
-    private List<Uri> selectedDocumentUris(Intent data) {
-        List<Uri> selected = new ArrayList<Uri>();
-        ClipData clipData = data.getClipData();
-        int maximum = WorkspaceImportLimits.MAXIMUM_FILES_PER_MESSAGE + 1;
-        if (clipData != null) {
-            int count = Math.min(clipData.getItemCount(), maximum);
-            for (int index = 0; index < count; index++) {
-                ClipData.Item item = clipData.getItemAt(index);
-                if (item != null && item.getUri() != null) {
-                    selected.add(item.getUri());
-                }
-            }
-        } else if (data.getData() != null) {
-            selected.add(data.getData());
-        }
-        return selected;
-    }
-
-    private void beginDocumentImport(
-        final List<Uri> sourceUris,
-        final WorkspaceImportGrant sourceGrant
-    ) {
-        if (sourceUris == null || sourceUris.isEmpty()
-            || sourceGrant == null || !sourceGrant.hasTransientReadPermission()
-            || importOperationActive || sendPreparationActive) {
-            return;
-        }
-        final CodexSessionSnapshot snapshot = AgentRuntimeService.sessionSnapshot();
-        final String threadId = snapshot.getActiveThreadId();
-        if (threadId.isEmpty()) {
-            Toast.makeText(this, R.string.chat_import_requires_chat, Toast.LENGTH_LONG).show();
-            return;
-        }
-        int remainingFiles = WorkspaceImportLimits.MAXIMUM_FILES_PER_MESSAGE
-            - pendingImports.size();
-        if (sourceUris.size() > remainingFiles) {
-            Toast.makeText(this, R.string.chat_import_too_many, Toast.LENGTH_LONG).show();
-            return;
-        }
-        final long remainingBytes = WorkspaceImportLimits.MAXIMUM_TOTAL_BYTES
-            - WorkspaceImportSelection.totalBytes(pendingImports);
-        if (remainingBytes <= 0L) {
-            Toast.makeText(this, R.string.chat_import_limit_reached, Toast.LENGTH_LONG).show();
-            return;
-        }
-        if (!pendingImports.isEmpty() && !threadId.equals(pendingImportsThreadId)) {
-            detachPendingImports();
-        }
-        pendingImportsThreadId = threadId;
-        importOperationActive = true;
-        refreshLocalComposerState();
-        final android.content.Context applicationContext = getApplicationContext();
-        if (!submitImportOperation(new Runnable() {
-            @Override
-            public void run() {
-                importSelectedDocuments(
-                    applicationContext,
-                    threadId,
-                    sourceUris,
-                    sourceGrant,
-                    remainingBytes
-                );
-            }
-        })) {
-            importOperationActive = false;
-            if (pendingImports.isEmpty()) {
-                pendingImportsThreadId = "";
-            }
-            refreshLocalComposerState();
-            Toast.makeText(
-                this,
-                R.string.chat_import_operation_start_failed,
-                Toast.LENGTH_LONG
-            ).show();
-        }
-    }
-
-    private void importSelectedDocuments(
-        android.content.Context applicationContext,
-        String threadId,
-        List<Uri> sourceUris,
-        WorkspaceImportGrant sourceGrant,
-        long initialRemainingBytes
-    ) {
-        final List<ImportedWorkspaceFile> imported =
-            new ArrayList<ImportedWorkspaceFile>();
-        int failures = 0;
-        String firstFailure = "";
-        long remainingBytes = initialRemainingBytes;
-        for (Uri sourceUri : sourceUris) {
-            if (Thread.currentThread().isInterrupted()) {
-                break;
-            }
-            if (remainingBytes <= 0L) {
-                failures++;
-                if (firstFailure.isEmpty()) {
-                    firstFailure = getString(R.string.error_reason_limit);
-                }
-                continue;
-            }
-            try {
-                ImportedWorkspaceFile file = WorkspaceFileImporter.importDocument(
-                    applicationContext,
-                    sourceUri,
-                    sourceGrant,
-                    remainingBytes
-                );
-                imported.add(file);
-                remainingBytes -= file.getByteCount();
-            } catch (Throwable error) {
-                failures++;
-                if (firstFailure.isEmpty()) {
-                    firstFailure = importFailureReason(error);
-                }
-            }
-        }
-        final int failedCount = failures;
-        final String failureReason = firstFailure;
-        handler.post(new Runnable() {
-            @Override
-            public void run() {
-                completeDocumentImport(threadId, imported, failedCount, failureReason);
-            }
-        });
-    }
-
-    private void completeDocumentImport(
-        String threadId,
-        List<ImportedWorkspaceFile> imported,
-        int failedCount,
-        String failureReason
-    ) {
-        if (destroyed) {
-            return;
-        }
-        importOperationActive = false;
-        boolean sameContext = threadId.equals(
-            AgentRuntimeService.sessionSnapshot().getActiveThreadId()
-        ) && threadId.equals(pendingImportsThreadId);
-        if (sameContext) {
-            List<ImportedWorkspaceFile> combined =
-                new ArrayList<ImportedWorkspaceFile>(pendingImports);
-            combined.addAll(imported);
-            try {
-                List<ImportedWorkspaceFile> validated =
-                    WorkspaceImportSelection.copyOf(combined);
-                pendingImports.clear();
-                pendingImports.addAll(validated);
-            } catch (IllegalArgumentException error) {
-                failedCount += imported.size();
-            }
-        }
-        if (pendingImports.isEmpty()) {
-            pendingImportsThreadId = "";
-        }
-        refreshLocalComposerState();
-        if (!sameContext) {
-            Toast.makeText(
-                this,
-                R.string.chat_import_context_changed,
-                Toast.LENGTH_LONG
-            ).show();
-        } else if (!imported.isEmpty() && failedCount == 0) {
-            Toast.makeText(
-                this,
-                getResources().getQuantityString(
-                    R.plurals.chat_import_completed,
-                    imported.size(),
-                    Integer.valueOf(imported.size())
-                ),
-                Toast.LENGTH_SHORT
-            ).show();
-        } else if (!imported.isEmpty()) {
-            Toast.makeText(
-                this,
-                getString(
-                    R.string.chat_import_partial,
-                    Integer.valueOf(imported.size()),
-                    Integer.valueOf(failedCount)
-                ),
-                Toast.LENGTH_LONG
-            ).show();
-        } else if (failedCount > 0) {
-            Toast.makeText(
-                this,
-                getString(
-                    R.string.chat_import_failed,
-                    failureReason.isEmpty()
-                        ? getString(R.string.common_unknown_error)
-                        : failureReason
-                ),
-                Toast.LENGTH_LONG
-            ).show();
-        }
-    }
-
-    private void detachPendingImports() {
-        if (importOperationActive || sendPreparationActive) {
-            return;
-        }
-        boolean hadImports = !pendingImports.isEmpty();
-        pendingImports.clear();
-        pendingImportsThreadId = "";
-        refreshLocalComposerState();
-        if (hadImports) {
-            Toast.makeText(
-                this,
-                R.string.chat_import_detached_notice,
-                Toast.LENGTH_LONG
-            ).show();
-        }
-    }
-
-    private void openConnectorPicker() {
-        if (importOperationActive || sendPreparationActive) {
-            return;
-        }
-        CodexSessionSnapshot snapshot = AgentRuntimeService.sessionSnapshot();
-        String threadId = snapshot.getActiveThreadId();
-        if (!snapshot.isReady() || threadId.isEmpty()) {
-            Toast.makeText(
-                this,
-                R.string.chat_connector_requires_chat,
-                Toast.LENGTH_LONG
-            ).show();
-            return;
-        }
-        try {
-            startActivityForResult(
-                ConnectorActivity.createIntent(this, threadId, pendingConnectors),
-                CONNECTOR_REQUEST_CODE
-            );
-        } catch (Throwable error) {
-            Toast.makeText(
-                this,
-                R.string.chat_connector_picker_failed,
-                Toast.LENGTH_LONG
-            ).show();
-        }
-    }
-
-    private void acceptConnectorSelection(Intent data) {
-        CodexSessionSnapshot snapshot = AgentRuntimeService.sessionSnapshot();
-        String returnedThreadId = ConnectorActivity.resultThreadId(data);
-        final List<ConnectorSelection> selections;
-        try {
-            selections = ConnectorActivity.resultSelections(data);
-        } catch (RuntimeException error) {
-            Toast.makeText(
-                this,
-                R.string.chat_connector_unavailable,
-                Toast.LENGTH_LONG
-            ).show();
-            return;
-        }
-        if (!snapshot.isReady()
-            || returnedThreadId.isEmpty()
-            || !returnedThreadId.equals(snapshot.getActiveThreadId())
-            || (!selections.isEmpty()
-                && !AgentRuntimeService.areConnectorsCallable(selections))) {
-            pendingConnectors.clear();
-            pendingConnectorsThreadId = "";
-            AgentRuntimeService.refreshConnectorCatalog(true);
-            refreshLocalComposerState();
-            Toast.makeText(
-                this,
-                R.string.chat_connector_context_changed,
-                Toast.LENGTH_LONG
-            ).show();
-            return;
-        }
-        pendingConnectors.clear();
-        pendingConnectors.addAll(selections);
-        pendingConnectorsThreadId = selections.isEmpty() ? "" : returnedThreadId;
-        refreshLocalComposerState();
-    }
-
-    private void detachPendingConnectors() {
-        if (importOperationActive || sendPreparationActive) {
-            return;
-        }
-        boolean hadConnectors = !pendingConnectors.isEmpty();
-        pendingConnectors.clear();
-        pendingConnectorsThreadId = "";
-        refreshLocalComposerState();
-        if (hadConnectors) {
-            Toast.makeText(
-                this,
-                R.string.chat_connector_detached_notice,
-                Toast.LENGTH_LONG
-            ).show();
-        }
-    }
-
-    private void reconcilePendingConnectors(CodexSessionSnapshot session) {
-        if (!pendingConnectors.isEmpty()
-            && !session.getActiveThreadId().equals(pendingConnectorsThreadId)) {
-            pendingConnectors.clear();
-            pendingConnectorsThreadId = "";
-        }
-    }
-
-    private void renderConnectorSelection() {
-        if (pendingConnectors.isEmpty()) {
-            connectorStatusRow.setVisibility(View.GONE);
-            connectorStatus.setVisibility(View.GONE);
-            connectorStatus.setText("");
-            return;
-        }
-        StringBuilder names = new StringBuilder();
-        for (ConnectorSelection selection : pendingConnectors) {
-            if (names.length() != 0) {
-                names.append(" · ");
-            }
-            names.append(selection.getProvider().getDisplayName());
-        }
-        connectorStatus.setText(getResources().getQuantityString(
-            R.plurals.chat_connector_selected,
-            pendingConnectors.size(),
-            names.toString()
-        ));
-        connectorStatusRow.setVisibility(View.VISIBLE);
-        connectorStatus.setVisibility(View.VISIBLE);
-    }
-
-    private static List<CodexAppMention> appMentions(
-        List<ConnectorSelection> selections
-    ) {
-        List<ConnectorSelection> safe = ConnectorSelection.copyOf(selections);
-        List<CodexAppMention> mentions = new ArrayList<CodexAppMention>(safe.size());
-        for (ConnectorSelection selection : safe) {
-            mentions.add(CodexAppMention.create(
-                selection.getId(),
-                selection.getName()
-            ));
-        }
-        return java.util.Collections.unmodifiableList(mentions);
-    }
-
-    private void reconcilePendingImports(CodexSessionSnapshot session) {
-        if (!pendingImports.isEmpty()
-            && !session.getActiveThreadId().equals(pendingImportsThreadId)) {
-            pendingImports.clear();
-            pendingImportsThreadId = "";
-        }
-    }
-
-    private void renderImportSelection() {
-        if (importOperationActive) {
-            importStatusRow.setVisibility(View.VISIBLE);
-            importStatus.setVisibility(View.VISIBLE);
-            importStatus.setText(R.string.chat_import_importing);
-            return;
-        }
-        if (sendPreparationActive) {
-            importStatusRow.setVisibility(View.VISIBLE);
-            importStatus.setVisibility(View.VISIBLE);
-            importStatus.setText(R.string.chat_import_verifying);
-            return;
-        }
-        if (pendingImports.isEmpty()) {
-            importStatusRow.setVisibility(View.GONE);
-            importStatus.setVisibility(View.GONE);
-            importStatus.setText("");
-            return;
-        }
-        long totalBytes = WorkspaceImportSelection.totalBytes(pendingImports);
-        StringBuilder names = new StringBuilder();
-        for (int index = 0; index < pendingImports.size(); index++) {
-            if (names.length() != 0) {
-                names.append(" · ");
-            }
-            names.append(pendingImports.get(index).getDisplayName());
-        }
-        String summary = getResources().getQuantityString(
-            R.plurals.chat_import_selected,
-            pendingImports.size(),
-            Integer.valueOf(pendingImports.size()),
-            readableByteCount(totalBytes)
-        );
-        importStatus.setText(summary + "\n" + names.toString());
-        importStatusRow.setVisibility(View.VISIBLE);
-        importStatus.setVisibility(View.VISIBLE);
-    }
-
-    private boolean submitImportOperation(Runnable operation) {
-        if (destroyed || importOperations.isShutdown()) {
-            return false;
-        }
-        try {
-            importOperations.execute(operation);
-            return true;
-        } catch (RejectedExecutionException ignored) {
-            return false;
-        }
+    @Override
+    public void detachPendingConnectors() {
+        composer.detachPendingConnectors();
     }
 
     private void refreshLocalComposerState() {
@@ -1589,17 +198,6 @@ public final class MainActivity extends Activity {
         }
         lastSessionRevision = Long.MIN_VALUE;
         render(AgentRuntimeService.snapshot(), AgentRuntimeService.sessionSnapshot());
-    }
-
-    private String importFailureReason(Throwable error) {
-        String message = error == null ? "" : error.getMessage();
-        if (message == null || message.trim().isEmpty()) {
-            return getString(R.string.common_unknown_error);
-        }
-        return UiText.errorReason(
-            this,
-            CrashReportFormatter.redactVisibleText(message, 180)
-        );
     }
 
     private void render(RuntimeSnapshot runtime, CodexSessionSnapshot session) {
@@ -1614,102 +212,52 @@ public final class MainActivity extends Activity {
         lastSessionRevision = session.getRevision();
 
         reconcileNavigation(session);
-        reconcilePendingImports(session);
-        reconcilePendingConnectors(session);
+        composer.reconcileSelections(session);
         renderStatus(runtime, session);
         boolean actionReady = session.isReady()
             && !session.isOperationActive()
             && !session.isTurnInterruptPending();
         boolean canChat = actionReady
             && (!session.requiresOpenaiAuth() || session.isSignedIn());
-        theme.setEnabled(refreshThreadsButton, canChat);
+        theme.setEnabled(views.refreshThreadsButton, canChat);
         boolean interactionOpen = session.hasInteractiveRequest();
         boolean threadNavigationReady = canChat
             && !session.isTurnActive()
             && !interactionOpen;
         styleThreadFilter(
-            activeThreadsButton,
+            views.activeThreadsButton,
             !session.isShowingArchivedThreads(),
             threadNavigationReady
         );
         styleThreadFilter(
-            archivedThreadsButton,
+            views.archivedThreadsButton,
             session.isShowingArchivedThreads(),
             threadNavigationReady
         );
-        threadSectionLabel.setText(session.isShowingArchivedThreads()
+        views.threadSectionLabel.setText(session.isShowingArchivedThreads()
             ? R.string.chat_archived_threads : R.string.chat_active_threads);
-        newThreadButton.setVisibility(
+        views.newThreadButton.setVisibility(
             session.isShowingArchivedThreads() ? View.GONE : View.VISIBLE
         );
         theme.setEnabled(
-            newThreadButton,
+            views.newThreadButton,
             threadNavigationReady
         );
-        threadEmptyView.setText(
+        views.threadEmptyView.setText(
             session.isShowingArchivedThreads()
                 ? R.string.chat_archived_empty
                 : R.string.chat_empty
         );
-        boolean steering = session.isTurnActive();
-        composerInput.setHint(
-            steering ? R.string.composer_steer_hint : R.string.composer_hint
-        );
-        theme.setIcon(
-            sendButton,
-            R.drawable.ic_chat_send,
-            getString(steering ? R.string.turn_steer : R.string.message_send)
-        );
-        boolean composerReady = canChat && !interactionOpen
-            && !importOperationActive && !sendPreparationActive;
-        composerInput.setEnabled(composerReady);
-        theme.setEnabled(sendButton, composerReady);
-        theme.setEnabled(
-            importButton,
-            composerReady
-                && pendingImports.size() < WorkspaceImportLimits.MAXIMUM_FILES_PER_MESSAGE
-        );
-        theme.setEnabled(
-            connectorButton,
-            composerReady && !session.getActiveThreadId().isEmpty()
-        );
-        clearConnectorsButton.setVisibility(
-            pendingConnectors.isEmpty() ? View.GONE : View.VISIBLE
-        );
-        theme.setEnabled(
-            clearConnectorsButton,
-            composerReady && !pendingConnectors.isEmpty()
-        );
-        clearImportsButton.setVisibility(
-            pendingImports.isEmpty() ? View.GONE : View.VISIBLE
-        );
-        theme.setEnabled(clearImportsButton, composerReady && !pendingImports.isEmpty());
-        theme.setEnabled(
-            reviewButton,
-            composerReady
-                && !session.isTurnActive()
-                && !session.getActiveThreadId().isEmpty()
-                && pendingImports.isEmpty()
-        );
-        renderConnectorSelection();
-        renderImportSelection();
-        stopButton.setVisibility(steering ? View.VISIBLE : View.GONE);
-        theme.setEnabled(
-            stopButton,
-            session.isReady()
-                && session.isTurnActive()
-                && !session.isTurnInterruptPending()
-                && !session.getActiveTurnId().isEmpty()
-        );
-        threadAdapter.setData(
+        composer.render(session, canChat, interactionOpen);
+        views.threadAdapter.setData(
             session.getThreads(),
             session.getActiveThreadId(),
             threadNavigationReady
         );
         bindSelectors(session, canChat && !session.isTurnActive() && !interactionOpen);
-        renderTranscript(session.getActiveThreadId(), session.getTranscriptItems());
+        transcript.renderTranscript(session.getActiveThreadId(), session.getTranscriptItems());
         if (conversationVisible) {
-            screenTitle.setText(
+            views.screenTitle.setText(
                 session.getActiveThreadTitle().isEmpty()
                     ? getString(R.string.chat_active)
                     : UiText.threadTitle(this, session.getActiveThreadTitle())
@@ -1718,6 +266,36 @@ public final class MainActivity extends Activity {
         if (interactiveRequestDialog != null) {
             interactiveRequestDialog.render(session);
         }
+    }
+
+    @Override
+    public void startNewThread() {
+        CodexSessionSnapshot snapshot = AgentRuntimeService.sessionSnapshot();
+        pendingNewThread = true;
+        pendingThreadId = "";
+        newThreadBaseline = snapshot.getActiveThreadId();
+        AgentRuntimeService.startNewThread();
+    }
+
+    @Override
+    public void openThread(CodexThreadSummary thread) {
+        if (thread.isArchived()) {
+            showThreadActions(thread);
+            return;
+        }
+        CodexSessionSnapshot snapshot = AgentRuntimeService.sessionSnapshot();
+        if (thread.getId().equals(snapshot.getActiveThreadId())) {
+            showConversationPage(snapshot);
+            return;
+        }
+        pendingNewThread = false;
+        pendingThreadId = thread.getId();
+        AgentRuntimeService.openThread(thread.getId());
+    }
+
+    @Override
+    public void showModelDetails() {
+        modelSelectors.showDetails();
     }
 
     private void reconcileNavigation(CodexSessionSnapshot session) {
@@ -1781,19 +359,19 @@ public final class MainActivity extends Activity {
             message = message.isEmpty() ? warning : warning + "\n" + message;
             settingsAction = true;
         }
-        statusBanner.setVisibility(message.isEmpty() ? View.GONE : View.VISIBLE);
-        statusText.setText(message);
+        views.statusBanner.setVisibility(message.isEmpty() ? View.GONE : View.VISIBLE);
+        views.statusText.setText(message);
         boolean alerting = !session.getErrorMessage().isEmpty()
             || session.isDangerousExecutionMode();
-        statusText.setTextColor(alerting ? theme.danger : theme.primary);
+        views.statusText.setTextColor(alerting ? theme.danger : theme.primary);
         int indicator = statusIndicatorColor(runtime, session, alerting);
-        statusIndicator.setBackground(theme.dotShape(indicator));
-        statusBanner.setBackground(theme.background(
+        views.statusIndicator.setBackground(theme.dotShape(indicator));
+        views.statusBanner.setBackground(theme.background(
             theme.tintedSurface(indicator, theme.dark ? 0.12f : 0.07f),
             theme.tintedSurface(indicator, 0.35f),
             16
         ));
-        statusSettingsButton.setVisibility(settingsAction ? View.VISIBLE : View.GONE);
+        views.statusSettingsButton.setVisibility(settingsAction ? View.VISIBLE : View.GONE);
     }
 
     private int statusIndicatorColor(
@@ -1816,513 +394,11 @@ public final class MainActivity extends Activity {
     }
 
     private void bindSelectors(CodexSessionSnapshot session, boolean enabled) {
-        bindingSelectors = true;
-        try {
-            List<String> modelLabels = new ArrayList<String>();
-            int modelIndex = 0;
-            for (int index = 0; index < session.getModels().size(); index++) {
-                CodexModelOption model = session.getModels().get(index);
-                modelLabels.add(model.getDisplayName());
-                if (model.getId().equals(session.getSelectedModelId())) {
-                    modelIndex = index;
-                }
-            }
-            bindSelectorLabels(modelSpinner, R.string.model_section, modelLabels, renderedModelLabels);
-            if (!modelLabels.isEmpty() && modelSpinner.getSelectedItemPosition() != modelIndex) {
-                modelSpinner.setSelection(modelIndex, false);
-            }
-
-            CodexModelOption selected = selectedModel(session);
-            List<String> effortLabels = new ArrayList<String>();
-            int effortIndex = 0;
-            if (selected != null) {
-                for (int index = 0; index < selected.getReasoningOptions().size(); index++) {
-                    CodexReasoningOption option = selected.getReasoningOptions().get(index);
-                    effortLabels.add(reasoningLabel(option.getEffort()));
-                    if (option.getEffort().equals(session.getSelectedReasoningEffort())) {
-                        effortIndex = index;
-                    }
-                }
-            }
-            bindSelectorLabels(
-                effortSpinner, R.string.chat_reasoning_label, effortLabels, renderedEffortLabels
-            );
-            if (!effortLabels.isEmpty() && effortSpinner.getSelectedItemPosition() != effortIndex) {
-                effortSpinner.setSelection(effortIndex, false);
-            }
-            modelSpinner.setEnabled(enabled && !modelLabels.isEmpty());
-            effortSpinner.setEnabled(enabled && !effortLabels.isEmpty());
-            modelSpinner.setAlpha(modelSpinner.isEnabled() ? 1.0f : 0.5f);
-            effortSpinner.setAlpha(effortSpinner.isEnabled() ? 1.0f : 0.5f);
-            String modelSelection = getString(R.string.model_section) + ": "
-                + (selected == null ? getString(R.string.models_unavailable) : selected.getDisplayName());
-            String effortSelection = getString(R.string.reasoning_effort_section) + ": "
-                + reasoningLabel(session.getSelectedReasoningEffort());
-            modelSpinner.setContentDescription(modelSelection);
-            modelSpinner.setTooltipText(modelSelection);
-            effortSpinner.setContentDescription(effortSelection);
-            effortSpinner.setTooltipText(effortSelection);
-        } finally {
-            bindingSelectors = false;
-        }
+        modelSelectors.bindSelectors(session, enabled);
     }
 
-    private void bindSelectorLabels(
-        Spinner spinner, int labelResource, List<String> labels, List<String> renderedLabels
-    ) {
-        if (spinner.getAdapter() == null || !renderedLabels.equals(labels)) {
-            renderedLabels.clear();
-            renderedLabels.addAll(labels);
-            List<String> displayLabels = new ArrayList<String>(labels);
-            if (displayLabels.isEmpty()) {
-                displayLabels.add("—");
-            }
-            spinner.setAdapter(new ChatSelectorAdapter(
-                this, theme, getString(labelResource), displayLabels
-            ));
-        }
-    }
-
-    private void renderTranscript(String threadId, List<CodexTranscriptItem> items) {
-        transcriptExpansion.update(threadId, items);
-        boolean rebuild = !threadId.equals(renderedThreadId)
-            || items.size() != renderedTranscriptKeys.size();
-        if (!rebuild) {
-            for (int index = 0; index < items.size(); index++) {
-                if (!transcriptKey(items.get(index)).equals(renderedTranscriptKeys.get(index))) {
-                    rebuild = true;
-                    break;
-                }
-            }
-        }
-        if (rebuild) {
-            renderedThreadId = threadId;
-            renderedTranscriptKeys.clear();
-            renderedTranscriptRows.clear();
-            messagesContainer.removeAllViews();
-            if (items.isEmpty()) {
-                TextView empty = theme.text(
-                    threadId.isEmpty()
-                        ? getString(R.string.chat_select)
-                        : getString(R.string.chat_no_messages),
-                    14,
-                    theme.secondary
-                );
-                empty.setGravity(Gravity.CENTER);
-                empty.setPadding(theme.dp(12), theme.dp(40), theme.dp(12), theme.dp(40));
-                messagesContainer.addView(empty);
-                return;
-            }
-            for (int index = 0; index < items.size(); index++) {
-                CodexTranscriptItem item = items.get(index);
-                TranscriptRow row = createTranscriptRow(item);
-                renderedTranscriptKeys.add(transcriptKey(item));
-                renderedTranscriptRows.add(row);
-                theme.addWithTopMargin(messagesContainer, row.root, index == 0 ? 0 : 10);
-            }
-            scrollMessagesToBottom();
-            return;
-        }
-        boolean changed = false;
-        for (int index = 0; index < items.size(); index++) {
-            CodexTranscriptItem item = items.get(index);
-            TranscriptRow row = renderedTranscriptRows.get(index);
-            if (row.card != null) {
-                changed |= row.card.bind(item);
-            } else {
-                String value = messageBody(item.getMessage());
-                String label = messageRole(item.getMessage());
-                if (!value.contentEquals(row.text.getText())
-                    || !label.contentEquals(row.role.getText())) {
-                    row.text.setText(value);
-                    row.role.setText(label);
-                    styleTranscriptRow(row, item);
-                    changed = true;
-                }
-            }
-            bindImageAction(row, item);
-        }
-        if (changed) {
-            scrollMessagesToBottom();
-        }
-    }
-
-    private TranscriptRow createTranscriptRow(CodexTranscriptItem item) {
-        LinearLayout root;
-        LinearLayout content;
-        LinearLayout bubble = null;
-        TextView role = null;
-        TextView text = null;
-        TranscriptCardView card = null;
-        if (item.isMessage()) {
-            root = new LinearLayout(this);
-            root.setOrientation(LinearLayout.VERTICAL);
-            bubble = new LinearLayout(this);
-            bubble.setOrientation(LinearLayout.VERTICAL);
-            bubble.setPadding(theme.dp(14), theme.dp(12), theme.dp(14), theme.dp(12));
-            role = theme.text(messageRole(item.getMessage()), 11, theme.secondary);
-            role.setTypeface(Typeface.DEFAULT_BOLD);
-            role.setLetterSpacing(0.08f);
-            bubble.addView(role);
-            text = theme.text(messageBody(item.getMessage()), 14, theme.primary);
-            text.setTextIsSelectable(true);
-            text.setLineSpacing(0.0f, 1.2f);
-            theme.addWithTopMargin(bubble, text, 6);
-            LinearLayout.LayoutParams bubbleParams = new LinearLayout.LayoutParams(
-                ViewGroup.LayoutParams.MATCH_PARENT,
-                ViewGroup.LayoutParams.WRAP_CONTENT
-            );
-            if (item.getMessage().getRole() == ChatMessage.Role.USER) {
-                bubbleParams.setMarginStart(theme.dp(28));
-            }
-            root.addView(bubble, bubbleParams);
-            content = bubble;
-        } else {
-            card = new TranscriptCardView(this, theme, transcriptExpansion);
-            card.bind(item);
-            root = card;
-            content = card.contentContainer();
-        }
-
-        TextView imageStatus = theme.text("", 12, theme.secondary);
-        imageStatus.setLineSpacing(0.0f, 1.15f);
-        imageStatus.setVisibility(View.GONE);
-        theme.addWithTopMargin(content, imageStatus, 6);
-
-        ImageButton imageAction = theme.iconButton(
-            R.drawable.ic_chat_download,
-            getString(R.string.image_export)
-        );
-        imageAction.setVisibility(View.GONE);
-        LinearLayout.LayoutParams imageActionParams = iconMarginParams(0);
-        imageActionParams.topMargin = theme.dp(6);
-        content.addView(imageAction, imageActionParams);
-
-        TranscriptRow row = new TranscriptRow(
-            root, bubble, role, text, card, imageStatus, imageAction
-        );
-        if (card == null) {
-            styleTranscriptRow(row, item);
-        }
-        bindImageAction(row, item);
-        return row;
-    }
-
-    private void styleTranscriptRow(TranscriptRow row, CodexTranscriptItem item) {
-        ChatMessage.Role speaker = item.getMessage().getRole();
-        int accent;
-        int fill;
-        if (speaker == ChatMessage.Role.USER) {
-            accent = theme.accent;
-            fill = theme.tintedSurface(theme.accent, theme.dark ? 0.16f : 0.08f);
-        } else if (speaker == ChatMessage.Role.SYSTEM) {
-            accent = theme.warning;
-            fill = theme.tintedSurface(theme.warning, theme.dark ? 0.14f : 0.08f);
-        } else {
-            accent = theme.secondary;
-            fill = theme.surface;
-        }
-        row.bubble.setBackground(theme.background(
-            fill,
-            speaker == ChatMessage.Role.ASSISTANT
-                ? theme.border
-                : theme.tintedSurface(accent, 0.3f),
-            18
-        ));
-        row.role.setTextColor(accent);
-        row.text.setTextColor(theme.primary);
-    }
-
-    private void bindImageAction(TranscriptRow row, CodexTranscriptItem item) {
-        String imagePath = item.getReportedImagePath();
-        if (item.isStreaming() || imagePath.isEmpty()) {
-            row.imagePath = "";
-            row.imageState = ImageValidationState.NONE;
-            row.imageInfo = null;
-            row.imageFailure = "";
-            row.imageStatus.setVisibility(View.GONE);
-            row.imageAction.setVisibility(View.GONE);
-            row.imageAction.setOnClickListener(null);
-            return;
-        }
-        if (!imagePath.equals(row.imagePath)) {
-            row.imagePath = imagePath;
-            beginImageInspection(row, imagePath);
-            return;
-        }
-        applyImageAction(row);
-    }
-
-    private void beginImageInspection(final TranscriptRow row, final String imagePath) {
-        row.imageState = ImageValidationState.CHECKING;
-        row.imageInfo = null;
-        row.imageFailure = "";
-        row.checkingMessage = getString(R.string.image_path_checking);
-        applyImageAction(row);
-        final android.content.Context applicationContext = getApplicationContext();
-        if (!submitImageOperation(new Runnable() {
-            @Override
-            public void run() {
-                try {
-                    final WorkspaceImageExporter.ImageExport image =
-                        WorkspaceImageExporter.inspect(applicationContext, imagePath);
-                    handler.post(new Runnable() {
-                        @Override
-                        public void run() {
-                            completeImageInspection(row, imagePath, image, "");
-                        }
-                    });
-                } catch (Throwable error) {
-                    final String failure = exportFailureMessage(error);
-                    handler.post(new Runnable() {
-                        @Override
-                        public void run() {
-                            completeImageInspection(row, imagePath, null, failure);
-                        }
-                    });
-                }
-            }
-        })) {
-            completeImageInspection(
-                row,
-                imagePath,
-                null,
-                getString(R.string.image_inspection_start_failed)
-            );
-        }
-    }
-
-    private void completeImageInspection(
-        TranscriptRow row,
-        String imagePath,
-        WorkspaceImageExporter.ImageExport image,
-        String failure
-    ) {
-        if (!isCurrentImageRow(row, imagePath)) {
-            return;
-        }
-        row.imageInfo = image;
-        row.imageFailure = failure == null ? "" : failure;
-        row.imageState = image == null
-            ? ImageValidationState.INVALID
-            : ImageValidationState.VALID;
-        applyImageAction(row);
-    }
-
-    private void applyImageAction(final TranscriptRow row) {
-        if (row.imageState == ImageValidationState.NONE) {
-            row.imageStatus.setVisibility(View.GONE);
-            row.imageAction.setVisibility(View.GONE);
-            row.imageAction.setOnClickListener(null);
-            return;
-        }
-        row.imageStatus.setVisibility(View.VISIBLE);
-        row.imageAction.setVisibility(View.VISIBLE);
-        if (row.imageState == ImageValidationState.CHECKING) {
-            row.imageStatus.setText(row.checkingMessage);
-            row.imageStatus.setTextColor(theme.secondary);
-            theme.setIcon(
-                row.imageAction,
-                R.drawable.ic_chat_hourglass,
-                getString(R.string.image_inspection_running)
-            );
-            row.imageAction.setOnClickListener(null);
-            theme.setEnabled(row.imageAction, false);
-            return;
-        }
-        if (row.imageState == ImageValidationState.INVALID) {
-            row.imageStatus.setText(row.imageFailure);
-            row.imageStatus.setTextColor(theme.danger);
-            theme.setIcon(
-                row.imageAction,
-                R.drawable.ic_chat_refresh,
-                getString(R.string.image_path_recheck)
-            );
-            row.imageAction.setOnClickListener(new View.OnClickListener() {
-                @Override
-                public void onClick(View ignored) {
-                    beginImageInspection(row, row.imagePath);
-                }
-            });
-            theme.setEnabled(row.imageAction, true);
-            return;
-        }
-        WorkspaceImageExporter.ImageExport image = row.imageInfo;
-        row.imageStatus.setText(
-            getString(
-                R.string.image_workspace_confirmed,
-                image.getDisplayName(),
-                readableByteCount(image.getByteCount())
-            )
-        );
-        row.imageStatus.setTextColor(theme.secondary);
-        theme.setIcon(
-            row.imageAction,
-            R.drawable.ic_chat_download,
-            getString(R.string.image_export)
-        );
-        row.imageAction.setOnClickListener(new View.OnClickListener() {
-            @Override
-            public void onClick(View ignored) {
-                verifyAndOpenImageExport(row, row.imagePath);
-            }
-        });
-        theme.setEnabled(row.imageAction, true);
-    }
-
-    private void verifyAndOpenImageExport(
-        final TranscriptRow row,
-        final String imagePath
-    ) {
-        row.imageState = ImageValidationState.CHECKING;
-        row.checkingMessage = getString(R.string.image_pre_export_check);
-        applyImageAction(row);
-        final android.content.Context applicationContext = getApplicationContext();
-        if (!submitImageOperation(new Runnable() {
-            @Override
-            public void run() {
-                try {
-                    final WorkspaceImageExporter.ImageExport image =
-                        WorkspaceImageExporter.inspect(applicationContext, imagePath);
-                    handler.post(new Runnable() {
-                        @Override
-                        public void run() {
-                            if (!isCurrentImageRow(row, imagePath)) {
-                                return;
-                            }
-                            row.imageState = ImageValidationState.VALID;
-                            row.imageInfo = image;
-                            row.imageFailure = "";
-                            applyImageAction(row);
-                            openImageExportDocument(row, imagePath, image);
-                        }
-                    });
-                } catch (Throwable error) {
-                    final String failure = exportFailureMessage(error);
-                    handler.post(new Runnable() {
-                        @Override
-                        public void run() {
-                            completeImageInspection(row, imagePath, null, failure);
-                        }
-                    });
-                }
-            }
-        })) {
-            completeImageInspection(
-                row,
-                imagePath,
-                null,
-                getString(R.string.image_recheck_start_failed)
-            );
-        }
-    }
-
-    private void openImageExportDocument(
-        TranscriptRow row,
-        String sourcePath,
-        WorkspaceImageExporter.ImageExport image
-    ) {
-        try {
-            Intent intent = new Intent(Intent.ACTION_CREATE_DOCUMENT);
-            intent.addCategory(Intent.CATEGORY_OPENABLE);
-            intent.setType(image.getMimeType());
-            intent.putExtra(Intent.EXTRA_TITLE, image.getDisplayName());
-            pendingImageExportPath = sourcePath;
-            startActivityForResult(intent, IMAGE_EXPORT_REQUEST_CODE);
-        } catch (Throwable error) {
-            pendingImageExportPath = "";
-            row.imageState = ImageValidationState.VALID;
-            applyImageAction(row);
-            Toast.makeText(
-                this,
-                R.string.document_picker_open_failed,
-                Toast.LENGTH_LONG
-            ).show();
-        }
-    }
-
-    private boolean isCurrentImageRow(TranscriptRow row, String imagePath) {
-        return !destroyed
-            && imagePath.equals(row.imagePath)
-            && row.root.getParent() != null;
-    }
-
-    private boolean submitImageOperation(Runnable operation) {
-        if (destroyed || imageOperations.isShutdown()) {
-            return false;
-        }
-        try {
-            imageOperations.execute(operation);
-            return true;
-        } catch (RejectedExecutionException ignored) {
-            return false;
-        }
-    }
-
-    private void showExportFailure(final String imagePath, Throwable error) {
-        final String message = exportFailureMessage(error);
-        runOnUiThread(new Runnable() {
-            @Override
-            public void run() {
-                if (destroyed) {
-                    return;
-                }
-                for (TranscriptRow row : renderedTranscriptRows) {
-                    if (imagePath.equals(row.imagePath)) {
-                        row.imageInfo = null;
-                        row.imageFailure = message;
-                        row.imageState = ImageValidationState.INVALID;
-                        applyImageAction(row);
-                    }
-                }
-                if (!isFinishing()) {
-                    Toast.makeText(MainActivity.this, message, Toast.LENGTH_LONG).show();
-                }
-            }
-        });
-    }
-
-    private String readableByteCount(long bytes) {
-        if (bytes >= 1024L * 1024L) {
-            return (bytes / (1024L * 1024L)) + " MiB";
-        }
-        if (bytes >= 1024L) {
-            return (bytes / 1024L) + " KiB";
-        }
-        return getString(R.string.byte_count_bytes, Long.valueOf(bytes));
-    }
-
-    private void showExportToast(final String message, final int duration) {
-        runOnUiThread(new Runnable() {
-            @Override
-            public void run() {
-                if (!destroyed && !isFinishing()) {
-                    Toast.makeText(MainActivity.this, message, duration).show();
-                }
-            }
-        });
-    }
-
-    private String exportFailureMessage(Throwable error) {
-        String reason = error == null || error.getMessage() == null
-            ? getString(R.string.common_unknown_error)
-            : UiText.errorReason(
-                this,
-                CrashReportFormatter.redactVisibleText(error.getMessage(), 180)
-            );
-        return getString(R.string.image_export_path_invalid, reason);
-    }
-
-    private void scrollMessagesToBottom() {
-        messageScroll.post(new Runnable() {
-            @Override
-            public void run() {
-                messageScroll.fullScroll(View.FOCUS_DOWN);
-            }
-        });
-    }
-
-    private void showThreadActions(final CodexThreadSummary thread) {
+    @Override
+    public void showThreadActions(final CodexThreadSummary thread) {
         CodexSessionSnapshot snapshot = AgentRuntimeService.sessionSnapshot();
         if (!canManageThread(snapshot, thread)) {
             return;
@@ -2401,14 +477,15 @@ public final class MainActivity extends Activity {
         return false;
     }
 
-    private void showThreadPage() {
+    @Override
+    public void showThreadPage() {
         conversationVisible = false;
         pendingThreadId = "";
         pendingNewThread = false;
-        threadPage.setVisibility(View.VISIBLE);
-        conversationPage.setVisibility(View.GONE);
-        backToThreadsButton.setVisibility(View.GONE);
-        screenTitle.setText(R.string.chat_title);
+        views.threadPage.setVisibility(View.VISIBLE);
+        views.conversationPage.setVisibility(View.GONE);
+        views.backToThreadsButton.setVisibility(View.GONE);
+        views.screenTitle.setText(R.string.chat_title);
     }
 
     private void showConversationPage(CodexSessionSnapshot session) {
@@ -2416,37 +493,40 @@ public final class MainActivity extends Activity {
             return;
         }
         conversationVisible = true;
-        threadPage.setVisibility(View.GONE);
-        conversationPage.setVisibility(View.VISIBLE);
-        backToThreadsButton.setVisibility(View.VISIBLE);
-        screenTitle.setText(
+        views.threadPage.setVisibility(View.GONE);
+        views.conversationPage.setVisibility(View.VISIBLE);
+        views.backToThreadsButton.setVisibility(View.VISIBLE);
+        views.screenTitle.setText(
             session.getActiveThreadTitle().isEmpty()
                 ? getString(R.string.chat_active)
                 : UiText.threadTitle(this, session.getActiveThreadTitle())
         );
     }
 
-    private void openSettings() {
+    @Override
+    public void openSettings() {
         startActivity(new Intent(this, SettingsActivity.class));
     }
 
-    private void openTerminal() {
+    @Override
+    public void openTerminal() {
         startActivity(new Intent(this, TerminalActivity.class));
     }
 
-    private void openFiles() {
+    @Override
+    public void openFiles() {
         startActivity(new Intent(this, WorkspaceBrowserActivity.class));
     }
 
     private void showEmergencyStatus(Throwable error) {
-        if (statusBanner == null || statusText == null) {
+        if (views == null || views.statusBanner == null || views.statusText == null) {
             return;
         }
-        statusBanner.setVisibility(View.VISIBLE);
-        statusText.setText(
+        views.statusBanner.setVisibility(View.VISIBLE);
+        views.statusText.setText(
             getString(R.string.chat_update_failed, error.getClass().getSimpleName())
         );
-        statusText.setTextColor(theme == null ? Color.RED : theme.danger);
+        views.statusText.setTextColor(theme == null ? Color.RED : theme.danger);
     }
 
     private void persistCrash(String source, Throwable error) {
@@ -2474,79 +554,6 @@ public final class MainActivity extends Activity {
         setContentView(fallback);
     }
 
-    private static CodexModelOption selectedModel(CodexSessionSnapshot session) {
-        for (CodexModelOption model : session.getModels()) {
-            if (model.getId().equals(session.getSelectedModelId())) {
-                return model;
-            }
-        }
-        return null;
-    }
-
-    private String selectorDescription(CodexModelOption model, String effort) {
-        if (model == null) {
-            return getString(R.string.models_unavailable);
-        }
-        String effortDescription = "";
-        for (CodexReasoningOption option : model.getReasoningOptions()) {
-            if (option.getEffort().equals(effort)) {
-                effortDescription = option.getDescription();
-                break;
-            }
-        }
-        StringBuilder value = new StringBuilder(model.getDescription());
-        if (!effortDescription.isEmpty()) {
-            if (value.length() != 0) {
-                value.append(" · ");
-            }
-            value.append(effortDescription);
-        }
-        return value.toString();
-    }
-
-    private String reasoningLabel(String effort) {
-        if ("low".equals(effort)) {
-            return getString(R.string.reasoning_low);
-        }
-        if ("medium".equals(effort)) {
-            return getString(R.string.reasoning_medium);
-        }
-        if ("high".equals(effort)) {
-            return getString(R.string.reasoning_high);
-        }
-        if ("xhigh".equals(effort)) {
-            return getString(R.string.reasoning_xhigh);
-        }
-        if ("max".equals(effort)) {
-            return getString(R.string.reasoning_max);
-        }
-        if ("ultra".equals(effort)) {
-            return getString(R.string.reasoning_ultra);
-        }
-        return effort;
-    }
-
-    private String messageRole(ChatMessage message) {
-        String role = message.getRole() == ChatMessage.Role.USER
-            ? getString(R.string.transcript_role_you)
-            : message.getRole() == ChatMessage.Role.ASSISTANT
-                ? getString(R.string.transcript_role_codex)
-                : getString(R.string.transcript_role_system);
-        return role + (message.isStreaming()
-            ? " · " + getString(R.string.transcript_stream)
-            : "");
-    }
-
-    private String messageBody(ChatMessage message) {
-        return message.getRole() == ChatMessage.Role.SYSTEM
-            ? UiText.coreStatus(this, message.getText())
-            : UiText.streamText(this, message.getText());
-    }
-
-    private static String transcriptKey(CodexTranscriptItem item) {
-        return item.getKind().name() + ":" + item.getId();
-    }
-
     private void styleThreadFilter(ImageButton button, boolean selected, boolean enabled) {
         button.setSelected(selected);
         button.setEnabled(enabled && !selected);
@@ -2557,223 +564,5 @@ public final class MainActivity extends Activity {
             Color.TRANSPARENT,
             14
         ));
-    }
-
-    private final class ThreadAdapter extends BaseAdapter {
-        private final List<CodexThreadSummary> values = new ArrayList<CodexThreadSummary>();
-        private String activeId = "";
-        private boolean enabled;
-        private String fingerprint = "";
-
-        void setData(List<CodexThreadSummary> threads, String activeThreadId, boolean rowsEnabled) {
-            StringBuilder nextFingerprint = new StringBuilder();
-            int count = Math.min(MAX_VISIBLE_THREADS, threads.size());
-            for (int index = 0; index < count; index++) {
-                CodexThreadSummary value = threads.get(index);
-                nextFingerprint.append(value.getId()).append('\0')
-                    .append(value.getTitle()).append('\0')
-                    .append(value.getUpdatedAtSeconds()).append('\0')
-                    .append(value.isArchived()).append('\1');
-            }
-            nextFingerprint.append('|').append(activeThreadId).append('|').append(rowsEnabled);
-            if (nextFingerprint.toString().equals(fingerprint)) {
-                return;
-            }
-            fingerprint = nextFingerprint.toString();
-            values.clear();
-            for (int index = 0; index < count; index++) {
-                values.add(threads.get(index));
-            }
-            activeId = activeThreadId;
-            enabled = rowsEnabled;
-            notifyDataSetChanged();
-        }
-
-        CodexThreadSummary item(int position) {
-            return values.get(position);
-        }
-
-        @Override
-        public int getCount() {
-            return values.size();
-        }
-
-        @Override
-        public Object getItem(int position) {
-            return item(position);
-        }
-
-        @Override
-        public long getItemId(int position) {
-            return position;
-        }
-
-        @Override
-        public boolean isEnabled(int position) {
-            return enabled;
-        }
-
-        @Override
-        public View getView(int position, View convertView, ViewGroup parent) {
-            ThreadRow row;
-            if (convertView instanceof LinearLayout && convertView.getTag() instanceof ThreadRow) {
-                row = (ThreadRow) convertView.getTag();
-            } else {
-                LinearLayout container = new LinearLayout(MainActivity.this);
-                container.setOrientation(LinearLayout.HORIZONTAL);
-                container.setGravity(Gravity.CENTER_VERTICAL);
-                container.setPadding(theme.dp(14), theme.dp(16), theme.dp(10), theme.dp(16));
-                ImageView icon = new ImageView(MainActivity.this);
-                icon.setPadding(theme.dp(9), theme.dp(9), theme.dp(9), theme.dp(9));
-                icon.setImportantForAccessibility(View.IMPORTANT_FOR_ACCESSIBILITY_NO);
-                container.addView(icon, new LinearLayout.LayoutParams(
-                    theme.dp(40), theme.dp(40)
-                ));
-                LinearLayout textColumn = new LinearLayout(MainActivity.this);
-                textColumn.setOrientation(LinearLayout.VERTICAL);
-                TextView title = theme.text("", 15, theme.primary);
-                title.setTypeface(Typeface.DEFAULT_BOLD);
-                title.setMaxLines(2);
-                title.setEllipsize(android.text.TextUtils.TruncateAt.END);
-                title.setLineSpacing(0.0f, 1.12f);
-                textColumn.addView(title);
-                TextView metadata = theme.text("", 12, theme.secondary);
-                metadata.setLineSpacing(0.0f, 1.15f);
-                theme.addWithTopMargin(textColumn, metadata, 6);
-                LinearLayout.LayoutParams textParams = new LinearLayout.LayoutParams(
-                    0,
-                    ViewGroup.LayoutParams.WRAP_CONTENT,
-                    1.0f
-                );
-                textParams.setMarginStart(theme.dp(12));
-                container.addView(textColumn, textParams);
-                ImageButton action = theme.iconButton(
-                    R.drawable.ic_chat_more,
-                    getString(R.string.chat_actions)
-                );
-                action.setFocusable(false);
-                action.setColorFilter(theme.secondary);
-                action.setBackground(theme.touchBackground(
-                    Color.TRANSPARENT, Color.TRANSPARENT, 14
-                ));
-                LinearLayout.LayoutParams actionParams = new LinearLayout.LayoutParams(
-                    ViewGroup.LayoutParams.WRAP_CONTENT,
-                    ViewGroup.LayoutParams.WRAP_CONTENT
-                );
-                actionParams.setMarginStart(theme.dp(4));
-                container.addView(action, actionParams);
-                row = new ThreadRow(container, icon, title, metadata, action);
-                container.setTag(row);
-            }
-            final CodexThreadSummary value = item(position);
-            boolean active = !value.isArchived() && value.getId().equals(activeId);
-            row.title.setText(UiText.threadTitle(MainActivity.this, value.getTitle()));
-            row.title.setContentDescription(row.title.getText());
-            String updated = value.getUpdatedAtSeconds() <= 0
-                ? getString(R.string.chat_not_updated)
-                : DateFormat.getDateTimeInstance(DateFormat.SHORT, DateFormat.SHORT)
-                    .format(new Date(value.getUpdatedAtSeconds() * 1000L));
-            if (value.isArchived()) {
-                row.metadata.setText(getString(R.string.chat_archived_metadata, updated));
-            } else {
-                row.metadata.setText(
-                    active ? getString(R.string.chat_active_metadata, updated) : updated
-                );
-            }
-            row.metadata.setTextColor(active ? theme.accent : theme.secondary);
-            row.icon.setImageResource(value.isArchived()
-                ? R.drawable.ic_chat_archived_threads : R.drawable.ic_chat_active_threads);
-            row.icon.setColorFilter(active ? theme.accent : theme.secondary);
-            row.icon.setBackground(theme.background(
-                active ? theme.tintedSurface(theme.accent, 0.14f) : theme.surfaceRaised,
-                Color.TRANSPARENT,
-                13
-            ));
-            row.root.setActivated(active);
-            row.root.setBackground(theme.background(
-                active ? theme.tintedSurface(theme.accent, 0.05f) : theme.surface,
-                active ? theme.accent : theme.border,
-                20
-            ));
-            row.root.setAlpha(enabled ? 1.0f : 0.55f);
-            row.action.setEnabled(enabled);
-            theme.setIcon(
-                row.action,
-                R.drawable.ic_chat_more,
-                getString(
-                    R.string.chat_actions_for,
-                    UiText.threadTitle(MainActivity.this, value.getTitle())
-                )
-            );
-            row.action.setOnClickListener(new View.OnClickListener() {
-                @Override
-                public void onClick(View view) {
-                    showThreadActions(value);
-                }
-            });
-            return row.root;
-        }
-    }
-
-    private enum ImageValidationState {
-        NONE,
-        CHECKING,
-        VALID,
-        INVALID
-    }
-
-    private static final class TranscriptRow {
-        private final LinearLayout root;
-        private final LinearLayout bubble;
-        private final TextView role;
-        private final TextView text;
-        private final TranscriptCardView card;
-        private final TextView imageStatus;
-        private final ImageButton imageAction;
-        private String imagePath = "";
-        private ImageValidationState imageState = ImageValidationState.NONE;
-        private WorkspaceImageExporter.ImageExport imageInfo;
-        private String imageFailure = "";
-        private String checkingMessage = "";
-
-        private TranscriptRow(
-            LinearLayout root,
-            LinearLayout bubble,
-            TextView role,
-            TextView text,
-            TranscriptCardView card,
-            TextView imageStatus,
-            ImageButton imageAction
-        ) {
-            this.root = root;
-            this.bubble = bubble;
-            this.role = role;
-            this.text = text;
-            this.card = card;
-            this.imageStatus = imageStatus;
-            this.imageAction = imageAction;
-        }
-    }
-
-    private static final class ThreadRow {
-        private final LinearLayout root;
-        private final ImageView icon;
-        private final TextView title;
-        private final TextView metadata;
-        private final ImageButton action;
-
-        private ThreadRow(
-            LinearLayout root,
-            ImageView icon,
-            TextView title,
-            TextView metadata,
-            ImageButton action
-        ) {
-            this.root = root;
-            this.icon = icon;
-            this.title = title;
-            this.metadata = metadata;
-            this.action = action;
-        }
     }
 }

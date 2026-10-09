@@ -1,8 +1,10 @@
 package de.agentcodi.app;
 
 import android.app.AlertDialog;
+import android.app.Activity;
 import android.app.Application;
 import android.content.Intent;
+import android.net.Uri;
 import android.graphics.Bitmap;
 import android.graphics.Canvas;
 import android.view.View;
@@ -18,11 +20,14 @@ import android.widget.TextView;
 
 import de.agentcodi.connectors.ConnectorProvider;
 import de.agentcodi.connectors.ConnectorSelection;
+import de.agentcodi.core.ChatMessage;
+import de.agentcodi.core.CodexFileMentionTransaction;
 import de.agentcodi.core.CodexModelOption;
 import de.agentcodi.core.CodexReasoningOption;
 import de.agentcodi.core.CodexRpcTransport;
 import de.agentcodi.core.CodexSessionController;
 import de.agentcodi.core.CodexSessionSnapshot;
+import de.agentcodi.core.CodexTranscriptItem;
 import de.agentcodi.core.RuntimePhase;
 import de.agentcodi.core.RuntimeSnapshot;
 import de.agentcodi.imports.ImportedWorkspaceFile;
@@ -42,6 +47,7 @@ import org.robolectric.annotation.GraphicsMode;
 import org.robolectric.annotation.LooperMode;
 import org.robolectric.shadows.ShadowAlertDialog;
 import org.robolectric.shadows.ShadowLooper;
+import org.robolectric.shadows.ShadowToast;
 
 import java.io.File;
 import java.io.FileOutputStream;
@@ -51,6 +57,7 @@ import java.lang.reflect.Method;
 import java.util.Arrays;
 import java.util.Collections;
 import java.util.List;
+import java.util.concurrent.ExecutorService;
 
 import static org.junit.Assert.*;
 
@@ -61,6 +68,7 @@ import static org.junit.Assert.*;
 public final class ChatConversationUiTest {
     private ActivityController<MainActivity> lifecycle;
     private MainActivity activity;
+    private ChatComposerController composer;
     private LinearLayout root;
     private CodexSessionController session;
 
@@ -86,6 +94,7 @@ public final class ChatConversationUiTest {
         setStatic(AgentRuntimeService.class, "sessionController", session);
         lifecycle = Robolectric.buildActivity(MainActivity.class).create();
         activity = lifecycle.get();
+        composer = (ChatComposerController) field(activity, "composer").get(activity);
         root = (LinearLayout) ((ViewGroup) activity.findViewById(android.R.id.content)).getChildAt(0);
         call("showConversationPage", new Class<?>[]{CodexSessionSnapshot.class}, session.snapshot());
         renderSession();
@@ -93,7 +102,9 @@ public final class ChatConversationUiTest {
 
     @After
     public void close() throws Exception {
-        lifecycle.destroy();
+        if (lifecycle != null) {
+            lifecycle.destroy();
+        }
         setStatic(AgentRuntimeService.class, "sessionController", null);
         session.close();
     }
@@ -224,16 +235,16 @@ public final class ChatConversationUiTest {
 
     @Test
     public void allAttachmentsAndBothDetachActionsRemainAccessible() throws Exception {
-        List<ImportedWorkspaceFile> imports = list(activity, "pendingImports");
+        List<ImportedWorkspaceFile> imports = list(composer, "pendingImports");
         for (int i = 0; i < 16; i++) {
             imports.add(ImportedWorkspaceFile.create("imports/file-" + i + ".txt",
                 "Long filename " + i + ".txt", "text/plain", 42,
                 "0123456789abcdef0123456789abcdef0123456789abcdef0123456789abcdef"));
         }
-        list(activity, "pendingConnectors").add(new ConnectorSelection(ConnectorProvider.GMAIL, "gmail", "Gmail"));
-        list(activity, "pendingConnectors").add(new ConnectorSelection(ConnectorProvider.GITHUB, "github", "GitHub"));
-        set(activity, "pendingImportsThreadId", "thread");
-        set(activity, "pendingConnectorsThreadId", "thread");
+        list(composer, "pendingConnectors").add(new ConnectorSelection(ConnectorProvider.GMAIL, "gmail", "Gmail"));
+        list(composer, "pendingConnectors").add(new ConnectorSelection(ConnectorProvider.GITHUB, "github", "GitHub"));
+        set(composer, "pendingImportsThreadId", "thread");
+        set(composer, "pendingConnectorsThreadId", "thread");
         renderSession();
         layout(320, 720);
         TextView summary = view("importStatus");
@@ -248,9 +259,9 @@ public final class ChatConversationUiTest {
         assertTrue(containsText(dialog.getWindow().getDecorView(), "GitHub"));
         dialog.dismiss();
         view("clearImportsButton").performClick();
-        assertTrue(list(activity, "pendingImports").isEmpty());
+        assertTrue(list(composer, "pendingImports").isEmpty());
         view("clearConnectorsButton").performClick();
-        assertTrue(list(activity, "pendingConnectors").isEmpty());
+        assertTrue(list(composer, "pendingConnectors").isEmpty());
     }
 
     @Test
@@ -315,6 +326,123 @@ public final class ChatConversationUiTest {
         assertEquals(View.GONE, view("conversationPage").getVisibility());
     }
 
+    @Test
+    public void pickerResultsKeepReadGrantsAndExportCancellationBoundaries() throws Exception {
+        ChatTranscriptController transcript =
+            (ChatTranscriptController) field(activity, "transcript").get(activity);
+        set(transcript, "pendingImageExportPath", "/chat-ui-fixture/generated.png");
+        Intent missingGrant = new Intent().setData(Uri.parse("content://documents/file"));
+        activity.onActivityResult(7002, Activity.RESULT_OK, missingGrant);
+        assertEquals(activity.getString(R.string.chat_import_read_grant_missing),
+            ShadowToast.getTextOfLatestToast());
+        assertTrue(list(composer, "pendingImports").isEmpty());
+        assertFalse((Boolean) field(composer, "importOperationActive").get(composer));
+        activity.onActivityResult(7003, Activity.RESULT_CANCELED, null);
+        assertEquals("/chat-ui-fixture/generated.png",
+            field(transcript, "pendingImageExportPath").get(transcript));
+        activity.onActivityResult(7001, Activity.RESULT_CANCELED, null);
+        assertEquals("", field(transcript, "pendingImageExportPath").get(transcript));
+        assertFalse(composer.handleActivityResult(9999, Activity.RESULT_OK, missingGrant));
+        assertFalse(transcript.handleActivityResult(9999, Activity.RESULT_OK, missingGrant));
+    }
+
+    @Test
+    public void destroyClosesPreparedImportsAndRejectsLateCompletion() throws Exception {
+        TrackingTransaction transaction = new TrackingTransaction();
+        set(composer, "preparedImportSend", transaction);
+        set(composer, "sendPreparationActive", true);
+        EditText input = view("composerInput");
+        input.setText("Retain the draft");
+        ChatTranscriptController transcript =
+            (ChatTranscriptController) field(activity, "transcript").get(activity);
+        lifecycle.destroy();
+        lifecycle = null;
+        assertEquals(1, transaction.closeCalls);
+        assertNull(field(composer, "preparedImportSend").get(composer));
+        assertTrue(((ExecutorService) field(composer, "importOperations").get(composer)).isShutdown());
+        assertTrue(((ExecutorService) field(transcript, "imageOperations").get(transcript)).isShutdown());
+        completePreparedSend(transaction);
+        assertEquals(0, transaction.sendCalls);
+        assertEquals("Retain the draft", input.getText().toString());
+    }
+
+    @Test
+    public void changedThreadRejectsPreparedSendAndClearsStaleSelections() throws Exception {
+        TrackingTransaction transaction = new TrackingTransaction();
+        set(composer, "preparedImportSend", transaction);
+        set(composer, "sendPreparationActive", true);
+        list(composer, "pendingImports").add(ImportedWorkspaceFile.create(
+            "imports/file.txt", "file.txt", "text/plain", 42,
+            "0123456789abcdef0123456789abcdef0123456789abcdef0123456789abcdef"));
+        list(composer, "pendingConnectors").add(
+            new ConnectorSelection(ConnectorProvider.GITHUB, "github", "GitHub"));
+        set(composer, "pendingImportsThreadId", "thread");
+        set(composer, "pendingConnectorsThreadId", "thread");
+        view("composerInput").setEnabled(true);
+        ((EditText) view("composerInput")).setText("Keep this draft too");
+        set(session, "activeThreadId", "other-thread");
+        publishSession();
+        completePreparedSend(transaction);
+        assertEquals(1, transaction.closeCalls);
+        assertEquals(0, transaction.sendCalls);
+        assertTrue(list(composer, "pendingImports").isEmpty());
+        assertTrue(list(composer, "pendingConnectors").isEmpty());
+        assertFalse((Boolean) field(composer, "sendPreparationActive").get(composer));
+        assertEquals("Keep this draft too", ((EditText) view("composerInput")).getText().toString());
+    }
+
+    @Test
+    public void transcriptUpdatesRowsInPlaceAndRebuildsOnThreadChange() throws Exception {
+        ChatTranscriptController transcript =
+            (ChatTranscriptController) field(activity, "transcript").get(activity);
+        LinearLayout messages = view("messagesContainer");
+        transcript.renderTranscript("thread", Collections.singletonList(CodexTranscriptItem.message(
+            new ChatMessage("response", ChatMessage.Role.ASSISTANT, "Partial response", true))));
+        View row = messages.getChildAt(0);
+        assertTrue(containsText(row, "Partial response"));
+        transcript.renderTranscript("thread", Collections.singletonList(CodexTranscriptItem.message(
+            new ChatMessage("response", ChatMessage.Role.ASSISTANT, "Complete response", false))));
+        assertSame(row, messages.getChildAt(0));
+        assertTrue(containsText(row, "Complete response"));
+        transcript.renderTranscript("other-thread", Collections.singletonList(CodexTranscriptItem.message(
+            new ChatMessage("response", ChatMessage.Role.USER, "Another conversation", false))));
+        assertNotSame(row, messages.getChildAt(0));
+        assertNull(row.getParent());
+        assertTrue(containsText(messages, "Another conversation"));
+        transcript.renderTranscript("other-thread", Collections.<CodexTranscriptItem>emptyList());
+        assertTrue(containsText(messages, activity.getString(R.string.chat_no_messages)));
+    }
+
+    private void completePreparedSend(TrackingTransaction transaction) throws Exception {
+        Method method = ChatComposerController.class.getDeclaredMethod("completePreparedSend",
+            String.class, List.class, CodexFileMentionTransaction.class, boolean.class,
+            String.class, String.class, List.class, List.class);
+        method.setAccessible(true);
+        method.invoke(composer, "draft", Collections.emptyList(), transaction, false,
+            "thread", "", Collections.emptyList(), Collections.emptyList());
+    }
+
+    private static final class TrackingTransaction implements CodexFileMentionTransaction {
+        private int closeCalls;
+        private int sendCalls;
+
+        @Override
+        public int getFileCount() {
+            return 1;
+        }
+
+        @Override
+        public void withVerifiedMentions(VerifiedSender sender) {
+            sendCalls++;
+            fail("A canceled or stale prepared send must not reach the runtime");
+        }
+
+        @Override
+        public void close() {
+            closeCalls++;
+        }
+    }
+
     private void checkActions(boolean active) throws Exception {
         ViewGroup tools = (ViewGroup) view("sendButton").getParent();
         for (String name : new String[]{"importButton", "connectorButton", "reviewButton", "sendButton"}) {
@@ -374,7 +502,8 @@ public final class ChatConversationUiTest {
 
     @SuppressWarnings("unchecked")
     private <T extends View> T view(String name) throws Exception {
-        return (T) field(activity, name).get(activity);
+        Object views = field(activity, "views").get(activity);
+        return (T) field(views, name).get(views);
     }
 
     @SuppressWarnings("unchecked")

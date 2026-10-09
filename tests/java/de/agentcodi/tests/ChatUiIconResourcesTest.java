@@ -73,7 +73,13 @@ public final class ChatUiIconResourcesTest {
     }
 
     private static void keepsEveryChatActionOnAnIconButton() throws IOException {
-        String activity = read("app/src/main/java/de/agentcodi/app/MainActivity.java");
+        String activity = "";
+        for (String source : new String[] {
+            "MainActivity", "ChatScreenView", "ChatComposerController",
+            "ChatTranscriptController", "ChatModelSelectors", "ThreadListAdapter"
+        }) {
+            activity += read("app/src/main/java/de/agentcodi/app/" + source + ".java");
+        }
         TestSupport.assertContains(
             activity,
             "import android.widget.ImageButton;",

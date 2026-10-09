@@ -4,6 +4,15 @@ set -Eeuo pipefail
 SCRIPT_DIR="$(cd -- "$(dirname -- "$0")" && pwd -P)"
 PROJECT_ROOT="$(cd -- "$SCRIPT_DIR/.." && pwd -P)"
 
+chat_root="$PROJECT_ROOT/app/src/main/java/de/agentcodi/app"
+chat_screen="$chat_root/ChatScreenView.java"
+chat_composer="$chat_root/ChatComposerController.java"
+chat_selectors="$chat_root/ChatModelSelectors.java"
+chat_transcript="$chat_root/ChatTranscriptController.java"
+chat_sources=("$chat_root/MainActivity.java" "$chat_screen" "$chat_composer"
+  "$chat_selectors" "$chat_transcript" "$chat_root/ThreadListAdapter.java"
+  "$chat_root/ChatUiFormatting.java")
+
 unexpected_source="$(find "$PROJECT_ROOT/app/src/main/java" "$PROJECT_ROOT/modules/core/src/main/java" "$PROJECT_ROOT/modules/review-mode/src/main/java" "$PROJECT_ROOT/modules/compatibility-mode/src/main/java" "$PROJECT_ROOT/modules/storage/src/main/java" "$PROJECT_ROOT/modules/file-browser-contracts/src/main/java" "$PROJECT_ROOT/modules/file-browser-client/src/main/java" "$PROJECT_ROOT/modules/import-contracts/src/main/java" "$PROJECT_ROOT/modules/import-client/src/main/java" "$PROJECT_ROOT/modules/mcp-contracts/src/main/java" "$PROJECT_ROOT/modules/mcp-client/src/main/java" "$PROJECT_ROOT/modules/connector-contracts/src/main/java" "$PROJECT_ROOT/modules/connector-client/src/main/java" "$PROJECT_ROOT/modules/runtime/src/main/java" "$PROJECT_ROOT/modules/native-engine/src/main/cpp" "$PROJECT_ROOT/tests/java" "$PROJECT_ROOT/tests/cpp" -type f ! -name '*.java' ! -name '*.cpp' ! -name '*.h' -print)"
 if [ -n "$unexpected_source" ]; then
   echo "Only Java and C++ source files are accepted in source roots." >&2
@@ -87,7 +96,7 @@ if rg -n '^import de\.agentcodi\.(app|runtime|storage|imports|mcp|mode)\.' "$rev
     || ! rg -q 'CustomReviewMode\.get' \
       "$PROJECT_ROOT/modules/runtime/src/main/java/de/agentcodi/runtime/AgentRuntimeService.java" \
     || ! rg -q 'ReviewModeDialog\.show' \
-      "$PROJECT_ROOT/app/src/main/java/de/agentcodi/app/MainActivity.java" \
+      "$chat_screen" \
     || ! rg -q 'setPositiveButton\(R\.string\.review_mode_start, null\)' "$review_ui" \
     || ! rg -q 'CredentialGuard\.containsLikelyCredential\(editable\)' "$review_ui" \
     || ! rg -q 'editable\.clear\(\)' "$review_ui" \
@@ -255,8 +264,8 @@ if rg -n '^import de\.agentcodi\.' "$connector_contracts" \
       "$PROJECT_ROOT/app/src/main/res/values-de/strings.xml" \
     || ! rg -q 'catalog == lastCatalogSnapshot' "$connector_activity" \
     || ! rg -q 'AgentRuntimeService\.connectorCatalogSnapshot' "$connector_activity" \
-    || ! rg -q 'AgentRuntimeService\.areConnectorsCallable' "$PROJECT_ROOT/app/src/main/java/de/agentcodi/app/MainActivity.java" \
-    || ! rg -q 'CodexAppMention\.create' "$PROJECT_ROOT/app/src/main/java/de/agentcodi/app/MainActivity.java" \
+    || ! rg -q 'AgentRuntimeService\.areConnectorsCallable' "$chat_composer" \
+    || ! rg -q 'CodexAppMention\.create' "$chat_composer" \
     || ! rg -q '"app://" \+ id' "$PROJECT_ROOT/modules/core/src/main/java/de/agentcodi/core/CodexAppMention.java" \
     || ! rg -q '\$gmail \$github' "$PROJECT_ROOT/tests/java/de/agentcodi/tests/CodexSessionControllerTest.java" \
     || ! rg -q 'ConnectorCatalogLoaderTest\.run' "$PROJECT_ROOT/tests/java/de/agentcodi/tests/TestMain.java" \
@@ -391,16 +400,16 @@ if rg -n 'System\.loadLibrary' "$PROJECT_ROOT" --glob '*.java' | grep -v '/modul
   exit 1
 fi
 
-if rg -n 'startChatGptLogin|startApiKeyLogin|TYPE_TEXT_VARIATION_PASSWORD' "$PROJECT_ROOT/app/src/main/java/de/agentcodi/app/MainActivity.java"; then
+if rg -n 'startChatGptLogin|startApiKeyLogin|TYPE_TEXT_VARIATION_PASSWORD' "${chat_sources[@]}"; then
   echo "Authentication controls belong in SettingsActivity, not the chat surface." >&2
   exit 1
 fi
 
 if ! rg -q 'startChatGptLogin' "$PROJECT_ROOT/app/src/main/java/de/agentcodi/app/SettingsActivity.java" \
     || ! rg -q 'startApiKeyLogin' "$PROJECT_ROOT/app/src/main/java/de/agentcodi/app/SettingsActivity.java" \
-    || ! rg -q 'ListView' "$PROJECT_ROOT/app/src/main/java/de/agentcodi/app/MainActivity.java" \
-    || ! rg -q 'selectModel' "$PROJECT_ROOT/app/src/main/java/de/agentcodi/app/MainActivity.java" \
-    || ! rg -q 'selectReasoningEffort' "$PROJECT_ROOT/app/src/main/java/de/agentcodi/app/MainActivity.java"; then
+    || ! rg -q 'ListView' "$chat_screen" \
+    || ! rg -q 'selectModel' "$chat_selectors" \
+    || ! rg -q 'selectReasoningEffort' "$chat_selectors"; then
   echo "Chat navigation, settings authentication, and model selectors are incomplete." >&2
   exit 1
 fi
@@ -428,8 +437,8 @@ fi
 if ! rg -q '"turn/steer"' "$mcp_session" \
     || ! rg -q '"expectedTurnId"' "$mcp_session" \
     || ! rg -q 'controller\.steerTurn' "$PROJECT_ROOT/modules/runtime/src/main/java/de/agentcodi/runtime/AgentRuntimeService.java" \
-    || ! rg -q 'AgentRuntimeService\.steerTurn' "$PROJECT_ROOT/app/src/main/java/de/agentcodi/app/MainActivity.java" \
-    || ! rg -Fq 'composerInput.setEnabled(composerReady)' "$PROJECT_ROOT/app/src/main/java/de/agentcodi/app/MainActivity.java" \
+    || ! rg -q 'AgentRuntimeService\.steerTurn' "$chat_composer" \
+    || ! rg -Fq 'composerInput.setEnabled(composerReady)' "$chat_composer" \
     || ! rg -q 'turn/steer has only its supported fields' "$PROJECT_ROOT/tests/java/de/agentcodi/tests/CodexSessionControllerTest.java" \
     || ! rg -q -- '--turn-steer-roundtrip' "$PROJECT_ROOT/tests/cpp/agentcodi_engine_test.cpp"; then
   echo "Correlated active-turn steering is incomplete." >&2
@@ -474,14 +483,14 @@ attachment_context="$PROJECT_ROOT/modules/core/src/main/java/de/agentcodi/core/C
 file_transaction="$PROJECT_ROOT/modules/core/src/main/java/de/agentcodi/core/CodexFileMentionTransaction.java"
 app_server_client="$PROJECT_ROOT/modules/core/src/main/java/de/agentcodi/core/CodexAppServerClient.java"
 storage_layout="$PROJECT_ROOT/modules/storage/src/main/java/de/agentcodi/storage/WorkspaceLayout.java"
-if ! rg -q 'Intent\.ACTION_OPEN_DOCUMENT' "$main_activity" \
-    || ! rg -q 'Intent\.CATEGORY_OPENABLE' "$main_activity" \
-    || ! rg -q 'Intent\.EXTRA_ALLOW_MULTIPLE' "$main_activity" \
-    || ! rg -q 'Intent\.FLAG_GRANT_READ_URI_PERMISSION' "$main_activity" \
-    || ! rg -q 'WorkspaceImportGrant\.fromResultIntentFlags' "$main_activity" \
-    || ! rg -q 'data\.getFlags\(\)' "$main_activity" \
-    || ! rg -q '!sourceGrant\.hasTransientReadPermission\(\)' "$main_activity" \
-    || rg -q 'takePersistableUriPermission|ACTION_OPEN_DOCUMENT_TREE' "$main_activity" "$workspace_importer" \
+if ! rg -q 'Intent\.ACTION_OPEN_DOCUMENT' "$chat_composer" \
+    || ! rg -q 'Intent\.CATEGORY_OPENABLE' "$chat_composer" \
+    || ! rg -q 'Intent\.EXTRA_ALLOW_MULTIPLE' "$chat_composer" \
+    || ! rg -q 'Intent\.FLAG_GRANT_READ_URI_PERMISSION' "$chat_composer" \
+    || ! rg -q 'WorkspaceImportGrant\.fromResultIntentFlags' "$chat_composer" \
+    || ! rg -q 'data\.getFlags\(\)' "$chat_composer" \
+    || ! rg -q '!sourceGrant\.hasTransientReadPermission\(\)' "$chat_composer" \
+    || rg -q 'takePersistableUriPermission|ACTION_OPEN_DOCUMENT_TREE' "${chat_sources[@]}" "$workspace_importer" \
     || ! rg -q 'WorkspaceImportGrant sourceGrant' "$workspace_importer" \
     || ! rg -q 'requireContentSource\(sourceUri, sourceGrant\)' "$workspace_importer" \
     || ! rg -q 'sourceGrant == null \|\| !sourceGrant\.hasTransientReadPermission\(\)' "$workspace_importer" \
@@ -494,8 +503,8 @@ if ! rg -q 'Intent\.ACTION_OPEN_DOCUMENT' "$main_activity" \
     || rg -q 'try \(InputStream source = opened\)' "$workspace_importer" \
     || ! rg -q 'WorkspaceFileImporter\.recoverPendingImports\(layout\)' "$runtime_service" \
     || ! rg -q 'CodexFileMentionTransaction prepareForCodex' "$workspace_importer" \
-    || ! rg -q 'prepareForCodex\(' "$main_activity" "$document_importer" \
-    || rg -q 'List<CodexFileMention>|verifyForCodex\(applicationContext' "$main_activity" "$workspace_importer" \
+    || ! rg -q 'prepareForCodex\(' "$chat_composer" "$document_importer" \
+    || rg -q 'List<CodexFileMention>|verifyForCodex\(applicationContext' "${chat_sources[@]}" "$workspace_importer" \
     || ! rg -q 'interface CodexFileMentionTransaction' "$file_transaction" \
     || ! rg -q 'SendGuard' "$file_transaction" "$document_importer" "$mcp_session" \
     || ! rg -q 'requestWithFileGuard' "$app_server_client" "$mcp_session" \
@@ -645,10 +654,10 @@ image_exporter="$PROJECT_ROOT/modules/runtime/src/main/java/de/agentcodi/runtime
 if ! rg -q 'WorkspaceImageFile\.inspect' "$image_exporter" \
     || ! rg -q 'WorkspaceImageFile\.copyTo' "$image_exporter" \
     || ! rg -q 'NativeWorkspaceFileAccess\.opener' "$image_exporter" \
-    || ! rg -q 'Intent\.ACTION_CREATE_DOCUMENT' "$PROJECT_ROOT/app/src/main/java/de/agentcodi/app/MainActivity.java" \
-    || ! rg -q 'getReportedImagePath' "$PROJECT_ROOT/app/src/main/java/de/agentcodi/app/MainActivity.java" \
-    || ! rg -q 'R\.string\.image_export' "$PROJECT_ROOT/app/src/main/java/de/agentcodi/app/MainActivity.java" \
-    || ! rg -q 'ImageValidationState' "$PROJECT_ROOT/app/src/main/java/de/agentcodi/app/MainActivity.java"; then
+    || ! rg -q 'Intent\.ACTION_CREATE_DOCUMENT' "$chat_transcript" \
+    || ! rg -q 'getReportedImagePath' "$chat_transcript" \
+    || ! rg -q 'R\.string\.image_export' "$chat_transcript" \
+    || ! rg -q 'ImageValidationState' "$chat_transcript"; then
   echo "Validated workspace-image export through Android's document picker is incomplete." >&2
   exit 1
 fi
@@ -771,18 +780,17 @@ if [ "$default_names" != "$german_names" ] \
   exit 1
 fi
 
-chat_activity="$PROJECT_ROOT/app/src/main/java/de/agentcodi/app/MainActivity.java"
 ui_theme="$PROJECT_ROOT/app/src/main/java/de/agentcodi/app/UiTheme.java"
 chat_icon_count="$(find "$PROJECT_ROOT/app/src/main/res/drawable" -maxdepth 1 \
   -type f -name 'ic_chat_*.xml' | wc -l | tr -d '[:space:]')"
 if [ "$chat_icon_count" != "17" ] \
-    || rg -q 'import android\.widget\.Button;|theme\.(compactButton|primaryButton|secondaryButton)\(' "$chat_activity" \
-    || ! rg -q 'import android\.widget\.ImageButton;' "$chat_activity" \
-    || ! rg -q 'R\.drawable\.ic_chat_folder' "$chat_activity" \
-    || ! rg -q 'R\.drawable\.ic_chat_add' "$chat_activity" \
-    || ! rg -q 'R\.drawable\.ic_chat_connectors' "$chat_activity" \
-    || ! rg -q 'R\.drawable\.ic_chat_send' "$chat_activity" \
-    || ! rg -q 'R\.drawable\.ic_chat_stop' "$chat_activity" \
+    || rg -q 'import android\.widget\.Button;|theme\.(compactButton|primaryButton|secondaryButton)\(' "${chat_sources[@]}" \
+    || ! rg -q 'import android\.widget\.ImageButton;' "${chat_sources[@]}" \
+    || ! rg -q 'R\.drawable\.ic_chat_folder' "${chat_sources[@]}" \
+    || ! rg -q 'R\.drawable\.ic_chat_add' "${chat_sources[@]}" \
+    || ! rg -q 'R\.drawable\.ic_chat_connectors' "${chat_sources[@]}" \
+    || ! rg -q 'R\.drawable\.ic_chat_send' "${chat_sources[@]}" \
+    || ! rg -q 'R\.drawable\.ic_chat_stop' "${chat_sources[@]}" \
     || ! rg -q 'setMinimumWidth\(dp\(48\)\)' "$ui_theme" \
     || ! rg -q 'setMinimumHeight\(dp\(48\)\)' "$ui_theme" \
     || ! rg -q 'setContentDescription\(description\)' "$ui_theme" \
@@ -991,7 +999,7 @@ fi
 
 if ! rg -q 'containsLikelyCredential' "$core_root/CredentialGuard.java" \
     || ! rg -q 'CredentialGuard\.containsLikelyCredential\(input\)' "$core_root/CodexSessionController.java" \
-    || ! rg -q 'CredentialGuard\.containsLikelyCredential\(editable\)' "$PROJECT_ROOT/app/src/main/java/de/agentcodi/app/MainActivity.java" \
+    || ! rg -q 'CredentialGuard\.containsLikelyCredential\(editable\)' "$chat_composer" \
     || ! rg -q 'containsCredential\(answers\)' "$PROJECT_ROOT/app/src/main/java/de/agentcodi/app/InteractiveRequestDialog.java" \
     || ! rg -q 'final char\[\] apiKey' "$core_root/CodexAppServerClient.java" \
     || rg -q 'new String\(apiKey\)' "$core_root" "$PROJECT_ROOT/modules/runtime/src/main/java" \

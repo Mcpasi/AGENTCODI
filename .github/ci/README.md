@@ -25,7 +25,7 @@ Ubuntu runner. They are additional entry points only:
 | Android sources and resources | `compile-android-sources.sh` | Compile against API 35, check SDK pins and Package Edition identity, and resolve every manifest component against its compiled Java class. |
 
 Package Edition builds use installation ID `de.agentcodi.pkg`, their own
-version line (currently `0.1.1` / Android versionCode 4, published; started at
+version line (currently `0.1.2` / Android versionCode 5, published; started at
 `0.1.0-package.1` / code 1), and APK names
 starting with `AGENTCODI-Package-`. The APK workflow on this branch
 uploads `agentcodi-package-debug-apk`. Java classes and resources retain the
@@ -33,11 +33,11 @@ uploads `agentcodi-package-debug-apk`. Java classes and resources retain the
 use their full Java class names. Host compilation does not replace an APK
 installation and parallel-app test on Android hardware.
 
-Package Edition 0.1.1 is a published experimental prerelease. Physical
-Android APK tests passed on 2026-10-07; this result
-is separate from hosted CI. The published `0.1.0` (`v0.1.0-package.3`) also
-remains an experimental prerelease. Its artifacts below are historical
-evidence for that earlier version.
+[Package Edition 0.1.2](https://github.com/Mcpasi/AGENTCODI/releases/tag/v0.1.2-package.3)
+is a published experimental prerelease. Physical Android APK tests for version
+0.1.2 passed; this result is separate from hosted CI. The published 0.1.0
+(`v0.1.0-package.3`) and 0.1.1 releases remain experimental prereleases.
+Their artifacts below are historical evidence for those earlier versions.
 
 ## Running them locally
 
@@ -335,8 +335,9 @@ complete runnable runtime/schema sequence. The later roadmap implementation
 and license work are complete, and the signed Package Edition prerelease
 [`v0.1.0-package.3`](https://github.com/Mcpasi/AGENTCODI/releases/tag/v0.1.0-package.3)
 was published on 2026-10-06. Release APK tests from APT through MCP passed,
-and physical Android hardware tests of the current APK passed on 2026-10-07.
-Both 0.1.0 and 0.1.1 are published experimental prereleases.
+and physical Android hardware tests for 0.1.1 passed on 2026-10-07.
+Physical Android device tests for the current 0.1.2 APK also passed.
+Versions 0.1.0, 0.1.1 and 0.1.2 are published experimental prereleases.
 
 
 ## Final payload and supplied-license contract

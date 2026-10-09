@@ -12,6 +12,7 @@ import android.view.View;
 import android.view.ViewGroup;
 import android.view.inputmethod.EditorInfo;
 import android.widget.AdapterView;
+import android.widget.Button;
 import android.widget.EditText;
 import android.widget.ImageButton;
 import android.widget.LinearLayout;
@@ -60,6 +61,7 @@ final class ChatScreenView {
     TextView threadSectionLabel;
     TextView threadEmptyView;
     ListView threadList;
+    Button loadMoreThreadsButton;
     ThreadListAdapter threadAdapter;
     Spinner modelSpinner;
     Spinner effortSpinner;
@@ -339,6 +341,17 @@ final class ChatScreenView {
         );
         listParams.topMargin = theme.dp(12);
         page.addView(threadList, listParams);
+        loadMoreThreadsButton = theme.secondaryButton(
+            activity.getString(R.string.chat_load_more)
+        );
+        loadMoreThreadsButton.setVisibility(View.GONE);
+        loadMoreThreadsButton.setOnClickListener(new View.OnClickListener() {
+            @Override
+            public void onClick(View view) {
+                AgentRuntimeService.loadMoreThreads();
+            }
+        });
+        theme.addWithTopMargin(page, loadMoreThreadsButton, 8);
         return page;
     }
 

@@ -34,7 +34,8 @@ public final class CodexSessionController
     // terminal turn event. Keep this finite, but do not apply the shorter
     // administrative-RPC budget to a user-requested cancellation.
     private static final long TURN_INTERRUPT_TIMEOUT_MS = 120_000L;
-    private static final int MAX_THREADS = 200;
+    private static final int THREAD_PAGE_SIZE = 50;
+    // Bound each load while retaining its continuation for the next user request.
     private static final int MAX_THREAD_PAGES = 4;
     private static final int MAX_MODELS = 50;
     private static final int MAX_REASONING_OPTIONS = 8;
@@ -131,6 +132,8 @@ public final class CodexSessionController
     private String selectedModelId = "";
     private String selectedReasoningEffort = "";
     private boolean showingArchivedThreads;
+    private String nextThreadCursor = "";
+    private final Set<String> threadListCursors = new HashSet<String>();
     private String activeThreadId = "";
     private String activeThreadTitle = "";
     private boolean turnActive;
@@ -707,6 +710,25 @@ public final class CodexSessionController
 
     public void showActiveThreads() {
         loadThreadView(false);
+    }
+
+    public void loadMoreThreads() {
+        synchronized (this) {
+            if (nextThreadCursor.isEmpty()) {
+                return;
+            }
+        }
+        submit("Weitere Chats werden geladen.", new Operation() {
+            @Override
+            public void run() throws Exception {
+                boolean archived;
+                synchronized (CodexSessionController.this) {
+                    requireNoActiveTurnOrRequestLocked();
+                    archived = showingArchivedThreads;
+                }
+                loadThreadsInternal(archived, true);
+            }
+        });
     }
 
     public void showArchivedThreads() {
@@ -2048,12 +2070,26 @@ public final class CodexSessionController
     }
 
     private void refreshThreadsInternal(boolean archived) throws Exception {
-        List<CodexThreadSummary> loaded = new ArrayList<CodexThreadSummary>();
+        loadThreadsInternal(archived, false);
+    }
+
+    private void loadThreadsInternal(boolean archived, boolean append) throws Exception {
+        Map<String, CodexThreadSummary> loaded =
+            new LinkedHashMap<String, CodexThreadSummary>();
         Set<String> cursors = new HashSet<String>();
         String cursor = "";
-        for (int page = 0; page < MAX_THREAD_PAGES && loaded.size() < MAX_THREADS; page++) {
+        if (append) {
+            synchronized (this) {
+                cursor = nextThreadCursor;
+                cursors.addAll(threadListCursors);
+            }
+            if (cursor.isEmpty()) {
+                return;
+            }
+        }
+        for (int page = 0; page < MAX_THREAD_PAGES; page++) {
             Map<String, Object> params = JsonCodec.object(
-                "limit", Long.valueOf(50L),
+                "limit", Long.valueOf(THREAD_PAGE_SIZE),
                 "sortKey", "updated_at",
                 "sourceKinds", JsonCodec.array("cli", "vscode", "exec", "appServer"),
                 "archived", Boolean.valueOf(archived)
@@ -2067,13 +2103,10 @@ public final class CodexSessionController
                 NORMAL_TIMEOUT_MS
             );
             for (Object value : JsonCodec.requireArray(result.get("data"), "thread/list data")) {
-                if (loaded.size() >= MAX_THREADS) {
-                    break;
-                }
                 Map<String, Object> thread = JsonCodec.requireObject(value, "thread summary");
                 String id = JsonCodec.requireString(thread.get("id"), "thread id");
                 if (isValidIdentifier(id)) {
-                    loaded.add(new CodexThreadSummary(
+                    loaded.put(id, new CodexThreadSummary(
                         id,
                         titleForThread(thread),
                         JsonCodec.longValue(thread.get("updatedAt"), 0L),
@@ -2083,21 +2116,38 @@ public final class CodexSessionController
             }
             cursor = JsonCodec.optionalString(result.get("nextCursor"));
             if (cursor.isEmpty() || !cursors.add(cursor)) {
+                cursor = "";
                 break;
             }
         }
         synchronized (this) {
-            threads.clear();
-            threads.addAll(loaded);
-            showingArchivedThreads = archived;
-            if (archived) {
-                operationMessage = loaded.isEmpty()
-                    ? "Keine archivierten Chats vorhanden."
-                    : loaded.size() + " archivierte Chat(s) geladen.";
+            if (append) {
+                Map<String, CodexThreadSummary> combined =
+                    new LinkedHashMap<String, CodexThreadSummary>();
+                for (CodexThreadSummary thread : threads) {
+                    combined.put(thread.getId(), thread);
+                }
+                combined.putAll(loaded);
+                threads.clear();
+                threads.addAll(combined.values());
             } else {
-                operationMessage = loaded.isEmpty()
+                threads.clear();
+                threads.addAll(loaded.values());
+            }
+            showingArchivedThreads = archived;
+            // Commit the cursor with the list so failed batches can be retried
+            // from the last fully published page without losing loaded chats.
+            nextThreadCursor = cursor;
+            threadListCursors.clear();
+            threadListCursors.addAll(cursors);
+            if (archived) {
+                operationMessage = threads.isEmpty()
+                    ? "Keine archivierten Chats vorhanden."
+                    : threads.size() + " archivierte Chat(s) geladen.";
+            } else {
+                operationMessage = threads.isEmpty()
                     ? "Noch keine Chats vorhanden."
-                    : loaded.size() + " Chat(s) geladen.";
+                    : threads.size() + " Chat(s) geladen.";
             }
             publishLocked();
         }
@@ -2147,6 +2197,8 @@ public final class CodexSessionController
         synchronized (this) {
             if (showingArchivedThreads) {
                 threads.clear();
+                nextThreadCursor = "";
+                threadListCursors.clear();
             }
             showingArchivedThreads = false;
             activeThreadId = id;
@@ -4381,6 +4433,7 @@ public final class CodexSessionController
             selectedReasoningEffort,
             threads,
             showingArchivedThreads,
+            !nextThreadCursor.isEmpty(),
             activeThreadId,
             activeThreadTitle,
             transcriptItems,
@@ -4590,9 +4643,6 @@ public final class CodexSessionController
             }
         }
         threads.add(0, value);
-        while (threads.size() > MAX_THREADS) {
-            threads.remove(threads.size() - 1);
-        }
     }
 
     private CodexThreadSummary requireListedThreadLocked(

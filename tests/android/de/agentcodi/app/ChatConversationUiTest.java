@@ -14,6 +14,7 @@ import android.view.WindowManager;
 import android.view.inputmethod.EditorInfo;
 import android.widget.EditText;
 import android.widget.LinearLayout;
+import android.widget.ListView;
 import android.widget.ScrollView;
 import android.widget.Spinner;
 import android.widget.TextView;
@@ -27,6 +28,7 @@ import de.agentcodi.core.CodexReasoningOption;
 import de.agentcodi.core.CodexRpcTransport;
 import de.agentcodi.core.CodexSessionController;
 import de.agentcodi.core.CodexSessionSnapshot;
+import de.agentcodi.core.CodexThreadSummary;
 import de.agentcodi.core.CodexTranscriptItem;
 import de.agentcodi.core.RuntimePhase;
 import de.agentcodi.core.RuntimeSnapshot;
@@ -107,6 +109,69 @@ public final class ChatConversationUiTest {
         }
         setStatic(AgentRuntimeService.class, "sessionController", null);
         session.close();
+    }
+
+    @Test
+    public void threadListKeepsAllLoadedRowsAndUpdatesRowsBeyondEighty() throws Exception {
+        List<CodexThreadSummary> threads = list(session, "threads");
+        for (int index = 0; index < 240; index++) {
+            threads.add(new CodexThreadSummary("thr_" + index, "Chat " + index, index, false));
+        }
+        publishSession();
+        renderSession();
+        view("backToThreadsButton").performClick();
+        layout(390, 720);
+        ListView threadList = view("threadList");
+        ThreadListAdapter adapter = (ThreadListAdapter) threadList.getAdapter();
+        assertEquals(240, adapter.getCount());
+        assertEquals("thr_239", adapter.item(239).getId());
+        threadList.setSelection(239);
+        layout(390, 720);
+        assertEquals(239, threadList.getLastVisiblePosition());
+        View lastRow = adapter.getView(239, null, threadList);
+        assertTrue(containsText(lastRow, "Chat 239"));
+        threads.set(239, new CodexThreadSummary("thr_239", "Renamed last chat", 999, false));
+        publishSession();
+        renderSession();
+        assertEquals("Renamed last chat", adapter.item(239).getTitle());
+        assertTrue(containsText(adapter.getView(239, lastRow, threadList), "Renamed last chat"));
+        threads.add(new CodexThreadSummary("thr_240", "Appended chat", 998, false));
+        publishSession();
+        renderSession();
+        assertEquals(241, adapter.getCount());
+        assertEquals("thr_240", adapter.item(240).getId());
+    }
+
+    @Test
+    public void threadPaginationShowsOnlyWithCursorAndRespectsBusyState() throws Exception {
+        view("backToThreadsButton").performClick();
+        assertEquals(View.GONE, view("loadMoreThreadsButton").getVisibility());
+        set(session, "nextThreadCursor", "next-page");
+        publishSession();
+        renderSession();
+        layout(320, 640);
+        TextView button = view("loadMoreThreadsButton");
+        assertEquals(View.VISIBLE, button.getVisibility());
+        assertEquals(activity.getString(R.string.chat_load_more), button.getText().toString());
+        assertTrue(button.isEnabled());
+        assertTrue(button.getHeight() >= 48);
+        assertTrue(button.getBottom() <= view("threadPage").getHeight());
+        for (String busyField : new String[]{"operationActive", "turnActive", "turnInterruptPending"}) {
+            set(session, busyField, true);
+            publishSession();
+            renderSession();
+            assertFalse("pagination disabled during " + busyField, button.isEnabled());
+            set(session, busyField, false);
+        }
+        set(session, "showingArchivedThreads", true);
+        publishSession();
+        renderSession();
+        assertTrue(button.isEnabled());
+        assertEquals(View.VISIBLE, button.getVisibility());
+        set(session, "nextThreadCursor", "");
+        publishSession();
+        renderSession();
+        assertEquals(View.GONE, button.getVisibility());
     }
 
     @Test

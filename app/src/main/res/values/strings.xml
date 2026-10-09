@@ -92,6 +92,7 @@
   <string name="chat_title">Chats</string>
   <string name="chat_intro">Your Codex conversations</string>
   <string name="chat_refresh">Refresh</string>
+  <string name="chat_load_more">Load more</string>
   <string name="chat_new">New chat</string>
   <string name="chat_active_threads">Active</string>
   <string name="chat_archived_threads">Archived</string>
@@ -568,6 +569,7 @@
   <string name="core_sign_out_running">Signing out.</string>
   <string name="core_signed_out">Signed out.</string>
   <string name="core_chats_loading">Loading chats.</string>
+  <string name="core_more_chats_loading">Loading more chats.</string>
   <string name="core_archived_chats_loading">Loading archived chats.</string>
   <string name="core_new_chat_creating">Creating a new chat.</string>
   <string name="core_invalid_chat_id">Invalid chat ID.</string>

@@ -1,5 +1,30 @@
 # Package Edition
 
+## 0.1.3 — Package Edition (Android versionCode 6) — Unreleased
+
+**In development.**
+
+- Make every loaded chat accessible in the recycled thread list. Remove the
+  80-row display limit so all entries from the initial four pages remain
+  reachable, including chats beyond row 80.
+- Add a localized **Load more** control for active and archived chats. Continue
+  from the saved app-server cursor, loading up to four further 50-chat pages
+  per request and appending them to the existing list. Hide the control when
+  pagination ends and disable it while chat navigation is unavailable.
+- Deduplicate thread IDs across pages and loading batches, stop repeated
+  cursors, and preserve the existing list and cursor after a failed batch so
+  loading can be retried. Refreshing or switching between active and archived
+  chats starts a fresh list and cursor.
+- Keep previously loaded chats when a new or updated chat is moved to the top
+  of the list; remove the former 200-chat eviction limit.
+- Bump application, build and native runtime identities to `0.1.3` and Android
+  versionCode 6.
+- Validation: 338 Java host tests, all seven portable C++ suites, architecture
+  checks, Android API 35 source/resource compilation and six APK signing
+  regressions pass. All 32 Android chat UI checks pass on API 29 and 35,
+  including access to the 240th loaded chat, row updates beyond the former
+  display limit, and pagination visibility and busy states.
+
 ## 0.1.2 — Package Edition (Android versionCode 5) — 2026-10-08
 
 **Experimental prerelease (published). Device tests: passed on physical Android hardware.**

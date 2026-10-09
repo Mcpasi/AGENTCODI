@@ -28,6 +28,7 @@ public final class CodexSessionSnapshot {
     private final String selectedReasoningEffort;
     private final List<CodexThreadSummary> threads;
     private final boolean showingArchivedThreads;
+    private final boolean hasMoreThreads;
     private final String activeThreadId;
     private final String activeThreadTitle;
     private final List<CodexTranscriptItem> transcriptItems;
@@ -62,6 +63,7 @@ public final class CodexSessionSnapshot {
         String selectedReasoningEffort,
         List<CodexThreadSummary> threads,
         boolean showingArchivedThreads,
+        boolean hasMoreThreads,
         String activeThreadId,
         String activeThreadTitle,
         List<CodexTranscriptItem> transcriptItems,
@@ -96,6 +98,7 @@ public final class CodexSessionSnapshot {
         this.selectedReasoningEffort = nonNull(selectedReasoningEffort);
         this.threads = immutableCopy(threads);
         this.showingArchivedThreads = showingArchivedThreads;
+        this.hasMoreThreads = hasMoreThreads;
         this.activeThreadId = nonNull(activeThreadId);
         this.activeThreadTitle = nonNull(activeThreadTitle);
         this.transcriptItems = immutableTranscriptCopy(transcriptItems);
@@ -133,6 +136,7 @@ public final class CodexSessionSnapshot {
             "",
             "",
             Collections.<CodexThreadSummary>emptyList(),
+            false,
             false,
             "",
             "",
@@ -239,6 +243,10 @@ public final class CodexSessionSnapshot {
 
     public boolean isShowingArchivedThreads() {
         return showingArchivedThreads;
+    }
+
+    public boolean hasMoreThreads() {
+        return hasMoreThreads;
     }
 
     public String getActiveThreadId() {

@@ -430,6 +430,7 @@ final class UiText {
         if ("Abmeldung läuft.".equals(raw)) return R.string.core_sign_out_running;
         if ("Abgemeldet.".equals(raw)) return R.string.core_signed_out;
         if ("Chats werden geladen.".equals(raw)) return R.string.core_chats_loading;
+        if ("Weitere Chats werden geladen.".equals(raw)) return R.string.core_more_chats_loading;
         if ("Archivierte Chats werden geladen.".equals(raw)) return R.string.core_archived_chats_loading;
         if ("Neuer Chat wird erstellt.".equals(raw)) return R.string.core_new_chat_creating;
         if ("Ungültige Chat-ID.".equals(raw)) return R.string.core_invalid_chat_id;

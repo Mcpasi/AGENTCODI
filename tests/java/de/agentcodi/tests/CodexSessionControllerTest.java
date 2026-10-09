@@ -41,6 +41,11 @@ public final class CodexSessionControllerTest {
         loadsAccountThreadsAndHistory();
         toleratesReviewedRuntimeSchemaAdditions();
         managesThreadArchiveAndDeletion();
+        continuesThreadPaginationWithoutEvictingLoadedChats();
+        retriesThreadPaginationAfterPartialBatchFailure();
+        resetsThreadPaginationWhenSwitchingViewsOrRefreshing();
+        stopsRepeatedThreadCursorsAcrossBatches();
+        deduplicatesThreadsAcrossPagesAndBatches();
         rejectsThreadMutationDuringActiveTurn();
         loadsAndRefreshesRateLimits();
         mergesStreamingDeltasAndFinalItem();
@@ -85,7 +90,163 @@ public final class CodexSessionControllerTest {
         terminatesTerminalWhenOutputCapIsReached();
         rejectsTerminalCredentialsAndMalformedOutput();
         usesVettedMcpConfigurationRpcs();
-        return 47;
+        return 52;
+    }
+
+    private static void continuesThreadPaginationWithoutEvictingLoadedChats() throws Exception {
+        FixtureServer server = new FixtureServer(true);
+        server.threadPageCount = 9;
+        final CodexSessionController controller = new CodexSessionController(
+            server, "/private/workspace");
+        try {
+            controller.start();
+            TestSupport.assertEquals(200, controller.snapshot().getThreads().size(),
+                "all four initial pages remain accessible");
+            TestSupport.assertEquals(4, server.threadListRequests.size(), "initial page budget");
+            TestSupport.assertTrue(controller.snapshot().hasMoreThreads(), "continuation available");
+            controller.loadMoreThreads();
+            waitForThreadOperation(controller);
+            TestSupport.assertEquals("active-page-4", server.threadListRequests.get(4).get("cursor"),
+                "load more continues after the fourth page");
+            TestSupport.assertEquals(400, controller.snapshot().getThreads().size(),
+                "continuation appends without replacing the initial chats");
+            controller.startNewThread();
+            waitForThreadOperation(controller);
+            TestSupport.assertEquals(401, controller.snapshot().getThreads().size(),
+                "upserting a new chat does not evict already loaded chats");
+            TestSupport.assertTrue(controller.snapshot().hasMoreThreads(),
+                "a new active chat preserves the list cursor");
+            controller.loadMoreThreads();
+            waitForThreadOperation(controller);
+            TestSupport.assertEquals(451, controller.snapshot().getThreads().size(),
+                "the final page and new chat stay accessible");
+            TestSupport.assertEquals("thr_active_8_49",
+                controller.snapshot().getThreads().get(450).getId(), "last chat remains listed");
+            TestSupport.assertFalse(controller.snapshot().hasMoreThreads(), "end of list");
+            int requests = server.threadListRequests.size();
+            controller.loadMoreThreads();
+            TestSupport.assertEquals(requests, server.threadListRequests.size(),
+                "no request is made after cursor exhaustion");
+        } finally {
+            controller.close();
+        }
+    }
+
+    private static void retriesThreadPaginationAfterPartialBatchFailure() throws Exception {
+        FixtureServer server = new FixtureServer(true);
+        server.threadPageCount = 7;
+        final CodexSessionController controller = new CodexSessionController(
+            server, "/private/workspace");
+        try {
+            controller.start();
+            server.failingThreadPage = 5;
+            controller.loadMoreThreads();
+            waitForThreadOperation(controller);
+            TestSupport.assertEquals(200, controller.snapshot().getThreads().size(),
+                "a partial failed batch preserves the existing list");
+            TestSupport.assertTrue(controller.snapshot().hasMoreThreads(),
+                "failed continuation remains retryable");
+            TestSupport.assertTrue(controller.snapshot().getErrorMessage().contains("page failure"),
+                "the page failure is visible");
+            server.failingThreadPage = -1;
+            controller.loadMoreThreads();
+            waitForThreadOperation(controller);
+            TestSupport.assertEquals("active-page-4", server.threadListRequests.get(6).get("cursor"),
+                "retry resumes from the last successfully committed cursor");
+            TestSupport.assertEquals(350, controller.snapshot().getThreads().size(),
+                "retry retains every chat without duplicates");
+            TestSupport.assertEquals("", controller.snapshot().getErrorMessage(), "retry clears error");
+        } finally {
+            controller.close();
+        }
+    }
+
+    private static void resetsThreadPaginationWhenSwitchingViewsOrRefreshing() throws Exception {
+        FixtureServer server = new FixtureServer(true);
+        server.threadPageCount = 5;
+        final CodexSessionController controller = new CodexSessionController(
+            server, "/private/workspace");
+        try {
+            controller.start();
+            controller.showArchivedThreads();
+            waitForThreadOperation(controller);
+            TestSupport.assertFalse(server.threadListRequests.get(4).containsKey("cursor"),
+                "archive starts at its own first page");
+            controller.loadMoreThreads();
+            waitForThreadOperation(controller);
+            TestSupport.assertEquals("archived-page-4", server.lastThreadListParams.get("cursor"),
+                "archive continuation uses the archived cursor");
+            TestSupport.assertEquals(Boolean.TRUE, server.lastThreadListParams.get("archived"),
+                "archive filter is retained");
+            TestSupport.assertEquals(250, controller.snapshot().getThreads().size(),
+                "all archived chats are loaded");
+            TestSupport.assertTrue(controller.snapshot().getThreads().get(249).isArchived(),
+                "appended summaries remain archived");
+            controller.showActiveThreads();
+            waitForThreadOperation(controller);
+            TestSupport.assertEquals(200, controller.snapshot().getThreads().size(),
+                "active view replaces archived chats");
+            controller.loadMoreThreads();
+            waitForThreadOperation(controller);
+            controller.refreshThreads();
+            waitForThreadOperation(controller);
+            TestSupport.assertFalse(server.threadListRequests.get(14).containsKey("cursor"),
+                "refresh starts from the first active page");
+            TestSupport.assertEquals(200, controller.snapshot().getThreads().size(),
+                "refresh replaces the previous loaded pages");
+            TestSupport.assertTrue(controller.snapshot().hasMoreThreads(), "refresh resets continuation");
+        } finally {
+            controller.close();
+        }
+    }
+
+    private static void stopsRepeatedThreadCursorsAcrossBatches() throws Exception {
+        FixtureServer server = new FixtureServer(true);
+        server.threadPageCount = 6;
+        server.cyclingThreadPage = 4;
+        final CodexSessionController controller = new CodexSessionController(
+            server, "/private/workspace");
+        try {
+            controller.start();
+            controller.loadMoreThreads();
+            waitForThreadOperation(controller);
+            TestSupport.assertEquals(5, server.threadListRequests.size(),
+                "a cursor seen in the previous batch is not requested again");
+            TestSupport.assertEquals(250, controller.snapshot().getThreads().size(),
+                "the final nonrepeated page remains accessible");
+            TestSupport.assertFalse(controller.snapshot().hasMoreThreads(), "cursor cycle stops loading");
+        } finally {
+            controller.close();
+        }
+    }
+
+    private static void deduplicatesThreadsAcrossPagesAndBatches() throws Exception {
+        FixtureServer server = new FixtureServer(true);
+        server.threadPageCount = 5;
+        server.duplicateThreadPages = true;
+        final CodexSessionController controller = new CodexSessionController(
+            server, "/private/workspace");
+        try {
+            controller.start();
+            TestSupport.assertEquals(197, controller.snapshot().getThreads().size(),
+                "repeated thread IDs within the initial pages appear once");
+            controller.loadMoreThreads();
+            waitForThreadOperation(controller);
+            TestSupport.assertEquals(246, controller.snapshot().getThreads().size(),
+                "repeated thread IDs across batches appear once");
+            TestSupport.assertEquals("thr_active_0_0", controller.snapshot().getThreads().get(0).getId(),
+                "deduplication preserves the initial order");
+        } finally {
+            controller.close();
+        }
+    }
+
+    private static void waitForThreadOperation(final CodexSessionController controller) throws Exception {
+        waitFor(new Condition() {
+            @Override public boolean isTrue() {
+                return !controller.snapshot().isOperationActive();
+            }
+        }, "thread operation finishes");
     }
 
     private static void preservesProtectionAfterSandboxBootstrapFailure() throws Exception {
@@ -4592,6 +4753,12 @@ public final class CodexSessionControllerTest {
         private volatile Map<String, Object> initializeParams;
         private volatile boolean holdInitializeResponse;
         private volatile Map<String, Object> lastThreadListParams;
+        private final List<Map<String, Object>> threadListRequests =
+            Collections.synchronizedList(new ArrayList<Map<String, Object>>());
+        private volatile int threadPageCount;
+        private volatile int failingThreadPage = -1;
+        private volatile int cyclingThreadPage = -1;
+        private volatile boolean duplicateThreadPages;
         private volatile Map<String, Object> lastThreadResumeParams;
         private volatile Map<String, Object> lastThreadStartParams;
         private volatile String threadStartError = "";
@@ -4781,10 +4948,37 @@ public final class CodexSessionControllerTest {
                     request.get("params"),
                     "thread/list params"
                 );
+                threadListRequests.add(lastThreadListParams);
                 boolean archived = JsonCodec.booleanValue(
                     lastThreadListParams.get("archived"),
                     false
                 );
+                if (threadPageCount > 0) {
+                    String prefix = archived ? "archived" : "active";
+                    String cursor = JsonCodec.optionalString(lastThreadListParams.get("cursor"));
+                    int page = cursor.isEmpty() ? 0
+                        : Integer.parseInt(cursor.substring((prefix + "-page-").length()));
+                    if (page == failingThreadPage) {
+                        incoming.offer(JsonCodec.stringify(JsonCodec.object(
+                            "id", request.get("id"),
+                            "error", JsonCodec.object("code", -32603, "message", "page failure")
+                        )));
+                        return;
+                    }
+                    List<Object> pageData = new ArrayList<Object>();
+                    for (int index = 0; index < 50; index++) {
+                        String id = duplicateThreadPages && page > 0 && index == 0
+                            ? "thr_" + prefix + "_0_0"
+                            : "thr_" + prefix + "_" + page + "_" + index;
+                        pageData.add(thread(id, false));
+                    }
+                    respond(request, JsonCodec.object(
+                        "data", pageData,
+                        "nextCursor", page == cyclingThreadPage ? prefix + "-page-2"
+                            : page + 1 < threadPageCount ? prefix + "-page-" + (page + 1) : null
+                    ));
+                    return;
+                }
                 List<Object> data = new ArrayList<Object>();
                 if (!existingThreadDeleted && existingThreadArchived == archived) {
                     data.add(thread("thr_existing", false));

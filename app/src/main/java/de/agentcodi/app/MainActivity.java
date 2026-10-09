@@ -224,6 +224,10 @@ public final class MainActivity extends Activity implements ChatScreenView.Actio
         boolean threadNavigationReady = canChat
             && !session.isTurnActive()
             && !interactionOpen;
+        views.loadMoreThreadsButton.setVisibility(
+            session.hasMoreThreads() ? View.VISIBLE : View.GONE
+        );
+        theme.setEnabled(views.loadMoreThreadsButton, threadNavigationReady);
         styleThreadFilter(
             views.activeThreadsButton,
             !session.isShowingArchivedThreads(),

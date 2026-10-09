@@ -92,6 +92,7 @@
   <string name="chat_title">Chats</string>
   <string name="chat_intro">Deine Codex-Unterhaltungen</string>
   <string name="chat_refresh">Aktualisieren</string>
+  <string name="chat_load_more">Weitere laden</string>
   <string name="chat_new">Neuer Chat</string>
   <string name="chat_active_threads">Aktiv</string>
   <string name="chat_archived_threads">Archiviert</string>
@@ -568,6 +569,7 @@
   <string name="core_sign_out_running">Abmeldung läuft.</string>
   <string name="core_signed_out">Abgemeldet.</string>
   <string name="core_chats_loading">Chats werden geladen.</string>
+  <string name="core_more_chats_loading">Weitere Chats werden geladen.</string>
   <string name="core_archived_chats_loading">Archivierte Chats werden geladen.</string>
   <string name="core_new_chat_creating">Neuer Chat wird erstellt.</string>
   <string name="core_invalid_chat_id">Ungültige Chat-ID.</string>

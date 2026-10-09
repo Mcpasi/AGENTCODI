@@ -19,7 +19,7 @@ public final class ChatUiIconResourcesTest {
 
     public static int run() throws Exception {
         pinsTheConvertedVectorResources();
-        keepsEveryChatActionOnAnIconButton();
+        keepsChatActionsCompactWithLabelledPagination();
         keepsIconsAccessibleAndAttributed();
         return 3;
     }
@@ -72,7 +72,7 @@ public final class ChatUiIconResourcesTest {
         );
     }
 
-    private static void keepsEveryChatActionOnAnIconButton() throws IOException {
+    private static void keepsChatActionsCompactWithLabelledPagination() throws IOException {
         String activity = "";
         for (String source : new String[] {
             "MainActivity", "ChatScreenView", "ChatComposerController",
@@ -85,16 +85,18 @@ public final class ChatUiIconResourcesTest {
             "import android.widget.ImageButton;",
             "chat uses Android image buttons"
         );
-        TestSupport.assertFalse(
-            activity.contains("import android.widget.Button;"),
-            "chat does not retain text-button widgets"
-        );
+        TestSupport.assertContains(activity,
+            "loadMoreThreadsButton = theme.secondaryButton(",
+            "thread pagination has a labelled list control");
         TestSupport.assertFalse(
             activity.contains("theme.compactButton(")
-                || activity.contains("theme.primaryButton(")
-                || activity.contains("theme.secondaryButton("),
-            "chat does not build text-width buttons"
+                || activity.contains("theme.primaryButton("),
+            "conversation actions retain compact icon controls"
         );
+        String withoutPagination = activity.replace(
+            "loadMoreThreadsButton = theme.secondaryButton(", "");
+        TestSupport.assertFalse(withoutPagination.contains("theme.secondaryButton("),
+            "only thread pagination builds a labelled secondary button");
 
         String[] bindings = new String[] {
             "R.drawable.ic_chat_back",

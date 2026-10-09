@@ -19,13 +19,12 @@ import java.util.ArrayList;
 import java.util.Date;
 import java.util.List;
 
-/** Binds and recycles the bounded thread list without redundant refreshes. */
+/** Binds and recycles every loaded thread without redundant refreshes. */
 final class ThreadListAdapter extends BaseAdapter {
     interface Actions {
         void showThreadActions(CodexThreadSummary thread);
     }
 
-    private static final int MAX_VISIBLE_THREADS = 80;
     private final Activity activity;
     private final UiTheme theme;
     private final Actions actions;
@@ -43,7 +42,7 @@ final class ThreadListAdapter extends BaseAdapter {
 
     void setData(List<CodexThreadSummary> threads, String activeThreadId, boolean rowsEnabled) {
         StringBuilder nextFingerprint = new StringBuilder();
-        int count = Math.min(MAX_VISIBLE_THREADS, threads.size());
+        int count = threads.size();
         for (int index = 0; index < count; index++) {
             CodexThreadSummary value = threads.get(index);
             nextFingerprint.append(value.getId()).append('\0')

@@ -376,6 +376,13 @@ public final class AgentRuntimeService extends Service {
         }
     }
 
+    public static void loadMoreThreads() {
+        CodexSessionController controller = sessionController;
+        if (controller != null) {
+            controller.loadMoreThreads();
+        }
+    }
+
     public static void showArchivedThreads() {
         CodexSessionController controller = sessionController;
         if (controller != null) {

@@ -784,7 +784,8 @@ ui_theme="$PROJECT_ROOT/app/src/main/java/de/agentcodi/app/UiTheme.java"
 chat_icon_count="$(find "$PROJECT_ROOT/app/src/main/res/drawable" -maxdepth 1 \
   -type f -name 'ic_chat_*.xml' | wc -l | tr -d '[:space:]')"
 if [ "$chat_icon_count" != "17" ] \
-    || rg -q 'import android\.widget\.Button;|theme\.(compactButton|primaryButton|secondaryButton)\(' "${chat_sources[@]}" \
+    || rg -q 'theme\.(compactButton|primaryButton)\(' "${chat_sources[@]}" \
+    || ! rg -q 'loadMoreThreadsButton = theme\.secondaryButton\(' "$chat_screen" \
     || ! rg -q 'import android\.widget\.ImageButton;' "${chat_sources[@]}" \
     || ! rg -q 'R\.drawable\.ic_chat_folder' "${chat_sources[@]}" \
     || ! rg -q 'R\.drawable\.ic_chat_add' "${chat_sources[@]}" \
@@ -796,7 +797,7 @@ if [ "$chat_icon_count" != "17" ] \
     || ! rg -q 'setContentDescription\(description\)' "$ui_theme" \
     || ! rg -q 'setTooltipText\(description\)' "$ui_theme" \
     || ! rg -q 'ChatUiIconResourcesTest\.run' "$PROJECT_ROOT/tests/java/de/agentcodi/tests/TestMain.java"; then
-  echo "The accessible icon-only chat action contract is incomplete." >&2
+  echo "The accessible chat action and labelled pagination contract is incomplete." >&2
   exit 1
 fi
 
@@ -952,13 +953,13 @@ if ! rg -q 'command/exec/outputDelta' "$PROJECT_ROOT/tests/cpp/android_app_serve
   exit 1
 fi
 
-if ! rg -q 'VERSION_NAME = "0\.1\.2"' "$core_root/BuildIdentity.java" \
-    || ! rg -q 'VERSION_CODE = 5' "$core_root/BuildIdentity.java" \
+if ! rg -q 'VERSION_NAME = "0\.1\.3"' "$core_root/BuildIdentity.java" \
+    || ! rg -q 'VERSION_CODE = 6' "$core_root/BuildIdentity.java" \
     || ! rg -q 'CODEX_RUNTIME_VERSION = "0\.156\.1-termux\.1"' "$core_root/BuildIdentity.java" \
-    || ! rg -q 'android:versionName="0\.1\.2"' "$manifest" \
-    || ! rg -q 'android:versionCode="5"' "$manifest" \
-    || ! rg -q 'APP_VERSION="0\.1\.2"' "$apk_builder" \
-    || ! rg -q 'VERSION_CODE="5"' "$apk_builder" \
+    || ! rg -q 'android:versionName="0\.1\.3"' "$manifest" \
+    || ! rg -q 'android:versionCode="6"' "$manifest" \
+    || ! rg -q 'APP_VERSION="0\.1\.3"' "$apk_builder" \
+    || ! rg -q 'VERSION_CODE="6"' "$apk_builder" \
     || ! rg -q 'CODEX_ANDROID_VERSION="0\.156\.1-termux\.1"' "$apk_builder" \
     || ! rg -q 'CODEX_TERMUX_SOURCE_TAG="v0\.156\.1-termux\.1"' "$apk_builder" \
     || ! rg -q 'CODEX_TERMUX_SOURCE_COMMIT="ea762071ec4acbf1531fcc7daf47524836f70a09"' "$apk_builder" \
@@ -979,7 +980,7 @@ if ! rg -q 'VERSION_NAME = "0\.1\.2"' "$core_root/BuildIdentity.java" \
     || ! rg -q 'ea762071ec4acbf1531fcc7daf47524836f70a09' "$PROJECT_ROOT/app/src/main/res/raw/third_party_notices.txt" \
     || ! rg -q 'b412ff32c417f855c2b2d1581b77058eed87c84b' "$PROJECT_ROOT/NOTICE.md" \
     || ! rg -q 'b412ff32c417f855c2b2d1581b77058eed87c84b' "$PROJECT_ROOT/app/src/main/res/raw/third_party_notices.txt"; then
-  echo "The 0.1.2 / Codex 0.156.1-termux.1 identity is inconsistent." >&2
+  echo "The 0.1.3 / Codex 0.156.1-termux.1 identity is inconsistent." >&2
   exit 1
 fi
 

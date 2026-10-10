@@ -1,0 +1,11 @@
+# Reviewed wheels for CPython 3.11-3.13 on Linux x86_64; Ubuntu 24.04 uses 3.12.
+PyNaCl==1.6.0 \
+    --hash=sha256:16c60daceee88d04f8d41d0a4004a7ed8d9a5126b997efd2933e08e93a3bd850 \
+    --hash=sha256:8bfaa0a28a1ab718bad6239979a5a57a8d1506d0caf2fba17e524dbb409441cf \
+    --hash=sha256:49c336dd80ea54780bcff6a03ee1a476be1612423010472e60af83452aa0f442
+cffi==2.0.0 \
+    --hash=sha256:8941aaadaf67246224cee8c3803777eed332a19d909b47e29c9842ef1e79ac26 \
+    --hash=sha256:3e17ed538242334bf70832644a32a7aae3d83b57567f9fd60a26257e992b79ba \
+    --hash=sha256:c8d3b5532fc71b7a77c09192b4a5a200ea992702734a2e9279a37f2478236f26
+pycparser==2.23 \
+    --hash=sha256:e5c6e8d3fbad53479cab09ac03729e0a9faf2bee3db8208a550daf5af81a5934

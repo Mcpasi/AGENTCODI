@@ -111,6 +111,8 @@
   <string name="chat_delete_message">„%1$s“ endgültig löschen? Dies kann nicht rückgängig gemacht werden. Dateien im privaten Workspace werden nicht gelöscht.</string>
   <string name="chat_select">Wähle einen Chat aus.</string>
   <string name="chat_no_messages">Noch keine Nachrichten. Beschreibe unten deine Aufgabe.</string>
+  <string name="chat_new_output">Neue Ausgabe ↓</string>
+  <string name="chat_show_latest_output">Neue Ausgabe anzeigen und dem Verlauf folgen</string>
   <string name="chat_runtime_checking">Runtime wird geprüft…</string>
   <string name="chat_open_settings">Einstellungen öffnen</string>
   <string name="chat_sign_in_required">Bitte in den Einstellungen mit ChatGPT oder einem API-Schlüssel anmelden.</string>

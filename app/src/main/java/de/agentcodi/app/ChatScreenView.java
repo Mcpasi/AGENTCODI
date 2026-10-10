@@ -14,6 +14,7 @@ import android.view.inputmethod.EditorInfo;
 import android.widget.AdapterView;
 import android.widget.Button;
 import android.widget.EditText;
+import android.widget.FrameLayout;
 import android.widget.ImageButton;
 import android.widget.LinearLayout;
 import android.widget.ListView;
@@ -66,8 +67,9 @@ final class ChatScreenView {
     Spinner modelSpinner;
     Spinner effortSpinner;
     ImageButton modelDetailsButton;
-    ScrollView messageScroll;
+    TranscriptScrollView messageScroll;
     LinearLayout messagesContainer;
+    Button newOutputButton;
     EditText composerInput;
     LinearLayout connectorStatusRow;
     TextView connectorStatus;
@@ -393,7 +395,7 @@ final class ChatScreenView {
         selectors.addView(modelDetailsButton, iconMarginParams(6));
         page.addView(selectors);
 
-        messageScroll = new ScrollView(activity);
+        messageScroll = new TranscriptScrollView(activity);
         messageScroll.setFillViewport(true);
         messagesContainer = new LinearLayout(activity);
         messagesContainer.setOrientation(LinearLayout.VERTICAL);
@@ -402,7 +404,28 @@ final class ChatScreenView {
             ViewGroup.LayoutParams.MATCH_PARENT,
             ViewGroup.LayoutParams.WRAP_CONTENT
         ));
-        page.addView(messageScroll, new LinearLayout.LayoutParams(
+        FrameLayout transcriptViewport = new FrameLayout(activity);
+        transcriptViewport.addView(messageScroll, new FrameLayout.LayoutParams(
+            ViewGroup.LayoutParams.MATCH_PARENT,
+            ViewGroup.LayoutParams.MATCH_PARENT
+        ));
+        newOutputButton = theme.secondaryButton(activity.getString(R.string.chat_new_output));
+        newOutputButton.setTextSize(12);
+        newOutputButton.setMinHeight(theme.dp(48));
+        newOutputButton.setMinimumHeight(theme.dp(48));
+        newOutputButton.setPadding(theme.dp(14), 0, theme.dp(14), 0);
+        newOutputButton.setContentDescription(activity.getString(R.string.chat_show_latest_output));
+        newOutputButton.setAccessibilityLiveRegion(View.ACCESSIBILITY_LIVE_REGION_POLITE);
+        newOutputButton.setElevation(theme.dp(3));
+        newOutputButton.setVisibility(View.GONE);
+        FrameLayout.LayoutParams newOutputParams = new FrameLayout.LayoutParams(
+            ViewGroup.LayoutParams.WRAP_CONTENT,
+            ViewGroup.LayoutParams.WRAP_CONTENT,
+            Gravity.BOTTOM | Gravity.CENTER_HORIZONTAL
+        );
+        newOutputParams.bottomMargin = theme.dp(8);
+        transcriptViewport.addView(newOutputButton, newOutputParams);
+        page.addView(transcriptViewport, new LinearLayout.LayoutParams(
             ViewGroup.LayoutParams.MATCH_PARENT,
             0,
             1.0f

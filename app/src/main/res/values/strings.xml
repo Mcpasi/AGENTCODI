@@ -111,6 +111,8 @@
   <string name="chat_delete_message">Delete “%1$s” permanently? This cannot be undone. Files in the private workspace are not deleted.</string>
   <string name="chat_select">Select a chat.</string>
   <string name="chat_no_messages">No messages yet. Describe your task below.</string>
+  <string name="chat_new_output">New output ↓</string>
+  <string name="chat_show_latest_output">Show new output and follow the conversation</string>
   <string name="chat_runtime_checking">Checking runtime…</string>
   <string name="chat_open_settings">Open settings</string>
   <string name="chat_sign_in_required">Sign in with ChatGPT or an API key in Settings.</string>

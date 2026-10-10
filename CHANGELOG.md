@@ -17,13 +17,28 @@
   chats starts a fresh list and cursor.
 - Keep previously loaded chats when a new or updated chat is moved to the top
   of the list; remove the former 200-chat eviction limit.
+- Reconcile transcript rows by item ID and kind: append new messages and tool
+  cards, detach removed rows individually, and move existing rows into their
+  updated order. Keep message views, expanded tool cards and image inspection
+  state instead of rebuilding the entire transcript when its length changes.
+- Follow new messages, streaming text and tool updates while reading at the
+  end of the transcript. Preserve the visible row and its offset while reading
+  older entries, including changes above that row; use the nearest surviving
+  row when it is removed. Keep composer focus during automatic scrolling.
+- Show a small localized **New output** control over the transcript when output
+  arrives while reading older entries. Tapping it jumps to the latest output
+  and resumes following; returning to the end also clears the hint. Coalesce
+  updates until layout, let scrolling gestures take precedence, and reset
+  pending positions and hints when switching chats or closing the screen.
 - Bump application, build and native runtime identities to `0.1.3` and Android
   versionCode 6.
 - Validation: 338 Java host tests, all seven portable C++ suites, architecture
   checks, Android API 35 source/resource compilation and six APK signing
-  regressions pass. All 32 Android chat UI checks pass on API 29 and 35,
+  regressions pass. All 48 Android chat UI checks pass on API 29 and 35,
   including access to the 240th loaded chat, row updates beyond the former
-  display limit, and pagination visibility and busy states.
+  display limit, pagination visibility and busy states, transcript row reuse,
+  stable reading anchors, following streaming output without stealing focus,
+  new-output hints, gesture precedence, and thread/lifecycle cleanup.
 
 ## 0.1.2 — Package Edition (Android versionCode 5) — 2026-10-08
 

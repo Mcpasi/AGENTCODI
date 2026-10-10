@@ -93,10 +93,14 @@ public final class ChatUiIconResourcesTest {
                 || activity.contains("theme.primaryButton("),
             "conversation actions retain compact icon controls"
         );
-        String withoutPagination = activity.replace(
-            "loadMoreThreadsButton = theme.secondaryButton(", "");
-        TestSupport.assertFalse(withoutPagination.contains("theme.secondaryButton("),
-            "only thread pagination builds a labelled secondary button");
+        TestSupport.assertContains(activity,
+            "newOutputButton = theme.secondaryButton(",
+            "new transcript output has a labelled control");
+        String withoutLabelledControls = activity.replace(
+            "loadMoreThreadsButton = theme.secondaryButton(", "").replace(
+            "newOutputButton = theme.secondaryButton(", "");
+        TestSupport.assertFalse(withoutLabelledControls.contains("theme.secondaryButton("),
+            "only pagination and new transcript output build labelled secondary buttons");
 
         String[] bindings = new String[] {
             "R.drawable.ic_chat_back",

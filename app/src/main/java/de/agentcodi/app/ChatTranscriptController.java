@@ -7,11 +7,12 @@ import android.graphics.Typeface;
 import android.net.Uri;
 import android.os.Handler;
 import android.view.Gravity;
+import android.view.MotionEvent;
 import android.view.View;
 import android.view.ViewGroup;
+import android.view.ViewTreeObserver;
 import android.widget.ImageButton;
 import android.widget.LinearLayout;
-import android.widget.ScrollView;
 import android.widget.TextView;
 import android.widget.Toast;
 
@@ -21,7 +22,12 @@ import de.agentcodi.core.CrashReportFormatter;
 import de.agentcodi.runtime.WorkspaceImageExporter;
 
 import java.util.ArrayList;
+import java.util.HashSet;
+import java.util.Iterator;
+import java.util.LinkedHashMap;
 import java.util.List;
+import java.util.Map;
+import java.util.Set;
 import java.util.concurrent.ExecutorService;
 import java.util.concurrent.Executors;
 import java.util.concurrent.RejectedExecutionException;
@@ -32,28 +38,106 @@ final class ChatTranscriptController {
     private final Activity activity;
     private final UiTheme theme;
     private final Handler handler;
-    private final ScrollView messageScroll;
+    private final TranscriptScrollView messageScroll;
     private final LinearLayout messagesContainer;
-    private final List<String> renderedTranscriptKeys = new ArrayList<String>();
+    private final View newOutputButton;
+    private final Map<String, TranscriptRow> rowsByKey =
+        new LinkedHashMap<String, TranscriptRow>();
     private final List<TranscriptRow> renderedTranscriptRows = new ArrayList<TranscriptRow>();
     private final TranscriptCardPresentation.ExpansionState transcriptExpansion =
         new TranscriptCardPresentation.ExpansionState();
     private final ExecutorService imageOperations = Executors.newSingleThreadExecutor();
     private String renderedThreadId = "";
     private String pendingImageExportPath = "";
+    private TextView emptyTranscript;
+    private boolean followingEnd = true;
+    private boolean touchingTranscript;
+    private boolean viewportUpdatePending;
+    private boolean adjustingViewport;
+    private ReadingPosition pendingReadingPosition;
     private boolean destroyed;
+    private final ViewTreeObserver.OnGlobalLayoutListener transcriptLayoutListener =
+        new ViewTreeObserver.OnGlobalLayoutListener() {
+            @Override
+            public void onGlobalLayout() {
+                applyViewportUpdate();
+            }
+        };
 
     ChatTranscriptController(Activity activity, UiTheme theme, Handler handler,
-        ScrollView messageScroll, LinearLayout messagesContainer) {
+        TranscriptScrollView messageScroll, LinearLayout messagesContainer, View newOutputButton) {
         this.activity = activity;
         this.theme = theme;
         this.handler = handler;
         this.messageScroll = messageScroll;
         this.messagesContainer = messagesContainer;
+        this.newOutputButton = newOutputButton;
+        messageScroll.getViewTreeObserver().addOnGlobalLayoutListener(transcriptLayoutListener);
+        messageScroll.setOnScrollChangeListener(new View.OnScrollChangeListener() {
+            @Override
+            public void onScrollChange(View view, int x, int y, int oldX, int oldY) {
+                if (destroyed || adjustingViewport) {
+                    return;
+                }
+                if (viewportUpdatePending) {
+                    // Layout can clamp the old offset after a removal. Other scrolls
+                    // (including flings and accessibility actions) are the user's choice.
+                    if (ChatTranscriptController.this.messageScroll.isLayingOut()) {
+                        return;
+                    }
+                    viewportUpdatePending = false;
+                    pendingReadingPosition = null;
+                }
+                followingEnd = isAtTranscriptEnd();
+                if (followingEnd) {
+                    ChatTranscriptController.this.newOutputButton.setVisibility(View.GONE);
+                }
+            }
+        });
+        messageScroll.setGestureListener(new TranscriptScrollView.GestureListener() {
+            @Override
+            public void onGesture(MotionEvent event) {
+                if (event.getActionMasked() == MotionEvent.ACTION_DOWN) {
+                    // A gesture takes precedence over an update awaiting layout.
+                    viewportUpdatePending = false;
+                    pendingReadingPosition = null;
+                    touchingTranscript = true;
+                } else if (event.getActionMasked() == MotionEvent.ACTION_UP
+                    || event.getActionMasked() == MotionEvent.ACTION_CANCEL) {
+                    touchingTranscript = false;
+                }
+                followingEnd = isAtTranscriptEnd();
+                if (!touchingTranscript && viewportUpdatePending
+                    && !ChatTranscriptController.this.messageScroll.isLayoutRequested()
+                    && !ChatTranscriptController.this.messagesContainer.isLayoutRequested()) {
+                    applyViewportUpdate();
+                }
+            }
+        });
+        newOutputButton.setOnClickListener(new View.OnClickListener() {
+            @Override
+            public void onClick(View view) {
+                followingEnd = true;
+                pendingReadingPosition = null;
+                viewportUpdatePending = true;
+                ChatTranscriptController.this.newOutputButton.setVisibility(View.GONE);
+                // Also works when no further layout is needed.
+                if (!ChatTranscriptController.this.messagesContainer.isLayoutRequested()) {
+                    applyViewportUpdate();
+                }
+            }
+        });
     }
 
     void close() {
         destroyed = true;
+        viewportUpdatePending = false;
+        pendingReadingPosition = null;
+        messageScroll.getViewTreeObserver().removeOnGlobalLayoutListener(transcriptLayoutListener);
+        messageScroll.setOnScrollChangeListener(null);
+        messageScroll.setGestureListener(null);
+        newOutputButton.setOnClickListener(null);
+        newOutputButton.setVisibility(View.GONE);
         imageOperations.shutdownNow();
     }
 
@@ -96,67 +180,128 @@ final class ChatTranscriptController {
     }
 
     void renderTranscript(String threadId, List<CodexTranscriptItem> items) {
-        transcriptExpansion.update(threadId, items);
-        boolean rebuild = !threadId.equals(renderedThreadId)
-            || items.size() != renderedTranscriptKeys.size();
-        if (!rebuild) {
-            for (int index = 0; index < items.size(); index++) {
-                if (!transcriptKey(items.get(index)).equals(renderedTranscriptKeys.get(index))) {
-                    rebuild = true;
-                    break;
-                }
-            }
-        }
-        if (rebuild) {
-            renderedThreadId = threadId;
-            renderedTranscriptKeys.clear();
-            renderedTranscriptRows.clear();
-            messagesContainer.removeAllViews();
-            if (items.isEmpty()) {
-                TextView empty = theme.text(
-                    threadId.isEmpty()
-                        ? activity.getString(R.string.chat_select)
-                        : activity.getString(R.string.chat_no_messages),
-                    14,
-                    theme.secondary
-                );
-                empty.setGravity(Gravity.CENTER);
-                empty.setPadding(theme.dp(12), theme.dp(40), theme.dp(12), theme.dp(40));
-                messagesContainer.addView(empty);
-                return;
-            }
-            for (int index = 0; index < items.size(); index++) {
-                CodexTranscriptItem item = items.get(index);
-                TranscriptRow row = createTranscriptRow(item);
-                renderedTranscriptKeys.add(transcriptKey(item));
-                renderedTranscriptRows.add(row);
-                theme.addWithTopMargin(messagesContainer, row.root, index == 0 ? 0 : 10);
-            }
-            scrollMessagesToBottom();
+        if (destroyed) {
             return;
         }
-        boolean changed = false;
+        transcriptExpansion.update(threadId, items);
+        boolean threadChanged = !threadId.equals(renderedThreadId);
+        ReadingPosition readingPosition = viewportUpdatePending
+            ? pendingReadingPosition : captureReadingPosition();
+        boolean changed = threadChanged;
+        boolean newOutput = false;
+        if (threadChanged) {
+            for (TranscriptRow row : renderedTranscriptRows) {
+                messagesContainer.removeView(row.root);
+            }
+            renderedThreadId = threadId;
+            rowsByKey.clear();
+            renderedTranscriptRows.clear();
+            followingEnd = true;
+            readingPosition = null;
+            pendingReadingPosition = null;
+            newOutputButton.setVisibility(View.GONE);
+        }
+
+        Set<String> keys = new HashSet<String>();
+        for (CodexTranscriptItem item : items) {
+            keys.add(transcriptKey(item));
+        }
+        Iterator<Map.Entry<String, TranscriptRow>> previous = rowsByKey.entrySet().iterator();
+        while (previous.hasNext()) {
+            Map.Entry<String, TranscriptRow> entry = previous.next();
+            if (!keys.contains(entry.getKey())) {
+                messagesContainer.removeView(entry.getValue().root);
+                previous.remove();
+                changed = true;
+            }
+        }
+
+        if (items.isEmpty()) {
+            renderedTranscriptRows.clear();
+            if (emptyTranscript == null) {
+                emptyTranscript = theme.text("", 14, theme.secondary);
+                emptyTranscript.setGravity(Gravity.CENTER);
+                emptyTranscript.setPadding(theme.dp(12), theme.dp(40), theme.dp(12), theme.dp(40));
+            }
+            String label = activity.getString(threadId.isEmpty()
+                ? R.string.chat_select : R.string.chat_no_messages);
+            if (!label.contentEquals(emptyTranscript.getText())) {
+                emptyTranscript.setText(label);
+                changed = true;
+            }
+            if (emptyTranscript.getParent() == null) {
+                messagesContainer.addView(emptyTranscript);
+                changed = true;
+            }
+            followingEnd = true;
+            newOutputButton.setVisibility(View.GONE);
+            if (changed) {
+                scheduleViewportUpdate(null);
+            }
+            return;
+        }
+        if (emptyTranscript != null && emptyTranscript.getParent() != null) {
+            messagesContainer.removeView(emptyTranscript);
+            changed = true;
+        }
+        renderedTranscriptRows.clear();
         for (int index = 0; index < items.size(); index++) {
             CodexTranscriptItem item = items.get(index);
-            TranscriptRow row = renderedTranscriptRows.get(index);
-            if (row.card != null) {
-                changed |= row.card.bind(item);
+            String key = transcriptKey(item);
+            TranscriptRow row = rowsByKey.get(key);
+            if (row == null) {
+                row = createTranscriptRow(item);
+                rowsByKey.put(key, row);
+                changed = true;
+                newOutput = true;
+            } else if (bindTranscriptRow(row, item)) {
+                changed = true;
+                newOutput = true;
+            }
+            // Appends leave all existing children attached. Moves only detach the moved row.
+            if (messagesContainer.getChildAt(index) != row.root) {
+                messagesContainer.removeView(row.root);
+                LinearLayout.LayoutParams params = new LinearLayout.LayoutParams(
+                    ViewGroup.LayoutParams.MATCH_PARENT, ViewGroup.LayoutParams.WRAP_CONTENT
+                );
+                params.topMargin = index == 0 ? 0 : theme.dp(10);
+                messagesContainer.addView(row.root, index, params);
+                changed = true;
             } else {
-                String value = messageBody(item.getMessage());
-                String label = messageRole(item.getMessage());
-                if (!value.contentEquals(row.text.getText())
-                    || !label.contentEquals(row.role.getText())) {
-                    row.text.setText(value);
-                    row.role.setText(label);
-                    styleTranscriptRow(row, item);
+                LinearLayout.LayoutParams params = (LinearLayout.LayoutParams) row.root.getLayoutParams();
+                int margin = index == 0 ? 0 : theme.dp(10);
+                if (params.topMargin != margin) {
+                    params.topMargin = margin;
+                    row.root.setLayoutParams(params);
                     changed = true;
                 }
             }
-            bindImageAction(row, item);
+            renderedTranscriptRows.add(row);
         }
         if (changed) {
-            scrollMessagesToBottom();
+            scheduleViewportUpdate(readingPosition);
+            if (newOutput && !threadChanged && (!followingEnd || touchingTranscript)) {
+                newOutputButton.setVisibility(View.VISIBLE);
+            }
         }
+    }
+
+    private boolean bindTranscriptRow(TranscriptRow row, CodexTranscriptItem item) {
+        boolean changed = false;
+        if (row.card != null) {
+            changed = row.card.bind(item);
+        } else {
+            String value = messageBody(item.getMessage());
+            String label = messageRole(item.getMessage());
+            if (!value.contentEquals(row.text.getText()) || !label.contentEquals(row.role.getText())) {
+                row.text.setText(value);
+                row.role.setText(label);
+                styleTranscriptRow(row, item);
+                changed = true;
+            }
+        }
+        bindImageAction(row, item);
+        return changed;
     }
 
     private TranscriptRow createTranscriptRow(CodexTranscriptItem item) {
@@ -316,12 +461,15 @@ final class ChatTranscriptController {
         if (!isCurrentImageRow(row, imagePath)) {
             return;
         }
+        ReadingPosition position = viewportUpdatePending
+            ? pendingReadingPosition : captureReadingPosition();
         row.imageInfo = image;
         row.imageFailure = failure == null ? "" : failure;
         row.imageState = image == null
             ? ImageValidationState.INVALID
             : ImageValidationState.VALID;
         applyImageAction(row);
+        scheduleViewportUpdate(position);
     }
 
     private void applyImageAction(final TranscriptRow row) {
@@ -518,13 +666,102 @@ final class ChatTranscriptController {
         return activity.getString(R.string.image_export_path_invalid, reason);
     }
 
-    private void scrollMessagesToBottom() {
-        messageScroll.post(new Runnable() {
-            @Override
-            public void run() {
-                messageScroll.fullScroll(View.FOCUS_DOWN);
+    private int transcriptScrollEnd() {
+        return Math.max(0, messagesContainer.getBottom() + messageScroll.getPaddingBottom()
+            - messageScroll.getHeight());
+    }
+
+    private boolean isAtTranscriptEnd() {
+        return transcriptScrollEnd() - messageScroll.getScrollY() <= theme.dp(24);
+    }
+
+    private ReadingPosition captureReadingPosition() {
+        if (followingEnd && !touchingTranscript) {
+            return null;
+        }
+        int scrollY = messageScroll.getScrollY();
+        List<RowAnchor> anchors = new ArrayList<RowAnchor>();
+        int firstVisible = renderedTranscriptRows.size();
+        for (int index = 0; index < renderedTranscriptRows.size(); index++) {
+            if (renderedTranscriptRows.get(index).root.getBottom()
+                > scrollY + messageScroll.getPaddingTop()) {
+                firstVisible = index;
+                break;
             }
-        });
+        }
+        // If the first visible row disappears, keep the nearest surviving row in place.
+        for (int index = firstVisible; index < renderedTranscriptRows.size(); index++) {
+            View row = renderedTranscriptRows.get(index).root;
+            anchors.add(new RowAnchor(row, row.getTop() - scrollY));
+        }
+        for (int index = firstVisible - 1; index >= 0; index--) {
+            View row = renderedTranscriptRows.get(index).root;
+            anchors.add(new RowAnchor(row, row.getTop() - scrollY));
+        }
+        return new ReadingPosition(anchors, scrollY);
+    }
+
+    private void scheduleViewportUpdate(ReadingPosition position) {
+        if (!viewportUpdatePending) {
+            pendingReadingPosition = position;
+        }
+        viewportUpdatePending = true;
+        if (followingEnd && !touchingTranscript) {
+            pendingReadingPosition = null;
+        }
+    }
+
+    private void applyViewportUpdate() {
+        if (destroyed || touchingTranscript || messageScroll.getHeight() == 0
+            || !messageScroll.isShown() || (!viewportUpdatePending && !followingEnd)) {
+            return;
+        }
+        int target = transcriptScrollEnd();
+        if (!followingEnd) {
+            target = pendingReadingPosition == null
+                ? messageScroll.getScrollY() : pendingReadingPosition.scrollY;
+            if (pendingReadingPosition != null) {
+                for (RowAnchor anchor : pendingReadingPosition.anchors) {
+                    if (anchor.row.getParent() == messagesContainer) {
+                        target = anchor.row.getTop() - anchor.offset;
+                        break;
+                    }
+                }
+            }
+        }
+        adjustingViewport = true;
+        try {
+            // scrollTo does not transfer focus out of the composer like fullScroll can.
+            messageScroll.scrollTo(0, Math.max(0, Math.min(target, transcriptScrollEnd())));
+            viewportUpdatePending = false;
+            pendingReadingPosition = null;
+            followingEnd = isAtTranscriptEnd();
+            if (followingEnd) {
+                newOutputButton.setVisibility(View.GONE);
+            }
+        } finally {
+            adjustingViewport = false;
+        }
+    }
+
+    private static final class RowAnchor {
+        private final View row;
+        private final int offset;
+
+        private RowAnchor(View row, int offset) {
+            this.row = row;
+            this.offset = offset;
+        }
+    }
+
+    private static final class ReadingPosition {
+        private final List<RowAnchor> anchors;
+        private final int scrollY;
+
+        private ReadingPosition(List<RowAnchor> anchors, int scrollY) {
+            this.anchors = anchors;
+            this.scrollY = scrollY;
+        }
     }
 
     private String messageRole(ChatMessage message) {

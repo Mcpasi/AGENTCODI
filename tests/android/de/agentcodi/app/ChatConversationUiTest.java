@@ -56,6 +56,7 @@ import java.io.FileOutputStream;
 import java.io.IOException;
 import java.lang.reflect.Field;
 import java.lang.reflect.Method;
+import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.Collections;
 import java.util.List;
@@ -73,6 +74,7 @@ public final class ChatConversationUiTest {
     private ChatComposerController composer;
     private LinearLayout root;
     private CodexSessionController session;
+    private boolean transcriptWindowVisible;
 
     @Before
     public void create() throws Exception {
@@ -476,6 +478,320 @@ public final class ChatConversationUiTest {
         assertTrue(containsText(messages, "Another conversation"));
         transcript.renderTranscript("other-thread", Collections.<CodexTranscriptItem>emptyList());
         assertTrue(containsText(messages, activity.getString(R.string.chat_no_messages)));
+    }
+
+    @Test
+    public void transcriptReusesMessagesAndExpandedToolsAcrossInsertMoveAndRemoval() throws Exception {
+        ChatTranscriptController transcript = transcript();
+        LinearLayout messages = view("messagesContainer");
+        CodexTranscriptItem first = transcriptMessage("first", "First message", false);
+        CodexTranscriptItem last = transcriptMessage("last", "Last message", false);
+        CodexTranscriptItem tool = transcriptTool("tool", "Tool output", false);
+        transcript.renderTranscript("thread", Arrays.asList(first, tool, last));
+        View firstRow = messages.getChildAt(0);
+        TranscriptCardView toolRow = (TranscriptCardView) messages.getChildAt(1);
+        View lastRow = messages.getChildAt(2);
+        View expand = findAction(toolRow, activity.getString(R.string.transcript_expand,
+            UiText.cardTitle(activity, tool)));
+        assertNotNull(expand);
+        expand.performClick();
+        assertEquals(View.VISIBLE, toolRow.contentContainer().getVisibility());
+
+        CodexTranscriptItem inserted = transcriptMessage("inserted", "Inserted", false);
+        transcript.renderTranscript("thread", Arrays.asList(first, tool, last, inserted));
+        assertSame(firstRow, messages.getChildAt(0));
+        assertSame(toolRow, messages.getChildAt(1));
+        assertSame(lastRow, messages.getChildAt(2));
+        View insertedRow = messages.getChildAt(3);
+        transcript.renderTranscript("thread", Arrays.asList(inserted, tool, first, last));
+        assertSame(insertedRow, messages.getChildAt(0));
+        assertSame(toolRow, messages.getChildAt(1));
+        assertSame(firstRow, messages.getChildAt(2));
+        assertSame(lastRow, messages.getChildAt(3));
+        assertEquals(View.VISIBLE, toolRow.contentContainer().getVisibility());
+
+        transcript.renderTranscript("thread", Arrays.asList(tool, last));
+        assertEquals(2, messages.getChildCount());
+        assertSame(toolRow, messages.getChildAt(0));
+        assertSame(lastRow, messages.getChildAt(1));
+        assertNull(firstRow.getParent());
+        assertNull(insertedRow.getParent());
+        assertEquals(0, ((LinearLayout.LayoutParams) toolRow.getLayoutParams()).topMargin);
+        assertTrue(((LinearLayout.LayoutParams) lastRow.getLayoutParams()).topMargin > 0);
+        transcript.renderTranscript("thread", Arrays.asList(
+            transcriptTool("tool", "Updated tool output", false), last));
+        assertSame(toolRow, messages.getChildAt(0));
+        assertTrue(containsText(toolRow, "Updated tool output"));
+        assertEquals(View.VISIBLE, toolRow.contentContainer().getVisibility());
+    }
+
+    @Test
+    public void transcriptFollowsAppendsAndStreamingAtEndWithoutTakingComposerFocus() throws Exception {
+        ChatTranscriptController transcript = transcript();
+        List<CodexTranscriptItem> items = longTranscript();
+        transcript.renderTranscript("thread", items);
+        settleTranscript();
+        ScrollView scroll = view("messageScroll");
+        EditText editor = view("composerInput");
+        editor.requestFocus();
+        assertTranscriptAtEnd();
+        items.add(transcriptMessage("stream", "Streaming", true));
+        transcript.renderTranscript("thread", items);
+        settleTranscript();
+        assertTranscriptAtEnd();
+        items.set(items.size() - 1, transcriptMessage("stream", longText("Growing"), true));
+        transcript.renderTranscript("thread", items);
+        settleTranscript();
+        assertTranscriptAtEnd();
+        items.add(transcriptTool("tool", "Tool output", true));
+        transcript.renderTranscript("thread", items);
+        settleTranscript();
+        assertTranscriptAtEnd();
+        assertTrue(editor.hasFocus());
+        assertEquals(View.GONE, view("newOutputButton").getVisibility());
+        int oldHeight = scroll.getHeight();
+        layout(390, 520);
+        scroll.getViewTreeObserver().dispatchOnGlobalLayout();
+        assertTrue(scroll.getHeight() < oldHeight);
+        assertTranscriptAtEnd();
+    }
+
+    @Test
+    public void readingOlderMessagesKeepsPositionAndOffersNewOutputThenResumesFollowing() throws Exception {
+        ChatTranscriptController transcript = transcript();
+        List<CodexTranscriptItem> items = longTranscript();
+        transcript.renderTranscript("thread", items);
+        settleTranscript();
+        ScrollView scroll = view("messageScroll");
+        LinearLayout messages = view("messagesContainer");
+        scroll.scrollTo(0, messages.getChildAt(5).getTop() + 20);
+        int readingY = scroll.getScrollY();
+        int viewportHeight = scroll.getHeight();
+        items.add(transcriptMessage("stream", "New output", true));
+        transcript.renderTranscript("thread", items);
+        settleTranscript();
+        assertEquals(readingY, scroll.getScrollY());
+        assertEquals(viewportHeight, scroll.getHeight());
+        assertEquals(View.VISIBLE, view("newOutputButton").getVisibility());
+        items.set(items.size() - 1, transcriptMessage("stream", longText("New output grows"), true));
+        transcript.renderTranscript("thread", items);
+        settleTranscript();
+        assertEquals(readingY, scroll.getScrollY());
+        view("newOutputButton").performClick();
+        settleTranscript();
+        assertTranscriptAtEnd();
+        assertEquals(View.GONE, view("newOutputButton").getVisibility());
+        items.add(transcriptTool("new-tool", "Latest tool output", false));
+        transcript.renderTranscript("thread", items);
+        settleTranscript();
+        assertTranscriptAtEnd();
+    }
+
+    @Test
+    public void readingAnchorSurvivesGrowthInsertionReorderAndRemovalAboveIt() throws Exception {
+        ChatTranscriptController transcript = transcript();
+        List<CodexTranscriptItem> items = longTranscript();
+        transcript.renderTranscript("thread", items);
+        settleTranscript();
+        ScrollView scroll = view("messageScroll");
+        LinearLayout messages = view("messagesContainer");
+        View anchor = messages.getChildAt(5);
+        scroll.scrollTo(0, anchor.getTop() + 20);
+        int offset = anchor.getTop() - scroll.getScrollY();
+        items.set(0, transcriptMessage("message-0", longText("Extra lines") + longText("More"), false));
+        items.add(0, transcriptMessage("inserted", longText("Inserted above"), false));
+        transcript.renderTranscript("thread", items);
+        // Coalesce another update before layout without recapturing stale row coordinates.
+        items.add(0, items.remove(8));
+        transcript.renderTranscript("thread", items);
+        settleTranscript();
+        assertEquals(offset, anchor.getTop() - scroll.getScrollY());
+        items.remove(0);
+        items.remove(0);
+        transcript.renderTranscript("thread", items);
+        settleTranscript();
+        assertEquals(offset, anchor.getTop() - scroll.getScrollY());
+
+        View successor = messages.getChildAt(messages.indexOfChild(anchor) + 1);
+        int successorOffset = successor.getTop() - scroll.getScrollY();
+        for (int index = 0; index < items.size(); index++) {
+            if ("message-5".equals(items.get(index).getId())) {
+                items.remove(index);
+                break;
+            }
+        }
+        transcript.renderTranscript("thread", items);
+        settleTranscript();
+        assertNull(anchor.getParent());
+        assertEquals(successorOffset, successor.getTop() - scroll.getScrollY());
+    }
+
+    @Test
+    public void removalReorderAndUnchangedRefreshDoNotAnnounceNewOutput() throws Exception {
+        ChatTranscriptController transcript = transcript();
+        List<CodexTranscriptItem> items = longTranscript();
+        transcript.renderTranscript("thread", items);
+        settleTranscript();
+        ScrollView scroll = view("messageScroll");
+        scroll.scrollTo(0, 100);
+        transcript.renderTranscript("thread", new ArrayList<CodexTranscriptItem>(items));
+        settleTranscript();
+        assertEquals(100, scroll.getScrollY());
+        assertEquals(View.GONE, view("newOutputButton").getVisibility());
+        items.remove(items.size() - 1);
+        Collections.swap(items, 10, 11);
+        transcript.renderTranscript("thread", items);
+        settleTranscript();
+        assertEquals(100, scroll.getScrollY());
+        assertEquals(View.GONE, view("newOutputButton").getVisibility());
+        items.add(transcriptTool("new-tool", "Tool output", true));
+        transcript.renderTranscript("thread", items);
+        settleTranscript();
+        assertEquals(View.VISIBLE, view("newOutputButton").getVisibility());
+        scroll.scrollTo(0, Integer.MAX_VALUE);
+        assertEquals(View.GONE, view("newOutputButton").getVisibility());
+        items.set(items.size() - 1, transcriptTool("new-tool", "Finished output", false));
+        transcript.renderTranscript("thread", items);
+        settleTranscript();
+        assertTranscriptAtEnd();
+    }
+
+    @Test
+    public void userGestureCancelsPendingFollowAndPreservesTheirNewReadingPosition() throws Exception {
+        ChatTranscriptController transcript = transcript();
+        List<CodexTranscriptItem> items = longTranscript();
+        transcript.renderTranscript("thread", items);
+        settleTranscript();
+        items.add(transcriptMessage("pending", longText("Pending output"), false));
+        transcript.renderTranscript("thread", items);
+        ScrollView scroll = view("messageScroll");
+        // A scroll without a touch event also takes precedence (keyboard/accessibility/fling).
+        scroll.scrollTo(0, 100);
+        settleTranscript();
+        assertEquals(100, scroll.getScrollY());
+        scroll.scrollTo(0, Integer.MAX_VALUE);
+        items.add(transcriptMessage("pending-gesture", longText("Pending gesture output"), false));
+        transcript.renderTranscript("thread", items);
+        long now = android.os.SystemClock.uptimeMillis();
+        MotionEvent down = MotionEvent.obtain(now, now, MotionEvent.ACTION_DOWN, 20, 20, 0);
+        scroll.dispatchTouchEvent(down);
+        down.recycle();
+        scroll.scrollTo(0, 100);
+        items.add(transcriptMessage("during-touch", longText("More output"), false));
+        transcript.renderTranscript("thread", items);
+        settleTranscript();
+        assertEquals(100, scroll.getScrollY());
+        MotionEvent cancel = MotionEvent.obtain(now, now + 20, MotionEvent.ACTION_CANCEL, 20, 20, 0);
+        scroll.dispatchTouchEvent(cancel);
+        cancel.recycle();
+        settleTranscript();
+        assertEquals(100, scroll.getScrollY());
+        assertEquals(View.VISIBLE, view("newOutputButton").getVisibility());
+
+        now = android.os.SystemClock.uptimeMillis();
+        down = MotionEvent.obtain(now, now, MotionEvent.ACTION_DOWN, 20, 20, 0);
+        scroll.dispatchTouchEvent(down);
+        down.recycle();
+        View anchor = ((LinearLayout) view("messagesContainer")).getChildAt(0);
+        int offset = anchor.getTop() - scroll.getScrollY();
+        items.add(0, transcriptMessage("above-touch", longText("Inserted above the held position"), false));
+        transcript.renderTranscript("thread", items);
+        settleTranscript();
+        cancel = MotionEvent.obtain(now, now + 20, MotionEvent.ACTION_CANCEL, 20, 20, 0);
+        scroll.dispatchTouchEvent(cancel);
+        cancel.recycle();
+        // Restore after release even if the already-completed layout is the last one.
+        assertEquals(offset, anchor.getTop() - scroll.getScrollY());
+    }
+
+    @Test
+    public void threadSwitchDiscardsPendingPositionAndUnreadStateAndKeepsEmptyViewStable() throws Exception {
+        ChatTranscriptController transcript = transcript();
+        List<CodexTranscriptItem> items = longTranscript();
+        transcript.renderTranscript("thread", items);
+        settleTranscript();
+        ScrollView scroll = view("messageScroll");
+        LinearLayout messages = view("messagesContainer");
+        View oldRow = messages.getChildAt(0);
+        scroll.scrollTo(0, 100);
+        items.add(transcriptMessage("pending", "Pending", true));
+        transcript.renderTranscript("thread", items);
+        assertEquals(View.VISIBLE, view("newOutputButton").getVisibility());
+        transcript.renderTranscript("other-thread", longTranscript());
+        settleTranscript();
+        assertNull(oldRow.getParent());
+        assertNotSame(oldRow, messages.getChildAt(0));
+        assertTranscriptAtEnd();
+        assertEquals(View.GONE, view("newOutputButton").getVisibility());
+        transcript.renderTranscript("other-thread", Collections.<CodexTranscriptItem>emptyList());
+        settleTranscript();
+        View empty = messages.getChildAt(0);
+        assertEquals(1, messages.getChildCount());
+        assertTrue(containsText(empty, activity.getString(R.string.chat_no_messages)));
+        transcript.renderTranscript("other-thread", Collections.<CodexTranscriptItem>emptyList());
+        assertSame(empty, messages.getChildAt(0));
+        transcript.renderTranscript("", Collections.<CodexTranscriptItem>emptyList());
+        assertSame(empty, messages.getChildAt(0));
+        assertTrue(containsText(empty, activity.getString(R.string.chat_select)));
+    }
+
+    @Test
+    public void closingTranscriptDiscardsPendingScrollAndIgnoresLaterRenders() throws Exception {
+        ChatTranscriptController transcript = transcript();
+        List<CodexTranscriptItem> items = longTranscript();
+        transcript.renderTranscript("thread", items);
+        settleTranscript();
+        ScrollView scroll = view("messageScroll");
+        scroll.scrollTo(0, 100);
+        items.add(transcriptMessage("pending", "Pending", true));
+        transcript.renderTranscript("thread", items);
+        transcript.close();
+        transcript.renderTranscript("other-thread", Collections.<CodexTranscriptItem>emptyList());
+        settleTranscript();
+        assertEquals(100, scroll.getScrollY());
+        assertEquals(items.size(), ((LinearLayout) view("messagesContainer")).getChildCount());
+    }
+
+    private ChatTranscriptController transcript() throws Exception {
+        return (ChatTranscriptController) field(activity, "transcript").get(activity);
+    }
+
+    private static CodexTranscriptItem transcriptMessage(String id, String text, boolean streaming) {
+        return CodexTranscriptItem.message(new ChatMessage(id, ChatMessage.Role.ASSISTANT, text, streaming));
+    }
+
+    private static CodexTranscriptItem transcriptTool(String id, String text, boolean streaming) {
+        return CodexTranscriptItem.card(id, CodexTranscriptItem.Kind.TOOL, "commandExecution",
+            "Run command", text, "", streaming ? "inProgress" : "completed", streaming);
+    }
+
+    private static String longText(String prefix) {
+        return prefix + "\nLine one\nLine two\nLine three\nLine four\nLine five\nLine six";
+    }
+
+    private static List<CodexTranscriptItem> longTranscript() {
+        List<CodexTranscriptItem> items = new ArrayList<CodexTranscriptItem>();
+        for (int index = 0; index < 20; index++) {
+            items.add(transcriptMessage("message-" + index, longText("Message " + index), false));
+        }
+        return items;
+    }
+
+    private void settleTranscript() throws Exception {
+        if (!transcriptWindowVisible) {
+            lifecycle.visible();
+            transcriptWindowVisible = true;
+        }
+        layout(390, 720);
+        assertTrue("transcript fixture is visible", view("messageScroll").isShown());
+        view("messageScroll").getViewTreeObserver().dispatchOnGlobalLayout();
+    }
+
+    private void assertTranscriptAtEnd() throws Exception {
+        ScrollView scroll = view("messageScroll");
+        LinearLayout messages = view("messagesContainer");
+        assertTrue("fixture must have scrollable history", messages.getHeight() > scroll.getHeight());
+        assertEquals(messages.getBottom() + scroll.getPaddingBottom() - scroll.getHeight(), scroll.getScrollY());
     }
 
     private void completePreparedSend(TrackingTransaction transaction) throws Exception {

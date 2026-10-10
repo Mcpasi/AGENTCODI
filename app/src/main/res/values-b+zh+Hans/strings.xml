@@ -107,6 +107,8 @@
   <string name="chat_delete_message">永久删除“%1$s”？此操作无法撤销。私有工作区中的文件不会被删除。</string>
   <string name="chat_select">请选择聊天。</string>
   <string name="chat_no_messages">暂无消息。请在下方描述任务。</string>
+  <string name="chat_new_output">新输出 ↓</string>
+  <string name="chat_show_latest_output">查看新输出并跟随对话</string>
   <string name="chat_runtime_checking">正在检查运行时…</string>
   <string name="chat_open_settings">打开设置</string>
   <string name="chat_sign_in_required">请在设置中通过 ChatGPT 或 API 密钥登录。</string>

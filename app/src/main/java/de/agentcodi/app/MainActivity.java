@@ -92,7 +92,8 @@ public final class MainActivity extends Activity implements ChatScreenView.Actio
                 this, theme, views.modelSpinner, views.effortSpinner, views
             );
             transcript = new ChatTranscriptController(
-                this, theme, handler, views.messageScroll, views.messagesContainer
+                this, theme, handler, views.messageScroll, views.messagesContainer,
+                views.newOutputButton
             );
             composer = new ChatComposerController(this, theme, handler, views, new Runnable() {
                 @Override

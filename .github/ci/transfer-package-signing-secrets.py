@@ -57,8 +57,15 @@ class GitHubAPI:
             return json.loads(data) if data else None
         except urllib.error.HTTPError as error:
             status = error.code
+            # Method and allowlisted endpoint are public. Never print a token,
+            # arbitrary response bodies, request data, or upstream exceptions.
+            endpoint = "/repos/" + TARGET + suffix
             error.close()
-            raise TransferError(f"GitHub API request failed (HTTP {status}).") from None
+            detail = f"GitHub API {method} {endpoint} failed (HTTP {status})."
+            if status == 403 and suffix.startswith("/actions/secrets"):
+                detail += (" Check the fine-grained PAT: resource owner Mcpasi, selected repository "
+                           + TARGET + ", repository permission Secrets: Read and write.")
+            raise TransferError(detail) from None
         except (urllib.error.URLError, TimeoutError, OSError):
             raise TransferError("Cannot reach the GitHub API.") from None
         except (ValueError, UnicodeError):

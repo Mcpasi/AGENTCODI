@@ -138,8 +138,20 @@ class SigningSecretTransferTest(unittest.TestCase):
         with patch.object(api.opener, "open", side_effect=error):
             with self.assertRaises(transfer.TransferError) as caught:
                 api.request("GET")
-        self.assertEqual(str(caught.exception), "GitHub API request failed (HTTP 403).")
+        self.assertEqual(str(caught.exception),
+                         "GitHub API GET /repos/" + transfer.TARGET + " failed (HTTP 403).")
         self.assertNotIn(self.environment["GH_TOKEN"], str(caught.exception))
+
+    def test_missing_secret_permission_identifies_the_public_endpoint(self):
+        api = transfer.GitHubAPI(self.environment["GH_TOKEN"])
+        error = urllib.error.HTTPError("https://api.github.com/fixture", 403, "denied", {}, None)
+        with patch.object(api.opener, "open", side_effect=error):
+            with self.assertRaises(transfer.TransferError) as caught:
+                api.request("GET", "/actions/secrets/public-key")
+        message = str(caught.exception)
+        self.assertIn("GET /repos/" + transfer.TARGET + "/actions/secrets/public-key", message)
+        self.assertIn("Secrets: Read and write", message)
+        self.assertNotIn(self.environment["GH_TOKEN"], message)
 
     def test_unexpected_exception_does_not_print_secret_or_traceback(self):
         private = self.environment["AGENTCODI_APT_SIGNING_KEY"]

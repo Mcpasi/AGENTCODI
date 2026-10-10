@@ -6,6 +6,8 @@
 
 **Run the Codex app-server, workspace, approvals, terminal and supported development toolchains directly on your Android device.**
 
+[Package Edition](https://github.com/Mcpasi/AGENTCODI-Package-Edition)
+
 [Visit me on my website](https://devsblog.com/)
 
 Now also available on APKPure

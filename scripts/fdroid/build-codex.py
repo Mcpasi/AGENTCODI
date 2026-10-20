@@ -16,6 +16,9 @@ import subprocess
 import sys
 import tarfile
 import tempfile
+import urllib.parse
+import urllib.request
+import zipfile
 
 ROOT = Path(__file__).resolve().parents[2]
 LOCK_PATH = Path(__file__).with_name("source-lock.json")
@@ -86,7 +89,7 @@ def verify_fork(source, lock):
     require(package["version"] == lock["version"], "Fork package version differs from source lock")
 
 
-def environment(source, v8, lock):
+def environment(source, v8, lock, cache):
     env = dict(os.environ)
     ndk = Path(env.get("ANDROID_NDK_HOME", env.get("ANDROID_NDK_ROOT", "/missing-ndk"))).resolve()
     sdk = Path(env.get("ANDROID_HOME", "/missing-sdk")).resolve()
@@ -126,10 +129,49 @@ def environment(source, v8, lock):
     native_remap = f"-ffile-prefix-map={source}=/usr/src/codex-termux -ffile-prefix-map={cargo_home}=/usr/src/cargo"
     env["CFLAGS_aarch64_linux_android"] = native_remap
     env["CXXFLAGS_aarch64_linux_android"] = native_remap
-    require(shutil.which("ninja", path=env["PATH"]) is not None, "Install Ninja before preparing V8 sources")
-    env["NINJA"] = shutil.which("ninja", path=env["PATH"])
+    env["GN"] = str(cache / "v8-tools/gn")
+    env["NINJA"] = str(cache / "v8-tools/ninja")
     require(not any(c.isspace() for c in str(source)), "The fork recipes require a source path without whitespace")
     return env
+
+
+def verify_v8_tools(cache, lock):
+    for name, pin in lock["v8"]["tools"].items():
+        path = cache / "v8-tools" / name
+        require(path.is_file() and not path.is_symlink()
+                and sha256(path) == pin["binary_sha256"],
+                "Missing or changed locked V8 build tool: " + name + "; run prepare")
+
+
+def prepare_v8_tools(v8, cache, lock):
+    # The upstream helper uses HTTPSConnection directly and skips HTTP proxies.
+    # urllib retains the managed proxy and CA settings. Resolve no mutable tags:
+    # package IDs and both archive/binary hashes are committed in the lock.
+    deps = (v8 / "v8/DEPS").read_text()
+    directory = cache / "v8-tools"
+    directory.mkdir(parents=True, exist_ok=True)
+    for name, pin in lock["v8"]["tools"].items():
+        version = re.search(r"'" + name + r"_version': '([^']+)'", deps)
+        require(version and version[1] == pin["version"], "V8 build-tool version differs from its source DEPS")
+        binary = directory / name
+        if binary.is_file() and not binary.is_symlink() and sha256(binary) == pin["binary_sha256"]:
+            continue
+        print("Preparing locked V8 tool: " + name, flush=True)
+        query = urllib.parse.urlencode({"package_name": pin["package"], "instance_id": pin["instance_id"]})
+        url = "https://chrome-infra-packages.appspot.com/_ah/api/repo/v1/instance?" + query
+        with urllib.request.urlopen(url, timeout=120) as response:
+            metadata = json.load(response)
+        with urllib.request.urlopen(metadata["fetch_url"], timeout=120) as response:
+            archive_bytes = response.read()
+        require(hashlib.sha256(archive_bytes).hexdigest() == pin["archive_sha256"], "V8 build-tool archive hash differs: " + name)
+        with zipfile.ZipFile(io.BytesIO(archive_bytes)) as archive:
+            contents = archive.read(name)
+        require(hashlib.sha256(contents).hexdigest() == pin["binary_sha256"], "V8 build-tool binary hash differs: " + name)
+        partial = binary.with_suffix(".partial")
+        partial.write_bytes(contents)
+        partial.chmod(0o755)
+        partial.replace(binary)
+    verify_v8_tools(cache, lock)
 
 
 def shell(script, source, env):
@@ -227,7 +269,7 @@ def main():
     if args.command == "disk-preparation":
         print(recipe_step(source, V8_RECIPE, "Free up disk before the V8 build"), end="")
         return
-    env = environment(source, v8, lock)
+    env = environment(source, v8, lock, cache)
     with tempfile.TemporaryDirectory(prefix="agentcodi-recipes-") as temporary:
         env_file = Path(temporary) / "environment"
         env_file.touch()
@@ -247,6 +289,7 @@ def main():
             # rusty_v8's build.rs also requests Chromium's Rust toolchain. Warm
             # its pinned sentinel here so the offline build never downloads it.
             shell('(cd "$CHECKOUT" && python3 tools/rust_toolchain.py)', source, env)
+            prepare_v8_tools(v8, cache, lock)
             for directory in (source / "codex-rs", v8):
                 run(["rustup", "run", lock["rust"], "cargo", "fetch", "--locked", "--target", lock["target"]], directory, env)
             cache.mkdir(parents=True, exist_ok=True)
@@ -256,6 +299,7 @@ def main():
             return
         prepared = json.loads((cache / "prepared.json").read_text())
         require(prepared["source_lock_sha256"] == sha256(LOCK_PATH), "Prepared sources use a different source lock")
+        verify_v8_tools(cache, lock)
         verify_checkout(v8, lock["v8"]["commit"], clean=False)
         require(prepared["v8_diff_sha256"] == v8_state(v8), "Prepared V8 source patch has changed")
         env["CARGO_NET_OFFLINE"] = "true"
@@ -318,6 +362,9 @@ def main():
 if __name__ == "__main__":
     try:
         main()
-    except (ValueError, OSError, subprocess.CalledProcessError) as error:
+    except subprocess.CalledProcessError as error:
+        print(f"Codex source build: {Path(error.cmd[0]).name} failed with exit status {error.returncode}; see the build output above.", file=sys.stderr)
+        sys.exit(1)
+    except (ValueError, OSError, zipfile.BadZipFile) as error:
         print("Codex source build: " + str(error), file=sys.stderr)
         sys.exit(1)

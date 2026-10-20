@@ -22,6 +22,22 @@
     "commit": "5c15a6995c9bb4bacd3e341b59fff32c909c80bf",
     "repository": "https://github.com/denoland/rusty_v8.git",
     "sandbox": true,
+    "tools": {
+      "gn": {
+        "archive_sha256": "db0ef95a0cceda773650c5ede8f0ea9cadcb0aa6c767ed75304e5622be212504",
+        "binary_sha256": "b57b07b452e2e68ee07fde47c22134d82dfe919b7e3eb77ea3c78f7eb0759812",
+        "instance_id": "2w75WgzO2nc2UMXt6PDqnK3LCqbHZ-11ME5WIr4hJQQC",
+        "package": "gn/gn/linux-amd64",
+        "version": "git_revision:3357c4f51b1a9e676378c695dd9c7e9911c35ee6"
+      },
+      "ninja": {
+        "archive_sha256": "3f1f1cc0f69a1bcfdf67fb6c2bc7419b1dd812bb8d0e79afa9bfa8a3553b5082",
+        "binary_sha256": "09f0e5a8a2cf762b24b4d3ed464ffb2529e650d2efc36bab31da36aa93791efc",
+        "instance_id": "Px8cwPaaG8_fZ_tsK8dBmx3YEruNDnmvqb-oo1U7UIIC",
+        "package": "infra/3pp/tools/ninja/linux-amd64",
+        "version": "version:3@1.12.1.chromium.4"
+      }
+    },
     "version": "150.4.0"
   },
   "version": "0.153.3-agentcodi.2"

@@ -89,6 +89,19 @@ class ReproducibleBuildTest(unittest.TestCase):
 
 
 class SourceIntegrityTest(unittest.TestCase):
+    def test_changed_build_tools_are_rejected_before_an_offline_build(self):
+        with tempfile.TemporaryDirectory() as temporary:
+            cache = Path(temporary)
+            tools = cache / "v8-tools"
+            tools.mkdir()
+            binary = tools / "gn"
+            binary.write_bytes(b"locked tool")
+            lock = {"v8": {"tools": {"gn": {"binary_sha256": builder.sha256(binary)}}}}
+            builder.verify_v8_tools(cache, lock)
+            binary.write_bytes(b"different tool")
+            with self.assertRaises(ValueError):
+                builder.verify_v8_tools(cache, lock)
+
     def test_submodule_source_changes_are_part_of_the_prepared_source_digest(self):
         with tempfile.TemporaryDirectory() as temporary:
             root = Path(temporary)

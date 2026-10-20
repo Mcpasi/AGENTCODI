@@ -58,7 +58,9 @@ Eingaben stehen in `scripts/fdroid/source-lock.json`:
   SDK Build-tools `36.0.0` und LLVM 21 für V8-Bindgen;
 - rusty_v8 `150.4.0` aus Commit
   `5c15a6995c9bb4bacd3e341b59fff32c909c80bf` einschließlich der gepinnten
-  Submodule und des erforderlichen V8-Sandbox-Profils.
+  Submodule und des erforderlichen V8-Sandbox-Profils;
+- GN und Ninja aus den V8-DEPS mit unveränderlichen CIPD-Paket-IDs sowie
+  SHA-256-Prüfsummen für Archive und ausführbare Werkzeuge.
 
 Der Builder liest die Build-Blöcke aus den geprüften Fork-Rezepten
 `.github/workflows/termux-npm-build-publish.yml` und
@@ -127,7 +129,8 @@ keinen vollständigen Codex-Build.
 ## Aufruf
 
 Auf einem ausreichend großen Linux-x86_64-Builder müssen die oben genannten
-Toolchains, Ninja und die Host-Abhängigkeiten des V8-Rezepts vorhanden sein.
+Toolchains, Ninja und die Host-Abhängigkeiten des V8-Rezepts vorhanden sein. GN und Ninja werden in der
+Vorbereitung aus den zusätzlich gesperrten Werkzeugpaketen bereitgestellt.
 `ANDROID_HOME`, `ANDROID_NDK_HOME` und gegebenenfalls
 `V8_SYSTEM_LIBCLANG_DIR` wählen diese Installationen aus. Optional lassen sich
 Quellcache und Ausgabe mit `AGENTCODI_SOURCE_CACHE` und
@@ -181,16 +184,21 @@ python3 scripts/fdroid/compare-apks.py \
 - Geänderte native App-/JNI-Bibliothek mit NDK r28c für Android ARM64 kompiliert.
 - 96 Robolectric-Oberflächentests auf API 29 und 35 erfolgreich; erzeugte
   Editor-Ansichten geprüft.
-- Acht Tests der Buildhilfen erfolgreich: deterministische ZIP-/Tar-Ausgabe,
+- Neun Tests der Buildhilfen erfolgreich: deterministische ZIP-/Tar-Ausgabe,
   echte Bytevergleiche, sichere Archivinhalte, Quellen-/Rezeptauswahl und
   Ablehnung veränderter Build-Nachweise.
 - Workflow-YAML, darin enthaltene Shell-Blöcke und Git-Diff geprüft.
+- GitHub Actions hat den ersten Stand `dc09b29` ebenfalls in allen fünf Jobs
+  erfolgreich geprüft: [Tests, Run 39357846544](https://github.com/Mcpasi/AGENTCODI/actions/runs/39357846544).
 
 Der vollständige Codex-/V8-Quellbuild und zwei vollständige APK-Vergleichsbuilds
 sind damit noch nicht nachgewiesen. Die Quellvorbereitung wurde einschließlich
 aller V8-Submodule, Compiler-/Sysroot-Eingaben und Cargo-Abhängigkeiten ausgeführt.
-Der anschließende netzlose Quellbuild hat die Bindgen-Prüfung bestanden und
-kompiliert derzeit die V8-Abhängigkeiten.
+Der netzlose Quellbuild hat die Bindgen-Prüfung bestanden. Ein erster
+vollständiger Versuch deckte einen versteckten Download von GN/Ninja im
+V8-Buildskript auf. Diese Werkzeuge wurden daraufhin mit Paket-IDs und
+Prüfsummen in den Vorbereitungsschritt verschoben; manipulierte Werkzeuge
+werden vor dem Offline-Build abgelehnt.
 
 ## Öffentliche Eingaben: tatsächlicher Abrufversuch
 

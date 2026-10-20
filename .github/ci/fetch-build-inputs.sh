@@ -46,7 +46,7 @@ if ! command -v curl >/dev/null 2>&1; then
   echo "curl is required." >&2
   exit 1
 fi
-mirror_available="${AGENTCODI_INPUTS_USE_MIRROR:-1}"
+mirror_available="${AGENTCODI_INPUTS_USE_MIRROR:-0}"
 case "$mirror_available" in
   0|1) ;;
   *) echo "AGENTCODI_INPUTS_USE_MIRROR must be 0 or 1." >&2; exit 1 ;;

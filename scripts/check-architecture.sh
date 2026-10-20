@@ -832,7 +832,6 @@ toolchain_elf_guard_test="$PROJECT_ROOT/tests/cpp/toolchain_elf_guard_test.cpp"
 toolchain_fake_guard="$PROJECT_ROOT/tests/cpp/toolchain_fake_guard.cpp"
 ripgrep_policy="$PROJECT_ROOT/modules/native-engine/src/main/cpp/ripgrep_bridge_policy.cpp"
 ripgrep_policy_test="$PROJECT_ROOT/tests/cpp/ripgrep_bridge_policy_test.cpp"
-ripgrep_artifact="$PROJECT_ROOT/third_party/ripgrep/ripgrep-15.2.0-android-arm64.elf"
 ripgrep_dependencies="$PROJECT_ROOT/third_party/ripgrep/DEPENDENCIES"
 ripgrep_licenses="$PROJECT_ROOT/third_party/ripgrep/LICENSES"
 ripgrep_provenance="$PROJECT_ROOT/third_party/ripgrep/PROVENANCE"
@@ -920,7 +919,7 @@ if ! rg -q 'getToolchain\(\)' "$storage_layout" \
   exit 1
 fi
 
-if [ ! -f "$ripgrep_artifact" ] \
+if [ ! -f "$PROJECT_ROOT/scripts/fdroid/recipes/ripgrep.sh" ] \
     || [ ! -f "$ripgrep_dependencies" ] \
     || [ ! -f "$ripgrep_licenses" ] \
     || [ ! -f "$ripgrep_provenance" ] \
@@ -947,12 +946,6 @@ if rg -n 'workspace/console|SharedPreferences|onSaveInstanceState' "$terminal_ac
 fi
 
 if ! rg -q 'NODE_VERSION="24\.18\.0"' "$apk_builder" \
-    || ! rg -q 'NODE_SHA256="6456b78aba9e0007de7a4c580d2b34bb3865145bebe06e75273152f8dcba4236"' "$apk_builder" \
-    || ! rg -q 'NODE_UNGUARDED_RUNTIME_SHA256="e31cd5c7f5db279d638c3ad773e04f12842077f0559f4da4f369440a6f4195c3"' "$apk_builder" \
-    || ! rg -q 'NODE_PREATTESTED_RUNTIME_SHA256="cbf6b5c9aade3efd2127cb610db4a9ab8d54860c26d2c1273f8e3fae0bd6719f"' "$apk_builder" \
-    || ! rg -q 'NODE_RUNTIME_SHA256="6d1e83f6dd9586adaee78d17f6bac23870af6a21ccad58779bac270cc318614c"' "$apk_builder" \
-    || ! rg -q 'NPM_SHA256="385a051111f66c56d0564e6809244f1740427805a78d2e5a5dc470fb420832f8"' "$apk_builder" \
-    || ! rg -q 'PYTHON_SHA256="3166e56c2b6c03fff41191fbb9d736302978e7c484702814d9f6dc99dd6006bd"' "$apk_builder" \
     || ! rg -q 'AGENTCODI_TOOL_RUNTIME_V1' "$apk_builder" \
     || ! rg -q 'Compiling packaged terminal shell bridge' "$apk_builder" \
     || ! rg -q "toolchain_smoke -c 'node --version'" "$apk_builder" \
@@ -972,9 +965,6 @@ if ! rg -q 'NODE_VERSION="24\.18\.0"' "$apk_builder" \
 fi
 
 if ! rg -q 'RIPGREP_VERSION="15\.2\.0"' "$apk_builder" \
-    || ! rg -q 'RIPGREP_SOURCE_SHA256="4eb0d0c70d2e3c760cab4f478c7eb715082ae1d8b5f4a23bb14515154348b04d"' "$apk_builder" \
-    || ! rg -q 'RIPGREP_PREATTESTED_RUNTIME_SHA256="a93343b21a76f7ff00dc05c6eddc6317d36f143093e3f7cde795720adede00aa"' "$apk_builder" \
-    || ! rg -q 'RIPGREP_RUNTIME_SHA256="4cfd048c4bac29ac0d494887b519752984f66a449ed4b22bd95cca6fcf540d50"' "$apk_builder" \
     || ! rg -q 'RIPGREP_LIBRARY_NAME="libripgrep\.so"' "$apk_builder" \
     || ! rg -q 'features:-pcre2' "$apk_builder" \
     || ! rg -q 'Normal target package count: 34' "$ripgrep_dependencies" \
@@ -986,12 +976,6 @@ if ! rg -q 'RIPGREP_VERSION="15\.2\.0"' "$apk_builder" \
     || ! rg -q 'NODE_GUARD_LIBRARY_NAME="libagentcodi-node-guard\.so"' "$apk_builder" \
     || ! rg -q 'PYTHON_GUARD_LIBRARY_NAME="libagentcodi-python-guard\.so"' "$apk_builder" \
     || ! rg -q 'RIPGREP_GUARD_LIBRARY_NAME="libagentcodi-ripgrep-guard\.so"' "$apk_builder" \
-    || ! rg -q 'NODE_GUARD_SHA256="92d7e6740a494c687383c83c1109f133b04ac67d0ac6a0714c6c7e26a5c3e1a7"' "$apk_builder" \
-    || ! rg -q 'PYTHON_GUARD_SHA256="ab8ab4014503943c14842e79507cb5975b270f4fb97cec3c3fe423ad1fe71814"' "$apk_builder" \
-    || ! rg -q 'RIPGREP_GUARD_SHA256="6f38c49ad156e456248330bfddec2dc3f934f94884cd64d1fd751c08fee40a20"' "$apk_builder" \
-    || ! rg -q 'NODE_ATTESTOR_SHA256="241c3c157251f94d682da6bad6082079786198d241f63be76a456c8c64f16dfa"' "$apk_builder" \
-    || ! rg -q 'PYTHON_ATTESTOR_SHA256="7e275cc1b169871b100a15f82af1395f384b507234549241ad14c98a94cb762c"' "$apk_builder" \
-    || ! rg -q 'RIPGREP_ATTESTOR_SHA256="206e3f43a6dd1cfa1b81cc901e86be00d19c1584866f864da9ff94e6defcba99"' "$apk_builder" \
     || ! rg -q -- '--add-needed "\$RIPGREP_GUARD_LIBRARY_NAME"' "$apk_builder" \
     || rg -q 'PENDING_' "$apk_builder" \
     || ! rg -q 'RIPGREP_CONFIG_PATH' "$apk_builder" \
@@ -1006,9 +990,8 @@ if rg -q '^(GDBM|READLINE)_(URL|SHA256|ARCHIVE|SOURCE)' "$apk_builder" \
   echo "The APK builder must not fetch or package GNU dbm/readline runtimes." >&2
   exit 1
 fi
-if ! rg -q 'PYTHON_SOURCE_EXTENSION_COUNT="75"' "$apk_builder" \
+if ! rg -q 'PYTHON_SOURCE_EXTENSION_COUNT="72"' "$apk_builder" \
     || ! rg -q 'PYTHON_PACKAGED_EXTENSION_COUNT="72"' "$apk_builder" \
-    || ! rg -q 'PYTHON_NATIVE_SET_SHA256="cc9e6ea0d0ad967979d8b2763fd32a9a328d589c20401e64035e573877cb2581"' "$apk_builder" \
     || ! rg -q 'lib-dynload/_dbm\.cpython-314-aarch64-linux-android\.so' "$apk_builder" \
     || ! rg -q 'lib-dynload/_gdbm\.cpython-314-aarch64-linux-android\.so' "$apk_builder" \
     || ! rg -q 'lib-dynload/readline\.cpython-314-aarch64-linux-android\.so' "$apk_builder" \
@@ -1085,6 +1068,20 @@ if ! rg -q 'containsLikelyCredential' "$core_root/CredentialGuard.java" \
     || ! rg -q 'validateRuntimeConfigurationFiles' "$storage_layout" \
     || ! rg -q 'createStateDirectory' "$PROJECT_ROOT/modules/storage/src/main/java/de/agentcodi/storage/CrashReportStore.java"; then
   echo "Authentication and token-leak prevention boundaries are incomplete." >&2
+  exit 1
+fi
+
+# Packaging must consume a complete source receipt. The rolling Termux pool
+# cannot supply Android payloads or bypass the local recipe graph.
+runtime_builder="$PROJECT_ROOT/scripts/fdroid/build-runtime.py"
+if ! rg -q 'build-runtime-from-source.sh" shell-env' "$apk_builder" \
+    || rg -q 'packages.termux.dev|third_party/ripgrep/.*\.elf' "$apk_builder" \
+    || ! rg -q 'verify_output' "$runtime_builder" \
+    || ! rg -q 'recipes_sha256' "$runtime_builder" \
+    || ! rg -q 'termux_download' "$PROJECT_ROOT/scripts/fdroid/recipes/download.sh" \
+    || rg -q 'curl|wget' "$PROJECT_ROOT/scripts/fdroid/recipes/download.sh" \
+    || ! rg -q 'LLVM_ENABLE_RUNTIMES' "$PROJECT_ROOT/scripts/fdroid/recipes/libc++.sh"; then
+  echo "Source-built Android runtime provenance is incomplete." >&2
   exit 1
 fi
 

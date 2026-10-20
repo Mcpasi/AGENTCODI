@@ -35,6 +35,17 @@ void expect(bool condition, const char* message) {
   }
 }
 
+bool stop_completed_fixture(agentcodi::AppServerProcess* process) {
+  // The last response can arrive before the fixture has returned from main.
+  // Wait for its EOF so Stop's intentional SIGTERM does not race that return.
+  std::string line;
+  std::string error;
+  return process->ReadLine(1024U, &line, &error)
+          == agentcodi::LineReadStatus::kError
+      && error == "Codex app-server exited with code 0"
+      && process->Stop(500) == 0;
+}
+
 std::string saved_path_from_event(const std::string& event) {
   const std::string field = "\"savedPath\":\"";
   const std::size_t begin = event.find(field);
@@ -2350,7 +2361,7 @@ int main(int argc, char* argv[]) {
                 == agentcodi::LineReadStatus::kLine
                 && reload_response == "{\"id\":63,\"result\":{}}",
             "read MCP reload response");
-        expect(process->Stop(500) == 0,
+        expect(stop_completed_fixture(process.get()),
                "stop MCP configuration framing fixture");
       }
 
@@ -2429,7 +2440,7 @@ int main(int argc, char* argv[]) {
                 && connector_line.find("\"id\":\"turn_connectors\"")
                     != std::string::npos,
             "preserve connector turn correlation");
-        expect(process->Stop(500) == 0,
+        expect(stop_completed_fixture(process.get()),
                "stop hosted connector framing fixture");
       }
 
@@ -2461,7 +2472,7 @@ int main(int argc, char* argv[]) {
                 && rate_limits_update.find("\"usedPercent\":31")
                     != std::string::npos,
             "preserve sparse rate-limit update notification");
-        expect(process->Stop(500) == 0,
+        expect(stop_completed_fixture(process.get()),
                "stop rate-limit framing fixture");
       }
 
@@ -2497,7 +2508,7 @@ int main(int argc, char* argv[]) {
                     != std::string::npos
                 && steer_item.find("turn/started") == std::string::npos,
             "preserve steering user item without inventing a new turn");
-        expect(process->Stop(500) == 0,
+        expect(stop_completed_fixture(process.get()),
                "stop turn-steer framing fixture");
       }
 
@@ -2561,7 +2572,7 @@ int main(int argc, char* argv[]) {
                 && review_line.find("\"id\":\"turn_review_response\"")
                     != std::string::npos,
             "preserve review turn completion");
-        expect(process->Stop(500) == 0,
+        expect(stop_completed_fixture(process.get()),
                "stop review-mode framing fixture");
       }
 
@@ -2612,7 +2623,7 @@ int main(int argc, char* argv[]) {
                     != std::string::npos
                 && import_item.find("content://") == std::string::npos,
             "preserve authoritative native mention without exposing provider URI");
-        expect(process->Stop(500) == 0,
+        expect(stop_completed_fixture(process.get()),
                "stop turn-import framing fixture");
       }
 
@@ -2674,7 +2685,7 @@ int main(int argc, char* argv[]) {
                     == agentcodi::LineReadStatus::kLine
                 && mode_line.find("\"exitCode\":0") != std::string::npos,
             "preserve compatibility terminal response");
-        expect(process->Stop(500) == 0,
+        expect(stop_completed_fixture(process.get()),
                "stop execution-mode framing fixture");
       }
 
@@ -2754,7 +2765,7 @@ int main(int argc, char* argv[]) {
                 && thread_line.find("\"method\":\"thread/deleted\"")
                     != std::string::npos,
             "preserve thread/deleted notification");
-        expect(process->Stop(500) == 0,
+        expect(stop_completed_fixture(process.get()),
                "stop thread-management framing fixture");
       }
 

@@ -1,0 +1,105 @@
+import importlib.util
+import json
+import os
+from pathlib import Path
+import subprocess
+import tempfile
+import unittest
+from unittest.mock import patch
+
+ROOT = Path(__file__).resolve().parents[2]
+spec = importlib.util.spec_from_file_location("runtime_sources", ROOT / "scripts/fdroid/build-runtime.py")
+runtime = importlib.util.module_from_spec(spec)
+spec.loader.exec_module(runtime)
+
+
+class RuntimeSourcesTest(unittest.TestCase):
+    def fixture(self, output):
+        record = runtime.identity()
+        paths = {}
+        for name, package in runtime.ARCHIVES.items():
+            path = "debs/" + package + "_1_aarch64.deb"
+            file = output / path
+            file.parent.mkdir(exist_ok=True)
+            file.write_bytes(package.encode())
+            paths[name] = path
+        record.update(from_source=True, archives=paths,
+                      files_sha256={path: runtime.sha256(output / path) for path in paths.values()})
+        runtime.write_json(output / "source-build.json", record)
+        return record
+
+    def test_complete_source_receipt_rejects_missing_changed_and_linked_outputs(self):
+        with tempfile.TemporaryDirectory() as directory:
+            output = Path(directory)
+            record = self.fixture(output)
+            runtime.verify_output(output)
+            file = output / record["archives"]["NODE"]
+            original = file.read_bytes()
+            file.write_bytes(b"different node")
+            with self.assertRaisesRegex(ValueError, "package changed"):
+                runtime.verify_output(output)
+            file.write_bytes(original)
+            other = file.with_suffix(".original")
+            file.rename(other)
+            file.symlink_to(other)
+            with self.assertRaises(ValueError):
+                runtime.verify_output(output)
+            file.unlink()
+            with self.assertRaises(ValueError):
+                runtime.verify_output(output)
+
+    def test_receipt_rejects_incomplete_recipe_changes_and_archive_path_escape(self):
+        with tempfile.TemporaryDirectory() as directory:
+            output = Path(directory)
+            record = self.fixture(output)
+            with patch.object(runtime, "recipe_hashes", return_value={"changed-recipe.sh": "0" * 64}):
+                with self.assertRaisesRegex(ValueError, "different recipes"):
+                    runtime.verify_output(output)
+            original = json.loads(json.dumps(record))
+            for change in ("incomplete", "escape", "not-source"):
+                record = json.loads(json.dumps(original))
+                if change == "incomplete":
+                    del record["archives"]["PYTHON"]
+                elif change == "escape":
+                    old = record["archives"]["NODE"]
+                    record["archives"]["NODE"] = "../" + old
+                    record["files_sha256"]["../" + old] = record["files_sha256"].pop(old)
+                else:
+                    record["from_source"] = False
+                runtime.write_json(output / "source-build.json", record)
+                with self.assertRaises(ValueError):
+                    runtime.verify_output(output)
+
+    def test_preparation_refuses_prebuilt_android_packages_and_unhashed_sources(self):
+        with tempfile.TemporaryDirectory() as directory:
+            for url, digest in (
+                ("https://packages.termux.dev/a/node.deb", "0" * 64),
+                ("https://example.invalid/package.deb", "0" * 64),
+                ("https://example.invalid/source.tar.gz", "SKIP_CHECKSUM"),
+            ):
+                with self.assertRaises(ValueError):
+                    runtime.download(Path(directory), url, digest)
+
+    def test_build_downloader_uses_verified_local_bytes_and_has_no_network_fallback(self):
+        with tempfile.TemporaryDirectory() as directory:
+            cache = Path(directory)
+            blobs = cache / "blobs"
+            blobs.mkdir()
+            source = cache / "source"
+            source.write_bytes(b"source archive")
+            digest = runtime.sha256(source)
+            source.rename(blobs / digest)
+            script = 'source "$1"; termux_download https://example.invalid/source.tar.gz "$2" "$3"'
+            args = ["bash", "-eu", "-c", script, "downloader",
+                    str(ROOT / "scripts/fdroid/recipes/download.sh"), str(cache / "output"), digest]
+            env = dict(os.environ, AGENTCODI_RUNTIME_CACHE=str(cache))
+            subprocess.run(args, check=True, env=env)
+            self.assertEqual((cache / "output").read_bytes(), b"source archive")
+            (blobs / digest).write_bytes(b"tampered source")
+            result = subprocess.run(args, env=env, capture_output=True)
+            self.assertNotEqual(result.returncode, 0)
+            self.assertIn(b"Missing or changed", result.stderr)
+
+
+if __name__ == "__main__":
+    unittest.main()

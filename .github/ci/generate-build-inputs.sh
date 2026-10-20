@@ -8,9 +8,9 @@
 #     .github/ci/generate-build-inputs.sh > .github/ci/build-inputs.tsv
 #
 # It only evaluates plain constant assignments from the configuration block.
-# The three assignments that use command substitution are skipped: SCRIPT_DIR
-# and PROJECT_ROOT are set here, and CODEX_ANDROID_ARCHIVE is resolved from
-# the content-addressed cache layout instead of running the Codex helper.
+# Assignments invoking the source-build helpers are skipped. This manifest
+# covers public SDK/R8/license downloads; the helpers verify source-built inputs
+# separately. SCRIPT_DIR and PROJECT_ROOT are set here.
 #
 # Columns: path (relative to the cache directory), sha256, origin, source url.
 set -Eeuo pipefail
@@ -33,7 +33,7 @@ fi
 
 assignments="$(sed -n "1,${config_end}p" "$BUILD_SCRIPT" \
   | grep -E '^[A-Z_][A-Z0-9_]*=' \
-  | grep -vE '^(SCRIPT_DIR|PROJECT_ROOT|CODEX_ANDROID_ARCHIVE|CODEX_SOURCE_ENV)=')"
+  | grep -vE '^(SCRIPT_DIR|PROJECT_ROOT|CODEX_ANDROID_ARCHIVE|CODEX_SOURCE_ENV|RUNTIME_SOURCE_ENV)=')"
 if printf '%s\n' "$assignments" | grep -qE '^[A-Z_][A-Z0-9_]*="?\$\('; then
   echo "Refusing to evaluate a configuration assignment that runs a command:" >&2
   printf '%s\n' "$assignments" | grep -E '^[A-Z_][A-Z0-9_]*="?\$\(' >&2

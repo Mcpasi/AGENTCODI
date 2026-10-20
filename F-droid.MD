@@ -87,8 +87,8 @@ Die Phasen sind getrennt:
 
 Das Ergebnis ist `output/codex-source/package.tgz` mit ausschließlich Codex,
 Code-Mode-Host, C++-Laufzeit, Original-Lizenz/NOTICE und Paketmetadaten.
-Für das gemeinsame Runtimeset der APK verwendet die Montage weiterhin ihre
-separat gesperrte Termux-C++-Laufzeit.
+Für das gemeinsame Runtimeset der APK verwendet die Montage die separat
+aus LLVM-Quellen gebaute C++-Laufzeit aus den eigenen Runtime-Rezepten.
 Tar-Reihenfolge, Eigentümer, Rechte und Zeitstempel sowie der Gzip-Header sind
 festgelegt. `source-build.json` bindet Quellstand, Builder, Source-Lock, V8 und
 die einzelnen Nutzdaten an ihre SHA-256-Prüfsummen. Der APK-Build prüft diesen
@@ -126,9 +126,9 @@ es würde außerdem bestehende Dokumentationsdateien aktualisieren.
   festgelegt. Python und Git gehören ausdrücklich zu dessen Werkzeugen.
   GitHub Actions ermittelt `SOURCE_DATE_EPOCH` vor dem Root-Container und
   übergibt es an den Build.
-- Die private Binärspiegelung ist für die Vorbereitung mit
-  `AGENTCODI_INPUTS_USE_MIRROR=0` abschaltbar. Codex-Archive und vorberechnete
-  Codex-Schemata werden aus der alten Eingabeliste entfernt.
+- Die private Binärspiegelung ist standardmäßig ausgeschaltet
+  (`AGENTCODI_INPUTS_USE_MIRROR=0`). Codex-Archive, vorberechnete Codex-Schemata
+  und Android-DEBs stehen nicht mehr in dieser Downloadliste.
 - `scripts/fdroid/compare-apks.py` akzeptiert ausschließlich identische
   vollständige APK-Bytes. Gleiche Nutzdaten bei unterschiedlichen ZIP-Metadaten
   gelten weiterhin als fehlgeschlagener Reproduzierbarkeitsvergleich.
@@ -137,8 +137,9 @@ Die Workflows prüfen Java, C++, Android-Kompilierung, Editor/Markdown-Oberfläc
 und die Buildhilfen. Der neue Workflow `Codex from source` baut den Fork auf
 Linux x86_64 mit den gesperrten Rezepten. Sein Build läuft über `unshare --net`
 ohne Netzwerk. Der bisherige ARM64-APK-Workflow verwendet das daraus erzeugte
-Artefakt und dessen Nachweis. Ein manueller reiner Container-Preflight benötigt
-keinen vollständigen Codex-Build.
+Artefakt und dessen Nachweis sowie die eigenen Runtime-Quellpakete.
+Ein manueller reiner Container-Preflight benötigt keine vollständigen
+Codex- oder Runtime-Quellbuilds.
 
 ## Aufruf
 
@@ -163,9 +164,10 @@ Quellcache und Ausgabe mit `AGENTCODI_SOURCE_CACHE` und
 ```
 
 Die APK-Montage benötigt weiterhin die bestehende ARM64/Bionic-Buildumgebung.
-Dorthin müssen das gesamte Verzeichnis `output/codex-source` und die geprüften
-Android-Eingaben übertragen bzw. eingebunden werden. Ein abweichendes
-Codex-Ausgabeverzeichnis muss über `AGENTCODI_CODEX_BUILD_DIR` ausgewählt sein.
+Dorthin müssen die vollständigen Verzeichnisse `output/codex-source` und
+`output/runtime-source` sowie die sechs geprüften SDK-/R8-/Lizenzeingaben
+übertragen bzw. eingebunden werden. Abweichende Ausgabeverzeichnisse werden
+über `AGENTCODI_CODEX_BUILD_DIR` und `AGENTCODI_RUNTIME_BUILD_DIR` ausgewählt.
 
 ```sh
 # Vorbereitung mit Netzwerk, ohne privaten Mirror:
@@ -187,7 +189,7 @@ python3 scripts/fdroid/compare-apks.py \
   /build-b/output/apk/AGENTCODI-unsigned.apk
 ```
 
-## Validierung dieses Arbeitsstands
+## Bisherige Validierung des Editor-/Codex-Stands
 
 - Architekturprüfungen und Synchronität der Build-Eingabeliste erfolgreich.
 - 362 Java-Tests erfolgreich, einschließlich der übernommenen Editor-, Syntax-
@@ -259,7 +261,7 @@ auf dem früheren Stand `538720a` scheiterte im Quellbuild-Job; die APK-Montage
 wurde dort übersprungen. Dieser Lauf liegt vor der Cargo-Korrektur in
 `bb8c2a7`.
 
-## Öffentliche Eingaben: tatsächlicher Abrufversuch
+## Ausgangsbefund: 15 verschwundene Binärpakete
 
 Die Vorbereitung wurde mit deaktiviertem Mirror und einem Abrufversuch pro
 Eingabe ausgeführt. Ergebnis: eine bereits vorhandene Eingabe verifiziert,
@@ -272,11 +274,155 @@ Betroffen sind die bisherigen Pins für:
 - npm `11.19.0`, Python `3.14.6-1`, libffi `3.5.2`, liblzma `5.8.3`;
 - patchelf `0.19.1`.
 
-Die Original-Prüfsummen werden beibehalten. Der Build ersetzt diese Dateien
-nicht durch neuere Binärversionen. Die fehlenden öffentlichen Eingaben verhindern
-bereits vor der vollständigen APK-Erstellung einen eigenständigen öffentlichen
-Neuaufbau. Eine private Sicherung kann bestehende Entwicklungsbuilds unterstützen,
-behebt aber diese F-Droid-Hürde nicht.
+Dieser Abrufversuch beschreibt den Ausgangsstand vor dem folgenden Umbau.
+Ein privater Binärmirror löst diese F-Droid-Hürde nicht. Die verschwundenen
+Pakete werden deshalb durch eigene Quellbuild-Ausgaben ersetzt; ein stiller
+Wechsel auf neuere vorgebaute Termux-Pakete findet nicht statt.
+
+## Ersatz durch eigene Runtime-Rezepte
+
+`scripts/build-runtime-from-source.sh` und `scripts/fdroid/build-runtime.py`
+ergänzen einen Linux-x86_64-Quellbuild für das gesamte Android-Eingabeset.
+Die 27 lokal gepflegten Rezepte liegen in `scripts/fdroid/recipes/`.
+Sie verwenden Android-Anpassungen und die Build-Infrastruktur von
+`termux/termux-packages` ausschließlich aus Commit
+`e23be59f0cdcb00674821347881182e68a548135`. Repository, Git-Quellen,
+Host-Eingaben, Rust-Version und Reihenfolge stehen in
+`scripts/fdroid/runtime-lock.json`. Die Paketauflösung des Termux-Builders
+ist abgeschaltet: Der Builder arbeitet die eigene Rezeptliste ab und lädt
+keine Android-Pakete als Abhängigkeiten nach.
+
+Die Prüfung der 15 Pins hat folgende Verwendungen ergeben:
+
+| Bisheriger Pin | Tatsächliche Verwendung | Quellersatz |
+| --- | --- | --- |
+| aapt2 `16.0.0.4-1` | Ressourcen kompilieren und APK verknüpfen; nicht in der App enthalten. | `aapt.sh`, Android-Build-Tools-Commit `c4edf8539a34a8600538e6642c1ecb170452a79e` mit seinen Gitlink-Pins. Paket-Baurevision jetzt `16.0.0.4-2`. |
+| Abseil `20260526.0` | C++-Abhängigkeit von Protobuf/aapt2; nicht mitgeliefert. | `abseil-cpp.sh`, unveränderte Quellversion. |
+| Protobuf `35.1` | aapt2-Ressourcenformate; nicht mitgeliefert. | `libprotobuf.sh`, unveränderte Quellversion; Host-protoc getrennt. |
+| fmt `11.2.0` | Formatierung im Ressourcenwerkzeug; nicht mitgeliefert. | `fmt.sh`, unveränderte Quellversion. |
+| libc++ `29` | Gemeinsame C++-Laufzeit der App, Codex und Node. | `libc++.sh` kompiliert libc++, libc++abi und libunwind aus LLVM `21.1.8`, Commit `2078da43e25a4623cab2d0d60decddf709aaea28`, mit Android-ABI-Namensraum `__ndk1`. `29` bleibt die kompatible Paketkennung. |
+| Expat `2.8.2` | Python-XML-Module und aapt2. | `libexpat.sh`, unveränderte Quellversion. |
+| libpng `1.6.58` | PNG-Verarbeitung durch aapt2; nicht mitgeliefert. Der native App-PNG-Prüfer nutzt zlib. | `libpng.sh`, unveränderte Quellversion. |
+| Node `24.18.0` | JavaScript-Werkzeuglaufzeit und npm/npx. | `nodejs-lts.sh`, Node-Quellen und Android-Patches. |
+| SQLite `3.53.4` | Node-SQLite und Python-SQLite/dbm/shelve. | `libsqlite.sh`, ohne Ziel-Tcl und Readline. |
+| OpenSSL `3.6.3` | TLS/Kryptografie für Node und Python. | `openssl.sh`, unveränderte Quellversion. |
+| npm `11.19.0` | JavaScript-Paketverwaltung. | `npm.sh`, CLI-Commit `bfacd33ccbcd908480610703b60455d2da5b57a9`. Eingecheckte JS-Abhängigkeiten und Produktions-Workspaces werden ohne `npm install` bereitgestellt. |
+| Python `3.14.6-1` | Python-Interpreter, Standardbibliothek und native Erweiterungen. | `python.sh`, Host-Python ebenfalls aus denselben Quellen; die drei bisher nachträglich ausgeschlossenen Module `_dbm`, `_gdbm` und `readline` werden nicht gebaut. |
+| libffi `3.5.2` | Python `ctypes`. | `libffi.sh`, unveränderte Quellversion. |
+| liblzma `5.8.3` | Python-LZMA-Unterstützung. | `liblzma.sh`, unveränderte Quellversion. |
+| patchelf `0.19.1` | Buildwerkzeug zum Eintragen der ELF-Policy-Guards; nicht mitgeliefert. | `patchelf.sh`, unveränderte Quellversion. |
+
+Auch die bisher noch erreichbaren Runtime-Bibliotheken c-ares, ICU, zlib,
+bzip2, ncurses/panel, Zstandard sowie Android-Support und POSIX-Semaphore
+werden mit eigenen Rezepten gebaut. Googletest und Zopfli gehören zu den
+Build-Abhängigkeiten. Lizenzvorlagen kommen aus dem gesperrten Quellbaum.
+Der Node-Bau verwendet die bereits aus Quellen gebauten ICU-Hostwerkzeuge.
+Der Host-Python-Bau benötigt weder pip noch die CPython-Testmodule.
+Protobuf-Zielcompiler und upb werden nicht benötigt und sind abgeschaltet;
+Node baut gezielt das Laufzeitprogramm. Das fmt-Rezept ergänzt den fehlenden
+`cstdlib`-Header für das eigene libc++.
+Der Builder entfernt erfolgreich abgeschlossene Paket-Arbeitsbäume, behält
+jedoch die ICU-Hostwerkzeuge bis zum Node-Bau. Quellcache und eigene DEBs
+bleiben erhalten. SQLite erhält für seine Quellgeneratoren ausdrücklich
+das Host-Tcl; Tcl und Readline werden nicht als Zielabhängigkeiten gebaut.
+
+Das bisherige Termux-libc++-Rezept kopiert lediglich eine fertige Bibliothek
+aus dem NDK. Dieses Verhalten wird ausdrücklich ersetzt. Ebenso entfällt das
+eingecheckte ripgrep-ELF: `ripgrep.sh` baut Version `15.2.0` mit Rust `1.95.0`,
+`--frozen`, dem vorhandenen Cargo-Lock und ohne PCRE2. Die normale
+Cargo-Abhängigkeitsliste wird mit dem bestehenden Inventar verglichen.
+`scripts/rebuild-ripgrep.sh` führt jetzt diesen Quellbuildpfad aus.
+Eine Git-Suchgrenze verhindert, dass ripgreps Quellarchiv versehentlich den
+umgebenden AGENTCODI-Commit statt einer eigenen Revision einbettet.
+
+Vorbereitung und Build sind getrennt. Die Vorbereitung prüft Quellarchive
+per SHA-256, Git-Commits einschließlich aapt2-Untermodulen und erzeugt den
+Cargo-Vendorbaum. Im Build ersetzt ein lokaler, ausschließlich aus dem
+verifizierten Cache lesender Downloader den Termux-Downloader. Fehlende,
+veränderte oder ungehashte Eingaben führen zum Abbruch. Der NDK-Sysroot wird
+kopiert und gepatcht; FUSE oder ein privilegierter Container sind nicht nötig.
+Die Runtime-Bibliotheken und Werkzeuge werden wie die bisherigen
+Termux-Pakete für Android API 24 gebaut, mit 16-KiB-Ausrichtung. Die App selbst
+benötigt weiterhin API 29. Ein Diagnosebau mit Runtime-API 29 erzeugte ELF-TLS
+und Python-Verweise auf `getloadavg`, die der ältere Bionic-Linker/-libc des
+vorhandenen Montagecontainers nicht unterstützt. API 24 erhält dessen
+Kompatibilität; die Python-Konfigurationsprüfungen schließen neuere
+Bionic-Funktionen ausdrücklich aus.
+Die C++-Header des eigenen libc++ werden ohne einen zweiten NDK-C++-Suchpfad
+verwendet, damit `include_next` die Bionic-C-Header erreicht.
+
+Ein vollständiger Build erzeugt `output/runtime-source/source-build.json`
+und die eigenen Pakete unter `output/runtime-source/debs/`. Der Nachweis
+bindet Source-Lock, Builder, sämtliche eigenen Rezepte und jede benötigte
+Ausgabedatei an ihre SHA-256-Prüfsummen. Die APK-Montage verlangt den
+vollständigen Nachweis, bevor sie die Pakete extrahiert. Ein Teilbuild mit
+`--through PAKET` erzeugt keinen vollständigen Nachweis.
+
+Die alten Termux-Ausgabehashes sind keine gültigen Erwartungen für einen
+anderen Quellbuild. Stattdessen werden die erzeugten Guard-, Attestor- und
+Runtime-Hashes im Montageprozess erfasst und mit dem Quellnachweis in
+`assets/third-party/runtime-source/assembled-runtime.json` verbunden.
+Die bestehenden ELF-, Abhängigkeits-, Policy- und Laufzeitprüfungen bleiben
+aktiv; auch die fertige APK wird gegen die erfassten Nutzdaten geprüft.
+Source-Lock, Quellbuild-Nachweis und die libc++-Lizenz werden zusätzlich
+mitgeliefert. Der Bytevergleich zweier Gesamt-APKs bleibt erforderlich.
+
+Die Downloadliste `.github/ci/build-inputs.tsv` enthält jetzt nur noch sechs
+öffentliche SDK-/R8- und Lizenzeingaben. Sie enthält keine Android-DEBs.
+Der private Mirror ist standardmäßig ausgeschaltet. Der neue Workflow
+`Android runtime from source` baut das Runtime-Set in einem Container ohne
+Netzwerk; der APK-Workflow benötigt dessen Artefakt zusätzlich zum vorhandenen
+Codex-Quellbuild und führt die Montage ebenfalls ohne Netzwerk aus.
+Die libc++-Bibliothek im ARM64-Buildcontainer ist nur eine Host-Abhängigkeit
+seines LLVM; sie wird nicht in die APK kopiert.
+
+Beispiel für einen frischen Linux-x86_64-Arbeitsstand; mindestens 50 GiB
+freier Speicher für Toolchains, Quellbäume und Builddateien werden empfohlen:
+
+```sh
+docker build -t agentcodi-runtime-source \
+  -f .github/ci/Dockerfile.runtime-source .github/ci
+docker run --rm --user "$(id -u):$(id -g)" \
+  -v "$PWD":/workspace agentcodi-runtime-source \
+  rustup toolchain install 1.95.0 --profile minimal --target aarch64-linux-android
+docker run --rm --user "$(id -u):$(id -g)" \
+  -v "$PWD":/workspace agentcodi-runtime-source \
+  ./scripts/build-runtime-from-source.sh prepare
+docker run --rm --network none --user "$(id -u):$(id -g)" \
+  -v "$PWD":/workspace agentcodi-runtime-source \
+  ./scripts/build-runtime-from-source.sh build
+./scripts/build-runtime-from-source.sh verify
+```
+
+Auch `output/runtime-source` muss anschließend vollständig in die
+ARM64-Montageumgebung übertragen werden. Ein abweichender Ausgabepfad wird
+mit `AGENTCODI_RUNTIME_BUILD_DIR` gewählt. Wiederaufnahme benötigt denselben
+Container mit seinem installierten Zielpräfix; für einen neuen Container
+ist ein frisches `AGENTCODI_RUNTIME_WORK` erforderlich.
+
+### Prüfungen des Runtime-Umbaus am 20. Oktober 2026
+
+- Alle sechs verbliebenen öffentlichen APK-Eingaben ohne privaten Mirror
+  abgerufen und ihre SHA-256-Prüfsummen erfolgreich geprüft.
+- 15 Python-Tests der Buildhilfen erfolgreich, darunter die Ablehnung
+  unvollständiger, veränderter und verlinkter Runtime-Ausgaben sowie
+  ungehashter oder vorgebauter Android-Quellen.
+- 362 Java-Tests und alle acht portablen C++-Suiten erfolgreich. Die
+  Framing-Fixtures warten vor `Stop` auf den normalen Prozessabschluss;
+  dadurch entfällt die beobachtete Race Condition zwischen letzter Antwort
+  und SIGTERM im Test. Die Engine-Suite besteht mit 329 Assertions.
+- Architekturverträge, Manifest-Synchronität, Bash-/Workflow-Shell-Syntax,
+  Workflow-YAML, Source-Lock-JSON und Git-Diff geprüft.
+- Ein frischer vollständiger Offline-Durchlauf mit Runtime-API 24 läuft.
+  Die abschließende Runtime-Prüfung unter ARM64-Emulation, die ARM64-APK-
+  Montage und der unabhängige APK-Vergleich sind noch nicht nachgewiesen.
+
+Die Termux-Basis lizenziert Paketrezepte/-patches jeweils wie das zugehörige
+Paket und ihre allgemeine Build-Infrastruktur unter Apache-2.0;
+siehe deren [Lizenzregel](https://github.com/termux/termux-packages/blob/e23be59f0cdcb00674821347881182e68a548135/LICENSE.md).
+Bestehende Rechtsdokumente und Notice-Texte werden auf ausdrückliche Vorgabe
+nicht bearbeitet; die spätere Veröffentlichung muss deren historischen Stand
+mit den neuen Quellbuild-Nachweisen abgleichen.
 
 ## Verbleibende F-Droid-Hürden
 
@@ -286,11 +432,10 @@ erreichten F-Droid-Aufnahme oder bitgleichen Gesamt-APK.
 1. Der APK-Build führt weiterhin Android-ARM64-Werkzeuge und Runtime-Smokes aus.
    Die Montage muss für einen üblichen F-Droid-Linux-x86_64-Builder weiter
    aufgeteilt bzw. portiert werden.
-2. Die gemeinsame libc++-Laufzeit, Node, Python, deren Bibliotheken und das
-   eingecheckte ripgrep-ELF stammen
-   weiterhin aus vorgebauten Termux-Eingaben. Für einen vollständig aus Quellen
-   erzeugten F-Droid-Build sind auch hierfür nachvollziehbare Quellrezepte und
-   vollständige Lizenz-/Quellnachweise erforderlich.
+2. Die eigenen Runtime-Rezepte und ihre Einbindung ersetzen die bisherigen
+   vorgebauten Termux-Eingaben. Ihre vollständige Validierung, die ARM64-
+   Laufzeitprüfungen der neu erzeugten Dateien und die unabhängige
+   Reproduktion der Gesamt-APK müssen gemeinsam nachgewiesen werden.
 3. Die bestehende Buildumgebung installiert Host-Pakete über APT. Der Fork pinnt
    Compiler-Hauptversionen und Android-Toolchains, aber noch nicht das gesamte
    Host-System, alle Hook-Downloads und jedes Buildwerkzeug auf einen

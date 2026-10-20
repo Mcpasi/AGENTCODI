@@ -1,0 +1,30 @@
+# Compile libc++, libc++abi and libunwind instead of copying an NDK binary.
+TERMUX_PKG_HOMEPAGE=https://libcxx.llvm.org/
+TERMUX_PKG_DESCRIPTION="AGENTCODI source-built Android C++ runtime"
+TERMUX_PKG_LICENSE="Apache-2.0"
+TERMUX_PKG_LICENSE_FILE="libcxx/LICENSE.TXT"
+TERMUX_PKG_MAINTAINER="AGENTCODI"
+TERMUX_PKG_VERSION=29
+TERMUX_PKG_SRCURL=https://codeload.github.com/llvm/llvm-project/tar.gz/2078da43e25a4623cab2d0d60decddf709aaea28
+TERMUX_PKG_SHA256=536a4d64ab21bc85bf95ae4dc412b36e8a9c72d487a476839f3c31c3ded69e96
+TERMUX_PKG_FORCE_CMAKE=true
+termux_step_configure() {
+  termux_setup_cmake
+  termux_setup_ninja
+  cmake -G Ninja -S "$TERMUX_PKG_SRCDIR/runtimes" -B . \
+    -DCMAKE_TOOLCHAIN_FILE="$NDK/build/cmake/android.toolchain.cmake" \
+    -DANDROID_ABI=arm64-v8a -DANDROID_PLATFORM="android-$TERMUX_PKG_API_LEVEL" -DANDROID_STL=none \
+    -DCMAKE_BUILD_TYPE=Release -DCMAKE_INSTALL_PREFIX="$TERMUX_PREFIX" \
+    -DLLVM_ENABLE_RUNTIMES='libunwind;libcxxabi;libcxx' \
+    -DLIBCXX_ABI_NAMESPACE=__ndk1 \
+    -DLIBCXX_ENABLE_SHARED=ON -DLIBCXX_ENABLE_STATIC=OFF \
+    -DLIBCXX_SHARED_OUTPUT_NAME=c++_shared \
+    -DLIBCXX_ENABLE_ABI_LINKER_SCRIPT=OFF -DLIBCXX_STATICALLY_LINK_ABI_IN_SHARED_LIBRARY=ON \
+    -DLIBCXXABI_ENABLE_SHARED=OFF -DLIBCXXABI_ENABLE_STATIC=ON \
+    -DLIBCXXABI_USE_LLVM_UNWINDER=ON -DLIBCXXABI_STATICALLY_LINK_UNWINDER_IN_STATIC_LIBRARY=ON \
+    -DLIBUNWIND_ENABLE_SHARED=OFF -DLIBUNWIND_ENABLE_STATIC=ON \
+    -DLIBCXX_INCLUDE_TESTS=OFF -DLIBCXXABI_INCLUDE_TESTS=OFF -DLIBUNWIND_INCLUDE_TESTS=OFF \
+    -DCMAKE_SHARED_LINKER_FLAGS='-Wl,-z,max-page-size=16384 -Wl,-z,common-page-size=16384'
+}
+termux_step_make() { cmake --build . --parallel "$TERMUX_PKG_MAKE_PROCESSES"; }
+termux_step_make_install() { cmake --install .; }

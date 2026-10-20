@@ -1,0 +1,77 @@
+{
+  "android_api": 24,
+  "git": {
+    "aapt": {
+      "commit": "c4edf8539a34a8600538e6642c1ecb170452a79e",
+      "repository": "https://github.com/termux/android-build-tools.git"
+    },
+    "npm": {
+      "commit": "bfacd33ccbcd908480610703b60455d2da5b57a9",
+      "repository": "https://github.com/npm/cli.git"
+    }
+  },
+  "host_inputs": [
+    {
+      "extract": "ndk",
+      "sha256": "4abbbcdc842f3d4879206e9695d52709603e52dd68d3c1fff04b3b5e7a308ecf",
+      "url": "https://dl.google.com/android/repository/android-ndk-r29-linux.zip"
+    },
+    {
+      "sha256": "d6c83076c575bc00b823522ac974bda66d0af05d6ddc30e739c12385cf32c6cc",
+      "url": "https://github.com/Kitware/CMake/releases/download/v4.4.3/cmake-4.4.3-linux-x86_64.tar.gz"
+    },
+    {
+      "sha256": "5749cbc4e668273514150a80e387a957f933c6ed3f5f11e03fb30955e2bbead6",
+      "url": "https://github.com/ninja-build/ninja/releases/download/v1.13.2/ninja-linux.zip"
+    },
+    {
+      "sha256": "6930ebf62bd4ea607b98fff052596c6ee564b9835b4ce172c75a3f53ae9d91b7",
+      "url": "https://github.com/protocolbuffers/protobuf/releases/download/v35.1/protoc-35.1-linux-x86_64.zip"
+    },
+    {
+      "sha256": "59645fb25b84d11f108436e83d9df5e874ba4eb76ab62948869a23a3ee692fa7",
+      "url": "https://github.com/termux/termux-elf-cleaner/releases/download/v3.0.1/termux-elf-cleaner"
+    },
+    {
+      "sha256": "790fcc5b04e96882e8227ba7994161ab945c0e096057fc165a0f71e32a7cb061",
+      "url": "https://commondatastorage.googleapis.com/chromium-browser-clang/Linux_x64/clang-llvmorg-21-init-5118-g52cd27e6-5.tar.xz"
+    }
+  ],
+  "order": [
+    "termux-licenses",
+    "libc++",
+    "zlib",
+    "libandroid-support",
+    "libandroid-posix-semaphore",
+    "libbz2",
+    "libexpat",
+    "libffi",
+    "liblzma",
+    "ncurses",
+    "zstd",
+    "openssl",
+    "libsqlite",
+    "c-ares",
+    "libicu",
+    "abseil-cpp",
+    "libprotobuf",
+    "fmt",
+    "libpng",
+    "libzopfli",
+    "googletest",
+    "aapt",
+    "patchelf",
+    "nodejs-lts",
+    "npm",
+    "python",
+    "ripgrep"
+  ],
+  "ripgrep_lock_sha256": "7a7d39cda8a03930e578f1dbb724e055771901842eca239e03b01e19da946a64",
+  "rust": "1.95.0",
+  "schema": 1,
+  "source_date_epoch": 1789299433,
+  "termux": {
+    "commit": "e23be59f0cdcb00674821347881182e68a548135",
+    "repository": "https://github.com/termux/termux-packages.git"
+  }
+}

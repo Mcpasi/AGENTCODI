@@ -32,8 +32,12 @@ jobs:
     if: ${{ github.event_name == 'push' || !inputs.preflight_only }}
     uses: ./.github/workflows/codex-source.yml
 
+  runtime-source:
+    if: ${{ github.event_name == 'push' || !inputs.preflight_only }}
+    uses: ./.github/workflows/runtime-source.yml
+
   apk:
-    needs: codex-source
+    needs: [codex-source, runtime-source]
     if: ${{ always() && !failure() && !cancelled() }}
     name: Debug APK
     runs-on: ubuntu-24.04-arm
@@ -70,12 +74,22 @@ jobs:
           name: codex-source
           path: output/codex-source
 
-      # The mirror is a private backup, so this needs a token with read access
-      # to it; the default workflow token cannot reach another repository.
-      # Inputs that are still available upstream are fetched without it.
+      - name: Download the Android inputs built from the local source recipes
+        if: ${{ !inputs.preflight_only }}
+        uses: actions/download-artifact@v4
+        with:
+          name: runtime-source
+          path: output/runtime-source
+
+      - name: Verify the complete runtime source receipt
+        if: ${{ !inputs.preflight_only }}
+        run: |
+          tar -xf output/runtime-source/runtime-source.tar -C output/runtime-source
+          ./scripts/build-runtime-from-source.sh verify
+
       - name: Restore the pinned build inputs
         env:
-          GH_TOKEN: ${{ secrets.AGENTCODI_INPUTS_TOKEN }}
+          AGENTCODI_INPUTS_USE_MIRROR: '0'
         run: .github/ci/fetch-build-inputs.sh
 
       - name: Verify the build inputs
@@ -91,18 +105,19 @@ jobs:
 
       - name: Check the container against the build requirements
         run: |
-          docker run --rm $SANDBOX_OPTS \
+          docker run --rm --network none $SANDBOX_OPTS \
             -v "$GITHUB_WORKSPACE":/workspace -w /workspace \
             "$IMAGE" .github/ci/container-preflight.sh
 
       - name: Build the debug APK
         if: ${{ !inputs.preflight_only }}
         run: |
-          docker run --rm $SANDBOX_OPTS \
+          docker run --rm --network none $SANDBOX_OPTS \
             -v "$GITHUB_WORKSPACE":/workspace -w /workspace \
             -e AGENTCODI_CACHE_DIR=/workspace/.cache/android \
             -e SOURCE_DATE_EPOCH \
             -e AGENTCODI_CODEX_BUILD_DIR=/workspace/output/codex-source \
+            -e AGENTCODI_RUNTIME_BUILD_DIR=/workspace/output/runtime-source \
             -e AGENTCODI_OUTPUT_DIR=/workspace/output/apk \
             -e AGENTCODI_SKIP_DEVICE_LINKER_TESTS=1 \
             -e AGENTCODI_BOOTSTRAP_LAYOUT=flat \

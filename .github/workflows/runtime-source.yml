@@ -1,0 +1,48 @@
+name: Android runtime from source
+
+on:
+  workflow_dispatch:
+  workflow_call:
+
+permissions:
+  contents: read
+
+jobs:
+  runtime:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 360
+    steps:
+      - uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd # v6.0.2
+      - name: Make room for the source trees and Android cross-toolchain
+        run: |
+          sudo rm -rf /usr/local/lib/android /usr/share/dotnet /opt/ghc /usr/local/.ghcup
+          df -h /
+      - name: Build the Linux cross-builder
+        run: docker build --progress=plain -t agentcodi-runtime-source -f .github/ci/Dockerfile.runtime-source .github/ci
+      - name: Prepare the locked public sources and host tools
+        run: |
+          docker run --rm --user "$(id -u):$(id -g)" \
+            -v "$GITHUB_WORKSPACE":/workspace agentcodi-runtime-source \
+            rustup toolchain install 1.95.0 --profile minimal --target aarch64-linux-android
+          docker run --rm --user "$(id -u):$(id -g)" \
+            -v "$GITHUB_WORKSPACE":/workspace agentcodi-runtime-source \
+            ./scripts/build-runtime-from-source.sh prepare
+      - name: Compile the local recipes without network access
+        run: |
+          docker run --rm --network none --user "$(id -u):$(id -g)" \
+            -v "$GITHUB_WORKSPACE":/workspace agentcodi-runtime-source \
+            ./scripts/build-runtime-from-source.sh build
+      - name: Verify source receipts and collect the complete input set
+        run: |
+          ./scripts/build-runtime-from-source.sh verify
+          # Debian epochs contain ':', which Actions rejects in artifact paths.
+          # Keep package names intact inside one deterministic transport archive.
+          epoch="$(python3 -c 'import json; print(json.load(open("scripts/fdroid/runtime-lock.json"))["source_date_epoch"])')"
+          tar --sort=name --mtime="@$epoch" --owner=0 --group=0 --numeric-owner \
+            -C output/runtime-source -cf output/runtime-source.tar debs source-build.json
+      - uses: actions/upload-artifact@bbbca2ddaa5d8feaa63e36b76fdaad77386f024f # v7.0.0
+        with:
+          name: runtime-source
+          path: output/runtime-source.tar
+          compression-level: 0
+          if-no-files-found: error

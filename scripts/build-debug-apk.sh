@@ -55,20 +55,10 @@ CODEX_PACKAGED_HOST_NAME="libcodex-codehost.so"
 CODEX_DEFAULT_HOST_OFFSET="11073755"
 
 NODE_VERSION="24.18.0"
-NODE_URL="https://packages.termux.dev/apt/termux-main/pool/main/n/nodejs-lts/nodejs-lts_${NODE_VERSION}_aarch64.deb"
-NODE_SHA256="6456b78aba9e0007de7a4c580d2b34bb3865145bebe06e75273152f8dcba4236"
 CARES_VERSION="1.34.8"
-CARES_URL="https://packages.termux.dev/apt/termux-main/pool/main/c/c-ares/c-ares_${CARES_VERSION}_aarch64.deb"
-CARES_SHA256="7681fc23e822d7988ba8b2adf3468f93ae68f724dda365cff1385096a9fa87e6"
 ICU_VERSION="78.3"
-ICU_URL="https://packages.termux.dev/apt/termux-main/pool/main/libi/libicu/libicu_${ICU_VERSION}_aarch64.deb"
-ICU_SHA256="f536403f65a08fe0df6e7304184e902d54def77d5c3bd5edfd9109d57601d276"
 SQLITE_VERSION="3.53.4"
-SQLITE_URL="https://packages.termux.dev/apt/termux-main/pool/main/libs/libsqlite/libsqlite_${SQLITE_VERSION}_aarch64.deb"
-SQLITE_SHA256="0e909ce0d50fe123305446cd22e0c5edf535d40344b9b065fbdcdee52f53198d"
 OPENSSL_VERSION="3.6.3"
-OPENSSL_URL="https://packages.termux.dev/apt/termux-main/pool/main/o/openssl/openssl_1:${OPENSSL_VERSION}_aarch64.deb"
-OPENSSL_SHA256="86760e9ce736f463236f2c15b1eb3a3fdcfc5778d0fd7077a917448dcc90f3aa"
 NODE_LICENSE_URL="https://raw.githubusercontent.com/nodejs/node/v${NODE_VERSION}/LICENSE"
 NODE_LICENSE_SHA256="148eacf7863ef4329224a29398623077200a27194aa075569faf4a0a85566ca5"
 ICU_LICENSE_URL="https://raw.githubusercontent.com/unicode-org/icu/41bdb529bd7fa3d7c71759e0eef8600805873d61/LICENSE"
@@ -77,111 +67,40 @@ OPENSSL_LICENSE_URL="https://raw.githubusercontent.com/openssl/openssl/openssl-$
 OPENSSL_LICENSE_SHA256="7d5450cb2d142651b8afa315b5f238efc805dad827d91ba367d8516bc9d49e7a"
 TERMINAL_SHELL_NAME="libagentcodi-shell.so"
 NODE_LIBRARY_NAME="libnode.so"
-NODE_UNGUARDED_RUNTIME_SHA256="e31cd5c7f5db279d638c3ad773e04f12842077f0559f4da4f369440a6f4195c3"
-NODE_PREATTESTED_RUNTIME_SHA256="cbf6b5c9aade3efd2127cb610db4a9ab8d54860c26d2c1273f8e3fae0bd6719f"
-NODE_RUNTIME_SHA256="6d1e83f6dd9586adaee78d17f6bac23870af6a21ccad58779bac270cc318614c"
-CARES_RUNTIME_SHA256="68733ce8d4bb1bdc87d8ec550c58c70f3dcdb0f8c48d86b83235f536cb736e83"
-CRYPTO_RUNTIME_SHA256="c20e21eb916f6f913aef6291af7312dd2b2c46aa60000db9c24de55c8492a0a4"
-ICUDATA_RUNTIME_SHA256="3d0d02951e9bdbb32fc36e2761fbcd0d144c7ad1fca78e5b1c4c117066e892a6"
-ICUI18N_RUNTIME_SHA256="ff60f64a9916536aa3e505ff519dfd72f3b491eb5c1d98a5d96a89a37f3202f7"
-ICUUC_RUNTIME_SHA256="0561115e4c843c8967981e64d802150e68f6b3c9ed67241228bf276844670ae3"
-SQLITE_RUNTIME_SHA256="ab224ec9350f2e9ea7cf6f8321636979dea1ef9e8461453433857a6b701b4c7a"
-SSL_RUNTIME_SHA256="3d224f5c06e04351ed7e25d7fb6078ee8ce832106f1ef0d83fffa77d5e744234"
-ZLIB_RUNTIME_SHA256="fc9659e5d77c32149627ef3c357a1a76cfd44b93917e29c6c1c78cb054f92b83"
 
 NPM_VERSION="11.19.0"
-NPM_URL="https://packages.termux.dev/apt/termux-main/pool/main/n/npm/npm_${NPM_VERSION}_all.deb"
-NPM_SHA256="385a051111f66c56d0564e6809244f1740427805a78d2e5a5dc470fb420832f8"
 PYTHON_VERSION="3.14.6"
 PYTHON_PACKAGE_VERSION="3.14.6-1"
-PYTHON_URL="https://packages.termux.dev/apt/termux-main/pool/main/p/python/python_${PYTHON_PACKAGE_VERSION}_aarch64.deb"
-PYTHON_SHA256="3166e56c2b6c03fff41191fbb9d736302978e7c484702814d9f6dc99dd6006bd"
-ANDROID_POSIX_SEMAPHORE_URL="https://packages.termux.dev/apt/termux-main/pool/main/liba/libandroid-posix-semaphore/libandroid-posix-semaphore_0.1-4_aarch64.deb"
-ANDROID_POSIX_SEMAPHORE_SHA256="0efa8677a0166315ba4e685863712eba0ca0a1732827492f38226e2723730c7a"
-ANDROID_SUPPORT_URL="https://packages.termux.dev/apt/termux-main/pool/main/liba/libandroid-support/libandroid-support_29-1_aarch64.deb"
-ANDROID_SUPPORT_SHA256="f2f145d6135ad4843ac9670153be3e3944dc1e6f1736d46d2306c28f2b86f517"
-BZIP2_URL="https://packages.termux.dev/apt/termux-main/pool/main/libb/libbz2/libbz2_1.0.8-8_aarch64.deb"
-BZIP2_SHA256="4335d7f060650b0aabef545d1334c2f9f280223d5962e13c24a00ec934b794ba"
-LIBFFI_URL="https://packages.termux.dev/apt/termux-main/pool/main/libf/libffi/libffi_3.5.2_aarch64.deb"
-LIBFFI_SHA256="8c8c1d6ffb049d8496a21c1202d9b4dc9145140886fdbb45716684565f4ed3f5"
-LIBLZMA_URL="https://packages.termux.dev/apt/termux-main/pool/main/libl/liblzma/liblzma_5.8.3_aarch64.deb"
-LIBLZMA_SHA256="594925a313879f590fbd24050305551a78eadd9a9319f6e612389b1a521113c6"
 NCURSES_VERSION="6.6.20260307+really6.5.20250830"
-NCURSES_URL="https://packages.termux.dev/apt/termux-main/pool/main/n/ncurses/ncurses_${NCURSES_VERSION}_aarch64.deb"
-NCURSES_SHA256="f44bbfdc3d42ec0217bffa978309390e59cea5a48a9a83226d4a496c42ad0b99"
-NCURSES_UI_URL="https://packages.termux.dev/apt/termux-main/pool/main/n/ncurses-ui-libs/ncurses-ui-libs_${NCURSES_VERSION}_aarch64.deb"
-NCURSES_UI_SHA256="7393f369009be189b3d4ec1f9b16ebd57621d6a1b22949ae07685573950d1f37"
 ZSTD_VERSION="1.5.7"
-ZSTD_URL="https://packages.termux.dev/apt/termux-main/pool/main/z/zstd/zstd_${ZSTD_VERSION}-1_aarch64.deb"
-ZSTD_SHA256="e1b4a5113648da8de189620ba1fce74c48b2d0833d9043391b9a1c91fb606fd3"
 ZSTD_LICENSE_URL="https://raw.githubusercontent.com/facebook/zstd/v${ZSTD_VERSION}/LICENSE"
 ZSTD_LICENSE_SHA256="7055266497633c9025b777c78eb7235af13922117480ed5c674677adc381c9d8"
 LIBLZMA_0BSD_LICENSE_SHA256="0b01625d853911cd0e2e088dcfb743261034a091bb379246cb25a14cc4c74bf1"
-TERMUX_LICENSES_URL="https://packages.termux.dev/apt/termux-main/pool/main/t/termux-licenses/termux-licenses_2.2_all.deb"
-TERMUX_LICENSES_SHA256="a3265cd1cf7d04754f2fb683eaf5b21918263792fd714457127900c1d6d9bcd9"
 PYTHON_LIBRARY_NAME="libpython-bin.so"
 TOOL_RUNTIME_NAME="python-${PYTHON_VERSION}-npm-${NPM_VERSION}"
-TOOL_RUNTIME_MANIFEST_SHA256="e7fa5752f739c96cde42b20b38ae57d7249eb535b1524b5fc5a7be73d1008e7a"
-PYTHON_NATIVE_SET_SHA256="cc9e6ea0d0ad967979d8b2763fd32a9a328d589c20401e64035e573877cb2581"
-PYTHON_LICENSES_SHA256="b25c84cf10f0797356b67dd6b27d5a2cdff1c2a2bc098b2ee678c60146392892"
-PYTHON_SOURCE_EXTENSION_COUNT="75"
+PYTHON_SOURCE_EXTENSION_COUNT="72"
 PYTHON_PACKAGED_EXTENSION_COUNT="72"
 
 RIPGREP_VERSION="15.2.0"
 RIPGREP_LIBRARY_NAME="libripgrep.so"
-RIPGREP_SOURCE_BINARY="$PROJECT_ROOT/third_party/ripgrep/ripgrep-15.2.0-android-arm64.elf"
-RIPGREP_SOURCE_SHA256="4eb0d0c70d2e3c760cab4f478c7eb715082ae1d8b5f4a23bb14515154348b04d"
-RIPGREP_PREATTESTED_RUNTIME_SHA256="a93343b21a76f7ff00dc05c6eddc6317d36f143093e3f7cde795720adede00aa"
-RIPGREP_RUNTIME_SHA256="4cfd048c4bac29ac0d494887b519752984f66a449ed4b22bd95cca6fcf540d50"
 RIPGREP_DEPENDENCIES_SOURCE="$PROJECT_ROOT/third_party/ripgrep/DEPENDENCIES"
 RIPGREP_DEPENDENCIES_SHA256="78cc70f642f1bf1d4c0ecc42a835fbf2c9e3658378f4d9e536ab6dee80a12281"
 RIPGREP_LICENSES_SOURCE="$PROJECT_ROOT/third_party/ripgrep/LICENSES"
 RIPGREP_LICENSES_SHA256="43ba0c48735498436470bc5ceddbd1286b694b17235f6f571b14dc3bfc43d678"
-RIPGREP_PROVENANCE_SOURCE="$PROJECT_ROOT/third_party/ripgrep/PROVENANCE"
-RIPGREP_PROVENANCE_SHA256="96c1ff96d2ecab8a17f0186771aeeefa2c9c5567ee7ce00bd3c6cb4ef74f3848"
+RIPGREP_PROVENANCE_SOURCE="${AGENTCODI_RUNTIME_BUILD_DIR:-$PROJECT_ROOT/output/runtime-source}/source-build.json"
 NODE_GUARD_LIBRARY_NAME="libagentcodi-node-guard.so"
 PYTHON_GUARD_LIBRARY_NAME="libagentcodi-python-guard.so"
 RIPGREP_GUARD_LIBRARY_NAME="libagentcodi-ripgrep-guard.so"
-NODE_GUARD_SHA256="92d7e6740a494c687383c83c1109f133b04ac67d0ac6a0714c6c7e26a5c3e1a7"
-PYTHON_GUARD_SHA256="ab8ab4014503943c14842e79507cb5975b270f4fb97cec3c3fe423ad1fe71814"
-RIPGREP_GUARD_SHA256="6f38c49ad156e456248330bfddec2dc3f934f94884cd64d1fd751c08fee40a20"
-NODE_ATTESTOR_SHA256="241c3c157251f94d682da6bad6082079786198d241f63be76a456c8c64f16dfa"
-PYTHON_ATTESTOR_SHA256="7e275cc1b169871b100a15f82af1395f384b507234549241ad14c98a94cb762c"
-RIPGREP_ATTESTOR_SHA256="206e3f43a6dd1cfa1b81cc901e86be00d19c1584866f864da9ff94e6defcba99"
-# The LLVM toolchain compiles the guard libraries and the ELF attestor payload
-# that are injected into the packaged tools, so its code generation is covered
-# by the derived *_RUNTIME_SHA256 pins below. Pin it like every other build
-# input; a silent toolchain upgrade would otherwise surface much later as an
-# unexplained runtime hash mismatch.
+# The source compiler is fixed independently of the fresh output fingerprints.
 CLANG_TOOLCHAIN_VERSION="21.1.8"
 PATCHELF_VERSION="0.19.1"
-PATCHELF_URL="https://packages.termux.dev/apt/termux-main/pool/main/p/patchelf/patchelf_${PATCHELF_VERSION}_aarch64.deb"
-PATCHELF_SHA256="a08bea49b3c9c3bf449ee0c7b7ee9c97a9f3ab84ae06ace08a564d0903a23c3f"
 
 PLATFORM_URL="https://dl.google.com/android/repository/platform-35_r02.zip"
 PLATFORM_SHA256="0988cacad01b38a18a47bac14a0695f246bc76c1b06c0eeb8eb0dc825ab0c8e0"
 R8_VERSION="9.2.23"
 R8_URL="https://dl.google.com/dl/android/maven2/com/android/tools/r8/$R8_VERSION/r8-$R8_VERSION.jar"
 R8_SHA256="c6f69c9398c2f1825cac162d0d26faa4002eb68cfc594a4aec18f574276c07cb"
-AAPT2_VERSION="16.0.0.4-1"
-AAPT2_URL="https://packages.termux.dev/apt/termux-main/pool/main/a/aapt2/aapt2_${AAPT2_VERSION}_aarch64.deb"
-AAPT2_SHA256="d35298f13ec26eee362d4e84f534b29b8e5f288b86c89d803ba4fb8ccb9784aa"
-ABSEIL_URL="https://packages.termux.dev/apt/termux-main/pool/main/a/abseil-cpp/abseil-cpp_20260526.0_aarch64.deb"
-ABSEIL_SHA256="e489fac652cddc39d9436141e627285f1034a545a06fbb19c420514a419ad877"
-PROTOBUF_URL="https://packages.termux.dev/apt/termux-main/pool/main/libp/libprotobuf/libprotobuf_2:35.1_aarch64.deb"
-PROTOBUF_SHA256="a1ba7c7f0e5903a2134662653d3e7b9ffceaa78bdd00e07ac985e2d313ebc738"
-FMT_URL="https://packages.termux.dev/apt/termux-main/pool/main/f/fmt/fmt_1:11.2.0_aarch64.deb"
-FMT_SHA256="0377ac55cc99e409a5a2ba55a7cacf86fc1f79f330c2998801e293e95cac1996"
-LIBCXX_URL="https://packages.termux.dev/apt/termux-main/pool/main/libc/libc++/libc++_29_aarch64.deb"
-LIBCXX_SHA256="bb9f12113c137aa0e8513bb51cc49fe77a5ce3ca39ab9e92c57d228ecdf00222"
-EXPAT_URL="https://packages.termux.dev/apt/termux-main/pool/main/libe/libexpat/libexpat_2.8.2_aarch64.deb"
-EXPAT_SHA256="6f5eb2fd14b6fe4d7bb79bf7f0f3d7fc838fea07402477a172b147304366b372"
-PNG_URL="https://packages.termux.dev/apt/termux-main/pool/main/libp/libpng/libpng_1.6.58_aarch64.deb"
-PNG_SHA256="e47937405c72734867513cf0c63d27f36400d462666b65dfada984667d7228c4"
-ZOPFLI_URL="https://packages.termux.dev/apt/termux-main/pool/main/libz/libzopfli/libzopfli_1.0.3-5_aarch64.deb"
-ZOPFLI_SHA256="95cd7cb2209fbafb25825f5fcd4f86f021512175608e038b1c3d8d3fa0a4fe40"
-ZLIB_URL="https://packages.termux.dev/apt/termux-main/pool/main/z/zlib/zlib_1.3.2_aarch64.deb"
-ZLIB_SHA256="75e7d0af17fcc3b40004309fdc00a1ddb9ae08346dce5e269902c34ac3966ac9"
+AAPT2_VERSION="16.0.0.4-2"
 
 JAVA_HOME_17="${AGENTCODI_JAVA_HOME:-/usr/lib/jvm/java-17-openjdk-arm64}"
 JAVA="$JAVA_HOME_17/bin/java"
@@ -393,37 +312,13 @@ verify_file_sha256() {
 mkdir -p "$CACHE_DIR" "$OUTPUT_DIR" "$BUILD_ROOT"
 PLATFORM_ARCHIVE="$CACHE_DIR/platform-35_r02.zip"
 R8_JAR="$CACHE_DIR/r8-$R8_VERSION.jar"
-AAPT2_ARCHIVE="$CACHE_DIR/aapt2-$AAPT2_VERSION-aarch64.deb"
-ABSEIL_ARCHIVE="$CACHE_DIR/abseil-cpp-20260526.0-aarch64.deb"
-PROTOBUF_ARCHIVE="$CACHE_DIR/libprotobuf-35.1-aarch64.deb"
-FMT_ARCHIVE="$CACHE_DIR/fmt-11.2.0-aarch64.deb"
-LIBCXX_ARCHIVE="$CACHE_DIR/libcxx-29-aarch64.deb"
-EXPAT_ARCHIVE="$CACHE_DIR/libexpat-2.8.2-aarch64.deb"
-PNG_ARCHIVE="$CACHE_DIR/libpng-1.6.58-aarch64.deb"
-ZOPFLI_ARCHIVE="$CACHE_DIR/libzopfli-1.0.3-5-aarch64.deb"
-ZLIB_ARCHIVE="$CACHE_DIR/zlib-1.3.2-aarch64.deb"
 # The fork must be compiled with the pinned recipes on a Linux x86_64 builder.
 # A different host may consume only the verified source-build output, never a
 # release download or arbitrary local npm package.
 CODEX_SOURCE_ENV="$("$SCRIPT_DIR/build-codex-from-source.sh" shell-env)"
 eval "$CODEX_SOURCE_ENV"
-NODE_ARCHIVE="$CACHE_DIR/nodejs-lts-$NODE_VERSION-aarch64.deb"
-CARES_ARCHIVE="$CACHE_DIR/c-ares-$CARES_VERSION-aarch64.deb"
-ICU_ARCHIVE="$CACHE_DIR/libicu-$ICU_VERSION-aarch64.deb"
-SQLITE_ARCHIVE="$CACHE_DIR/libsqlite-$SQLITE_VERSION-aarch64.deb"
-OPENSSL_ARCHIVE="$CACHE_DIR/openssl-$OPENSSL_VERSION-aarch64.deb"
-NPM_ARCHIVE="$CACHE_DIR/npm-$NPM_VERSION-all.deb"
-PYTHON_ARCHIVE="$CACHE_DIR/python-$PYTHON_PACKAGE_VERSION-aarch64.deb"
-ANDROID_POSIX_SEMAPHORE_ARCHIVE="$CACHE_DIR/libandroid-posix-semaphore-0.1-4-aarch64.deb"
-ANDROID_SUPPORT_ARCHIVE="$CACHE_DIR/libandroid-support-29-1-aarch64.deb"
-BZIP2_ARCHIVE="$CACHE_DIR/libbz2-1.0.8-8-aarch64.deb"
-LIBFFI_ARCHIVE="$CACHE_DIR/libffi-3.5.2-aarch64.deb"
-LIBLZMA_ARCHIVE="$CACHE_DIR/liblzma-5.8.3-aarch64.deb"
-NCURSES_ARCHIVE="$CACHE_DIR/ncurses-$NCURSES_VERSION-aarch64.deb"
-NCURSES_UI_ARCHIVE="$CACHE_DIR/ncurses-ui-libs-$NCURSES_VERSION-aarch64.deb"
-ZSTD_ARCHIVE="$CACHE_DIR/zstd-$ZSTD_VERSION-1-aarch64.deb"
-TERMUX_LICENSES_ARCHIVE="$CACHE_DIR/termux-licenses-2.2-all.deb"
-PATCHELF_ARCHIVE="$CACHE_DIR/patchelf-$PATCHELF_VERSION-aarch64.deb"
+RUNTIME_SOURCE_ENV="$("$SCRIPT_DIR/build-runtime-from-source.sh" shell-env)"
+eval "$RUNTIME_SOURCE_ENV"
 NODE_LICENSE_FILE="$CACHE_DIR/node-$NODE_VERSION-LICENSE"
 ICU_LICENSE_FILE="$CACHE_DIR/icu-$ICU_VERSION-LICENSE"
 OPENSSL_LICENSE_FILE="$CACHE_DIR/openssl-$OPENSSL_VERSION-LICENSE"
@@ -438,7 +333,7 @@ fi
 umask 022
 
 # Caches are immutable inputs in the F-Droid build phase.
-echo "Verifying pinned Android build inputs..."
+echo "Verifying source-built Android inputs..."
 if [ ! -f "$CODEX_ANDROID_ARCHIVE" ] || [ -L "$CODEX_ANDROID_ARCHIVE" ]; then
   echo "Pinned local Codex archive is missing or linked: $CODEX_ANDROID_ARCHIVE" >&2
   echo "Run scripts/build-codex-from-source.sh prepare and build on Linux x86_64 first." >&2
@@ -450,39 +345,12 @@ echo "Codex archive SHA-256: $CODEX_ANDROID_SHA256"
 
 download_verified "$PLATFORM_URL" "$PLATFORM_SHA256" "$PLATFORM_ARCHIVE"
 download_verified "$R8_URL" "$R8_SHA256" "$R8_JAR"
-download_verified "$AAPT2_URL" "$AAPT2_SHA256" "$AAPT2_ARCHIVE"
-download_verified "$ABSEIL_URL" "$ABSEIL_SHA256" "$ABSEIL_ARCHIVE"
-download_verified "$PROTOBUF_URL" "$PROTOBUF_SHA256" "$PROTOBUF_ARCHIVE"
-download_verified "$FMT_URL" "$FMT_SHA256" "$FMT_ARCHIVE"
-download_verified "$LIBCXX_URL" "$LIBCXX_SHA256" "$LIBCXX_ARCHIVE"
-download_verified "$EXPAT_URL" "$EXPAT_SHA256" "$EXPAT_ARCHIVE"
-download_verified "$PNG_URL" "$PNG_SHA256" "$PNG_ARCHIVE"
-download_verified "$ZOPFLI_URL" "$ZOPFLI_SHA256" "$ZOPFLI_ARCHIVE"
-download_verified "$ZLIB_URL" "$ZLIB_SHA256" "$ZLIB_ARCHIVE"
-download_verified "$NODE_URL" "$NODE_SHA256" "$NODE_ARCHIVE"
-download_verified "$CARES_URL" "$CARES_SHA256" "$CARES_ARCHIVE"
-download_verified "$ICU_URL" "$ICU_SHA256" "$ICU_ARCHIVE"
-download_verified "$SQLITE_URL" "$SQLITE_SHA256" "$SQLITE_ARCHIVE"
-download_verified "$OPENSSL_URL" "$OPENSSL_SHA256" "$OPENSSL_ARCHIVE"
-download_verified "$NPM_URL" "$NPM_SHA256" "$NPM_ARCHIVE"
-download_verified "$PYTHON_URL" "$PYTHON_SHA256" "$PYTHON_ARCHIVE"
-download_verified "$ANDROID_POSIX_SEMAPHORE_URL" "$ANDROID_POSIX_SEMAPHORE_SHA256" "$ANDROID_POSIX_SEMAPHORE_ARCHIVE"
-download_verified "$ANDROID_SUPPORT_URL" "$ANDROID_SUPPORT_SHA256" "$ANDROID_SUPPORT_ARCHIVE"
-download_verified "$BZIP2_URL" "$BZIP2_SHA256" "$BZIP2_ARCHIVE"
-download_verified "$LIBFFI_URL" "$LIBFFI_SHA256" "$LIBFFI_ARCHIVE"
-download_verified "$LIBLZMA_URL" "$LIBLZMA_SHA256" "$LIBLZMA_ARCHIVE"
-download_verified "$NCURSES_URL" "$NCURSES_SHA256" "$NCURSES_ARCHIVE"
-download_verified "$NCURSES_UI_URL" "$NCURSES_UI_SHA256" "$NCURSES_UI_ARCHIVE"
-download_verified "$ZSTD_URL" "$ZSTD_SHA256" "$ZSTD_ARCHIVE"
-download_verified "$TERMUX_LICENSES_URL" "$TERMUX_LICENSES_SHA256" "$TERMUX_LICENSES_ARCHIVE"
-download_verified "$PATCHELF_URL" "$PATCHELF_SHA256" "$PATCHELF_ARCHIVE"
 download_verified "$NODE_LICENSE_URL" "$NODE_LICENSE_SHA256" "$NODE_LICENSE_FILE"
 download_verified "$ICU_LICENSE_URL" "$ICU_LICENSE_SHA256" "$ICU_LICENSE_FILE"
 download_verified "$OPENSSL_LICENSE_URL" "$OPENSSL_LICENSE_SHA256" "$OPENSSL_LICENSE_FILE"
 download_verified "$ZSTD_LICENSE_URL" "$ZSTD_LICENSE_SHA256" "$ZSTD_LICENSE_FILE"
 
 for ripgrep_input in \
-    "$RIPGREP_SOURCE_BINARY" \
     "$RIPGREP_DEPENDENCIES_SOURCE" \
     "$RIPGREP_LICENSES_SOURCE" \
     "$RIPGREP_PROVENANCE_SOURCE"; do
@@ -492,10 +360,8 @@ for ripgrep_input in \
     exit 1
   fi
 done
-verify_file_sha256 "$RIPGREP_SOURCE_BINARY" "$RIPGREP_SOURCE_SHA256"
 verify_file_sha256 "$RIPGREP_DEPENDENCIES_SOURCE" "$RIPGREP_DEPENDENCIES_SHA256"
 verify_file_sha256 "$RIPGREP_LICENSES_SOURCE" "$RIPGREP_LICENSES_SHA256"
-verify_file_sha256 "$RIPGREP_PROVENANCE_SOURCE" "$RIPGREP_PROVENANCE_SHA256"
 
 echo "Running Java, C++, and architecture tests..."
 "$SCRIPT_DIR/test.sh"
@@ -516,6 +382,14 @@ cleanup() {
   esac
 }
 trap cleanup EXIT
+DERIVED_HASHES="$WORK_DIR/derived-build.tsv"
+: > "$DERIVED_HASHES"
+record_derived_hash() {
+  local variable="$1" path="$2" digest
+  digest="$(sha256sum "$path" | awk '{print $1}')"
+  printf -v "$variable" '%s' "$digest"
+  printf '%s\t%s\n' "$variable" "$digest" >> "$DERIVED_HASHES"
+}
 
 EXTRACT_DIR="$WORK_DIR/platform"
 AAPT2_EXTRACT="$WORK_DIR/aapt2"
@@ -553,7 +427,7 @@ if [ ! -f "$ANDROID_JAR" ]; then
   exit 1
 fi
 
-for archive in "$AAPT2_ARCHIVE" "$ABSEIL_ARCHIVE" "$PROTOBUF_ARCHIVE" "$FMT_ARCHIVE" "$LIBCXX_ARCHIVE" "$EXPAT_ARCHIVE" "$PNG_ARCHIVE" "$ZOPFLI_ARCHIVE" "$ZLIB_ARCHIVE" "$NODE_ARCHIVE" "$CARES_ARCHIVE" "$ICU_ARCHIVE" "$SQLITE_ARCHIVE" "$OPENSSL_ARCHIVE" "$NPM_ARCHIVE" "$PYTHON_ARCHIVE" "$ANDROID_POSIX_SEMAPHORE_ARCHIVE" "$ANDROID_SUPPORT_ARCHIVE" "$BZIP2_ARCHIVE" "$LIBFFI_ARCHIVE" "$LIBLZMA_ARCHIVE" "$NCURSES_ARCHIVE" "$NCURSES_UI_ARCHIVE" "$ZSTD_ARCHIVE" "$TERMUX_LICENSES_ARCHIVE" "$PATCHELF_ARCHIVE"; do
+for archive in "$AAPT2_ARCHIVE" "$ABSEIL_ARCHIVE" "$PROTOBUF_ARCHIVE" "$FMT_ARCHIVE" "$LIBCXX_ARCHIVE" "$EXPAT_ARCHIVE" "$PNG_ARCHIVE" "$ZOPFLI_ARCHIVE" "$ZLIB_ARCHIVE" "$NODE_ARCHIVE" "$CARES_ARCHIVE" "$ICU_ARCHIVE" "$SQLITE_ARCHIVE" "$OPENSSL_ARCHIVE" "$NPM_ARCHIVE" "$PYTHON_ARCHIVE" "$ANDROID_POSIX_SEMAPHORE_ARCHIVE" "$ANDROID_SUPPORT_ARCHIVE" "$BZIP2_ARCHIVE" "$LIBFFI_ARCHIVE" "$LIBLZMA_ARCHIVE" "$NCURSES_ARCHIVE" "$NCURSES_UI_ARCHIVE" "$ZSTD_ARCHIVE" "$TERMUX_LICENSES_ARCHIVE" "$PATCHELF_ARCHIVE" "$RIPGREP_ARCHIVE"; do
   dpkg-deb -x "$archive" "$AAPT2_EXTRACT"
 done
 tar -xzf "$CODEX_ANDROID_ARCHIVE" -C "$CODEX_EXTRACT"
@@ -578,6 +452,8 @@ CODEX_LICENSE="$CODEX_EXTRACT/package/LICENSE"
 CODEX_NOTICE="$CODEX_EXTRACT/package/NOTICE"
 CODEX_PACKAGE_JSON="$CODEX_EXTRACT/package/package.json"
 TERMUX_RUNTIME_PREFIX="$AAPT2_EXTRACT/data/data/com.termux/files/usr"
+RIPGREP_SOURCE_BINARY="$TERMUX_RUNTIME_PREFIX/bin/rg"
+RIPGREP_SOURCE_SHA256="$(sha256sum "$RIPGREP_SOURCE_BINARY" | awk '{print $1}')"
 NODE_SOURCE_BINARY="$TERMUX_RUNTIME_PREFIX/bin/node"
 CARES_SOURCE_LIBRARY="$TERMUX_RUNTIME_PREFIX/lib/libcares.so"
 SQLITE_SOURCE_LIBRARY="$TERMUX_RUNTIME_PREFIX/lib/libsqlite3.so.3.53.4"
@@ -626,15 +502,11 @@ if [ ! -d "$PYTHON_DYNLOAD_SOURCE" ] \
   echo "Pinned Python package does not contain the reviewed extension-module set." >&2
   exit 1
 fi
-for excluded_python_extension in \
-    _dbm.cpython-314-aarch64-linux-android.so \
-    _gdbm.cpython-314-aarch64-linux-android.so \
-    readline.cpython-314-aarch64-linux-android.so; do
-  if [ ! -f "$PYTHON_DYNLOAD_SOURCE/$excluded_python_extension" ]; then
-    echo "Pinned Python package is missing a reviewed optional extension: $excluded_python_extension" >&2
-    exit 1
-  fi
-done
+if find "$PYTHON_DYNLOAD_SOURCE" -name '*.so' -printf '%f\n' \
+    | grep -Eq '^(_dbm|_gdbm|readline)\.'; then
+  echo "Source-built Python contains a disabled optional extension." >&2
+  exit 1
+fi
 verify_file_sha256 "$LIBLZMA_0BSD_LICENSE_SOURCE" "$LIBLZMA_0BSD_LICENSE_SHA256"
 for node_file in "$NODE_SOURCE_BINARY" "$CARES_SOURCE_LIBRARY" "$SQLITE_SOURCE_LIBRARY" "$CRYPTO_SOURCE_LIBRARY" "$SSL_SOURCE_LIBRARY" "$ICUDATA_SOURCE_LIBRARY" "$ICUUC_SOURCE_LIBRARY" "$ICUI18N_SOURCE_LIBRARY" "$ZLIB_SOURCE_LIBRARY" "$CARES_LICENSE_SOURCE" "$ZLIB_LICENSE_SOURCE"; do
   if [ ! -f "$node_file" ]; then
@@ -910,11 +782,11 @@ python3 -B "$SCRIPT_DIR/fdroid/reproducible-zip.py" "$APP_JAR" "$APP_JAR.stable"
 mv "$APP_JAR.stable" "$APP_JAR"
 
 echo "Compiling ARM64 JNI engine..."
-"$CLANGXX" --target=aarch64-linux-android"$MIN_SDK" -shared -fPIC -ffile-prefix-map="$PROJECT_ROOT"=/usr/src/agentcodi -ffile-prefix-map="$WORK_DIR"=/usr/src/agentcodi-build -std=c++17 -O2 -Wall -Wextra -Werror -pthread -fvisibility=hidden -I"$JAVA_HOME_17/include" -I"$JAVA_HOME_17/include/linux" -I"$PROJECT_ROOT/modules/native-engine/src/main/cpp" "$PROJECT_ROOT/modules/native-engine/src/main/cpp/agentcodi_engine.cpp" "$PROJECT_ROOT/modules/native-engine/src/main/cpp/app_server_process.cpp" "$PROJECT_ROOT/modules/native-engine/src/main/cpp/png_validator.cpp" "$PROJECT_ROOT/modules/native-engine/src/main/cpp/sha256.cpp" "$PROJECT_ROOT/modules/native-engine/src/main/cpp/workspace_directory_reader.cpp" "$PROJECT_ROOT/modules/native-engine/src/main/cpp/workspace_file_reader.cpp" "$PROJECT_ROOT/modules/native-engine/src/main/cpp/workspace_import_installer.cpp" "$PROJECT_ROOT/modules/native-engine/src/main/cpp/jni_bridge.cpp" -Wl,-soname,libagentcodi.so -lz -llog -o "$NATIVE_DIR/libagentcodi.so"
+"$CLANGXX" --target=aarch64-linux-android"$MIN_SDK" -nostdinc++ -isystem"$TERMUX_RUNTIME_PREFIX/include/c++/v1" -L"$AAPT2_LIBRARY_PATH" -shared -fPIC -ffile-prefix-map="$PROJECT_ROOT"=/usr/src/agentcodi -ffile-prefix-map="$WORK_DIR"=/usr/src/agentcodi-build -std=c++17 -O2 -Wall -Wextra -Werror -pthread -fvisibility=hidden -I"$JAVA_HOME_17/include" -I"$JAVA_HOME_17/include/linux" -I"$PROJECT_ROOT/modules/native-engine/src/main/cpp" "$PROJECT_ROOT/modules/native-engine/src/main/cpp/agentcodi_engine.cpp" "$PROJECT_ROOT/modules/native-engine/src/main/cpp/app_server_process.cpp" "$PROJECT_ROOT/modules/native-engine/src/main/cpp/png_validator.cpp" "$PROJECT_ROOT/modules/native-engine/src/main/cpp/sha256.cpp" "$PROJECT_ROOT/modules/native-engine/src/main/cpp/workspace_directory_reader.cpp" "$PROJECT_ROOT/modules/native-engine/src/main/cpp/workspace_file_reader.cpp" "$PROJECT_ROOT/modules/native-engine/src/main/cpp/workspace_import_installer.cpp" "$PROJECT_ROOT/modules/native-engine/src/main/cpp/jni_bridge.cpp" -Wl,-soname,libagentcodi.so -lz -llog -o "$NATIVE_DIR/libagentcodi.so"
 "$LLVM_STRIP" --strip-unneeded "$NATIVE_DIR/libagentcodi.so"
 
 echo "Compiling packaged terminal shell bridge..."
-"$CLANGXX" --target=aarch64-linux-android"$MIN_SDK" -fPIE -pie -std=c++17 -O2 -Wall -Wextra -Werror -pthread -I"$PROJECT_ROOT/modules/native-engine/src/main/cpp" "$PROJECT_ROOT/modules/native-engine/src/main/cpp/toolchain_shell_main.cpp" "$PROJECT_ROOT/modules/native-engine/src/main/cpp/toolchain_policy.cpp" "$PROJECT_ROOT/modules/native-engine/src/main/cpp/ripgrep_bridge_policy.cpp" -o "$NATIVE_DIR/$TERMINAL_SHELL_NAME"
+"$CLANGXX" --target=aarch64-linux-android"$MIN_SDK" -nostdinc++ -isystem"$TERMUX_RUNTIME_PREFIX/include/c++/v1" -L"$AAPT2_LIBRARY_PATH" -fPIE -pie -std=c++17 -O2 -Wall -Wextra -Werror -pthread -I"$PROJECT_ROOT/modules/native-engine/src/main/cpp" "$PROJECT_ROOT/modules/native-engine/src/main/cpp/toolchain_shell_main.cpp" "$PROJECT_ROOT/modules/native-engine/src/main/cpp/toolchain_policy.cpp" "$PROJECT_ROOT/modules/native-engine/src/main/cpp/ripgrep_bridge_policy.cpp" -o "$NATIVE_DIR/$TERMINAL_SHELL_NAME"
 "$LLVM_STRIP" --strip-unneeded "$NATIVE_DIR/$TERMINAL_SHELL_NAME"
 
 echo "Compiling packaged direct-ELF policy guards..."
@@ -924,7 +796,7 @@ for guard_spec in \
     "3:$RIPGREP_GUARD_LIBRARY_NAME"; do
   guard_kind="${guard_spec%%:*}"
   guard_library="${guard_spec#*:}"
-  "$CLANGXX" --target=aarch64-linux-android"$MIN_SDK" \
+  "$CLANGXX" --target=aarch64-linux-android"$MIN_SDK" -nostdinc++ -isystem"$TERMUX_RUNTIME_PREFIX/include/c++/v1" -L"$AAPT2_LIBRARY_PATH" \
     -shared -fPIC -std=c++17 -O2 -Wall -Wextra -Werror \
     -fvisibility=hidden -DAGENTCODI_GUARDED_TOOL="$guard_kind" \
     -I"$PROJECT_ROOT/modules/native-engine/src/main/cpp" \
@@ -936,9 +808,9 @@ for guard_spec in \
   "$LLVM_STRIP" --strip-unneeded "$NATIVE_DIR/$guard_library"
 done
 
-verify_file_sha256 "$NATIVE_DIR/$NODE_GUARD_LIBRARY_NAME" "$NODE_GUARD_SHA256"
-verify_file_sha256 "$NATIVE_DIR/$PYTHON_GUARD_LIBRARY_NAME" "$PYTHON_GUARD_SHA256"
-verify_file_sha256 "$NATIVE_DIR/$RIPGREP_GUARD_LIBRARY_NAME" "$RIPGREP_GUARD_SHA256"
+record_derived_hash NODE_GUARD_SHA256 "$NATIVE_DIR/$NODE_GUARD_LIBRARY_NAME"
+record_derived_hash PYTHON_GUARD_SHA256 "$NATIVE_DIR/$PYTHON_GUARD_LIBRARY_NAME"
+record_derived_hash RIPGREP_GUARD_SHA256 "$NATIVE_DIR/$RIPGREP_GUARD_LIBRARY_NAME"
 
 echo "Compiling direct-ELF guard attestors and injector..."
 TOOLCHAIN_ATTESTOR_DIR="$WORK_DIR/toolchain-elf-attestors"
@@ -950,16 +822,16 @@ mkdir -p "$TOOLCHAIN_ATTESTOR_DIR"
   "$PROJECT_ROOT/modules/native-engine/src/main/cpp/toolchain_elf_attestor_injector_main.cpp" \
   -o "$TOOLCHAIN_ATTESTOR_INJECTOR"
 for attestor_spec in \
-    "node:$NODE_LIBRARY_NAME:$NODE_GUARD_LIBRARY_NAME:$NODE_ATTESTOR_SHA256" \
-    "python:$PYTHON_LIBRARY_NAME:$PYTHON_GUARD_LIBRARY_NAME:$PYTHON_ATTESTOR_SHA256" \
-    "ripgrep:$RIPGREP_LIBRARY_NAME:$RIPGREP_GUARD_LIBRARY_NAME:$RIPGREP_ATTESTOR_SHA256"; do
+    "node:$NODE_LIBRARY_NAME:$NODE_GUARD_LIBRARY_NAME:NODE_ATTESTOR_SHA256" \
+    "python:$PYTHON_LIBRARY_NAME:$PYTHON_GUARD_LIBRARY_NAME:PYTHON_ATTESTOR_SHA256" \
+    "ripgrep:$RIPGREP_LIBRARY_NAME:$RIPGREP_GUARD_LIBRARY_NAME:RIPGREP_ATTESTOR_SHA256"; do
   attestor_label="${attestor_spec%%:*}"
   attestor_remainder="${attestor_spec#*:}"
   attestor_executable="${attestor_remainder%%:*}"
   attestor_remainder="${attestor_remainder#*:}"
   attestor_guard="${attestor_remainder%%:*}"
   attestor_sha256="${attestor_remainder#*:}"
-  "$CLANGXX" --target=aarch64-linux-android"$MIN_SDK" -std=c++17 -Os \
+  "$CLANGXX" --target=aarch64-linux-android"$MIN_SDK" -nostdinc++ -isystem"$TERMUX_RUNTIME_PREFIX/include/c++/v1" -L"$AAPT2_LIBRARY_PATH" -std=c++17 -Os \
     -Wall -Wextra -Werror -ffreestanding -fno-builtin -fno-exceptions \
     -fno-rtti -fno-unwind-tables -fno-asynchronous-unwind-tables \
     -fno-stack-protector -fvisibility=hidden -fPIE \
@@ -981,9 +853,8 @@ for attestor_spec in \
   "$LLVM_OBJCOPY" -O binary \
     "$TOOLCHAIN_ATTESTOR_DIR/$attestor_label.elf" \
     "$TOOLCHAIN_ATTESTOR_DIR/$attestor_label.bin"
-  verify_file_sha256 \
-    "$TOOLCHAIN_ATTESTOR_DIR/$attestor_label.bin" \
-    "$attestor_sha256"
+  record_derived_hash "$attestor_sha256" \
+    "$TOOLCHAIN_ATTESTOR_DIR/$attestor_label.bin"
 done
 
 cp "$LIBCXX_SHARED" "$NATIVE_DIR/libc++_shared.so"
@@ -1073,17 +944,10 @@ while IFS= read -r python_extension; do
 done < <(find "$PYTHON_DYNLOAD_SOURCE" -type f -name '*.so' | sort)
 if [ "$python_extension_index" -ne "$PYTHON_SOURCE_EXTENSION_COUNT" ] \
     || [ "$python_packaged_extension_count" -ne "$PYTHON_PACKAGED_EXTENSION_COUNT" ] \
-    || [ "$python_excluded_extension_count" -ne 3 ]; then
+    || [ "$python_excluded_extension_count" -ne 0 ]; then
   echo "Unexpected packaged Python extension-module count." >&2
   exit 1
 fi
-for excluded_python_native in \
-    libpython_ext_015.so libpython_ext_018.so libpython_ext_065.so; do
-  if [ -e "$NATIVE_DIR/$excluded_python_native" ]; then
-    echo "Excluded Python extension was packaged: $excluded_python_native" >&2
-    exit 1
-  fi
-done
 if grep -Eq 'lib-dynload/(_dbm|_gdbm|readline)\.cpython-' "$RUNTIME_LINK_RECORDS"; then
   echo "Excluded Python extension leaked into the runtime manifest inputs." >&2
   exit 1
@@ -1116,9 +980,7 @@ for python_native in \
   chmod 755 "$python_native"
 done
 
-verify_file_sha256 \
-  "$NATIVE_DIR/$NODE_LIBRARY_NAME" \
-  "$NODE_UNGUARDED_RUNTIME_SHA256"
+record_derived_hash NODE_UNGUARDED_RUNTIME_SHA256 "$NATIVE_DIR/$NODE_LIBRARY_NAME"
 verify_file_sha256 "$NATIVE_DIR/$RIPGREP_LIBRARY_NAME" "$RIPGREP_SOURCE_SHA256"
 env LD_LIBRARY_PATH="$AAPT2_LIBRARY_PATH" "$PATCHELF_BIN" \
   --page-size 16384 --add-needed "$NODE_GUARD_LIBRARY_NAME" \
@@ -1130,12 +992,8 @@ env LD_LIBRARY_PATH="$AAPT2_LIBRARY_PATH" "$PATCHELF_BIN" \
   --page-size 16384 --add-needed "$RIPGREP_GUARD_LIBRARY_NAME" \
   "$NATIVE_DIR/$RIPGREP_LIBRARY_NAME"
 
-verify_file_sha256 \
-  "$NATIVE_DIR/$NODE_LIBRARY_NAME" \
-  "$NODE_PREATTESTED_RUNTIME_SHA256"
-verify_file_sha256 \
-  "$NATIVE_DIR/$RIPGREP_LIBRARY_NAME" \
-  "$RIPGREP_PREATTESTED_RUNTIME_SHA256"
+record_derived_hash NODE_PREATTESTED_RUNTIME_SHA256 "$NATIVE_DIR/$NODE_LIBRARY_NAME"
+record_derived_hash RIPGREP_PREATTESTED_RUNTIME_SHA256 "$NATIVE_DIR/$RIPGREP_LIBRARY_NAME"
 for attested_spec in \
     "node:$NODE_LIBRARY_NAME" \
     "python:$PYTHON_LIBRARY_NAME" \
@@ -1152,16 +1010,16 @@ for attested_spec in \
   chmod 755 "$NATIVE_DIR/$attested_executable"
 done
 
-verify_file_sha256 "$NATIVE_DIR/$NODE_LIBRARY_NAME" "$NODE_RUNTIME_SHA256"
-verify_file_sha256 "$NATIVE_DIR/libcares.so" "$CARES_RUNTIME_SHA256"
-verify_file_sha256 "$NATIVE_DIR/libcrypto_3.so" "$CRYPTO_RUNTIME_SHA256"
-verify_file_sha256 "$NATIVE_DIR/libicudata_78.so" "$ICUDATA_RUNTIME_SHA256"
-verify_file_sha256 "$NATIVE_DIR/libicui18n_78.so" "$ICUI18N_RUNTIME_SHA256"
-verify_file_sha256 "$NATIVE_DIR/libicuuc_78.so" "$ICUUC_RUNTIME_SHA256"
-verify_file_sha256 "$NATIVE_DIR/libsqlite3.so" "$SQLITE_RUNTIME_SHA256"
-verify_file_sha256 "$NATIVE_DIR/libssl_3.so" "$SSL_RUNTIME_SHA256"
-verify_file_sha256 "$NATIVE_DIR/libz_1.so" "$ZLIB_RUNTIME_SHA256"
-verify_file_sha256 "$NATIVE_DIR/$RIPGREP_LIBRARY_NAME" "$RIPGREP_RUNTIME_SHA256"
+record_derived_hash NODE_RUNTIME_SHA256 "$NATIVE_DIR/$NODE_LIBRARY_NAME"
+record_derived_hash CARES_RUNTIME_SHA256 "$NATIVE_DIR/libcares.so"
+record_derived_hash CRYPTO_RUNTIME_SHA256 "$NATIVE_DIR/libcrypto_3.so"
+record_derived_hash ICUDATA_RUNTIME_SHA256 "$NATIVE_DIR/libicudata_78.so"
+record_derived_hash ICUI18N_RUNTIME_SHA256 "$NATIVE_DIR/libicui18n_78.so"
+record_derived_hash ICUUC_RUNTIME_SHA256 "$NATIVE_DIR/libicuuc_78.so"
+record_derived_hash SQLITE_RUNTIME_SHA256 "$NATIVE_DIR/libsqlite3.so"
+record_derived_hash SSL_RUNTIME_SHA256 "$NATIVE_DIR/libssl_3.so"
+record_derived_hash ZLIB_RUNTIME_SHA256 "$NATIVE_DIR/libz_1.so"
+record_derived_hash RIPGREP_RUNTIME_SHA256 "$NATIVE_DIR/$RIPGREP_LIBRARY_NAME"
 chmod 755 \
   "$NATIVE_DIR/$TERMINAL_SHELL_NAME" \
   "$NATIVE_DIR/$NODE_LIBRARY_NAME" \
@@ -1171,6 +1029,11 @@ cp "$CODEX_LICENSE" "$THIRD_PARTY_ASSETS/LICENSE"
 cp "$CODEX_NOTICE" "$THIRD_PARTY_ASSETS/NOTICE"
 cp "${AGENTCODI_CODEX_BUILD_DIR:-$PROJECT_ROOT/output/codex-source}/source-build.json" "$THIRD_PARTY_ASSETS/source-build.json"
 cp "$PROJECT_ROOT/scripts/fdroid/source-lock.json" "$THIRD_PARTY_ASSETS/source-lock.json"
+RUNTIME_SOURCE_ASSETS="$ADDITIONS/assets/third-party/runtime-source"
+mkdir -p "$RUNTIME_SOURCE_ASSETS"
+cp "$RIPGREP_PROVENANCE_SOURCE" "$RUNTIME_SOURCE_ASSETS/source-build.json"
+cp "$PROJECT_ROOT/scripts/fdroid/runtime-lock.json" "$RUNTIME_SOURCE_ASSETS/source-lock.json"
+cp "$TERMUX_RUNTIME_PREFIX/share/doc/libc++/LICENSE.TXT" "$RUNTIME_SOURCE_ASSETS/LIBCXX-LICENSE"
 cp "$NODE_LICENSE_FILE" "$NODE_THIRD_PARTY_ASSETS/NODE-LICENSE"
 cp "$CARES_LICENSE_SOURCE" "$NODE_THIRD_PARTY_ASSETS/CARES-LICENSE"
 cp "$ICU_LICENSE_FILE" "$NODE_THIRD_PARTY_ASSETS/ICU-LICENSE"
@@ -1250,11 +1113,7 @@ if grep -Fq 'GNU GENERAL PUBLIC LICENSE' "$PYTHON_LICENSES"; then
   exit 1
 fi
 actual_python_licenses_sha="$(sha256sum "$PYTHON_LICENSES" | awk '{print $1}')"
-if [ -n "$PYTHON_LICENSES_SHA256" ] \
-    && [ "$actual_python_licenses_sha" != "$PYTHON_LICENSES_SHA256" ]; then
-  echo "Derived Python license inventory hash mismatch." >&2
-  exit 1
-fi
+record_derived_hash PYTHON_LICENSES_SHA256 "$PYTHON_LICENSES"
 echo "Derived Python license inventory SHA-256: $actual_python_licenses_sha"
 
 RUNTIME_RECORDS="$WORK_DIR/runtime-records.txt"
@@ -1302,11 +1161,7 @@ find "$TOOL_RUNTIME_STAGE" -type d -exec chmod 700 {} +
 python3 -B "$SCRIPT_DIR/fdroid/reproducible-zip.py" \
   "$TOOL_RUNTIME_STAGE" "$TOOL_RUNTIME_ARCHIVE"
 actual_tool_runtime_manifest_sha="$(sha256sum "$TOOL_RUNTIME_MANIFEST" | awk '{print $1}')"
-if [ -n "$TOOL_RUNTIME_MANIFEST_SHA256" ] \
-    && [ "$actual_tool_runtime_manifest_sha" != "$TOOL_RUNTIME_MANIFEST_SHA256" ]; then
-  echo "Derived npm/Python runtime manifest hash mismatch." >&2
-  exit 1
-fi
+record_derived_hash TOOL_RUNTIME_MANIFEST_SHA256 "$TOOL_RUNTIME_MANIFEST"
 echo "Derived tool runtime manifest SHA-256: $actual_tool_runtime_manifest_sha"
 
 if ! file "$NATIVE_DIR/libagentcodi.so" | grep -q 'ARM aarch64'; then
@@ -1522,12 +1377,10 @@ PYTHON_NATIVE_SET="$WORK_DIR/python-native-set.sha256"
     "$(basename "$python_native")"
 done > "$PYTHON_NATIVE_SET"
 actual_python_native_set_sha="$(sha256sum "$PYTHON_NATIVE_SET" | awk '{print $1}')"
-if [ -n "$PYTHON_NATIVE_SET_SHA256" ] \
-    && [ "$actual_python_native_set_sha" != "$PYTHON_NATIVE_SET_SHA256" ]; then
-  echo "Derived Python native runtime-set hash mismatch." >&2
-  exit 1
-fi
+record_derived_hash PYTHON_NATIVE_SET_SHA256 "$PYTHON_NATIVE_SET"
 echo "Derived Python native set SHA-256: $actual_python_native_set_sha"
+python3 -B "$SCRIPT_DIR/fdroid/record-runtime.py" \
+  "$RUNTIME_SOURCE_ASSETS" "$DERIVED_HASHES" "$NATIVE_DIR" "$CLANGXX"
 if readelf -d "$NATIVE_DIR/$NODE_LIBRARY_NAME" \
     | grep -Eq 'lib(z\.so\.1|crypto\.so\.3|ssl\.so\.3|icui18n\.so\.78|icuuc\.so\.78)' \
     || ! readelf -d "$NATIVE_DIR/$NODE_LIBRARY_NAME" | grep -Fq 'Shared library: [libz_1.so]' \
@@ -1644,7 +1497,7 @@ for fake_guard_library in \
     "$NODE_GUARD_LIBRARY_NAME" \
     "$PYTHON_GUARD_LIBRARY_NAME" \
     "$RIPGREP_GUARD_LIBRARY_NAME"; do
-  "$CLANGXX" --target=aarch64-linux-android"$MIN_SDK" \
+  "$CLANGXX" --target=aarch64-linux-android"$MIN_SDK" -nostdinc++ -isystem"$TERMUX_RUNTIME_PREFIX/include/c++/v1" -L"$AAPT2_LIBRARY_PATH" \
     -shared -fPIC -std=c++17 -O2 -Wall -Wextra -Werror \
     "$PROJECT_ROOT/tests/cpp/toolchain_fake_guard.cpp" \
     -Wl,-soname,"$fake_guard_library" \
@@ -1944,7 +1797,7 @@ if ! grep -Fq '"id":1' "$WORK_DIR/config-smoke.stdout" \
 fi
 
 BOOTSTRAP_SMOKE_BIN="$WORK_DIR/android-app-server-bootstrap-smoke"
-"$CLANGXX" --target=aarch64-linux-android"$MIN_SDK" -std=c++17 -O2 -Wall -Wextra -Werror -pthread \
+"$CLANGXX" --target=aarch64-linux-android"$MIN_SDK" -nostdinc++ -isystem"$TERMUX_RUNTIME_PREFIX/include/c++/v1" -L"$AAPT2_LIBRARY_PATH" -std=c++17 -O2 -Wall -Wextra -Werror -pthread \
   -I"$PROJECT_ROOT/modules/native-engine/src/main/cpp" \
   "$PROJECT_ROOT/modules/native-engine/src/main/cpp/app_server_process.cpp" \
   "$PROJECT_ROOT/modules/native-engine/src/main/cpp/png_validator.cpp" \

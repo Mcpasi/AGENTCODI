@@ -8,9 +8,9 @@
 #     apksigner, zipalign, ripgrep, binutils (readelf/strings), bsdutils
 #     (script), dpkg (dpkg-deb), findutils, mawk and coreutils. Termux does not
 #     package zipalign at all, so a pure Termux image cannot work.
-#   * The Termux prefix supplies the pinned LLVM toolchain. Its generated code
-#     is covered by the build's derived *_RUNTIME_SHA256 pins, so the version
-#     is pinned here and checked again by the build script itself.
+#   * The Termux prefix supplies the pinned LLVM toolchain. The build records
+#     fingerprints of its generated code in the assembled runtime receipt;
+#     the compiler version is pinned here and checked by the build script.
 #   * The Android linker and bionic libraries come from the Termux image, which
 #     ships them as aosp-libs. Without them the build cannot execute the
 #     packaged aapt2, patchelf, Python or Codex app-server, all of which are
@@ -36,18 +36,14 @@ COPY --from=ndk --chown=1000:1000 /output/ndk-sysroot_29-3_aarch64.deb /data/dat
 # rather than passed as an environment variable.
 ARG CLANG_VERSION=21.1.8-3
 ARG NDK_SYSROOT_VERSION=29-3
-ARG LIBCXX_VERSION=29
-# The NDK headers/CRT and libc++ must match the original build as well as LLVM.
-# A newer sysroot changes the guard bytes even with the same clang --version.
-# libc++ is installed explicitly: binaries built by this toolchain carry a
-# DT_RUNPATH into the Termux prefix and need libc++_shared.so there, exactly as
-# on the build host.
+# Fix the compiler and NDK headers/CRT used by the app's own native sources.
+# LLVM's host libc++ dependency is resolved by APT in this build-only prefix.
+# The APK's libc++ is built separately by scripts/fdroid/recipes/libc++.sh.
 RUN /entrypoint.sh bash -c "apt-get update -q \
  && apt-get install -y --no-install-recommends \
       clang=${CLANG_VERSION} lld=${CLANG_VERSION} llvm=${CLANG_VERSION} \
       libllvm=${CLANG_VERSION} libcompiler-rt=${CLANG_VERSION} \
       /data/data/com.termux/files/usr/tmp/ndk-sysroot_${NDK_SYSROOT_VERSION}_aarch64.deb \
-      libc++=${LIBCXX_VERSION} \
  && clang++ --version && ld.lld --version && llvm-objcopy --version \
  && dpkg-query -W clang lld llvm libllvm libcompiler-rt ndk-sysroot libc++ \
  && test -f /data/data/com.termux/files/usr/lib/libc++_shared.so"

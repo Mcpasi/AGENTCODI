@@ -67,6 +67,11 @@ Der Builder liest die Build-Blöcke aus den geprüften Fork-Rezepten
 `.github/workflows/termux-npm-build-publish.yml` und
 `.github/workflows/rusty-v8-android-release.yml`. Er ergänzt `--frozen`, baut V8
 vorab aus dessen Quellen und übergibt dieses Ergebnis an das Codex-Rezept.
+Die fünf Release-Einstellungen des Android-Jobs werden ebenfalls aus dem
+geprüften Rezept gelesen: Optimierungsstufe 3, Thin-LTO, 16 Codegen-Einheiten,
+Panic-Abbruch und Symbol-Stripping. Geerbte Cargo-Profile werden verworfen;
+fehlende, doppelte oder dynamische Profilwerte werden abgelehnt. Der
+Quellbuild-Nachweis enthält das tatsächlich verwendete Profil.
 Der V8-Sandbox-Test des Forks bleibt obligatorisch. Das überholte Skript
 `scripts/build_rusty_v8_android.sh`, das lediglich das Plain-Profil erzeugt,
 wird nicht verwendet.
@@ -75,7 +80,8 @@ Die Phasen sind getrennt:
 
 1. `checkout`: exakten Fork-Commit holen und Quellen/Rezeptprüfsummen prüfen.
 2. `prepare`: V8 samt Submodulen, Compiler-/Sysroot-Eingaben und gesperrte
-   Cargo-Abhängigkeiten für den späteren Build bereitstellen.
+   Cargo-Abhängigkeiten einschließlich der Host- und Plattformzweige der
+   Sperrdateien für den späteren Build bereitstellen.
 3. `build`: die beiden Rezepte mit Offline-Cargo und `--frozen` ausführen.
 4. `verify`: erzeugtes Paket und seinen Quellbuild-Nachweis prüfen.
 
@@ -109,8 +115,9 @@ es würde außerdem bestehende Dokumentationsdateien aktualisieren.
 - `SOURCE_DATE_EPOCH` folgt standardmäßig dem AGENTCODI-Commit und kann für
   Vergleichsbuilds ausdrücklich vorgegeben werden. Sprache und Zeitzone sind
   `C.UTF-8` und UTC; die Prozess-Umask ist festgelegt.
-- Klassen-JARs und die abschließende APK erhalten sortierte Einträge, einheitliche
-  Zeitstempel und Rechte sowie bereinigte ZIP-Zusatzfelder. Die APK wird danach
+- Das eingebettete npm/Python-ZIP, Klassen-JARs und die abschließende APK
+  erhalten sortierte Einträge, einheitliche Zeitstempel und Rechte sowie
+  bereinigte ZIP-Zusatzfelder. Die APK wird danach
   mit zipalign ausgerichtet. Der native App-Build und Codex entfernen bekannte
   absolute Quellpfade über Compiler-Präfixabbildungen.
 - Das Ubuntu-26.04-Basisimage der APK-Montage ist auf einen OCI-Digest
@@ -190,7 +197,8 @@ python3 scripts/fdroid/compare-apks.py \
 - Geänderte native App-/JNI-Bibliothek mit NDK r28c für Android ARM64 kompiliert.
 - 96 Robolectric-Oberflächentests auf API 29 und 35 erfolgreich; erzeugte
   Editor-Ansichten geprüft.
-- Neun Tests der Buildhilfen erfolgreich: deterministische ZIP-/Tar-Ausgabe,
+- Elf Tests der Buildhilfen erfolgreich: deterministische ZIP-/Tar-Ausgabe
+  einschließlich des eingebetteten Runtime-ZIPs, Rezept-Release-Profile,
   echte Bytevergleiche, sichere Archivinhalte, Quellen-/Rezeptauswahl und
   Ablehnung veränderter Build-Nachweise.
 - Workflow-YAML, darin enthaltene Shell-Blöcke und Git-Diff geprüft.
@@ -198,8 +206,11 @@ python3 scripts/fdroid/compare-apks.py \
   erfolgreich geprüft: [Tests, Run 39357846544](https://github.com/Mcpasi/AGENTCODI/actions/runs/39357846544).
   Auch die Quellbuild-Nachhärtung `1f62d91` besteht alle fünf Jobs: [Run 39358733112](https://github.com/Mcpasi/AGENTCODI/actions/runs/39358733112).
 
-Der vollständige Codex-/V8-Quellbuild und zwei vollständige APK-Vergleichsbuilds
-sind damit noch nicht nachgewiesen. Die Quellvorbereitung wurde einschließlich
+Der V8-Quellbuild für Android ARM64 wurde ohne Netzwerk erfolgreich ausgeführt.
+Der Fork-Prüfer bestätigt am erzeugten Archiv, dass
+`v8__V8__IsSandboxEnabled` den Wert 1 zurückgibt. Der vollständige
+Codex-Quellbuild und zwei vollständige APK-Vergleichsbuilds sind damit noch
+nicht nachgewiesen. Die Quellvorbereitung wurde einschließlich
 aller V8-Submodule, Compiler-/Sysroot-Eingaben und Cargo-Abhängigkeiten ausgeführt.
 Der netzlose Quellbuild hat die Bindgen-Prüfung bestanden. Ein erster
 vollständiger Versuch deckte einen versteckten Download von GN/Ninja im
@@ -210,6 +221,15 @@ wird ausdrücklich an den V8-Build übergeben. Beide von V8 verwendeten
 NDK-Verzeichnisse zeigen auf denselben NDK r28c; der implizite r26c-Fallback
 entfällt. Die Android-Hilfsrepos werden vorab auf ihre DEPS-Commits ausgecheckt,
 statt sie während des Builds ohne Revision zu klonen.
+
+Der erste anschließende Codex-Versuch wurde im Offline-Modus wegen eines
+fehlenden `arboard`-Pakets abgewiesen. Die Vorbereitung lädt deshalb jetzt die
+vollständigen gesperrten Cargo-Abhängigkeiten statt nur des Android-Zweigs.
+Die erweiterte Vorbereitung ist erfolgreich durchgelaufen; der Codex-Bau
+wurde mit dem bereits aus Quellen erzeugten V8 neu gestartet.
+Der vollständige GitHub-APK-Versuch
+[Run 39361774824](https://github.com/Mcpasi/AGENTCODI/actions/runs/39361774824)
+scheiterte im Quellbuild-Job; die APK-Montage wurde dort übersprungen.
 
 ## Öffentliche Eingaben: tatsächlicher Abrufversuch
 

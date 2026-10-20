@@ -1299,11 +1299,8 @@ if [ "$runtime_entry_count" -gt 8192 ] || [ "$runtime_total_bytes" -gt 67108864 
   exit 1
 fi
 find "$TOOL_RUNTIME_STAGE" -type d -exec chmod 700 {} +
-find "$TOOL_RUNTIME_STAGE" -exec touch -t 202001010000 {} +
-(
-  cd "$TOOL_RUNTIME_STAGE"
-  zip -q -X -9 -r "$TOOL_RUNTIME_ARCHIVE" npm python
-)
+python3 -B "$SCRIPT_DIR/fdroid/reproducible-zip.py" \
+  "$TOOL_RUNTIME_STAGE" "$TOOL_RUNTIME_ARCHIVE"
 actual_tool_runtime_manifest_sha="$(sha256sum "$TOOL_RUNTIME_MANIFEST" | awk '{print $1}')"
 if [ -n "$TOOL_RUNTIME_MANIFEST_SHA256" ] \
     && [ "$actual_tool_runtime_manifest_sha" != "$TOOL_RUNTIME_MANIFEST_SHA256" ]; then

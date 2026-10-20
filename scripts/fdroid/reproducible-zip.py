@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-"""Create a canonical, unsigned ZIP before running zipalign/signing."""
+"""Create a canonical, unsigned ZIP from an archive or directory."""
 import argparse
 import datetime
 import os
@@ -22,18 +22,23 @@ def canonical_zip(source, destination, additions, epoch):
         raise ValueError("SOURCE_DATE_EPOCH must be in the ZIP date range (1980..2107)")
     timestamp = (date.year, date.month, date.day, date.hour, date.minute, date.second // 2 * 2)
     entries = {}
-    with zipfile.ZipFile(source) as archive:
-        for entry in archive.infolist():
-            if entry.is_dir():
-                continue
-            name = safe_name(entry.filename)
-            if name in entries:
-                raise ValueError("Duplicate ZIP entry: " + name)
-            if name.upper().startswith("META-INF/") and name.upper().endswith((".RSA", ".DSA", ".EC", ".SF")):
-                raise ValueError("Input ZIP must be unsigned")
-            if stat.S_ISLNK(entry.external_attr >> 16):
-                raise ValueError("ZIP input contains a symbolic link: " + name)
-            entries[name] = (archive.read(entry), entry.compress_type)
+    if source.is_dir():
+        if additions is not None:
+            raise ValueError("A directory source cannot have extra additions")
+        additions = source
+    else:
+        with zipfile.ZipFile(source) as archive:
+            for entry in archive.infolist():
+                if entry.is_dir():
+                    continue
+                name = safe_name(entry.filename)
+                if name in entries:
+                    raise ValueError("Duplicate ZIP entry: " + name)
+                if name.upper().startswith("META-INF/") and name.upper().endswith((".RSA", ".DSA", ".EC", ".SF")):
+                    raise ValueError("Input ZIP must be unsigned")
+                if stat.S_ISLNK(entry.external_attr >> 16):
+                    raise ValueError("ZIP input contains a symbolic link: " + name)
+                entries[name] = (archive.read(entry), entry.compress_type)
     if additions is not None:
         if additions.is_symlink():
             raise ValueError("Additions root must be a regular directory")
@@ -60,7 +65,7 @@ def canonical_zip(source, destination, additions, epoch):
 
 if __name__ == "__main__":
     parser = argparse.ArgumentParser(description=__doc__)
-    parser.add_argument("source", type=Path)
+    parser.add_argument("source", type=Path, help="Unsigned ZIP or directory tree")
     parser.add_argument("destination", type=Path)
     parser.add_argument("--additions", type=Path)
     parser.add_argument("--epoch", type=int, default=os.environ.get("SOURCE_DATE_EPOCH"))

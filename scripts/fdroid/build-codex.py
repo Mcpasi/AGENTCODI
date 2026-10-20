@@ -59,6 +59,19 @@ def recipe_step(source, path, name):
     return script
 
 
+def recipe_release_profile(source):
+    """Retain the literal release profile from the pinned Android fork job."""
+    text = (source / CODEX_RECIPE).read_text()
+    matches = re.findall(r'^      (CARGO_PROFILE_RELEASE_[A-Z_]+): "([a-zA-Z0-9_.-]+)"$', text, re.M)
+    expected = {"CARGO_PROFILE_RELEASE_OPT_LEVEL", "CARGO_PROFILE_RELEASE_LTO",
+                "CARGO_PROFILE_RELEASE_CODEGEN_UNITS", "CARGO_PROFILE_RELEASE_PANIC",
+                "CARGO_PROFILE_RELEASE_STRIP"}
+    values = dict(matches)
+    require(set(values) == expected and len(matches) == len(expected),
+            "The fork recipe must declare one literal value for each release profile setting")
+    return values
+
+
 def verify_checkout(path, commit, clean=True):
     require(path.is_dir() and not path.is_symlink(), f"Missing source checkout: {path}")
     actual = run(["git", "rev-parse", "HEAD"], path, capture=True).strip()
@@ -109,7 +122,7 @@ def environment(source, v8, lock, cache):
     require(os.uname().machine == "x86_64" and sys.platform == "linux", "The fork recipes require a Linux x86_64 source builder")
     # Do not inherit external archives, Cargo flags, output directories or V8 overrides.
     for name in list(env):
-        if name.startswith(("RUSTY_V8_", "V8_", "CARGO_TARGET_", "BINDGEN_")) or name in (
+        if name.startswith(("RUSTY_V8_", "V8_", "CARGO_TARGET_", "CARGO_PROFILE_", "BINDGEN_")) or name in (
             "RUSTFLAGS", "CARGO_ENCODED_RUSTFLAGS", "CARGO_TARGET_DIR", "GN_ARGS", "GN", "SCCACHE",
             "CFLAGS", "CXXFLAGS", "CPPFLAGS", "LDFLAGS", "CC", "CXX", "AR", "RANLIB", "CCACHE"):
             env.pop(name)
@@ -307,7 +320,10 @@ def main():
             shell('(cd "$CHECKOUT" && python3 tools/rust_toolchain.py)', source, env)
             prepare_v8_tools(v8, cache, lock)
             for directory in (source / "codex-rs", v8):
-                run(["rustup", "run", lock["rust"], "cargo", "fetch", "--locked", "--target", lock["target"]], directory, env)
+                # Cargo's offline resolver can also require packages from host
+                # and other platform branches of the lockfile. A target-only
+                # fetch leaves those absent even in an Android cross-build.
+                run(["rustup", "run", lock["rust"], "cargo", "fetch", "--locked"], directory, env)
             cache.mkdir(parents=True, exist_ok=True)
             prepared = {"source_lock_sha256": sha256(LOCK_PATH), "v8_diff_sha256": v8_state(v8)}
             (cache / "prepared.json").write_text(json.dumps(prepared, sort_keys=True) + "\n")
@@ -338,6 +354,8 @@ def main():
         env["RUSTY_V8_ARCHIVE"] = located["archive"]
         env["RUSTY_V8_SRC_BINDING_PATH"] = located["binding"]
         shell('python3 scripts/check_v8_sandbox.py "$RUSTY_V8_ARCHIVE"', source, env)
+        release_profile = recipe_release_profile(source)
+        env.update(release_profile)
         script = recipe_step(source, CODEX_RECIPE, "Build")
         start = script.index('eval "$(python3 scripts/fetch_rusty_v8_android.py')
         end = script.index("\n", start)
@@ -373,7 +391,7 @@ def main():
         record = {"schema": 1, "source_lock_sha256": sha256(LOCK_PATH), "builder_sha256": sha256(__file__),
                   "commit": lock["commit"], "v8_commit": lock["v8"]["commit"], "v8_from_source": True,
                   "source_date_epoch": lock["source_date_epoch"], "rustc": run(["rustup", "run", lock["rust"], "rustc", "-vV"], capture=True),
-                  "ndk": lock["ndk"], "v8_archive_sha256": sha256(located["archive"]),
+                  "ndk": lock["ndk"], "release_profile": release_profile, "v8_archive_sha256": sha256(located["archive"]),
                   "v8_binding_sha256": sha256(located["binding"]), "archive_sha256": sha256(output / "package.tgz"),
                   "payload_sha256": {name: hashlib.sha256(data).hexdigest() for name, data in sorted(files.items())}}
         (output / "source-build.json").write_text(json.dumps(record, indent=2, sort_keys=True) + "\n")

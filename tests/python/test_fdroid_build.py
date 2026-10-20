@@ -28,6 +28,24 @@ comparison = module("compare-apks")
 
 
 class ReproducibleBuildTest(unittest.TestCase):
+    def test_runtime_zip_ignores_directory_creation_order_and_metadata(self):
+        with tempfile.TemporaryDirectory() as temporary:
+            root = Path(temporary)
+            names = ["npm/node_modules/npm/bin/npm-cli.js", "python/lib/python3.14/os.pyc"]
+            for index in range(2):
+                source = root / f"stage{index}"
+                for name in names[::1 if index == 0 else -1]:
+                    path = source / name
+                    path.parent.mkdir(parents=True, exist_ok=True)
+                    path.write_bytes(name.encode())
+                    path.chmod(0o755 if index else 0o600)
+                    os.utime(path, (100 + index, 200 + index))
+                zipper.canonical_zip(source, root / f"runtime{index}.zip", None, 1700000000)
+            self.assertEqual((root / "runtime0.zip").read_bytes(), (root / "runtime1.zip").read_bytes())
+            with zipfile.ZipFile(root / "runtime0.zip") as archive:
+                self.assertEqual(archive.namelist(), sorted(names))
+                self.assertEqual(archive.read(names[1]), names[1].encode())
+
     def test_zip_ignores_input_order_timestamps_permissions_and_extra_fields(self):
         with tempfile.TemporaryDirectory() as temporary:
             root = Path(temporary)
@@ -89,6 +107,24 @@ class ReproducibleBuildTest(unittest.TestCase):
 
 
 class SourceIntegrityTest(unittest.TestCase):
+    def test_release_profile_comes_from_literal_fork_recipe_settings(self):
+        with tempfile.TemporaryDirectory() as temporary:
+            root = Path(temporary)
+            recipe = root / builder.CODEX_RECIPE
+            recipe.parent.mkdir(parents=True)
+            values = {"CARGO_PROFILE_RELEASE_OPT_LEVEL": "3", "CARGO_PROFILE_RELEASE_LTO": "thin",
+                      "CARGO_PROFILE_RELEASE_CODEGEN_UNITS": "16", "CARGO_PROFILE_RELEASE_PANIC": "abort",
+                      "CARGO_PROFILE_RELEASE_STRIP": "symbols"}
+            text = "\n".join(f'      {key}: "{value}"' for key, value in values.items()) + "\n"
+            recipe.write_text(text)
+            self.assertEqual(builder.recipe_release_profile(root), values)
+            for invalid in (text.replace('"thin"', '"${{ inputs.lto }}"'),
+                            text + '      CARGO_PROFILE_RELEASE_LTO: "thin"\n',
+                            text.replace('      CARGO_PROFILE_RELEASE_PANIC: "abort"\n', "")):
+                recipe.write_text(invalid)
+                with self.assertRaises(ValueError):
+                    builder.recipe_release_profile(root)
+
     def test_changed_build_tools_are_rejected_before_an_offline_build(self):
         with tempfile.TemporaryDirectory() as temporary:
             cache = Path(temporary)

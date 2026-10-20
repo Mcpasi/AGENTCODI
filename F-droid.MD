@@ -413,9 +413,45 @@ ist ein frisches `AGENTCODI_RUNTIME_WORK` erforderlich.
   und SIGTERM im Test. Die Engine-Suite besteht mit 329 Assertions.
 - Architekturverträge, Manifest-Synchronität, Bash-/Workflow-Shell-Syntax,
   Workflow-YAML, Source-Lock-JSON und Git-Diff geprüft.
-- Ein frischer vollständiger Offline-Durchlauf mit Runtime-API 24 läuft.
-  Die abschließende Runtime-Prüfung unter ARM64-Emulation, die ARM64-APK-
-  Montage und der unabhängige APK-Vergleich sind noch nicht nachgewiesen.
+- GitHub Actions bestätigt Commit `c8c4fd5` in allen fünf Jobs, einschließlich
+  Android-Kompilierung und Editor-UI:
+  [Tests, Run 39459519356](https://github.com/Mcpasi/AGENTCODI/actions/runs/39459519356).
+- Alle 27 Rezepte wurden mit Runtime-API 24 ohne Netzwerk gebaut. Der
+  vollständige Nachweis für die 27 benötigten Paketarchive wird durch
+  `scripts/build-runtime-from-source.sh verify` erfolgreich geprüft.
+  SHA-256 von `output/runtime-source/source-build.json`:
+  `af4295f4352b17eec91b16656eaa0f84fad4e977532c383798bc319b9675af9f`.
+- Das vollständige Set wurde ausschließlich aus diesen verifizierten
+  Quellpaketen in ein leeres Präfix extrahiert und unter ARM64-Emulation
+  geprüft. aapt2 kompiliert eine XML-Ressource; patchelf wurde zusätzlich
+  beim Verändern eines AArch64-ELF geprüft. Der zuvor beobachtete
+  ELF-TLS-Linkerfehler tritt nicht mehr auf.
+- Node `24.18.0` führt zlib-Kompression, SHA-256, ICU-Datumsformatierung und
+  SQLite-Abfragen aus. npm `11.19.0` läuft mit diesem Android-Node und liest
+  lokale Paketmetadaten im Offline-Modus. Seine 1701 Paketdateien enthalten
+  keine ELF-, PE-, Mach-O- oder Wasm-Nutzdaten.
+- Python `3.14.6` importiert alle 72 nativen Erweiterungen;
+  bz2/LZMA/zlib/Zstandard, SQLite, TLS-Kontext, ctypes und XML funktionieren.
+  ripgrep meldet Version `15.2.0` ohne PCRE2 und ohne die Git-Revision des
+  umgebenden AGENTCODI-Repos. Separate Offline-Diagnosebauten für Python,
+  ripgrep und npm waren ebenfalls erfolgreich.
+- Alle 208 dynamischen bzw. ausführbaren ELFs des vollständigen Quellpaketsets
+  sind AArch64-Dateien mit mindestens 16-KiB-`PT_LOAD`-Ausrichtung. Jede
+  `DT_NEEDED`-Bibliothek ist im Set oder in der Android-Systemumgebung
+  vorhanden. ripgrep benötigt ausschließlich `libc.so` und `libdl.so` und
+  enthält keinen RPATH/RUNPATH. Ein zusätzliches Python-Entwicklungsobjekt
+  ist eine relocatable ELF-Datei ohne Laufzeitsegmente.
+
+Der Offline-Lauf wurde nach dem erfolgreichen Node-/npm-Bau wegen eines
+Host-Python-Caches unterbrochen, den der separate lokale Diagnosebau über
+einen inzwischen entfernten Pfad angelegt hatte. Der Host-Interpreter wurde
+am tatsächlichen Cachepfad aus denselben gepinnten Quellen neu gebaut.
+Die Fortsetzung stellte das Zielpräfix aus den bereits in diesem Lauf
+erzeugten eigenen Quellpaketen wieder her; Rezeptidentität und Archivhashes
+blieben gleich. Danach wurden Python und ripgrep gebaut und der vollständige
+Nachweis regulär vom Builder erzeugt. Dies ist ein wiederaufgenommener
+Quellbau. Die ARM64-APK-Montage, Geräteprüfungen und ein unabhängiger
+vollständiger APK-Vergleich sind weiterhin offen.
 
 Die Termux-Basis lizenziert Paketrezepte/-patches jeweils wie das zugehörige
 Paket und ihre allgemeine Build-Infrastruktur unter Apache-2.0;
@@ -432,10 +468,10 @@ erreichten F-Droid-Aufnahme oder bitgleichen Gesamt-APK.
 1. Der APK-Build führt weiterhin Android-ARM64-Werkzeuge und Runtime-Smokes aus.
    Die Montage muss für einen üblichen F-Droid-Linux-x86_64-Builder weiter
    aufgeteilt bzw. portiert werden.
-2. Die eigenen Runtime-Rezepte und ihre Einbindung ersetzen die bisherigen
-   vorgebauten Termux-Eingaben. Ihre vollständige Validierung, die ARM64-
-   Laufzeitprüfungen der neu erzeugten Dateien und die unabhängige
-   Reproduktion der Gesamt-APK müssen gemeinsam nachgewiesen werden.
+2. Die eigenen Runtime-Rezepte ersetzen die bisherigen vorgebauten
+   Termux-Eingaben. Ihr Offline-Quellbau und die gemeinsame ARM64-Ausführung
+   sind geprüft; die Montage mit dem Codex-Quellpaket und die unabhängige
+   Reproduktion der Gesamt-APK stehen noch aus.
 3. Die bestehende Buildumgebung installiert Host-Pakete über APT. Der Fork pinnt
    Compiler-Hauptversionen und Android-Toolchains, aber noch nicht das gesamte
    Host-System, alle Hook-Downloads und jedes Buildwerkzeug auf einen

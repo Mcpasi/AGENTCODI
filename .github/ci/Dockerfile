@@ -16,7 +16,7 @@
 #     packaged aapt2, patchelf, Python or Codex app-server, all of which are
 #     bionic binaries.
 ARG TERMUX_IMAGE=termux/termux-docker:aarch64@sha256:e19ea56dd687563849826cbda57da714ae23277ee463e21f39917dbc0a59bab4
-ARG UBUNTU_IMAGE=ubuntu:26.04
+ARG UBUNTU_IMAGE=ubuntu:26.04@sha256:c098726dd9b9733f3e885f8de0ef375206a311b0a317eadc40d347b1115fb944
 
 FROM ${UBUNTU_IMAGE} AS ndk
 RUN apt-get update \
@@ -89,7 +89,7 @@ RUN apt-get update \
  && apt-get install -y --no-install-recommends \
       openjdk-17-jdk-headless zipalign apksigner ripgrep file binutils dpkg \
       coreutils bsdutils findutils mawk diffutils grep sed tar \
-      gcc libc6-dev \
+      gcc libc6-dev python3 git \
       curl ca-certificates unzip zip \
  && rm -rf /var/lib/apt/lists/*
 # The build host runs under C.UTF-8. Without it the JVM derives

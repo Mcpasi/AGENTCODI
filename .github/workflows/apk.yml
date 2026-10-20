@@ -60,6 +60,9 @@ jobs:
       - name: Check out the repository
         uses: actions/checkout@v4
 
+      - name: Use the checked-out commit timestamp for archive metadata
+        run: echo "SOURCE_DATE_EPOCH=$(git show -s --format=%ct HEAD)" >> "$GITHUB_ENV"
+
       - name: Download Codex built from the locked source recipes
         if: ${{ !inputs.preflight_only }}
         uses: actions/download-artifact@v4
@@ -98,6 +101,7 @@ jobs:
           docker run --rm $SANDBOX_OPTS \
             -v "$GITHUB_WORKSPACE":/workspace -w /workspace \
             -e AGENTCODI_CACHE_DIR=/workspace/.cache/android \
+            -e SOURCE_DATE_EPOCH \
             -e AGENTCODI_CODEX_BUILD_DIR=/workspace/output/codex-source \
             -e AGENTCODI_OUTPUT_DIR=/workspace/output/apk \
             -e AGENTCODI_SKIP_DEVICE_LINKER_TESTS=1 \

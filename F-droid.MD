@@ -113,6 +113,10 @@ es würde außerdem bestehende Dokumentationsdateien aktualisieren.
   Zeitstempel und Rechte sowie bereinigte ZIP-Zusatzfelder. Die APK wird danach
   mit zipalign ausgerichtet. Der native App-Build und Codex entfernen bekannte
   absolute Quellpfade über Compiler-Präfixabbildungen.
+- Das Ubuntu-26.04-Basisimage der APK-Montage ist auf einen OCI-Digest
+  festgelegt. Python und Git gehören ausdrücklich zu dessen Werkzeugen.
+  GitHub Actions ermittelt `SOURCE_DATE_EPOCH` vor dem Root-Container und
+  übergibt es an den Build.
 - Die private Binärspiegelung ist für die Vorbereitung mit
   `AGENTCODI_INPUTS_USE_MIRROR=0` abschaltbar. Codex-Archive und vorberechnete
   Codex-Schemata werden aus der alten Eingabeliste entfernt.

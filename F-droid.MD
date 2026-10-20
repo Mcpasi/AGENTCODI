@@ -130,7 +130,8 @@ keinen vollständigen Codex-Build.
 ## Aufruf
 
 Auf einem ausreichend großen Linux-x86_64-Builder müssen die oben genannten
-Toolchains, Ninja und die Host-Abhängigkeiten des V8-Rezepts vorhanden sein. GN und Ninja werden in der
+Toolchains sowie `build-essential`, CMake, Perl, pkg-config, protoc und die
+weiteren Host-Abhängigkeiten des V8-Rezepts vorhanden sein. GN und Ninja werden in der
 Vorbereitung aus den zusätzlich gesperrten Werkzeugpaketen bereitgestellt.
 `ANDROID_HOME`, `ANDROID_NDK_HOME` und gegebenenfalls
 `V8_SYSTEM_LIBCLANG_DIR` wählen diese Installationen aus. Optional lassen sich
@@ -191,7 +192,7 @@ python3 scripts/fdroid/compare-apks.py \
 - Workflow-YAML, darin enthaltene Shell-Blöcke und Git-Diff geprüft.
 - GitHub Actions hat den ersten Stand `dc09b29` ebenfalls in allen fünf Jobs
   erfolgreich geprüft: [Tests, Run 39357846544](https://github.com/Mcpasi/AGENTCODI/actions/runs/39357846544).
-  Auch die GN-/Ninja-Nachhärtung `59d1439` besteht alle fünf Jobs: [Run 39358282273](https://github.com/Mcpasi/AGENTCODI/actions/runs/39358282273).
+  Auch die Quellbuild-Nachhärtung `1f62d91` besteht alle fünf Jobs: [Run 39358733112](https://github.com/Mcpasi/AGENTCODI/actions/runs/39358733112).
 
 Der vollständige Codex-/V8-Quellbuild und zwei vollständige APK-Vergleichsbuilds
 sind damit noch nicht nachgewiesen. Die Quellvorbereitung wurde einschließlich

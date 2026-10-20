@@ -47,7 +47,7 @@ jobs:
         run: |
           ./scripts/build-codex-from-source.sh host-dependencies > "$RUNNER_TEMP/source-host.sh"
           bash -Eeuo pipefail "$RUNNER_TEMP/source-host.sh"
-          sudo apt-get install -y --no-install-recommends ninja-build
+          sudo apt-get install -y --no-install-recommends build-essential cmake ninja-build
 
       - name: Install the locked Rust and Android toolchains
         run: |

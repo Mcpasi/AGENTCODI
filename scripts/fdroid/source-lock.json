@@ -19,6 +19,16 @@
   "target": "aarch64-linux-android",
   "upstream_commit": "657a993cbee87acf52d14b758ce49dbd46d1b8eb",
   "v8": {
+    "android_sources": {
+      "android_platform": {
+        "commit": "e3919359f2387399042d31401817db4a02d756ec",
+        "repository": "https://chromium.googlesource.com/chromium/src/third_party/android_platform.git"
+      },
+      "catapult": {
+        "commit": "2852bb7e91e4995502ffb72b7ed21412ee157914",
+        "repository": "https://chromium.googlesource.com/catapult.git"
+      }
+    },
     "commit": "5c15a6995c9bb4bacd3e341b59fff32c909c80bf",
     "repository": "https://github.com/denoland/rusty_v8.git",
     "sandbox": true,

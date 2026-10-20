@@ -60,7 +60,8 @@ Eingaben stehen in `scripts/fdroid/source-lock.json`:
   `5c15a6995c9bb4bacd3e341b59fff32c909c80bf` einschließlich der gepinnten
   Submodule und des erforderlichen V8-Sandbox-Profils;
 - GN und Ninja aus den V8-DEPS mit unveränderlichen CIPD-Paket-IDs sowie
-  SHA-256-Prüfsummen für Archive und ausführbare Werkzeuge.
+  SHA-256-Prüfsummen für Archive und ausführbare Werkzeuge;
+- `android_platform` und `catapult` aus den Commit-Pins der V8-DEPS.
 
 Der Builder liest die Build-Blöcke aus den geprüften Fork-Rezepten
 `.github/workflows/termux-npm-build-publish.yml` und
@@ -190,6 +191,7 @@ python3 scripts/fdroid/compare-apks.py \
 - Workflow-YAML, darin enthaltene Shell-Blöcke und Git-Diff geprüft.
 - GitHub Actions hat den ersten Stand `dc09b29` ebenfalls in allen fünf Jobs
   erfolgreich geprüft: [Tests, Run 39357846544](https://github.com/Mcpasi/AGENTCODI/actions/runs/39357846544).
+  Auch die GN-/Ninja-Nachhärtung `59d1439` besteht alle fünf Jobs: [Run 39358282273](https://github.com/Mcpasi/AGENTCODI/actions/runs/39358282273).
 
 Der vollständige Codex-/V8-Quellbuild und zwei vollständige APK-Vergleichsbuilds
 sind damit noch nicht nachgewiesen. Die Quellvorbereitung wurde einschließlich
@@ -198,7 +200,11 @@ Der netzlose Quellbuild hat die Bindgen-Prüfung bestanden. Ein erster
 vollständiger Versuch deckte einen versteckten Download von GN/Ninja im
 V8-Buildskript auf. Diese Werkzeuge wurden daraufhin mit Paket-IDs und
 Prüfsummen in den Vorbereitungsschritt verschoben; manipulierte Werkzeuge
-werden vor dem Offline-Build abgelehnt.
+werden vor dem Offline-Build abgelehnt. Auch der vorbereitete Chromium-Clang
+wird ausdrücklich an den V8-Build übergeben. Beide von V8 verwendeten
+NDK-Verzeichnisse zeigen auf denselben NDK r28c; der implizite r26c-Fallback
+entfällt. Die Android-Hilfsrepos werden vorab auf ihre DEPS-Commits ausgecheckt,
+statt sie während des Builds ohne Revision zu klonen.
 
 ## Öffentliche Eingaben: tatsächlicher Abrufversuch
 

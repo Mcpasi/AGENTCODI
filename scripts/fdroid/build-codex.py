@@ -116,6 +116,7 @@ def environment(source, v8, lock, cache):
     env.update({"ANDROID_NDK_HOME": str(ndk), "ANDROID_NDK_ROOT": str(ndk),
                 "ANDROID_HOME": str(sdk), "ANDROID_NDK_RELEASE": "r28",
                 "V8_SYSTEM_LIBCLANG_DIR": str(clang), "V8_VERSION": lock["v8"]["version"],
+                "CLANG_BASE_PATH": str(v8 / "third_party/llvm-build/Release+Asserts"),
                 "CHECKOUT": str(v8), "TARGET": lock["target"], "SANDBOX": "true",
                 "ANDROID_API_LEVEL": "21", "GITHUB_WORKSPACE": str(source),
                 "RUSTUP_TOOLCHAIN": lock["rust"], "CARGO_INCREMENTAL": "0",
@@ -141,6 +142,11 @@ def verify_v8_tools(cache, lock):
         require(path.is_file() and not path.is_symlink()
                 and sha256(path) == pin["binary_sha256"],
                 "Missing or changed locked V8 build tool: " + name + "; run prepare")
+
+
+def verify_android_sources(v8, lock):
+    for name, pin in lock["v8"]["android_sources"].items():
+        verify_checkout(v8 / "third_party" / name, pin["commit"])
 
 
 def prepare_v8_tools(v8, cache, lock):
@@ -285,6 +291,16 @@ def main():
                 checkout(v8, lock["v8"]["repository"], lock["v8"]["commit"])
             script = recipe_step(source, V8_RECIPE, "Prepare rusty_v8 source checkout at v${{ inputs.v8_version }}")
             shell(script, source, env)
+            # rusty_v8's legacy Android cross path also names android_ndk
+            # directly. Both layouts must select the same locked NDK, avoiding
+            # its hidden fallback download of r26c during compilation.
+            ndk_alias = v8 / "third_party/android_ndk"
+            if not ndk_alias.exists() and not ndk_alias.is_symlink():
+                ndk_alias.symlink_to(env["ANDROID_NDK_HOME"], target_is_directory=True)
+            require(ndk_alias.resolve() == Path(env["ANDROID_NDK_HOME"]),
+                    "V8 android_ndk alias must select the locked NDK")
+            for name, pin in lock["v8"]["android_sources"].items():
+                checkout(v8 / "third_party" / name, pin["repository"], pin["commit"])
             shell('(cd "$CHECKOUT" && python3 build/linux/sysroot_scripts/install-sysroot.py --arch=amd64)', source, env)
             # rusty_v8's build.rs also requests Chromium's Rust toolchain. Warm
             # its pinned sentinel here so the offline build never downloads it.
@@ -300,6 +316,11 @@ def main():
         prepared = json.loads((cache / "prepared.json").read_text())
         require(prepared["source_lock_sha256"] == sha256(LOCK_PATH), "Prepared sources use a different source lock")
         verify_v8_tools(cache, lock)
+        verify_android_sources(v8, lock)
+        require((v8 / "third_party/android_ndk").resolve() == Path(env["ANDROID_NDK_HOME"]),
+                "Prepared V8 NDK alias differs from the locked NDK; run prepare")
+        require((Path(env["CLANG_BASE_PATH"]) / "bin/clang").is_file(),
+                "Prepared Chromium clang is missing; run prepare")
         verify_checkout(v8, lock["v8"]["commit"], clean=False)
         require(prepared["v8_diff_sha256"] == v8_state(v8), "Prepared V8 source patch has changed")
         env["CARGO_NET_OFFLINE"] = "true"
@@ -347,6 +368,7 @@ def main():
             deterministic_package(partial, files, lock["source_date_epoch"])
             partial.replace(output / "package.tgz")
         verify_fork(source, lock)
+        verify_android_sources(v8, lock)
         require(prepared["v8_diff_sha256"] == v8_state(v8), "V8 sources changed during the build")
         record = {"schema": 1, "source_lock_sha256": sha256(LOCK_PATH), "builder_sha256": sha256(__file__),
                   "commit": lock["commit"], "v8_commit": lock["v8"]["commit"], "v8_from_source": True,

@@ -87,6 +87,8 @@ Die Phasen sind getrennt:
 
 Das Ergebnis ist `output/codex-source/package.tgz` mit ausschließlich Codex,
 Code-Mode-Host, C++-Laufzeit, Original-Lizenz/NOTICE und Paketmetadaten.
+Für das gemeinsame Runtimeset der APK verwendet die Montage weiterhin ihre
+separat gesperrte Termux-C++-Laufzeit.
 Tar-Reihenfolge, Eigentümer, Rechte und Zeitstempel sowie der Gzip-Header sind
 festgelegt. `source-build.json` bindet Quellstand, Builder, Source-Lock, V8 und
 die einzelnen Nutzdaten an ihre SHA-256-Prüfsummen. Der APK-Build prüft diesen
@@ -140,7 +142,9 @@ keinen vollständigen Codex-Build.
 
 ## Aufruf
 
-Auf einem ausreichend großen Linux-x86_64-Builder müssen die oben genannten
+Für den Quellbau empfehlen sich 16 GiB RAM und mindestens 50 GiB freier
+Plattenspeicher für Quellen, Toolchains und temporäre LTO-Dateien.
+Auf dem Linux-x86_64-Builder müssen die oben genannten
 Toolchains sowie `build-essential`, CMake, Perl, pkg-config, protoc und die
 weiteren Host-Abhängigkeiten des V8-Rezepts vorhanden sein. GN und Ninja werden in der
 Vorbereitung aus den zusätzlich gesperrten Werkzeugpaketen bereitgestellt.
@@ -202,15 +206,37 @@ python3 scripts/fdroid/compare-apks.py \
   echte Bytevergleiche, sichere Archivinhalte, Quellen-/Rezeptauswahl und
   Ablehnung veränderter Build-Nachweise.
 - Workflow-YAML, darin enthaltene Shell-Blöcke und Git-Diff geprüft.
-- GitHub Actions hat den ersten Stand `dc09b29` ebenfalls in allen fünf Jobs
-  erfolgreich geprüft: [Tests, Run 39357846544](https://github.com/Mcpasi/AGENTCODI/actions/runs/39357846544).
-  Auch die Quellbuild-Nachhärtung `1f62d91` besteht alle fünf Jobs: [Run 39358733112](https://github.com/Mcpasi/AGENTCODI/actions/runs/39358733112).
+- GitHub Actions prüft den Implementierungsstand `bb8c2a7` erfolgreich in allen
+  fünf Jobs, einschließlich Android-Kompilierung und der Editor-/Markdown-UI:
+  [Tests, Run 39412971358](https://github.com/Mcpasi/AGENTCODI/actions/runs/39412971358).
+- Das festgelegte Ubuntu-Image wurde als OCI-Index geprüft; es enthält die
+  benötigte Variante Linux ARM64/v8.
 
-Der V8-Quellbuild für Android ARM64 wurde ohne Netzwerk erfolgreich ausgeführt.
-Der Fork-Prüfer bestätigt am erzeugten Archiv, dass
-`v8__V8__IsSandboxEnabled` den Wert 1 zurückgibt. Der vollständige
-Codex-Quellbuild und zwei vollständige APK-Vergleichsbuilds sind damit noch
-nicht nachgewiesen. Die Quellvorbereitung wurde einschließlich
+Der vollständige Codex-/V8-Quellbuild für Android ARM64 wurde erfolgreich in
+einem Container ohne Netzwerkverbindung ausgeführt. Er erzeugt sowohl die CLI
+als auch den Code-Mode-Host aus den festgelegten Fork-Rezepten. Die anschließende
+Prüfung mit `scripts/build-codex-from-source.sh verify` ist erfolgreich:
+Quellstand, Builder, Source-Lock, Archiv und sämtliche Nutzdaten stimmen mit
+dem erzeugten `source-build.json` überein.
+
+Der Fork-Prüfer bestätigt am V8-Archiv, dass
+`v8__V8__IsSandboxEnabled` den Wert 1 zurückgibt. Beide erzeugten Programme
+sind AArch64-ELFs mit `/system/bin/linker64` als Interpreter und
+`PT_LOAD`-Ausrichtung `0x4000` (16 KiB).
+
+Das erzeugte Quellpaket ist 109.486.147 Bytes groß. Seine Prüfsummen sind:
+
+| Ausgabe | SHA-256 |
+| --- | --- |
+| `package.tgz` | `c3a8ad1aaeb28eebad2ad142484109b6cc83209dc20a5b290622d5956f3f1947` |
+| `package/bin/codex.bin` | `163be2fda0bf38bb2704f90a6394adf498fb81f9493d4f4fcc60fca0717f4bd1` |
+| `package/bin/codex-code-mode-host` | `7d11d5f13ddde3022bf269bf99394532e1a5f575ec9692125c19b45b84332840` |
+| V8-Archiv | `915b94d6c4022cc4f8a46dc1a61c96755f04a4d55b9d9c6f17e9e15cd5d0bfb3` |
+
+Zwei unabhängige vollständige Quell- und APK-Vergleichsbuilds stehen weiterhin
+aus. Der erfolgreiche Quellbau belegt noch keine bitgleiche Gesamt-APK.
+
+Die Quellvorbereitung wurde einschließlich
 aller V8-Submodule, Compiler-/Sysroot-Eingaben und Cargo-Abhängigkeiten ausgeführt.
 Der netzlose Quellbuild hat die Bindgen-Prüfung bestanden. Ein erster
 vollständiger Versuch deckte einen versteckten Download von GN/Ninja im
@@ -226,10 +252,12 @@ Der erste anschließende Codex-Versuch wurde im Offline-Modus wegen eines
 fehlenden `arboard`-Pakets abgewiesen. Die Vorbereitung lädt deshalb jetzt die
 vollständigen gesperrten Cargo-Abhängigkeiten statt nur des Android-Zweigs.
 Die erweiterte Vorbereitung ist erfolgreich durchgelaufen; der Codex-Bau
-wurde mit dem bereits aus Quellen erzeugten V8 neu gestartet.
+wurde mit dem bereits aus Quellen erzeugten V8 erfolgreich abgeschlossen.
 Der vollständige GitHub-APK-Versuch
 [Run 39361774824](https://github.com/Mcpasi/AGENTCODI/actions/runs/39361774824)
-scheiterte im Quellbuild-Job; die APK-Montage wurde dort übersprungen.
+auf dem früheren Stand `538720a` scheiterte im Quellbuild-Job; die APK-Montage
+wurde dort übersprungen. Dieser Lauf liegt vor der Cargo-Korrektur in
+`bb8c2a7`.
 
 ## Öffentliche Eingaben: tatsächlicher Abrufversuch
 
@@ -258,7 +286,8 @@ erreichten F-Droid-Aufnahme oder bitgleichen Gesamt-APK.
 1. Der APK-Build führt weiterhin Android-ARM64-Werkzeuge und Runtime-Smokes aus.
    Die Montage muss für einen üblichen F-Droid-Linux-x86_64-Builder weiter
    aufgeteilt bzw. portiert werden.
-2. Node, Python, deren Bibliotheken und das eingecheckte ripgrep-ELF stammen
+2. Die gemeinsame libc++-Laufzeit, Node, Python, deren Bibliotheken und das
+   eingecheckte ripgrep-ELF stammen
    weiterhin aus vorgebauten Termux-Eingaben. Für einen vollständig aus Quellen
    erzeugten F-Droid-Build sind auch hierfür nachvollziehbare Quellrezepte und
    vollständige Lizenz-/Quellnachweise erforderlich.

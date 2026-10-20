@@ -8,6 +8,9 @@ modules/compatibility-mode/src/main/java
 modules/storage/src/main/java
 modules/file-browser-contracts/src/main/java
 modules/file-browser-client/src/main/java
+modules/file-editor-contracts/src/main/java
+modules/file-editor-client/src/main/java
+modules/file-editor-syntax/src/main/java
 modules/import-contracts/src/main/java
 modules/import-client/src/main/java
 modules/mcp-contracts/src/main/java
@@ -16,6 +19,7 @@ modules/connector-contracts/src/main/java
 modules/connector-client/src/main/java
 app/src/main/java/de/agentcodi/app/TranscriptCardPresentation.java
 app/src/main/java/de/agentcodi/app/FileChangeDetail.java
+app/src/main/java/de/agentcodi/app/ChatMarkdown.java
 scripts/java/de/agentcodi/tools/CodexPackageMetadata.java
 scripts/java/de/agentcodi/tools/CodexLocalSource.java
 scripts/java/de/agentcodi/tools/CodexRuntimeUpdater.java

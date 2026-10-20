@@ -6,6 +6,9 @@ public final class TestMain {
 
     public static void main(String[] arguments) throws Exception {
         int passed = 0;
+        passed += de.agentcodi.app.ChatMarkdownTest.run();
+        passed += WorkspaceFileEditorTest.run();
+        passed += WorkspaceSyntaxTest.run();
         passed += BuildIdentityTest.run();
         passed += de.agentcodi.tools.CodexPackageMetadataTest.run();
         passed += de.agentcodi.tools.CodexRuntimeUpdaterTest.run();

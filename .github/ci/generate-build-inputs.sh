@@ -33,7 +33,7 @@ fi
 
 assignments="$(sed -n "1,${config_end}p" "$BUILD_SCRIPT" \
   | grep -E '^[A-Z_][A-Z0-9_]*=' \
-  | grep -vE '^(SCRIPT_DIR|PROJECT_ROOT|CODEX_ANDROID_ARCHIVE)=')"
+  | grep -vE '^(SCRIPT_DIR|PROJECT_ROOT|CODEX_ANDROID_ARCHIVE|CODEX_SOURCE_ENV)=')"
 if printf '%s\n' "$assignments" | grep -qE '^[A-Z_][A-Z0-9_]*="?\$\('; then
   echo "Refusing to evaluate a configuration assignment that runs a command:" >&2
   printf '%s\n' "$assignments" | grep -E '^[A-Z_][A-Z0-9_]*="?\$\(' >&2
@@ -63,11 +63,5 @@ grep -E '^download_verified "' "$BUILD_SCRIPT" | while read -r _ url_ref sha_ref
   printf '%s\t%s\tdownload\t%s\n' "${dest#"$CACHE_DIR"/}" "$sha" "$url"
 done
 
-# The Codex runtime is a locally built fork with no registry fallback. Its
-# cache layout is content addressed: the directory name is the archive hash.
-codex_dir="codex/$CODEX_ANDROID_SHA256"
-printf '%s/package.tgz\t%s\tlocal\t-\n' "$codex_dir" "$CODEX_ANDROID_SHA256"
-printf '%s/codex_app_server_protocol.schemas.json\t%s\tlocal\t-\n' \
-  "$codex_dir" "$CODEX_SCHEMA_BUNDLE_SHA256"
-printf '%s/codex_app_server_protocol.v2.schemas.json\t%s\tlocal\t-\n' \
-  "$codex_dir" "$CODEX_V2_SCHEMA_BUNDLE_SHA256"
+# Codex and V8 are built from scripts/fdroid/source-lock.json instead of
+# restoring locally supplied binaries or generated schemas from the mirror.

@@ -5,6 +5,7 @@ import java.io.File;
 import java.io.IOException;
 import java.nio.ByteBuffer;
 import java.nio.channels.SeekableByteChannel;
+import java.nio.channels.FileChannel;
 import java.nio.file.DirectoryStream;
 import java.nio.file.Files;
 import java.nio.file.LinkOption;
@@ -15,9 +16,12 @@ import java.nio.file.StandardOpenOption;
 import java.nio.file.attribute.BasicFileAttributeView;
 import java.nio.file.attribute.BasicFileAttributes;
 import java.nio.file.attribute.FileTime;
+import java.nio.file.attribute.PosixFileAttributeView;
+import java.nio.file.attribute.PosixFilePermission;
 import java.util.Collections;
 import java.util.HashSet;
 import java.util.Set;
+import java.util.UUID;
 
 /**
  * Race-resistant access to regular files below an already validated workspace.
@@ -51,6 +55,9 @@ public final class WorkspaceFileAccess {
 
         FileTime getLastModifiedTime();
 
+        /** Unix status-change time captured with the opened file's identity. */
+        FileTime getChangeTime();
+
         Object getFileKey();
 
         int read(byte[] buffer, int offset, int length) throws IOException;
@@ -62,6 +69,11 @@ public final class WorkspaceFileAccess {
         }
 
         void verifyUnchanged() throws IOException;
+
+        /** Atomically replace this revision; a successful replacement consumes the snapshot. */
+        default void replace(byte[] contents) throws IOException {
+            throw new IOException("Workspace source does not support editing");
+        }
     }
 
     private static final class SecureNioOpener implements Opener {
@@ -99,7 +111,8 @@ public final class WorkspaceFileAccess {
                     workspace,
                     relative,
                     maximumBytes,
-                    opened.attributes
+                    opened.attributes,
+                    opened.changeTime
                 );
             } catch (IOException | RuntimeException | Error error) {
                 closeAfterFailure(channel, root, error);
@@ -115,6 +128,7 @@ public final class WorkspaceFileAccess {
         private final Path relative;
         private final long maximumBytes;
         private final BasicFileAttributes attributes;
+        private final FileTime changeTime;
         private boolean closed;
 
         private SecureNioSource(
@@ -123,7 +137,8 @@ public final class WorkspaceFileAccess {
             Path workspace,
             Path relative,
             long maximumBytes,
-            BasicFileAttributes attributes
+            BasicFileAttributes attributes,
+            FileTime changeTime
         ) {
             this.root = root;
             this.channel = channel;
@@ -131,6 +146,7 @@ public final class WorkspaceFileAccess {
             this.relative = relative;
             this.maximumBytes = maximumBytes;
             this.attributes = attributes;
+            this.changeTime = changeTime;
         }
 
         @Override
@@ -141,6 +157,11 @@ public final class WorkspaceFileAccess {
         @Override
         public FileTime getLastModifiedTime() {
             return attributes.lastModifiedTime();
+        }
+
+        @Override
+        public FileTime getChangeTime() {
+            return changeTime;
         }
 
         @Override
@@ -186,11 +207,86 @@ public final class WorkspaceFileAccess {
             }
             OpenSnapshot current = openRelative(root, workspace, relative, maximumBytes);
             try {
-                if (!sameSnapshot(attributes, current.attributes)) {
+                if (!sameSnapshot(attributes, current.attributes)
+                    || !changeTime.equals(current.changeTime)) {
                     throw new IOException("Workspace file changed during export");
                 }
             } finally {
                 current.channel.close();
+            }
+        }
+
+        @Override
+        public void replace(byte[] contents) throws IOException {
+            if (contents == null || contents.length > maximumBytes) {
+                throw new IOException("Workspace replacement is outside the edit limit");
+            }
+            verifyUnchanged();
+            SecureDirectoryStream<Path> parent = root;
+            Path temporary = relative.getFileSystem().getPath(
+                ".agentcodi-edit-" + UUID.randomUUID().toString()
+            );
+            boolean created = false;
+            try {
+                for (int index = 0; index < relative.getNameCount() - 1; index++) {
+                    SecureDirectoryStream<Path> child = parent.newDirectoryStream(
+                        relative.getName(index), LinkOption.NOFOLLOW_LINKS
+                    );
+                    if (parent != root) {
+                        parent.close();
+                    }
+                    parent = child;
+                }
+                Path name = relative.getFileName();
+                PosixFileAttributeView original = parent.getFileAttributeView(
+                    name, PosixFileAttributeView.class, LinkOption.NOFOLLOW_LINKS
+                );
+                if (original == null) {
+                    throw new IOException("Filesystem cannot preserve workspace permissions");
+                }
+                Set<PosixFilePermission> permissions = original.readAttributes().permissions();
+                Set<OpenOption> options = new HashSet<OpenOption>();
+                options.add(StandardOpenOption.WRITE);
+                options.add(StandardOpenOption.CREATE_NEW);
+                options.add(LinkOption.NOFOLLOW_LINKS);
+                try (SeekableByteChannel target = parent.newByteChannel(
+                    temporary, options, java.nio.file.attribute.PosixFilePermissions.asFileAttribute(
+                        java.nio.file.attribute.PosixFilePermissions.fromString("rw-------")
+                    )
+                )) {
+                    created = true;
+                    ByteBuffer bytes = ByteBuffer.wrap(contents);
+                    while (bytes.hasRemaining()) {
+                        if (target.write(bytes) <= 0) {
+                            throw new IOException("Workspace replacement made no progress");
+                        }
+                    }
+                    parent.getFileAttributeView(
+                        temporary, PosixFileAttributeView.class, LinkOption.NOFOLLOW_LINKS
+                    ).setPermissions(permissions);
+                    if (!(target instanceof FileChannel)) {
+                        throw new IOException("Filesystem cannot sync workspace edits");
+                    }
+                    ((FileChannel) target).force(true);
+                }
+                verifyUnchanged();
+                // Also validate the destination in the exact parent used by the rename.
+                BasicFileAttributes destination = readRegularAttributes(parent, name, maximumBytes);
+                if (!sameSnapshot(attributes, destination)) {
+                    throw new IOException("Workspace file changed before saving");
+                }
+                parent.move(temporary, parent, name);
+                created = false;
+            } finally {
+                try {
+                    if (created) {
+                        parent.deleteFile(temporary);
+                    }
+                } finally {
+                    if (parent != root) {
+                        parent.close();
+                    }
+                }
             }
         }
 
@@ -242,7 +338,7 @@ public final class WorkspaceFileAccess {
             }
             Path name = relative.getName(relative.getNameCount() - 1);
             BasicFileAttributes before = readRegularAttributes(parent, name, maximumBytes);
-            WorkspaceFileBoundary.requireSingleLink(
+            FileTime beforeChangeTime = WorkspaceFileBoundary.requireSingleLink(
                 workspace.resolve(relative),
                 before.fileKey()
             );
@@ -258,18 +354,19 @@ public final class WorkspaceFileAccess {
                 name,
                 maximumBytes
             );
-            WorkspaceFileBoundary.requireSingleLink(
+            FileTime afterChangeTime = WorkspaceFileBoundary.requireSingleLink(
                 workspace.resolve(relative),
                 after.fileKey()
             );
-            if (channel.size() != after.size() || !sameSnapshot(before, after)) {
+            if (channel.size() != after.size() || !sameSnapshot(before, after)
+                || !beforeChangeTime.equals(afterChangeTime)) {
                 throw new IOException("Workspace file changed while it was opened");
             }
             if (parent != root) {
                 parent.close();
                 parent = root;
             }
-            OpenSnapshot opened = new OpenSnapshot(channel, after);
+            OpenSnapshot opened = new OpenSnapshot(channel, after, afterChangeTime);
             channel = null;
             return opened;
         } catch (IOException | RuntimeException | Error error) {
@@ -350,13 +447,16 @@ public final class WorkspaceFileAccess {
     private static final class OpenSnapshot {
         private final SeekableByteChannel channel;
         private final BasicFileAttributes attributes;
+        private final FileTime changeTime;
 
         private OpenSnapshot(
             SeekableByteChannel channel,
-            BasicFileAttributes attributes
+            BasicFileAttributes attributes,
+            FileTime changeTime
         ) {
             this.channel = channel;
             this.attributes = attributes;
+            this.changeTime = changeTime;
         }
     }
 }

@@ -1,0 +1,80 @@
+name: Codex from source
+
+on:
+  workflow_dispatch:
+  workflow_call:
+
+permissions:
+  contents: read
+
+jobs:
+  source:
+    name: Locked Codex and sandbox V8 recipes
+    runs-on: ubuntu-24.04
+    timeout-minutes: 360
+    env:
+      LANG: C.UTF-8
+      LC_ALL: C.UTF-8
+      AGENTCODI_BUILD_JOBS: '2'
+    steps:
+      - name: Check out AGENTCODI
+        uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd # v6.0.2
+        with:
+          persist-credentials: false
+
+      - name: Fetch and verify the locked fork and recipes
+        run: ./scripts/build-codex-from-source.sh checkout
+
+      - name: Read toolchain versions from the source lock
+        run: |
+          python3 - <<'PY'
+          import json, os
+          from pathlib import Path
+          lock = json.loads(Path('scripts/fdroid/source-lock.json').read_text())
+          with open(os.environ['GITHUB_ENV'], 'a') as out:
+              for name, key in {'LLVM_VERSION': 'libclang_major', 'RUST_VERSION': 'rust',
+                                'ANDROID_NDK_VERSION': 'ndk', 'SDK_PLATFORM': 'sdk_platform',
+                                'SDK_BUILD_TOOLS': 'sdk_build_tools'}.items():
+                  print(name + '=' + lock[key], file=out)
+          PY
+
+      - name: Prepare disk on the disposable hosted runner using the fork recipe
+        run: |
+          ./scripts/build-codex-from-source.sh disk-preparation > "$RUNNER_TEMP/source-disk.sh"
+          bash -Eeuo pipefail "$RUNNER_TEMP/source-disk.sh"
+
+      - name: Install host dependencies from the locked V8 recipe
+        run: |
+          ./scripts/build-codex-from-source.sh host-dependencies > "$RUNNER_TEMP/source-host.sh"
+          bash -Eeuo pipefail "$RUNNER_TEMP/source-host.sh"
+          sudo apt-get install -y --no-install-recommends ninja-build
+
+      - name: Install the locked Rust and Android toolchains
+        run: |
+          rustup toolchain install "$RUST_VERSION" --profile minimal --target aarch64-linux-android
+          "$ANDROID_HOME/cmdline-tools/latest/bin/sdkmanager" \
+            "ndk;$ANDROID_NDK_VERSION" "platforms;android-$SDK_PLATFORM" "build-tools;$SDK_BUILD_TOOLS"
+          echo "ANDROID_NDK_HOME=$ANDROID_HOME/ndk/$ANDROID_NDK_VERSION" >> "$GITHUB_ENV"
+          echo "RUSTUP_HOME=${RUSTUP_HOME:-$HOME/.rustup}" >> "$GITHUB_ENV"
+          echo "CARGO_HOME=${CARGO_HOME:-$HOME/.cargo}" >> "$GITHUB_ENV"
+
+      - name: Fetch sources and locked Cargo dependencies
+        run: ./scripts/build-codex-from-source.sh prepare
+
+      - name: Build both fork recipes without network access
+        run: |
+          builder_user="$(id -un)"
+          sudo -E unshare --net sudo -E -u "$builder_user" env "PATH=$PATH" \
+            ./scripts/build-codex-from-source.sh build
+
+      - name: Verify the source-built package
+        run: ./scripts/build-codex-from-source.sh verify
+
+      - name: Upload only the source-built package and provenance
+        uses: actions/upload-artifact@bbbca2ddaa5d8feaa63e36b76fdaad77386f024f # v7.0.0
+        with:
+          name: codex-source
+          path: |
+            output/codex-source/package.tgz
+            output/codex-source/source-build.json
+          if-no-files-found: error

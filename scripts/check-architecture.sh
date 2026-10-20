@@ -4,7 +4,7 @@ set -Eeuo pipefail
 SCRIPT_DIR="$(cd -- "$(dirname -- "$0")" && pwd -P)"
 PROJECT_ROOT="$(cd -- "$SCRIPT_DIR/.." && pwd -P)"
 
-unexpected_source="$(find "$PROJECT_ROOT/app/src/main/java" "$PROJECT_ROOT/modules/core/src/main/java" "$PROJECT_ROOT/modules/review-mode/src/main/java" "$PROJECT_ROOT/modules/protected-mode/src/main/java" "$PROJECT_ROOT/modules/compatibility-mode/src/main/java" "$PROJECT_ROOT/modules/storage/src/main/java" "$PROJECT_ROOT/modules/file-browser-contracts/src/main/java" "$PROJECT_ROOT/modules/file-browser-client/src/main/java" "$PROJECT_ROOT/modules/import-contracts/src/main/java" "$PROJECT_ROOT/modules/import-client/src/main/java" "$PROJECT_ROOT/modules/mcp-contracts/src/main/java" "$PROJECT_ROOT/modules/mcp-client/src/main/java" "$PROJECT_ROOT/modules/connector-contracts/src/main/java" "$PROJECT_ROOT/modules/connector-client/src/main/java" "$PROJECT_ROOT/modules/runtime/src/main/java" "$PROJECT_ROOT/modules/native-engine/src/main/cpp" "$PROJECT_ROOT/tests/java" "$PROJECT_ROOT/tests/cpp" -type f ! -name '*.java' ! -name '*.cpp' ! -name '*.h' -print)"
+unexpected_source="$(find "$PROJECT_ROOT/app/src/main/java" "$PROJECT_ROOT/modules/core/src/main/java" "$PROJECT_ROOT/modules/review-mode/src/main/java" "$PROJECT_ROOT/modules/protected-mode/src/main/java" "$PROJECT_ROOT/modules/compatibility-mode/src/main/java" "$PROJECT_ROOT/modules/storage/src/main/java" "$PROJECT_ROOT/modules/file-browser-contracts/src/main/java" "$PROJECT_ROOT/modules/file-browser-client/src/main/java" "$PROJECT_ROOT/modules/file-editor-contracts/src/main/java" "$PROJECT_ROOT/modules/file-editor-client/src/main/java" "$PROJECT_ROOT/modules/file-editor-syntax/src/main/java" "$PROJECT_ROOT/modules/import-contracts/src/main/java" "$PROJECT_ROOT/modules/import-client/src/main/java" "$PROJECT_ROOT/modules/mcp-contracts/src/main/java" "$PROJECT_ROOT/modules/mcp-client/src/main/java" "$PROJECT_ROOT/modules/connector-contracts/src/main/java" "$PROJECT_ROOT/modules/connector-client/src/main/java" "$PROJECT_ROOT/modules/runtime/src/main/java" "$PROJECT_ROOT/modules/native-engine/src/main/cpp" "$PROJECT_ROOT/tests/java" "$PROJECT_ROOT/tests/cpp" -type f ! -name '*.java' ! -name '*.cpp' ! -name '*.h' -print)"
 if [ -n "$unexpected_source" ]; then
   echo "Only Java and C++ source files are accepted in source roots." >&2
   printf '%s\n' "$unexpected_source" >&2
@@ -16,7 +16,7 @@ if find "$PROJECT_ROOT/app" "$PROJECT_ROOT/modules" "$PROJECT_ROOT/tests" -type 
   exit 1
 fi
 
-if rg -n '^import android\.' "$PROJECT_ROOT/modules/core/src/main/java" "$PROJECT_ROOT/modules/review-mode/src/main/java" "$PROJECT_ROOT/modules/protected-mode/src/main/java" "$PROJECT_ROOT/modules/compatibility-mode/src/main/java" "$PROJECT_ROOT/modules/storage/src/main/java" "$PROJECT_ROOT/modules/file-browser-contracts/src/main/java" "$PROJECT_ROOT/modules/file-browser-client/src/main/java" "$PROJECT_ROOT/modules/import-contracts/src/main/java" "$PROJECT_ROOT/modules/import-client/src/main/java" "$PROJECT_ROOT/modules/mcp-contracts/src/main/java" "$PROJECT_ROOT/modules/mcp-client/src/main/java" "$PROJECT_ROOT/modules/connector-contracts/src/main/java" "$PROJECT_ROOT/modules/connector-client/src/main/java"; then
+if rg -n '^import android\.' "$PROJECT_ROOT/modules/core/src/main/java" "$PROJECT_ROOT/modules/review-mode/src/main/java" "$PROJECT_ROOT/modules/protected-mode/src/main/java" "$PROJECT_ROOT/modules/compatibility-mode/src/main/java" "$PROJECT_ROOT/modules/storage/src/main/java" "$PROJECT_ROOT/modules/file-browser-contracts/src/main/java" "$PROJECT_ROOT/modules/file-browser-client/src/main/java" "$PROJECT_ROOT/modules/file-editor-contracts/src/main/java" "$PROJECT_ROOT/modules/file-editor-client/src/main/java" "$PROJECT_ROOT/modules/file-editor-syntax/src/main/java" "$PROJECT_ROOT/modules/import-contracts/src/main/java" "$PROJECT_ROOT/modules/import-client/src/main/java" "$PROJECT_ROOT/modules/mcp-contracts/src/main/java" "$PROJECT_ROOT/modules/mcp-client/src/main/java" "$PROJECT_ROOT/modules/connector-contracts/src/main/java" "$PROJECT_ROOT/modules/connector-client/src/main/java"; then
   echo "Pure Java modules must not import Android APIs." >&2
   exit 1
 fi
@@ -118,6 +118,17 @@ import_contracts="$PROJECT_ROOT/modules/import-contracts/src/main/java"
 import_client="$PROJECT_ROOT/modules/import-client/src/main/java"
 file_browser_contracts="$PROJECT_ROOT/modules/file-browser-contracts/src/main/java"
 file_browser_client="$PROJECT_ROOT/modules/file-browser-client/src/main/java"
+editor_contracts="$PROJECT_ROOT/modules/file-editor-contracts/src/main/java"
+editor_client="$PROJECT_ROOT/modules/file-editor-client/src/main/java"
+editor_syntax="$PROJECT_ROOT/modules/file-editor-syntax/src/main/java"
+if rg -n '^import de\.agentcodi\.' "$editor_contracts" \
+    || rg -n '^import (static )?de\.agentcodi\.(app|core|runtime|storage|browser|editor\.client)\.' "$editor_syntax" \
+    || rg -n '^import de\.agentcodi\.(app|core|runtime|storage|browser)\.' "$editor_client" \
+    || rg -n '^import de\.agentcodi\.editor\.client\.' "$PROJECT_ROOT/app/src/main/java" \
+    || rg -n '^import de\.agentcodi\.editor\.' "$PROJECT_ROOT/modules/storage/src/main/java"; then
+  echo "Editor contracts, pure client, storage and Android UI boundaries are invalid." >&2
+  exit 1
+fi
 manifest="$PROJECT_ROOT/app/src/main/AndroidManifest.xml"
 if rg -n '^import de\.agentcodi\.' "$file_browser_contracts" \
     || rg -n '^import de\.agentcodi\.(app|core|imports|mcp|runtime)\.' \
@@ -656,7 +667,7 @@ if ! rg -q 'WorkspaceExportFile\.list' "$workspace_exporter" \
     || ! rg -q 'NativeWorkspaceFileAccess\.opener' "$workspace_exporter" \
     || ! rg -q 'NativeWorkspaceDirectoryCatalog\.reader' "$workspace_exporter" \
     || ! rg -q 'layout\.getWorkspace\(\)' "$workspace_exporter" \
-    || ! rg -q '"unix:nlink,fileKey"' "$PROJECT_ROOT/modules/storage/src/main/java/de/agentcodi/storage/WorkspaceFileBoundary.java" \
+    || ! rg -q '"unix:nlink,fileKey,ctime"' "$PROJECT_ROOT/modules/storage/src/main/java/de/agentcodi/storage/WorkspaceFileBoundary.java" \
     || ! rg -q 'expectedFileKey\.equals\(fileKey\)' "$PROJECT_ROOT/modules/storage/src/main/java/de/agentcodi/storage/WorkspaceFileBoundary.java" \
     || ! rg -q 'SecureDirectoryStream' "$workspace_access" \
     || ! rg -q 'hasSameOpenedSnapshot' "$workspace_archive" \
@@ -1045,16 +1056,13 @@ if ! rg -q 'VERSION_NAME = "0\.7\.6-preview\.1"' "$core_root/BuildIdentity.java"
   exit 1
 fi
 
-if ! rg -Fq 'CODEX_ANDROID_ARCHIVE="$("$PROJECT_ROOT/scripts/update-codex-runtime.sh" --select-build-archive)"' "$apk_builder" \
-    || ! rg -Fq 'buildOptions.selectBuildArchive(cache, pins.get("CODEX_ANDROID_SHA256"))' \
-      "$PROJECT_ROOT/scripts/java/de/agentcodi/tools/CodexRuntimeUpdater.java" \
-    || ! rg -Fq 'pinnedHash.equals(digest(selected, "SHA-256"))' \
-      "$PROJECT_ROOT/scripts/java/de/agentcodi/tools/CodexLocalSource.java" \
-    || ! rg -q 'refusesToHideReplacedBuildInputsBehindTheCache' \
-      "$PROJECT_ROOT/tests/java/de/agentcodi/tools/CodexRuntimeUpdaterTest.java" \
+if ! rg -Fq 'CODEX_SOURCE_ENV="$("$SCRIPT_DIR/build-codex-from-source.sh" shell-env)"' "$apk_builder" \
     || ! rg -Fq 'verify_file_sha256 "$CODEX_ANDROID_ARCHIVE" "$CODEX_ANDROID_SHA256"' "$apk_builder" \
-    || rg -q '^CODEX_ANDROID_URL=|^download_verified .*CODEX_ANDROID_ARCHIVE' "$apk_builder"; then
-  echo "The local Codex fork must remain SHA-256-pinned without a registry fallback." >&2
+    || ! rg -Fq '"repository": "https://github.com/Mcpasi/codex-termux.git"' "$PROJECT_ROOT/scripts/fdroid/source-lock.json" \
+    || ! rg -q 'v8_from_source' "$PROJECT_ROOT/scripts/fdroid/build-codex.py" \
+    || ! rg -q -- '--frozen' "$PROJECT_ROOT/scripts/fdroid/build-codex.py" \
+    || rg -q '^CODEX_ANDROID_URL=|^download_verified .*CODEX_ANDROID_ARCHIVE|--select-build-archive' "$apk_builder"; then
+  echo "Codex must come from the locked fork/V8 source recipes with verified output hashes." >&2
   exit 1
 fi
 

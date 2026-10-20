@@ -1839,9 +1839,9 @@ public final class MainActivity extends Activity {
             } else {
                 String value = messageBody(item.getMessage());
                 String label = messageRole(item.getMessage());
-                if (!value.contentEquals(row.text.getText())
-                    || !label.contentEquals(row.role.getText())) {
-                    row.text.setText(value);
+                boolean textChanged = row.markdownText.bind(value,
+                    item.getMessage().getRole() == ChatMessage.Role.ASSISTANT);
+                if (textChanged || !label.contentEquals(row.role.getText())) {
                     row.role.setText(label);
                     styleTranscriptRow(row, item);
                     changed = true;
@@ -1906,9 +1906,11 @@ public final class MainActivity extends Activity {
         content.addView(imageAction, imageActionParams);
 
         TranscriptRow row = new TranscriptRow(
-            root, bubble, role, text, card, imageStatus, imageAction
+            root, bubble, role, text, card, imageStatus, imageAction, theme
         );
         if (card == null) {
+            row.markdownText.bind(messageBody(item.getMessage()),
+                item.getMessage().getRole() == ChatMessage.Role.ASSISTANT);
             styleTranscriptRow(row, item);
         }
         bindImageAction(row, item);
@@ -2634,6 +2636,7 @@ public final class MainActivity extends Activity {
         private final LinearLayout bubble;
         private final TextView role;
         private final TextView text;
+        private final ChatMarkdownText markdownText;
         private final TranscriptCardView card;
         private final TextView imageStatus;
         private final ImageButton imageAction;
@@ -2650,12 +2653,14 @@ public final class MainActivity extends Activity {
             TextView text,
             TranscriptCardView card,
             TextView imageStatus,
-            ImageButton imageAction
+            ImageButton imageAction,
+            UiTheme theme
         ) {
             this.root = root;
             this.bubble = bubble;
             this.role = role;
             this.text = text;
+            this.markdownText = text == null ? null : new ChatMarkdownText(text, theme);
             this.card = card;
             this.imageStatus = imageStatus;
             this.imageAction = imageAction;

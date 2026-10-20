@@ -28,7 +28,7 @@ if [ "$BOOTSTRAP_LAYOUT" = flat ] && [ ! -w / ]; then
 fi
 
 case "$BUILD_VARIANT" in
-  debug|release) ;;
+  debug|release|unsigned) ;;
   *)
     echo "Unsupported AGENTCODI build variant: $BUILD_VARIANT" >&2
     exit 1
@@ -36,8 +36,8 @@ case "$BUILD_VARIANT" in
 esac
 
 CODEX_ANDROID_VERSION="0.153.3-agentcodi.2"
-# User-built Android sandbox fork; consume this exact local artifact without
-# registry fallback. An alternate location must contain the same pinned bytes.
+# Historical artifact baseline used by the existing runtime updater. The APK
+# build loads fresh output hashes from the verified source-build manifest below.
 CODEX_ANDROID_SHA256="4c8da95f209b990d253481f974497974ce445e8900749347ee15cb23c60ddbaa"
 CODEX_TERMUX_SOURCE_TAG="untagged"
 CODEX_TERMUX_SOURCE_COMMIT="af5fec312538b25568fd83a0090efe3c417807d1"
@@ -204,7 +204,7 @@ require_command() {
   fi
 }
 
-for command_name in apksigner awk cmp curl dd dpkg-deb file grep readelf realpath rg script sed sha256sum stat strings tar timeout tr unzip wc xargs zip zipalign zipinfo; do
+for command_name in python3 git apksigner awk cmp curl dd dpkg-deb file grep readelf realpath rg script sed sha256sum stat strings tar timeout tr unzip wc xargs zip zipalign zipinfo; do
   require_command "$command_name"
 done
 for executable in \
@@ -320,8 +320,9 @@ download_verified() {
   if [ -f "$destination" ] && printf '%s  %s\n' "$expected_sha" "$destination" | sha256sum --check --status; then
     return
   fi
-  if [ -e "$destination" ]; then
-    rm -f -- "$destination"
+  if [ "${AGENTCODI_OFFLINE:-0}" = 1 ]; then
+    echo "Offline build input is missing or differs from its pin: $destination" >&2
+    exit 1
   fi
   partial="$destination.partial.$$"
   curl --fail --location --retry 3 --retry-delay 2 --output "$partial" "$url"
@@ -401,9 +402,11 @@ EXPAT_ARCHIVE="$CACHE_DIR/libexpat-2.8.2-aarch64.deb"
 PNG_ARCHIVE="$CACHE_DIR/libpng-1.6.58-aarch64.deb"
 ZOPFLI_ARCHIVE="$CACHE_DIR/libzopfli-1.0.3-5-aarch64.deb"
 ZLIB_ARCHIVE="$CACHE_DIR/zlib-1.3.2-aarch64.deb"
-# Prefer the supplied/local fork package. A replaced .tgz must never be hidden
-# by the old content-addressed cache; the updater handles deliberate repinning.
-CODEX_ANDROID_ARCHIVE="$("$PROJECT_ROOT/scripts/update-codex-runtime.sh" --select-build-archive)"
+# The fork must be compiled with the pinned recipes on a Linux x86_64 builder.
+# A different host may consume only the verified source-build output, never a
+# release download or arbitrary local npm package.
+CODEX_SOURCE_ENV="$("$SCRIPT_DIR/build-codex-from-source.sh" shell-env)"
+eval "$CODEX_SOURCE_ENV"
 NODE_ARCHIVE="$CACHE_DIR/nodejs-lts-$NODE_VERSION-aarch64.deb"
 CARES_ARCHIVE="$CACHE_DIR/c-ares-$CARES_VERSION-aarch64.deb"
 ICU_ARCHIVE="$CACHE_DIR/libicu-$ICU_VERSION-aarch64.deb"
@@ -426,10 +429,19 @@ ICU_LICENSE_FILE="$CACHE_DIR/icu-$ICU_VERSION-LICENSE"
 OPENSSL_LICENSE_FILE="$CACHE_DIR/openssl-$OPENSSL_VERSION-LICENSE"
 ZSTD_LICENSE_FILE="$CACHE_DIR/zstd-$ZSTD_VERSION-LICENSE"
 
+export TZ=UTC LANG=C.UTF-8 LC_ALL=C.UTF-8
+export SOURCE_DATE_EPOCH="${SOURCE_DATE_EPOCH:-$(git -C "$PROJECT_ROOT" show -s --format=%ct HEAD)}"
+if ! [[ "$SOURCE_DATE_EPOCH" =~ ^[0-9]+$ ]]; then
+  echo "SOURCE_DATE_EPOCH must be a nonnegative integer." >&2
+  exit 1
+fi
+umask 022
+
+# Caches are immutable inputs in the F-Droid build phase.
 echo "Verifying pinned Android build inputs..."
 if [ ! -f "$CODEX_ANDROID_ARCHIVE" ] || [ -L "$CODEX_ANDROID_ARCHIVE" ]; then
   echo "Pinned local Codex archive is missing or linked: $CODEX_ANDROID_ARCHIVE" >&2
-  echo "AGENTCODI_CODEX_ARCHIVE may select another location for the same SHA-256-pinned archive." >&2
+  echo "Run scripts/build-codex-from-source.sh prepare and build on Linux x86_64 first." >&2
   exit 1
 fi
 verify_file_sha256 "$CODEX_ANDROID_ARCHIVE" "$CODEX_ANDROID_SHA256"
@@ -679,27 +691,10 @@ for required_schema_method in \
     exit 1
   fi
 done
-if [ "${#CODEX_DEFAULT_HOST_NAME}" -ne "${#CODEX_PACKAGED_HOST_NAME}" ]; then
-  echo "Android host-name relocation must preserve the Codex binary layout." >&2
-  exit 1
-fi
-actual_default_host_name="$(dd if="$CODEX_SOURCE_BINARY" bs=1 skip="$CODEX_DEFAULT_HOST_OFFSET" count="${#CODEX_DEFAULT_HOST_NAME}" status=none)"
-if [ "$actual_default_host_name" != "$CODEX_DEFAULT_HOST_NAME" ]; then
-  echo "Pinned Codex app-server no longer contains the reviewed host-name field." >&2
-  exit 1
-fi
+# Preserve the source-built ELF bytes. The native supervisor supplies
+# CODEX_CODE_MODE_HOST_PATH explicitly; no artifact-specific offset is needed.
 cp "$CODEX_SOURCE_BINARY" "$CODEX_BINARY"
-printf '%s' "$CODEX_PACKAGED_HOST_NAME" \
-  | dd of="$CODEX_BINARY" bs=1 seek="$CODEX_DEFAULT_HOST_OFFSET" conv=notrunc status=none
-if ! printf '%s  %s\n' "$CODEX_APP_SERVER_ANDROID_SHA256" "$CODEX_BINARY" | sha256sum --check --status; then
-  echo "Deterministic Android host-name relocation produced an unexpected app-server." >&2
-  exit 1
-fi
-if [ "$(grep -ao "$CODEX_DEFAULT_HOST_NAME" "$CODEX_BINARY" | wc -l)" -ne 1 ] \
-    || [ "$(grep -ao "$CODEX_PACKAGED_HOST_NAME" "$CODEX_BINARY" | wc -l)" -ne 1 ]; then
-  echo "Codex app-server host-name relocation did not change exactly one reviewed field." >&2
-  exit 1
-fi
+verify_file_sha256 "$CODEX_BINARY" "$CODEX_APP_SERVER_ANDROID_SHA256"
 for codex_executable in "$CODEX_BINARY" "$CODEX_CODE_MODE_HOST_BINARY"; do
   if ! file "$codex_executable" | grep -q 'ARM aarch64'; then
     echo "Pinned Codex executable is not ARM64: $codex_executable" >&2
@@ -757,6 +752,8 @@ COMPATIBILITY_MODE_CLASSES="$CLASSES_ROOT/compatibility-mode"
 STORAGE_CLASSES="$CLASSES_ROOT/storage"
 FILE_BROWSER_CONTRACTS_CLASSES="$CLASSES_ROOT/file-browser-contracts"
 FILE_BROWSER_CLIENT_CLASSES="$CLASSES_ROOT/file-browser-client"
+FILE_EDITOR_CONTRACTS_CLASSES="$CLASSES_ROOT/file-editor-contracts"
+FILE_EDITOR_CLIENT_CLASSES="$CLASSES_ROOT/file-editor-client"
 IMPORT_CONTRACTS_CLASSES="$CLASSES_ROOT/import-contracts"
 IMPORT_CLIENT_CLASSES="$CLASSES_ROOT/import-client"
 MCP_CONTRACTS_CLASSES="$CLASSES_ROOT/mcp-contracts"
@@ -773,6 +770,8 @@ mkdir -p \
   "$STORAGE_CLASSES" \
   "$FILE_BROWSER_CONTRACTS_CLASSES" \
   "$FILE_BROWSER_CLIENT_CLASSES" \
+  "$FILE_EDITOR_CONTRACTS_CLASSES" \
+  "$FILE_EDITOR_CLIENT_CLASSES" \
   "$IMPORT_CONTRACTS_CLASSES" \
   "$IMPORT_CLIENT_CLASSES" \
   "$MCP_CONTRACTS_CLASSES" \
@@ -786,79 +785,132 @@ find "$PROJECT_ROOT/modules/core/src/main/java" -type f -name '*.java' -print | 
 "$JAVAC" -encoding UTF-8 -source 8 -target 8 -Xlint:-options -bootclasspath "$ANDROID_JAR" -d "$CORE_CLASSES" @"$WORK_DIR/core-sources.txt"
 CORE_JAR="$JARS_ROOT/core.jar"
 "$JAR" cf "$CORE_JAR" -C "$CORE_CLASSES" .
+python3 -B "$SCRIPT_DIR/fdroid/reproducible-zip.py" "$CORE_JAR" "$CORE_JAR.stable"
+mv "$CORE_JAR.stable" "$CORE_JAR"
 
 find "$PROJECT_ROOT/modules/review-mode/src/main/java" -type f -name '*.java' -print | sort > "$WORK_DIR/review-mode-sources.txt"
 "$JAVAC" -encoding UTF-8 -source 8 -target 8 -Xlint:-options -bootclasspath "$ANDROID_JAR" -classpath "$CORE_JAR" -d "$REVIEW_MODE_CLASSES" @"$WORK_DIR/review-mode-sources.txt"
 REVIEW_MODE_JAR="$JARS_ROOT/review-mode.jar"
 "$JAR" cf "$REVIEW_MODE_JAR" -C "$REVIEW_MODE_CLASSES" .
+python3 -B "$SCRIPT_DIR/fdroid/reproducible-zip.py" "$REVIEW_MODE_JAR" "$REVIEW_MODE_JAR.stable"
+mv "$REVIEW_MODE_JAR.stable" "$REVIEW_MODE_JAR"
 
 find "$PROJECT_ROOT/modules/protected-mode/src/main/java" -type f -name '*.java' -print | sort > "$WORK_DIR/protected-mode-sources.txt"
 "$JAVAC" -encoding UTF-8 -source 8 -target 8 -Xlint:-options -bootclasspath "$ANDROID_JAR" -classpath "$CORE_JAR" -d "$PROTECTED_MODE_CLASSES" @"$WORK_DIR/protected-mode-sources.txt"
 PROTECTED_MODE_JAR="$JARS_ROOT/protected-mode.jar"
 "$JAR" cf "$PROTECTED_MODE_JAR" -C "$PROTECTED_MODE_CLASSES" .
+python3 -B "$SCRIPT_DIR/fdroid/reproducible-zip.py" "$PROTECTED_MODE_JAR" "$PROTECTED_MODE_JAR.stable"
+mv "$PROTECTED_MODE_JAR.stable" "$PROTECTED_MODE_JAR"
 
 find "$PROJECT_ROOT/modules/compatibility-mode/src/main/java" -type f -name '*.java' -print | sort > "$WORK_DIR/compatibility-mode-sources.txt"
 "$JAVAC" -encoding UTF-8 -source 8 -target 8 -Xlint:-options -bootclasspath "$ANDROID_JAR" -classpath "$CORE_JAR" -d "$COMPATIBILITY_MODE_CLASSES" @"$WORK_DIR/compatibility-mode-sources.txt"
 COMPATIBILITY_MODE_JAR="$JARS_ROOT/compatibility-mode.jar"
 "$JAR" cf "$COMPATIBILITY_MODE_JAR" -C "$COMPATIBILITY_MODE_CLASSES" .
+python3 -B "$SCRIPT_DIR/fdroid/reproducible-zip.py" "$COMPATIBILITY_MODE_JAR" "$COMPATIBILITY_MODE_JAR.stable"
+mv "$COMPATIBILITY_MODE_JAR.stable" "$COMPATIBILITY_MODE_JAR"
 
 find "$PROJECT_ROOT/modules/storage/src/main/java" -type f -name '*.java' -print | sort > "$WORK_DIR/storage-sources.txt"
 "$JAVAC" -encoding UTF-8 -source 8 -target 8 -Xlint:-options -bootclasspath "$ANDROID_JAR" -d "$STORAGE_CLASSES" @"$WORK_DIR/storage-sources.txt"
 STORAGE_JAR="$JARS_ROOT/storage.jar"
 "$JAR" cf "$STORAGE_JAR" -C "$STORAGE_CLASSES" .
+python3 -B "$SCRIPT_DIR/fdroid/reproducible-zip.py" "$STORAGE_JAR" "$STORAGE_JAR.stable"
+mv "$STORAGE_JAR.stable" "$STORAGE_JAR"
 
 find "$PROJECT_ROOT/modules/file-browser-contracts/src/main/java" -type f -name '*.java' -print | sort > "$WORK_DIR/file-browser-contracts-sources.txt"
 "$JAVAC" -encoding UTF-8 -source 8 -target 8 -Xlint:-options -bootclasspath "$ANDROID_JAR" -d "$FILE_BROWSER_CONTRACTS_CLASSES" @"$WORK_DIR/file-browser-contracts-sources.txt"
 FILE_BROWSER_CONTRACTS_JAR="$JARS_ROOT/file-browser-contracts.jar"
 "$JAR" cf "$FILE_BROWSER_CONTRACTS_JAR" -C "$FILE_BROWSER_CONTRACTS_CLASSES" .
+python3 -B "$SCRIPT_DIR/fdroid/reproducible-zip.py" "$FILE_BROWSER_CONTRACTS_JAR" "$FILE_BROWSER_CONTRACTS_JAR.stable"
+mv "$FILE_BROWSER_CONTRACTS_JAR.stable" "$FILE_BROWSER_CONTRACTS_JAR"
 
 find "$PROJECT_ROOT/modules/file-browser-client/src/main/java" -type f -name '*.java' -print | sort > "$WORK_DIR/file-browser-client-sources.txt"
 "$JAVAC" -encoding UTF-8 -source 8 -target 8 -Xlint:-options -bootclasspath "$ANDROID_JAR" -classpath "$STORAGE_JAR:$FILE_BROWSER_CONTRACTS_JAR" -d "$FILE_BROWSER_CLIENT_CLASSES" @"$WORK_DIR/file-browser-client-sources.txt"
 FILE_BROWSER_CLIENT_JAR="$JARS_ROOT/file-browser-client.jar"
 "$JAR" cf "$FILE_BROWSER_CLIENT_JAR" -C "$FILE_BROWSER_CLIENT_CLASSES" .
+python3 -B "$SCRIPT_DIR/fdroid/reproducible-zip.py" "$FILE_BROWSER_CLIENT_JAR" "$FILE_BROWSER_CLIENT_JAR.stable"
+mv "$FILE_BROWSER_CLIENT_JAR.stable" "$FILE_BROWSER_CLIENT_JAR"
+
+find "$PROJECT_ROOT/modules/file-editor-contracts/src/main/java" -type f -name '*.java' -print | sort > "$WORK_DIR/file-editor-contracts-sources.txt"
+"$JAVAC" -encoding UTF-8 -source 8 -target 8 -Xlint:-options -bootclasspath "$ANDROID_JAR" -d "$FILE_EDITOR_CONTRACTS_CLASSES" @"$WORK_DIR/file-editor-contracts-sources.txt"
+FILE_EDITOR_CONTRACTS_JAR="$JARS_ROOT/file-editor-contracts.jar"
+"$JAR" cf "$FILE_EDITOR_CONTRACTS_JAR" -C "$FILE_EDITOR_CONTRACTS_CLASSES" .
+python3 -B "$SCRIPT_DIR/fdroid/reproducible-zip.py" "$FILE_EDITOR_CONTRACTS_JAR" "$FILE_EDITOR_CONTRACTS_JAR.stable"
+mv "$FILE_EDITOR_CONTRACTS_JAR.stable" "$FILE_EDITOR_CONTRACTS_JAR"
+
+find "$PROJECT_ROOT/modules/file-editor-client/src/main/java" -type f -name '*.java' -print | sort > "$WORK_DIR/file-editor-client-sources.txt"
+"$JAVAC" -encoding UTF-8 -source 8 -target 8 -Xlint:-options -bootclasspath "$ANDROID_JAR" -classpath "$STORAGE_JAR:$FILE_EDITOR_CONTRACTS_JAR" -d "$FILE_EDITOR_CLIENT_CLASSES" @"$WORK_DIR/file-editor-client-sources.txt"
+FILE_EDITOR_CLIENT_JAR="$JARS_ROOT/file-editor-client.jar"
+"$JAR" cf "$FILE_EDITOR_CLIENT_JAR" -C "$FILE_EDITOR_CLIENT_CLASSES" .
+python3 -B "$SCRIPT_DIR/fdroid/reproducible-zip.py" "$FILE_EDITOR_CLIENT_JAR" "$FILE_EDITOR_CLIENT_JAR.stable"
+mv "$FILE_EDITOR_CLIENT_JAR.stable" "$FILE_EDITOR_CLIENT_JAR"
+
+find "$PROJECT_ROOT/modules/file-editor-syntax/src/main/java" -type f -name '*.java' -print | sort > "$WORK_DIR/file-editor-syntax-sources.txt"
+FILE_EDITOR_SYNTAX_CLASSES="$CLASSES_ROOT/file-editor-syntax"
+FILE_EDITOR_SYNTAX_JAR="$JARS_ROOT/file-editor-syntax.jar"
+mkdir -p "$FILE_EDITOR_SYNTAX_CLASSES"
+"$JAVAC" -encoding UTF-8 -source 8 -target 8 -Xlint:-options -bootclasspath "$ANDROID_JAR" -d "$FILE_EDITOR_SYNTAX_CLASSES" @"$WORK_DIR/file-editor-syntax-sources.txt"
+"$JAR" cf "$FILE_EDITOR_SYNTAX_JAR" -C "$FILE_EDITOR_SYNTAX_CLASSES" .
+python3 -B "$SCRIPT_DIR/fdroid/reproducible-zip.py" "$FILE_EDITOR_SYNTAX_JAR" "$FILE_EDITOR_SYNTAX_JAR.stable"
+mv "$FILE_EDITOR_SYNTAX_JAR.stable" "$FILE_EDITOR_SYNTAX_JAR"
 
 find "$PROJECT_ROOT/modules/import-contracts/src/main/java" -type f -name '*.java' -print | sort > "$WORK_DIR/import-contracts-sources.txt"
 "$JAVAC" -encoding UTF-8 -source 8 -target 8 -Xlint:-options -bootclasspath "$ANDROID_JAR" -d "$IMPORT_CONTRACTS_CLASSES" @"$WORK_DIR/import-contracts-sources.txt"
 IMPORT_CONTRACTS_JAR="$JARS_ROOT/import-contracts.jar"
 "$JAR" cf "$IMPORT_CONTRACTS_JAR" -C "$IMPORT_CONTRACTS_CLASSES" .
+python3 -B "$SCRIPT_DIR/fdroid/reproducible-zip.py" "$IMPORT_CONTRACTS_JAR" "$IMPORT_CONTRACTS_JAR.stable"
+mv "$IMPORT_CONTRACTS_JAR.stable" "$IMPORT_CONTRACTS_JAR"
 
 find "$PROJECT_ROOT/modules/import-client/src/main/java" -type f -name '*.java' -print | sort > "$WORK_DIR/import-client-sources.txt"
 "$JAVAC" -encoding UTF-8 -source 8 -target 8 -Xlint:-options -bootclasspath "$ANDROID_JAR" -classpath "$CORE_JAR:$STORAGE_JAR:$IMPORT_CONTRACTS_JAR" -d "$IMPORT_CLIENT_CLASSES" @"$WORK_DIR/import-client-sources.txt"
 IMPORT_CLIENT_JAR="$JARS_ROOT/import-client.jar"
 "$JAR" cf "$IMPORT_CLIENT_JAR" -C "$IMPORT_CLIENT_CLASSES" .
+python3 -B "$SCRIPT_DIR/fdroid/reproducible-zip.py" "$IMPORT_CLIENT_JAR" "$IMPORT_CLIENT_JAR.stable"
+mv "$IMPORT_CLIENT_JAR.stable" "$IMPORT_CLIENT_JAR"
 
 find "$PROJECT_ROOT/modules/mcp-contracts/src/main/java" -type f -name '*.java' -print | sort > "$WORK_DIR/mcp-contracts-sources.txt"
 "$JAVAC" -encoding UTF-8 -source 8 -target 8 -Xlint:-options -bootclasspath "$ANDROID_JAR" -d "$MCP_CONTRACTS_CLASSES" @"$WORK_DIR/mcp-contracts-sources.txt"
 MCP_CONTRACTS_JAR="$JARS_ROOT/mcp-contracts.jar"
 "$JAR" cf "$MCP_CONTRACTS_JAR" -C "$MCP_CONTRACTS_CLASSES" .
+python3 -B "$SCRIPT_DIR/fdroid/reproducible-zip.py" "$MCP_CONTRACTS_JAR" "$MCP_CONTRACTS_JAR.stable"
+mv "$MCP_CONTRACTS_JAR.stable" "$MCP_CONTRACTS_JAR"
 
 find "$PROJECT_ROOT/modules/mcp-client/src/main/java" -type f -name '*.java' -print | sort > "$WORK_DIR/mcp-client-sources.txt"
 "$JAVAC" -encoding UTF-8 -source 8 -target 8 -Xlint:-options -bootclasspath "$ANDROID_JAR" -classpath "$CORE_JAR:$MCP_CONTRACTS_JAR" -d "$MCP_CLIENT_CLASSES" @"$WORK_DIR/mcp-client-sources.txt"
 MCP_CLIENT_JAR="$JARS_ROOT/mcp-client.jar"
 "$JAR" cf "$MCP_CLIENT_JAR" -C "$MCP_CLIENT_CLASSES" .
+python3 -B "$SCRIPT_DIR/fdroid/reproducible-zip.py" "$MCP_CLIENT_JAR" "$MCP_CLIENT_JAR.stable"
+mv "$MCP_CLIENT_JAR.stable" "$MCP_CLIENT_JAR"
 
 find "$PROJECT_ROOT/modules/connector-contracts/src/main/java" -type f -name '*.java' -print | sort > "$WORK_DIR/connector-contracts-sources.txt"
 "$JAVAC" -encoding UTF-8 -source 8 -target 8 -Xlint:-options -bootclasspath "$ANDROID_JAR" -d "$CONNECTOR_CONTRACTS_CLASSES" @"$WORK_DIR/connector-contracts-sources.txt"
 CONNECTOR_CONTRACTS_JAR="$JARS_ROOT/connector-contracts.jar"
 "$JAR" cf "$CONNECTOR_CONTRACTS_JAR" -C "$CONNECTOR_CONTRACTS_CLASSES" .
+python3 -B "$SCRIPT_DIR/fdroid/reproducible-zip.py" "$CONNECTOR_CONTRACTS_JAR" "$CONNECTOR_CONTRACTS_JAR.stable"
+mv "$CONNECTOR_CONTRACTS_JAR.stable" "$CONNECTOR_CONTRACTS_JAR"
 
 find "$PROJECT_ROOT/modules/connector-client/src/main/java" -type f -name '*.java' -print | sort > "$WORK_DIR/connector-client-sources.txt"
 "$JAVAC" -encoding UTF-8 -source 8 -target 8 -Xlint:-options -bootclasspath "$ANDROID_JAR" -classpath "$CORE_JAR:$CONNECTOR_CONTRACTS_JAR" -d "$CONNECTOR_CLIENT_CLASSES" @"$WORK_DIR/connector-client-sources.txt"
 CONNECTOR_CLIENT_JAR="$JARS_ROOT/connector-client.jar"
 "$JAR" cf "$CONNECTOR_CLIENT_JAR" -C "$CONNECTOR_CLIENT_CLASSES" .
+python3 -B "$SCRIPT_DIR/fdroid/reproducible-zip.py" "$CONNECTOR_CLIENT_JAR" "$CONNECTOR_CLIENT_JAR.stable"
+mv "$CONNECTOR_CLIENT_JAR.stable" "$CONNECTOR_CLIENT_JAR"
 
 find "$PROJECT_ROOT/modules/runtime/src/main/java" -type f -name '*.java' -print | sort > "$WORK_DIR/runtime-sources.txt"
-"$JAVAC" -encoding UTF-8 -source 8 -target 8 -Xlint:-options -bootclasspath "$ANDROID_JAR" -classpath "$CORE_JAR:$REVIEW_MODE_JAR:$PROTECTED_MODE_JAR:$COMPATIBILITY_MODE_JAR:$STORAGE_JAR:$FILE_BROWSER_CONTRACTS_JAR:$FILE_BROWSER_CLIENT_JAR:$IMPORT_CONTRACTS_JAR:$IMPORT_CLIENT_JAR:$MCP_CONTRACTS_JAR:$MCP_CLIENT_JAR:$CONNECTOR_CONTRACTS_JAR:$CONNECTOR_CLIENT_JAR" -d "$RUNTIME_CLASSES" @"$WORK_DIR/runtime-sources.txt"
+"$JAVAC" -encoding UTF-8 -source 8 -target 8 -Xlint:-options -bootclasspath "$ANDROID_JAR" -classpath "$CORE_JAR:$REVIEW_MODE_JAR:$PROTECTED_MODE_JAR:$COMPATIBILITY_MODE_JAR:$STORAGE_JAR:$FILE_BROWSER_CONTRACTS_JAR:$FILE_BROWSER_CLIENT_JAR:$FILE_EDITOR_CONTRACTS_JAR:$FILE_EDITOR_CLIENT_JAR:$IMPORT_CONTRACTS_JAR:$IMPORT_CLIENT_JAR:$MCP_CONTRACTS_JAR:$MCP_CLIENT_JAR:$CONNECTOR_CONTRACTS_JAR:$CONNECTOR_CLIENT_JAR" -d "$RUNTIME_CLASSES" @"$WORK_DIR/runtime-sources.txt"
 RUNTIME_JAR="$JARS_ROOT/runtime.jar"
 "$JAR" cf "$RUNTIME_JAR" -C "$RUNTIME_CLASSES" .
+python3 -B "$SCRIPT_DIR/fdroid/reproducible-zip.py" "$RUNTIME_JAR" "$RUNTIME_JAR.stable"
+mv "$RUNTIME_JAR.stable" "$RUNTIME_JAR"
 
 find "$PROJECT_ROOT/app/src/main/java" "$GENERATED_JAVA" -type f -name '*.java' -print | sort > "$WORK_DIR/app-sources.txt"
-"$JAVAC" -encoding UTF-8 -source 8 -target 8 -Xlint:-options -bootclasspath "$ANDROID_JAR" -classpath "$CORE_JAR:$REVIEW_MODE_JAR:$PROTECTED_MODE_JAR:$COMPATIBILITY_MODE_JAR:$STORAGE_JAR:$FILE_BROWSER_CONTRACTS_JAR:$IMPORT_CONTRACTS_JAR:$MCP_CONTRACTS_JAR:$MCP_CLIENT_JAR:$CONNECTOR_CONTRACTS_JAR:$CONNECTOR_CLIENT_JAR:$RUNTIME_JAR" -d "$APP_CLASSES" @"$WORK_DIR/app-sources.txt"
+"$JAVAC" -encoding UTF-8 -source 8 -target 8 -Xlint:-options -bootclasspath "$ANDROID_JAR" -classpath "$CORE_JAR:$REVIEW_MODE_JAR:$PROTECTED_MODE_JAR:$COMPATIBILITY_MODE_JAR:$STORAGE_JAR:$FILE_BROWSER_CONTRACTS_JAR:$FILE_EDITOR_CONTRACTS_JAR:$FILE_EDITOR_SYNTAX_JAR:$IMPORT_CONTRACTS_JAR:$MCP_CONTRACTS_JAR:$MCP_CLIENT_JAR:$CONNECTOR_CONTRACTS_JAR:$CONNECTOR_CLIENT_JAR:$RUNTIME_JAR" -d "$APP_CLASSES" @"$WORK_DIR/app-sources.txt"
 APP_JAR="$JARS_ROOT/app.jar"
 "$JAR" cf "$APP_JAR" -C "$APP_CLASSES" .
+python3 -B "$SCRIPT_DIR/fdroid/reproducible-zip.py" "$APP_JAR" "$APP_JAR.stable"
+mv "$APP_JAR.stable" "$APP_JAR"
 
 echo "Compiling ARM64 JNI engine..."
-"$CLANGXX" --target=aarch64-linux-android"$MIN_SDK" -shared -fPIC -std=c++17 -O2 -Wall -Wextra -Werror -pthread -fvisibility=hidden -I"$JAVA_HOME_17/include" -I"$JAVA_HOME_17/include/linux" -I"$PROJECT_ROOT/modules/native-engine/src/main/cpp" "$PROJECT_ROOT/modules/native-engine/src/main/cpp/agentcodi_engine.cpp" "$PROJECT_ROOT/modules/native-engine/src/main/cpp/app_server_process.cpp" "$PROJECT_ROOT/modules/native-engine/src/main/cpp/png_validator.cpp" "$PROJECT_ROOT/modules/native-engine/src/main/cpp/sha256.cpp" "$PROJECT_ROOT/modules/native-engine/src/main/cpp/workspace_directory_reader.cpp" "$PROJECT_ROOT/modules/native-engine/src/main/cpp/workspace_file_reader.cpp" "$PROJECT_ROOT/modules/native-engine/src/main/cpp/workspace_import_installer.cpp" "$PROJECT_ROOT/modules/native-engine/src/main/cpp/jni_bridge.cpp" -Wl,-soname,libagentcodi.so -lz -llog -o "$NATIVE_DIR/libagentcodi.so"
+"$CLANGXX" --target=aarch64-linux-android"$MIN_SDK" -shared -fPIC -ffile-prefix-map="$PROJECT_ROOT"=/usr/src/agentcodi -ffile-prefix-map="$WORK_DIR"=/usr/src/agentcodi-build -std=c++17 -O2 -Wall -Wextra -Werror -pthread -fvisibility=hidden -I"$JAVA_HOME_17/include" -I"$JAVA_HOME_17/include/linux" -I"$PROJECT_ROOT/modules/native-engine/src/main/cpp" "$PROJECT_ROOT/modules/native-engine/src/main/cpp/agentcodi_engine.cpp" "$PROJECT_ROOT/modules/native-engine/src/main/cpp/app_server_process.cpp" "$PROJECT_ROOT/modules/native-engine/src/main/cpp/png_validator.cpp" "$PROJECT_ROOT/modules/native-engine/src/main/cpp/sha256.cpp" "$PROJECT_ROOT/modules/native-engine/src/main/cpp/workspace_directory_reader.cpp" "$PROJECT_ROOT/modules/native-engine/src/main/cpp/workspace_file_reader.cpp" "$PROJECT_ROOT/modules/native-engine/src/main/cpp/workspace_import_installer.cpp" "$PROJECT_ROOT/modules/native-engine/src/main/cpp/jni_bridge.cpp" -Wl,-soname,libagentcodi.so -lz -llog -o "$NATIVE_DIR/libagentcodi.so"
 "$LLVM_STRIP" --strip-unneeded "$NATIVE_DIR/libagentcodi.so"
 
 echo "Compiling packaged terminal shell bridge..."
@@ -1117,6 +1169,8 @@ chmod 755 \
 
 cp "$CODEX_LICENSE" "$THIRD_PARTY_ASSETS/LICENSE"
 cp "$CODEX_NOTICE" "$THIRD_PARTY_ASSETS/NOTICE"
+cp "${AGENTCODI_CODEX_BUILD_DIR:-$PROJECT_ROOT/output/codex-source}/source-build.json" "$THIRD_PARTY_ASSETS/source-build.json"
+cp "$PROJECT_ROOT/scripts/fdroid/source-lock.json" "$THIRD_PARTY_ASSETS/source-lock.json"
 cp "$NODE_LICENSE_FILE" "$NODE_THIRD_PARTY_ASSETS/NODE-LICENSE"
 cp "$CARES_LICENSE_SOURCE" "$NODE_THIRD_PARTY_ASSETS/CARES-LICENSE"
 cp "$ICU_LICENSE_FILE" "$NODE_THIRD_PARTY_ASSETS/ICU-LICENSE"
@@ -1276,6 +1330,8 @@ for workspace_symbol in \
   nativeReadWorkspaceFile \
   nativePositionWorkspaceFile \
   nativeVerifyWorkspaceFile \
+  nativeReplaceWorkspaceFile \
+  nativeCreateWorkspaceFile \
   nativeCloseWorkspaceFile \
   nativeListWorkspaceDirectory \
   nativeInstallWorkspaceImportNoReplace; do
@@ -1341,9 +1397,8 @@ if ! grep -Fq 'generated_images' "$WORK_DIR/native-engine-strings.txt" \
   echo "Native engine is missing complete PNG validation or workspace materialization." >&2
   exit 1
 fi
-if ! grep -aFq "$CODEX_PACKAGED_HOST_NAME" "$NATIVE_DIR/libcodex.so" \
-    || [ "$(grep -ao "$CODEX_PACKAGED_HOST_NAME" "$NATIVE_DIR/libcodex.so" | wc -l)" -ne 1 ]; then
-  echo "Packaged app-server does not resolve the Android-native host sibling." >&2
+if ! grep -aFq 'CODEX_CODE_MODE_HOST_PATH' "$NATIVE_DIR/libcodex.so"; then
+  echo "Source-built Codex does not support the explicit code-mode host path." >&2
   exit 1
 fi
 for packaged_executable in \
@@ -2004,22 +2059,23 @@ done < <(find "$NATIVE_DIR" -maxdepth 1 -type f -name 'lib*.so' | sort)
 
 echo "Creating DEX and APK..."
 DEX_MODE="--debug"
-if [ "$BUILD_VARIANT" = "release" ]; then
+if [ "$BUILD_VARIANT" != "debug" ]; then
   DEX_MODE="--release"
 fi
-"$JAVA" -cp "$R8_JAR" com.android.tools.r8.D8 "$DEX_MODE" --min-api "$MIN_SDK" --lib "$ANDROID_JAR" --output "$DEX_DIR" "$CORE_JAR" "$REVIEW_MODE_JAR" "$PROTECTED_MODE_JAR" "$COMPATIBILITY_MODE_JAR" "$STORAGE_JAR" "$FILE_BROWSER_CONTRACTS_JAR" "$FILE_BROWSER_CLIENT_JAR" "$IMPORT_CONTRACTS_JAR" "$IMPORT_CLIENT_JAR" "$MCP_CONTRACTS_JAR" "$MCP_CLIENT_JAR" "$CONNECTOR_CONTRACTS_JAR" "$CONNECTOR_CLIENT_JAR" "$RUNTIME_JAR" "$APP_JAR"
+"$JAVA" -cp "$R8_JAR" com.android.tools.r8.D8 "$DEX_MODE" --min-api "$MIN_SDK" --lib "$ANDROID_JAR" --output "$DEX_DIR" "$CORE_JAR" "$REVIEW_MODE_JAR" "$PROTECTED_MODE_JAR" "$COMPATIBILITY_MODE_JAR" "$STORAGE_JAR" "$FILE_BROWSER_CONTRACTS_JAR" "$FILE_BROWSER_CLIENT_JAR" "$FILE_EDITOR_CONTRACTS_JAR" "$FILE_EDITOR_CLIENT_JAR" "$FILE_EDITOR_SYNTAX_JAR" "$IMPORT_CONTRACTS_JAR" "$IMPORT_CLIENT_JAR" "$MCP_CONTRACTS_JAR" "$MCP_CLIENT_JAR" "$CONNECTOR_CONTRACTS_JAR" "$CONNECTOR_CLIENT_JAR" "$RUNTIME_JAR" "$APP_JAR"
 cp "$DEX_DIR/classes.dex" "$ADDITIONS/classes.dex"
 
 UNALIGNED_APK="$WORK_DIR/unaligned.apk"
 ALIGNED_APK="$WORK_DIR/aligned.apk"
-cp "$UNSIGNED_APK" "$UNALIGNED_APK"
-(
-  cd "$ADDITIONS"
-  zip -q -9 -r "$UNALIGNED_APK" classes.dex lib assets
-)
+python3 -B "$SCRIPT_DIR/fdroid/reproducible-zip.py" \
+  "$UNSIGNED_APK" "$UNALIGNED_APK" --additions "$ADDITIONS"
 zipalign -f -p 4 "$UNALIGNED_APK" "$ALIGNED_APK"
 
-if [ "$BUILD_VARIANT" = "debug" ]; then
+if [ "$BUILD_VARIANT" = unsigned ]; then
+  VERSIONED_APK="$OUTPUT_DIR/$APP_NAME-$APP_VERSION-$ABI-unsigned.apk"
+  NAMED_APK="$OUTPUT_DIR/$APP_NAME-unsigned.apk"
+  cp "$ALIGNED_APK" "$VERSIONED_APK"
+elif [ "$BUILD_VARIANT" = "debug" ]; then
   DEBUG_KEYSTORE="$CACHE_DIR/agentcodi-debug.keystore"
   if [ ! -f "$DEBUG_KEYSTORE" ]; then
     "$KEYTOOL" -genkeypair -noprompt -keystore "$DEBUG_KEYSTORE" -storepass android -keypass android -alias androiddebugkey -dname "CN=AGENTCODI Android Debug,O=AGENTCODI,C=DE" -keyalg RSA -keysize 2048 -validity 10000
@@ -2041,6 +2097,7 @@ cp "$VERSIONED_APK" "$NAMED_APK"
 
 echo "Verifying APK identity, signature, alignment, ABI, and payload..."
 zipalign -c -p 4 "$VERSIONED_APK"
+if [ "$BUILD_VARIANT" != unsigned ]; then
 certificate_report="$(apksigner verify --verbose --print-certs "$VERSIONED_APK")"
 printf '%s\n' "$certificate_report"
 signer_count="$(printf '%s\n' "$certificate_report" | awk '/^Signer #[0-9]+ certificate SHA-256 digest:/ { count++ } END { print count + 0 }')"
@@ -2061,6 +2118,7 @@ if [ "$BUILD_VARIANT" = "release" ]; then
 elif ! printf '%s\n' "$certificate_report" | grep -Fq 'Signer #1 certificate DN: CN=AGENTCODI Android Debug, O=AGENTCODI, C=DE'; then
   echo "Debug APK was not signed by the local AGENTCODI test signer." >&2
   exit 1
+fi
 fi
 badging="$(env LD_LIBRARY_PATH="$AAPT2_LIBRARY_PATH" "$AAPT2_BIN" dump badging "$VERSIONED_APK")"
 printf '%s\n' "$badging" | grep -Fq "package: name='$APP_ID'"
@@ -2291,7 +2349,7 @@ sha256sum "$VERSIONED_APK" > "$VERSIONED_APK.sha256"
 sha256sum "$NAMED_APK" > "$NAMED_APK.sha256"
 
 echo
-echo "Built $APP_NAME $APP_VERSION ($BUILD_VARIANT-signed, non-debuggable, $ABI)"
+echo "Built $APP_NAME $APP_VERSION ($BUILD_VARIANT, non-debuggable, $ABI)"
 echo "APK: $NAMED_APK"
 echo "Versioned APK: $VERSIONED_APK"
 echo "SHA-256: $(sha256sum "$VERSIONED_APK" | awk '{print $1}')"

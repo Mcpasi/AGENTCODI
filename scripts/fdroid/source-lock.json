@@ -1,0 +1,28 @@
+{
+  "commit": "af5fec312538b25568fd83a0090efe3c417807d1",
+  "files": {
+    ".github/workflows/rusty-v8-android-release.yml": "3476ba163ffd526f1f4bf7946a3347a6d81bba55a4d4e1871d11426d10ee0e9d",
+    ".github/workflows/termux-npm-build-publish.yml": "ae85e4fdf9f82e59f0ffc48f8357dc037180f40172f445d8a565af142121bab7",
+    "codex-rs/Cargo.lock": "91a340025a101939b16b78335d8248058abc52bd7ca5afb7205bcf440f436fb7",
+    "codex-rs/rust-toolchain.toml": "570656042681cfd8795403a455baf9a33035331a07db0645e866bbcea89a3d64",
+    "scripts/check_v8_sandbox.py": "9ce552ff19331bf4bed26ce046a7e0fe6c4783c54094a734a83d82a91977fa9c",
+    "scripts/patch_rusty_v8_android_bindgen.py": "04c64be649c8a69a5a624daa30b422e52beb32d5ec5fc0e872d076fb96a9e33d"
+  },
+  "libclang_major": "21",
+  "ndk": "28.2.13676358",
+  "repository": "https://github.com/Mcpasi/codex-termux.git",
+  "rust": "1.95.0",
+  "schema": 1,
+  "sdk_build_tools": "36.0.0",
+  "sdk_platform": "36",
+  "source_date_epoch": 1789299433,
+  "target": "aarch64-linux-android",
+  "upstream_commit": "657a993cbee87acf52d14b758ce49dbd46d1b8eb",
+  "v8": {
+    "commit": "5c15a6995c9bb4bacd3e341b59fff32c909c80bf",
+    "repository": "https://github.com/denoland/rusty_v8.git",
+    "sandbox": true,
+    "version": "150.4.0"
+  },
+  "version": "0.153.3-agentcodi.2"
+}

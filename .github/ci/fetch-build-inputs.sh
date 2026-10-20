@@ -46,7 +46,11 @@ if ! command -v curl >/dev/null 2>&1; then
   echo "curl is required." >&2
   exit 1
 fi
-mirror_available=1
+mirror_available="${AGENTCODI_INPUTS_USE_MIRROR:-1}"
+case "$mirror_available" in
+  0|1) ;;
+  *) echo "AGENTCODI_INPUTS_USE_MIRROR must be 0 or 1." >&2; exit 1 ;;
+esac
 if ! command -v gh >/dev/null 2>&1; then
   echo "Note: gh is unavailable; falling back to the pinned upstream URLs." >&2
   mirror_available=0

@@ -1,6 +1,7 @@
 package de.agentcodi.runtime;
 
 import de.agentcodi.storage.WorkspaceFileAccess;
+import de.agentcodi.storage.WorkspaceFileEdit;
 
 import java.io.File;
 import java.io.IOException;
@@ -19,6 +20,15 @@ final class NativeWorkspaceFileAccess {
         return OPENER;
     }
 
+    static WorkspaceFileEdit.Creator creator() {
+        return new WorkspaceFileEdit.Creator() {
+            @Override public void create(File workspace, String relativePath, byte[] contents)
+                throws IOException {
+                NativeEngine.createWorkspaceFile(workspace.getAbsolutePath(), relativePath, contents);
+            }
+        };
+    }
+
     private static final class NativeOpener implements WorkspaceFileAccess.Opener {
         @Override
         public WorkspaceFileAccess.Source open(
@@ -30,7 +40,7 @@ final class NativeWorkspaceFileAccess {
                 throw new IllegalArgumentException("workspaceDirectory must not be null");
             }
             long handle = NativeEngine.openWorkspaceFile(
-                workspaceDirectory.getCanonicalPath(),
+                workspaceDirectory.getAbsolutePath(),
                 relativePath,
                 maximumBytes
             );
@@ -52,6 +62,7 @@ final class NativeWorkspaceFileAccess {
         private long handle;
         private final long byteCount;
         private final FileTime lastModifiedTime;
+        private final FileTime changeTime;
         private final String fileKey;
 
         private NativeSource(long handle, long[] metadata, long maximumBytes)
@@ -65,17 +76,19 @@ final class NativeWorkspaceFileAccess {
                 throw new IOException("Native workspace file metadata is outside its bounds");
             }
             final FileTime modified;
+            final FileTime changed;
             try {
                 modified = FileTime.from(
                     Instant.ofEpochSecond(metadata[1], metadata[2])
                 );
-                Instant.ofEpochSecond(metadata[3], metadata[4]);
+                changed = FileTime.from(Instant.ofEpochSecond(metadata[3], metadata[4]));
             } catch (DateTimeException error) {
                 throw new IOException("Native workspace file timestamp is invalid", error);
             }
             this.handle = handle;
             this.byteCount = metadata[0];
             this.lastModifiedTime = modified;
+            this.changeTime = changed;
             this.fileKey = "(dev=" + Long.toHexString(metadata[5])
                 + ",ino=" + Long.toUnsignedString(metadata[6]) + ")";
         }
@@ -88,6 +101,11 @@ final class NativeWorkspaceFileAccess {
         @Override
         public FileTime getLastModifiedTime() {
             return lastModifiedTime;
+        }
+
+        @Override
+        public FileTime getChangeTime() {
+            return changeTime;
         }
 
         @Override
@@ -124,6 +142,12 @@ final class NativeWorkspaceFileAccess {
         public synchronized void verifyUnchanged() throws IOException {
             requireOpen();
             NativeEngine.verifyWorkspaceFile(handle);
+        }
+
+        @Override
+        public synchronized void replace(byte[] contents) throws IOException {
+            requireOpen();
+            NativeEngine.replaceWorkspaceFile(handle, contents);
         }
 
         @Override

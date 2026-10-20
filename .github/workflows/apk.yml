@@ -28,7 +28,13 @@ permissions:
   contents: read
 
 jobs:
+  codex-source:
+    if: ${{ github.event_name == 'push' || !inputs.preflight_only }}
+    uses: ./.github/workflows/codex-source.yml
+
   apk:
+    needs: codex-source
+    if: ${{ always() && !failure() && !cancelled() }}
     name: Debug APK
     runs-on: ubuntu-24.04-arm
     timeout-minutes: 120
@@ -53,6 +59,13 @@ jobs:
     steps:
       - name: Check out the repository
         uses: actions/checkout@v4
+
+      - name: Download Codex built from the locked source recipes
+        if: ${{ !inputs.preflight_only }}
+        uses: actions/download-artifact@v4
+        with:
+          name: codex-source
+          path: output/codex-source
 
       # The mirror is a private backup, so this needs a token with read access
       # to it; the default workflow token cannot reach another repository.
@@ -85,6 +98,7 @@ jobs:
           docker run --rm $SANDBOX_OPTS \
             -v "$GITHUB_WORKSPACE":/workspace -w /workspace \
             -e AGENTCODI_CACHE_DIR=/workspace/.cache/android \
+            -e AGENTCODI_CODEX_BUILD_DIR=/workspace/output/codex-source \
             -e AGENTCODI_OUTPUT_DIR=/workspace/output/apk \
             -e AGENTCODI_SKIP_DEVICE_LINKER_TESTS=1 \
             -e AGENTCODI_BOOTSTRAP_LAYOUT=flat \

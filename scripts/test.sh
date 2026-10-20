@@ -34,6 +34,9 @@ find \
   "$PROJECT_ROOT/modules/storage/src/main/java" \
   "$PROJECT_ROOT/modules/file-browser-contracts/src/main/java" \
   "$PROJECT_ROOT/modules/file-browser-client/src/main/java" \
+  "$PROJECT_ROOT/modules/file-editor-contracts/src/main/java" \
+  "$PROJECT_ROOT/modules/file-editor-client/src/main/java" \
+  "$PROJECT_ROOT/modules/file-editor-syntax/src/main/java" \
   "$PROJECT_ROOT/modules/import-contracts/src/main/java" \
   "$PROJECT_ROOT/modules/import-client/src/main/java" \
   "$PROJECT_ROOT/modules/mcp-contracts/src/main/java" \
@@ -42,6 +45,7 @@ find \
   "$PROJECT_ROOT/modules/connector-client/src/main/java" \
   "$PROJECT_ROOT/app/src/main/java/de/agentcodi/app/TranscriptCardPresentation.java" \
   "$PROJECT_ROOT/app/src/main/java/de/agentcodi/app/FileChangeDetail.java" \
+  "$PROJECT_ROOT/app/src/main/java/de/agentcodi/app/ChatMarkdown.java" \
   "$PROJECT_ROOT/scripts/java/de/agentcodi/tools/CodexPackageMetadata.java" \
   "$PROJECT_ROOT/scripts/java/de/agentcodi/tools/CodexLocalSource.java" \
   "$PROJECT_ROOT/scripts/java/de/agentcodi/tools/CodexRuntimeUpdater.java" \

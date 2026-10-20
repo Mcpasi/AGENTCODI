@@ -27,9 +27,11 @@ final class TranscriptCardView extends LinearLayout {
     private final LinearLayout header;
     private final LinearLayout content;
     private final TextView summary;
+    private final ChatMarkdownText markdownSummary;
     private final LinearLayout changes;
     private final TextView detailLabel;
     private final TextView detail;
+    private final ChatMarkdownText markdownDetail;
     private CodexTranscriptItem boundItem;
 
     TranscriptCardView(
@@ -134,6 +136,7 @@ final class TranscriptCardView extends LinearLayout {
         summary = theme.text("", 14, theme.primary);
         summary.setTextIsSelectable(true);
         summary.setLineSpacing(0.0f, 1.2f);
+        markdownSummary = new ChatMarkdownText(summary, theme);
         theme.addWithTopMargin(content, summary, 12);
 
         changes = new LinearLayout(context);
@@ -146,6 +149,7 @@ final class TranscriptCardView extends LinearLayout {
         detail = theme.text("", 13, theme.primary);
         detail.setTextIsSelectable(true);
         detail.setLineSpacing(0.0f, 1.22f);
+        markdownDetail = new ChatMarkdownText(detail, theme);
         detail.setPadding(theme.dp(12), theme.dp(10), theme.dp(12), theme.dp(10));
         detail.setBackground(theme.background(theme.surfaceRaised, Color.TRANSPARENT, 12));
         theme.addWithTopMargin(content, detail, 8);
@@ -198,7 +202,9 @@ final class TranscriptCardView extends LinearLayout {
             && state == TranscriptCardPresentation.State.RUNNING) {
             summaryText = getContext().getString(R.string.transcript_receiving);
         }
-        summary.setText(summaryText);
+        boolean markdown = item.getKind() == CodexTranscriptItem.Kind.REASONING
+            || item.getKind() == CodexTranscriptItem.Kind.PLAN;
+        markdownSummary.bind(summaryText, markdown);
         summary.setVisibility(summaryText.isEmpty() ? GONE : VISIBLE);
         boolean monospaceSummary = TranscriptCardPresentation.monospaceSummary(item);
         preview.setText(firstLine(summaryText.isEmpty() ? detailText : summaryText));
@@ -216,7 +222,7 @@ final class TranscriptCardView extends LinearLayout {
             ? theme.background(theme.code, theme.blend(theme.code, theme.border, 0.6f), 12)
             : null);
         boolean monospaceDetail = TranscriptCardPresentation.monospaceDetail(item);
-        detail.setText(detailText);
+        markdownDetail.bind(detailText, markdown);
         detail.setVisibility(detailText.isEmpty() ? GONE : VISIBLE);
         detail.setTypeface(monospaceDetail ? Typeface.MONOSPACE : Typeface.DEFAULT);
         detail.setTextColor(monospaceDetail ? theme.codeText : theme.primary);

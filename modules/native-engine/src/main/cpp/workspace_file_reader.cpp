@@ -1,6 +1,7 @@
 #include "workspace_file_reader.h"
 
 #include <cerrno>
+#include <atomic>
 #include <climits>
 #include <cstdint>
 #include <limits>
@@ -8,6 +9,7 @@
 
 #include <fcntl.h>
 #include <sys/stat.h>
+#include <sys/syscall.h>
 #include <unistd.h>
 
 namespace agentcodi {
@@ -107,7 +109,7 @@ int duplicate_descriptor(int descriptor) {
   return duplicate;
 }
 
-int open_relative_file(
+int open_relative_parent(
     int root_descriptor,
     const std::vector<std::string>& components,
     std::string* error) {
@@ -130,6 +132,15 @@ int open_relative_file(
     }
     parent.reset(child);
   }
+  return parent.release();
+}
+
+int open_relative_file(
+    int root_descriptor, const std::vector<std::string>& components, std::string* error) {
+  ScopedDescriptor parent(open_relative_parent(root_descriptor, components, error));
+  if (parent.get() < 0) {
+    return -1;
+  }
   int file;
   do {
     file = openat(
@@ -142,6 +153,64 @@ int open_relative_file(
   }
   return file;
 }
+
+class ScopedPendingFile final {
+ public:
+  explicit ScopedPendingFile(int parent) : parent_(parent) {}
+  ~ScopedPendingFile() {
+    if (created_ && !committed_) {
+      unlinkat(parent_, name_.c_str(), 0);
+    }
+  }
+
+  const std::string& name() const { return name_; }
+  void commit() { committed_ = true; }
+
+  bool Write(const unsigned char* bytes, std::size_t length, mode_t mode,
+      const std::string& destination, std::string* error) {
+    static std::atomic<std::uint64_t> sequence{0};
+    ScopedDescriptor target;
+    for (int attempt = 0; attempt < 32; ++attempt) {
+      name_ = ".agentcodi-edit-" + std::to_string(getpid()) + "-"
+          + std::to_string(sequence.fetch_add(1));
+      if (name_ == destination) { continue; }
+      int descriptor;
+      do {
+        descriptor = openat(parent_, name_.c_str(),
+            O_WRONLY | O_CREAT | O_EXCL | O_CLOEXEC | O_NOFOLLOW, 0600);
+      } while (descriptor < 0 && errno == EINTR);
+      target.reset(descriptor);
+      if (target.get() >= 0 || errno != EEXIST) {
+        break;
+      }
+    }
+    if (target.get() < 0) {
+      return fail("Workspace edit temporary file could not be created", error);
+    }
+    created_ = true;
+    std::size_t offset = 0;
+    while (offset < length) {
+      const ssize_t count = write(target.get(), bytes + offset, length - offset);
+      if (count < 0 && errno == EINTR) {
+        continue;
+      }
+      if (count <= 0) {
+        return fail("Workspace edit could not be written", error);
+      }
+      offset += static_cast<std::size_t>(count);
+    }
+    if (fchmod(target.get(), mode) != 0 || fsync(target.get()) != 0) {
+      return fail("Workspace edit could not be synced", error);
+    }
+    return true;
+  }
+
+ private:
+  int parent_;
+  std::string name_;
+  bool created_ = false;
+  bool committed_ = false;
+};
 
 WorkspaceFileMetadata metadata_from_stat(const struct stat& attributes) {
   WorkspaceFileMetadata metadata;
@@ -370,6 +439,108 @@ bool WorkspaceFileReader::VerifyUnchanged(std::string* error) const {
     return fail("Workspace file changed during export", error);
   }
   return true;
+}
+
+bool WorkspaceFileReader::Replace(
+    const unsigned char* bytes, std::size_t length, std::string* error) {
+  if ((bytes == nullptr && length != 0U)
+      || length > static_cast<std::uint64_t>(maximum_bytes_)) {
+    return fail("Workspace replacement is outside the edit limit", error);
+  }
+  if (!VerifyUnchanged(error)) {
+    return false;
+  }
+  ScopedDescriptor parent(open_relative_parent(root_descriptor_, components_, error));
+  if (parent.get() < 0) {
+    return fail("Workspace edit parent could not be opened", error);
+  }
+  struct stat original {};
+  if (!read_attributes(file_descriptor_, &original, error)) {
+    return false;
+  }
+  ScopedPendingFile temporary(parent.get());
+  if (!temporary.Write(bytes, length, original.st_mode & 0777, components_.back(), error)) {
+    return false;
+  }
+  struct stat destination {};
+  if (!VerifyUnchanged(error)
+      || fstatat(parent.get(), components_.back().c_str(), &destination,
+          AT_SYMLINK_NOFOLLOW) != 0
+      || !same_snapshot(destination, metadata_)) {
+    return fail("Workspace file changed before saving", error);
+  }
+  if (renameat(parent.get(), temporary.name().c_str(), parent.get(),
+          components_.back().c_str()) != 0) {
+    return fail("Workspace replacement could not be installed", error);
+  }
+  temporary.commit();
+  // The file is already committed. A directory-sync error must not imply that
+  // retrying the old snapshot could safely overwrite the new revision.
+  fsync(parent.get());
+  return true;
+}
+
+WorkspaceFileCreationResult WorkspaceFileReader::Create(
+    const std::string& workspace, const std::string& relative_path,
+    const unsigned char* bytes, std::size_t length,
+    std::int64_t maximum_bytes, std::string* error) {
+  if (error != nullptr) { error->clear(); }
+  if (!valid_workspace_path(workspace) || maximum_bytes < 0
+      || (bytes == nullptr && length != 0U)
+      || length > static_cast<std::uint64_t>(maximum_bytes)) {
+    fail("New workspace file request is invalid", error);
+    return WorkspaceFileCreationResult::Failed;
+  }
+  std::vector<std::string> components;
+  if (!parse_relative_path(relative_path, &components, error)) {
+    return WorkspaceFileCreationResult::Failed;
+  }
+  int root_descriptor;
+  do {
+    root_descriptor = open(workspace.c_str(), O_RDONLY | O_DIRECTORY | O_CLOEXEC | O_NOFOLLOW);
+  } while (root_descriptor < 0 && errno == EINTR);
+  ScopedDescriptor root(root_descriptor);
+  if (root.get() < 0) {
+    fail("New workspace file root could not be opened without links", error);
+    return WorkspaceFileCreationResult::Failed;
+  }
+  ScopedDescriptor parent(open_relative_parent(root.get(), components, error));
+  if (parent.get() < 0) { return WorkspaceFileCreationResult::Failed; }
+  struct stat existing {};
+  if (fstatat(parent.get(), components.back().c_str(), &existing, AT_SYMLINK_NOFOLLOW) == 0) {
+    return WorkspaceFileCreationResult::AlreadyExists;
+  }
+  if (errno != ENOENT) {
+    fail("New workspace file destination could not be checked", error);
+    return WorkspaceFileCreationResult::Failed;
+  }
+  ScopedPendingFile temporary(parent.get());
+  if (!temporary.Write(bytes, length, 0600, components.back(), error)) {
+    return WorkspaceFileCreationResult::Failed;
+  }
+  // Reject a moved or replaced directory before installing through its descriptor.
+  ScopedDescriptor current_parent(open_relative_parent(root.get(), components, error));
+  struct stat before {}, current {};
+  if (current_parent.get() < 0 || !read_attributes(parent.get(), &before, error)
+      || !read_attributes(current_parent.get(), &current, error)
+      || before.st_dev != current.st_dev || before.st_ino != current.st_ino) {
+    fail("New workspace file parent changed before saving", error);
+    return WorkspaceFileCreationResult::Failed;
+  }
+  int moved;
+  do {
+    // Same no-replace syscall used by the workspace import installer on Android API 29+.
+    moved = static_cast<int>(syscall(SYS_renameat2, parent.get(), temporary.name().c_str(),
+        parent.get(), components.back().c_str(), 1U));
+  } while (moved != 0 && errno == EINTR);
+  if (moved != 0) {
+    if (errno == EEXIST) { return WorkspaceFileCreationResult::AlreadyExists; }
+    fail("New workspace file could not be installed without replacement", error);
+    return WorkspaceFileCreationResult::Failed;
+  }
+  temporary.commit();
+  fsync(parent.get());
+  return WorkspaceFileCreationResult::Created;
 }
 
 }  // namespace agentcodi

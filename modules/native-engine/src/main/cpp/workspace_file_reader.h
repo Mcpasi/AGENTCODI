@@ -21,6 +21,8 @@ struct WorkspaceFileMetadata {
   std::uint64_t inode = 0;
 };
 
+enum class WorkspaceFileCreationResult { Created, AlreadyExists, Failed };
+
 class WorkspaceFileReader final {
  public:
   static std::unique_ptr<WorkspaceFileReader> Open(
@@ -28,6 +30,11 @@ class WorkspaceFileReader final {
       const std::string& relative_path,
       std::int64_t maximum_bytes,
       std::string* error);
+
+  static WorkspaceFileCreationResult Create(
+      const std::string& workspace, const std::string& relative_path,
+      const unsigned char* bytes, std::size_t length,
+      std::int64_t maximum_bytes, std::string* error);
 
   ~WorkspaceFileReader();
 
@@ -42,6 +49,10 @@ class WorkspaceFileReader final {
   bool Position(std::int64_t absolute_offset, std::string* error);
 
   bool VerifyUnchanged(std::string* error) const;
+
+  // Save a complete revision through a synced sibling and atomic rename.
+  // The reader's original snapshot is consumed by a successful replacement.
+  bool Replace(const unsigned char* bytes, std::size_t length, std::string* error);
 
  private:
   WorkspaceFileReader(

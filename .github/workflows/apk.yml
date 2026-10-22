@@ -23,17 +23,22 @@ on:
         description: 'Only check the container, do not build'
         type: boolean
         default: true
+      source_run_id:
+        description: 'Optional: reuse this repository run’s source artifacts; current source receipts must match'
+        type: string
+        default: ''
 
 permissions:
   contents: read
+  actions: read
 
 jobs:
   codex-source:
-    if: ${{ github.event_name == 'push' || !inputs.preflight_only }}
+    if: ${{ (github.event_name == 'push' || !inputs.preflight_only) && !inputs.source_run_id }}
     uses: ./.github/workflows/codex-source.yml
 
   runtime-source:
-    if: ${{ github.event_name == 'push' || !inputs.preflight_only }}
+    if: ${{ (github.event_name == 'push' || !inputs.preflight_only) && !inputs.source_run_id }}
     uses: ./.github/workflows/runtime-source.yml
 
   apk:
@@ -73,6 +78,8 @@ jobs:
         with:
           name: codex-source
           path: output/codex-source
+          run-id: ${{ inputs.source_run_id || github.run_id }}
+          github-token: ${{ inputs.source_run_id && github.token || '' }}
 
       - name: Download the Android inputs built from the local source recipes
         if: ${{ !inputs.preflight_only }}
@@ -80,11 +87,14 @@ jobs:
         with:
           name: runtime-source
           path: output/runtime-source
+          run-id: ${{ inputs.source_run_id || github.run_id }}
+          github-token: ${{ inputs.source_run_id && github.token || '' }}
 
-      - name: Verify the complete runtime source receipt
+      - name: Verify both complete source receipts against the current recipes
         if: ${{ !inputs.preflight_only }}
         run: |
           tar -xf output/runtime-source/runtime-source.tar -C output/runtime-source
+          ./scripts/build-codex-from-source.sh verify
           ./scripts/build-runtime-from-source.sh verify
 
       - name: Restore the pinned build inputs

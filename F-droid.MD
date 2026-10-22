@@ -549,10 +549,47 @@ Validierung vor dem erneuten vollständigen Bau:
 - Architekturverträge, Workflow-YAML/-Shell-Syntax und Git-Diff geprüft.
 
 Der Codex-Workflow führt die Rust-Tests der Host-Auswahl nach der Vorbereitung
-mit `--frozen` vor dem mehrstündigen V8-Bau aus. Nach dem Push wird der
-vollständige `APK`-Workflow einschließlich aller Quellrezepte erneut gestartet;
-sein Ergebnis bleibt offen. Der mehrstündige Lauf wird auf Wunsch des
-Benutzers nicht begleitet.
+mit `--frozen` vor dem mehrstündigen V8-Bau aus. Der anschließende vollständige
+[APK-Lauf 39763718997](https://github.com/Mcpasi/AGENTCODI/actions/runs/39763718997)
+auf Commit `53b64e2` baute beide Quellpaketsets erfolgreich. Die APK-Montage
+passierte danach die Codex-Host-Pfad-Prüfung und scheiterte erst am folgenden
+Prüfsummenformat.
+
+## Prüfsummen-Recorder und erneute APK-Montage am 22. Oktober 2026
+
+Lauf `39763718997` scheiterte in `scripts/fdroid/record-runtime.py` mit
+`Invalid or duplicate derived native fingerprint`. Der Assembler erzeugt
+den gültigen Namen `ICUI18N_RUNTIME_SHA256`; der Recorder erlaubte vor dem
+Suffix jedoch ausschließlich Großbuchstaben und Unterstriche. Die Ziffern
+im Namen der ICU-Bibliothek wurden dadurch fälschlich abgelehnt.
+
+Der Recorder erlaubt jetzt auch Ziffern nach dem ersten Zeichen. Die
+Prüfung auf genau 64 kleine hexadezimale SHA-256-Zeichen und die Ablehnung
+doppelter Namen bleiben erhalten. Fehlermeldungen nennen zusätzlich den
+betroffenen Namen bzw. bei fehlerhaften TSV-Zeilen die Zeilennummer. Die
+Runtime und ihre Sicherheitsprüfungen werden dadurch nicht verändert.
+
+Ein neuer Integrationstest führt den tatsächlichen `record_derived_hash`-
+Produzenten aus `build-debug-apk.sh` mit sämtlichen dort verwendeten Namen
+einschließlich der Attestor-Namen aus und verarbeitet dessen TSV-Ausgabe mit
+dem Recorder. Er prüft Transformations-, Payload- und Quellnachweishashes.
+Weitere Tests lehnen ungültige Namen, Hashes, doppelte Einträge, fehlerhafte
+TSV-Zeilen und verlinkte native Nutzdaten weiterhin ab. Alle 21 Python-Tests
+der Buildhilfen sowie Architektur- und Workflow-Syntaxprüfungen sind erfolgreich.
+
+Für einen erneuten Lauf nach Änderungen ausschließlich an der APK-Montage
+besitzt der `APK`-Workflow den optionalen Parameter `source_run_id`. Er lädt
+die beiden Quellbuild-Artefakte eines früheren Laufs desselben Repositories
+und prüft beide vollständigen Nachweise gegen die aktuellen Builder,
+Quellstände, Locks, Quellpatches und Runtime-Rezepte vor dem Containerbau.
+Abweichende oder unvollständige Ausgaben werden abgelehnt. Mit leerem
+Parameter werden weiterhin alle Rezepte vollständig neu gebaut.
+
+Die Quellrezepte dieses Fixes sind unverändert. Die nächste APK-Montage
+verwendet deshalb die erfolgreichen eigenen Quellbuild-Ausgaben aus Lauf
+`39763718997`; ein erneuter mehrstündiger Codex-/V8-/Runtime-Bau ist dafür
+nicht erforderlich. Das Ergebnis der erneuten vollständigen APK-Montage
+bleibt bis zum Abschluss dieses Laufs offen.
 
 ## Verbleibende F-Droid-Hürden
 

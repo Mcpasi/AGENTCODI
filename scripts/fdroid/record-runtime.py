@@ -16,10 +16,15 @@ def digest(path):
 
 def record(assets, transformations, native, compiler):
     hashes = {}
-    for line in transformations.read_text().splitlines():
-        name, value = line.split("\t")
-        if name in hashes or not re.fullmatch(r"[A-Z_]+_SHA256", name) or not re.fullmatch(r"[a-f0-9]{64}", value):
-            raise ValueError("Invalid or duplicate derived native fingerprint")
+    for number, line in enumerate(transformations.read_text().splitlines(), 1):
+        fields = line.split("\t")
+        if len(fields) != 2:
+            raise ValueError(f"Invalid derived native fingerprint record on line {number}")
+        name, value = fields
+        if not re.fullmatch(r"[A-Z_][A-Z0-9_]*_SHA256", name) or not re.fullmatch(r"[a-f0-9]{64}", value):
+            raise ValueError(f"Invalid derived native fingerprint: {name}")
+        if name in hashes:
+            raise ValueError(f"Duplicate derived native fingerprint: {name}")
         hashes[name] = value
     payload = {}
     for file in sorted(native.glob("*.so")):

@@ -1,6 +1,6 @@
 # F-Droid: Übernahmen und Build-Umbau
 
-Stand: 20. Oktober 2026. Arbeitsbranch: `fdroid/source-build-and-editor`.
+Stand: 22. Oktober 2026. Arbeitsbranch: `fdroid/source-build-and-editor`.
 
 Diese Datei dokumentiert die Anpassungen dieses Arbeitsstands. Bestehende
 Dokumente, insbesondere README, CHANGELOG, NOTICE und SECURITY, bleiben
@@ -459,6 +459,43 @@ siehe deren [Lizenzregel](https://github.com/termux/termux-packages/blob/e23be59
 Bestehende Rechtsdokumente und Notice-Texte werden auf ausdrückliche Vorgabe
 nicht bearbeitet; die spätere Veröffentlichung muss deren historischen Stand
 mit den neuen Quellbuild-Nachweisen abgleichen.
+
+## CI-Korrektur der APK-Attestoren am 22. Oktober 2026
+
+Im vollständigen [APK-Lauf 39680140659](https://github.com/Mcpasi/AGENTCODI/actions/runs/39680140659)
+auf Commit `c2544cf` waren beide Quellbuild-Jobs erfolgreich: die eigenen
+Runtime-Rezepte und die Codex-/Sandbox-V8-Rezepte. Nach mehr als drei Stunden
+scheiterte die anschließende APK-Montage beim Kompilieren der Guard-Attestoren
+mit `argument unused during compilation: '-L…' [-Werror,-Wunused-command-line-argument]`.
+
+Die Ursache war der beim Runtime-Umbau zusätzlich übergebene Bibliothekspfad
+`-L"$AAPT2_LIBRARY_PATH"` im reinen `clang++ -c`-Aufruf. Dieser Schritt erzeugt
+nur ein Objekt; das separate `ld.lld -nostdlib -static` verknüpft danach den
+freistehenden Attestor. Der Bibliothekspfad wird deshalb ausschließlich aus
+diesem Kompilierschritt entfernt. Die Linkschritte der App und ihrer Guards
+verwenden weiter die selbst gebaute C++-Laufzeit. `-Werror`, alle Attestoren,
+ihre Injektion und die bestehenden Sicherheitsprüfungen bleiben erhalten.
+
+Gezielte Validierung ohne erneuten mehrstündigen Quellbau:
+
+- Der ursprüngliche APK-Kompilieraufruf reproduziert denselben Fehler mit
+  Clang `21.1.8`.
+- Der korrigierte Attestor-/Injector-Block aus `build-debug-apk.sh` wird mit
+  Clang `21.1.8`, dem NDK-29-Sysroot und den selbst gebauten libc++-Headern
+  ohne Netzwerk ausgeführt. Node-, Python- und ripgrep-Attestoren kompilieren
+  mit den unveränderten strengen Warnungen und werden ohne Relokationen mit
+  Einsprungadresse null verknüpft.
+- Der Injector fügt alle drei Attestoren erfolgreich in die tatsächlichen,
+  bereits aus Quellen gebauten ARM64-Runtimes ein. Das ausführbare
+  Einsprungsegment ist auf 16 KiB ausgerichtet; die Bibliotheksabhängigkeiten
+  bleiben unverändert.
+- Alle 15 Python-Tests der Buildhilfen, Architekturverträge, Bash-Syntax,
+  Runtime-Quellnachweis und Git-Diff sind erfolgreich geprüft.
+
+Der vollständige `APK`-Workflow wird nach dem Push dieses Fixes mit
+`preflight_only=false` erneut gestartet. Das Ergebnis der gesamten
+APK-Montage bleibt bis zu dessen Abschluss offen; der mehrstündige Lauf wird
+auf Wunsch des Benutzers nicht begleitet.
 
 ## Verbleibende F-Droid-Hürden
 

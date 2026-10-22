@@ -831,7 +831,7 @@ for attestor_spec in \
   attestor_remainder="${attestor_remainder#*:}"
   attestor_guard="${attestor_remainder%%:*}"
   attestor_sha256="${attestor_remainder#*:}"
-  "$CLANGXX" --target=aarch64-linux-android"$MIN_SDK" -nostdinc++ -isystem"$TERMUX_RUNTIME_PREFIX/include/c++/v1" -L"$AAPT2_LIBRARY_PATH" -std=c++17 -Os \
+  "$CLANGXX" --target=aarch64-linux-android"$MIN_SDK" -nostdinc++ -isystem"$TERMUX_RUNTIME_PREFIX/include/c++/v1" -std=c++17 -Os \
     -Wall -Wextra -Werror -ffreestanding -fno-builtin -fno-exceptions \
     -fno-rtti -fno-unwind-tables -fno-asynchronous-unwind-tables \
     -fno-stack-protector -fvisibility=hidden -fPIE \

@@ -585,11 +585,56 @@ Quellstände, Locks, Quellpatches und Runtime-Rezepte vor dem Containerbau.
 Abweichende oder unvollständige Ausgaben werden abgelehnt. Mit leerem
 Parameter werden weiterhin alle Rezepte vollständig neu gebaut.
 
-Die Quellrezepte dieses Fixes sind unverändert. Die nächste APK-Montage
-verwendet deshalb die erfolgreichen eigenen Quellbuild-Ausgaben aus Lauf
-`39763718997`; ein erneuter mehrstündiger Codex-/V8-/Runtime-Bau ist dafür
-nicht erforderlich. Das Ergebnis der erneuten vollständigen APK-Montage
-bleibt bis zum Abschluss dieses Laufs offen.
+Die Quellrezepte dieses Fixes sind unverändert. Die erneute APK-Montage in
+[Lauf 39799918240](https://github.com/Mcpasi/AGENTCODI/actions/runs/39799918240)
+verwendete deshalb die erfolgreichen eigenen Quellbuild-Ausgaben aus Lauf
+`39763718997`. Beide vollständigen Quellnachweise wurden gegen den aktuellen
+Stand erfolgreich geprüft. Der Recorder, sämtliche Runtime-Smokes und der
+Android-App-Server-Bootstrap waren erfolgreich. Die signierte APK wurde
+erzeugt; erst ihre Endkontrolle scheiterte an der folgenden alten Aliasliste.
+
+## Modulbezogene Python-Endkontrolle am 22. Oktober 2026
+
+Lauf `39799918240` scheiterte mit
+`APK contains a deliberately excluded Python/GNU payload: lib/arm64-v8a/libpython_ext_015.so`.
+Die Endkontrolle hatte drei feste Dateinummern aus dem früheren vorgebauten
+Python-Paket ausgeschlossen. Im eigenen Rezept werden `_dbm`, `_gdbm` und
+`readline` bereits vor dem Kompilieren deaktiviert. Die sortierte Liste der
+übrigen 72 Module ist deshalb kürzer und ihre Aliasnummern verschieben sich:
+
+| APK-Alias | Tatsächliches Modul im eigenen Quellbau |
+| --- | --- |
+| `libpython_ext_015.so` | `_decimal` |
+| `libpython_ext_018.so` | `_heapq` |
+| `libpython_ext_065.so` | `syslog` |
+
+Diese gültigen Module bleiben vollständig enthalten. Die Endkontrolle in
+`scripts/fdroid/verify-python-payload.py` verwendet jetzt die Modulidentität
+aus dem tatsächlich eingebetteten `RUNTIME-MANIFEST`. Sie lehnt die drei
+ausgeschlossenen Module unabhängig von ihrer Aliasnummer ab und prüft die
+vollständige Übereinstimmung aller 72 Aliasnamen und SHA-256-Prüfsummen mit
+den tatsächlichen APK-Einträgen. Zusätzliche oder fehlende Erweiterungen,
+doppelte Zuordnungen und GNU-dbm-/readline-Bibliotheken werden abgelehnt.
+Die bisherigen Quell-, ELF-Abhängigkeits-, Runtime- und Sandbox-Prüfungen
+bleiben aktiv.
+
+Validierung vor dem erneuten APK-Lauf:
+
+- Alle 25 Python-Tests erfolgreich. Die Regressionstests erhalten die drei
+  oben genannten gültigen Module und erkennen die ausgeschlossenen Module
+  auch unter einer anderen Aliasnummer. Fehlende, zusätzliche, ausgetauschte,
+  veränderte und doppelt zugeordnete Module sowie GNU-Bibliotheken werden
+  weiterhin abgelehnt.
+- Alle 72 tatsächlichen nativen Erweiterungen aus dem verifizierten eigenen
+  Python-Quellpaket mit ihren Manifest-Zuordnungen und Archivhashes durch die
+  neue Endkontrolle geprüft.
+- Vollständiger Runtime-Quellnachweis, Architekturverträge, Bash-Syntax und
+  Git-Diff erfolgreich geprüft.
+
+Die Quellbuilder und ihre Rezepte bleiben unverändert. Die erneute
+APK-Montage kann deshalb wieder die geprüften eigenen Quellausgaben aus
+Lauf `39763718997` verwenden. Ein weiterer mehrstündiger Quellbau ist für
+diese Korrektur nicht erforderlich; der abschließende APK-Lauf steht aus.
 
 ## Verbleibende F-Droid-Hürden
 

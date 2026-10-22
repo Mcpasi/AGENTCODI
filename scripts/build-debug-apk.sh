@@ -2006,18 +2006,6 @@ if [ "$(grep -Ec "^lib/$ABI/libpython_ext_[0-9]{3}\.so$" "$WORK_DIR/apk-entries.
   echo "APK does not contain the reviewed Python extension-module set." >&2
   exit 1
 fi
-for forbidden_apk_entry in \
-    "lib/$ABI/libgdbm.so" \
-    "lib/$ABI/libgdbm_compat.so" \
-    "lib/$ABI/libreadline_8.so" \
-    "lib/$ABI/libpython_ext_015.so" \
-    "lib/$ABI/libpython_ext_018.so" \
-    "lib/$ABI/libpython_ext_065.so"; do
-  if grep -Fxq "$forbidden_apk_entry" "$WORK_DIR/apk-entries.txt"; then
-    echo "APK contains a deliberately excluded Python/GNU payload: $forbidden_apk_entry" >&2
-    exit 1
-  fi
-done
 grep -Fx 'assets/third-party/codex/LICENSE' "$WORK_DIR/apk-entries.txt"
 grep -Fx 'assets/third-party/codex/NOTICE' "$WORK_DIR/apk-entries.txt"
 for license_file in NODE-LICENSE CARES-LICENSE ICU-LICENSE OPENSSL-LICENSE ZLIB-LICENSE; do
@@ -2039,10 +2027,8 @@ if ! cmp -s "$TOOL_RUNTIME_MANIFEST" "$WORK_DIR/apk-runtime-manifest"; then
   echo "APK tool-runtime manifest differs from the reviewed build output." >&2
   exit 1
 fi
-if grep -Eq 'lib-dynload/(_dbm|_gdbm|readline)\.cpython-' "$WORK_DIR/apk-runtime-manifest"; then
-  echo "APK tool-runtime manifest references an excluded Python extension." >&2
-  exit 1
-fi
+python3 -B "$SCRIPT_DIR/fdroid/verify-python-payload.py" \
+  "$VERSIONED_APK" "$ABI" "$PYTHON_PACKAGED_EXTENSION_COUNT"
 unzip -p "$VERSIONED_APK" 'assets/third-party/python/PYTHON-LICENSES' \
   > "$WORK_DIR/apk-python-licenses"
 if ! cmp -s "$PYTHON_LICENSES" "$WORK_DIR/apk-python-licenses" \

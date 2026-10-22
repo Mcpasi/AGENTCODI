@@ -52,6 +52,8 @@ Der APK-Build verwendet kein beliebiges lokales Codex-NPM-Archiv mehr.
 Eingaben stehen in `scripts/fdroid/source-lock.json`:
 
 - Commit und Repository des eigenen Codex-termux-Forks;
+- eigener Quellpatch für den von der App vorgegebenen Code-Mode-Host-Pfad,
+  einschließlich SHA-256 von Patch, ursprünglicher und gepatchter Quelldatei;
 - SHA-256 der beiden Fork-Workflows, der Cargo-Sperrdatei und der relevanten
   Prüf- und Patchskripte;
 - Rust `1.95.0`, Ziel `aarch64-linux-android`, NDK `28.2.13676358`, SDK 36,
@@ -95,10 +97,13 @@ die einzelnen Nutzdaten an ihre SHA-256-Prüfsummen. Der APK-Build prüft diesen
 Nachweis, bevor er dessen Ausgabehashes verwendet. Veraltete oder veränderte
 Ausgaben werden abgelehnt.
 
-Der native Supervisor setzt bereits `CODEX_CODE_MODE_HOST_PATH`. Deshalb bleibt
-das neu gebaute Codex-ELF unverändert; die bisherige Ersetzung eines Hostnamens
-an einem festen Byte-Offset entfällt. Die Protokollschema-Prüfungen bleiben
-aktiv. Source-Lock und Quellbuild-Nachweis werden zusätzlich in
+Der native Supervisor setzt `CODEX_CODE_MODE_HOST_PATH`. Der gepinnte Fork
+wertet diese Variable erst mit dem eigenen Quellpatch
+`scripts/fdroid/patches/code-mode-host-path.patch` aus. Der Builder wendet ihn
+vor dem Kompilieren an und prüft die gepatchte Quelldatei gegen ihren
+gesperrten Hash. Die bisherige Ersetzung eines Hostnamens an einem festen
+Byte-Offset entfällt. Die Protokollschema-Prüfungen bleiben aktiv.
+Source-Lock und Quellbuild-Nachweis werden zusätzlich in
 `assets/third-party/codex/` der APK abgelegt.
 
 Die bisherigen Artefakthashes im Buildskript bleiben als historische Basis für
@@ -214,7 +219,7 @@ python3 scripts/fdroid/compare-apks.py \
 - Das festgelegte Ubuntu-Image wurde als OCI-Index geprüft; es enthält die
   benötigte Variante Linux ARM64/v8.
 
-Der vollständige Codex-/V8-Quellbuild für Android ARM64 wurde erfolgreich in
+Der damalige vollständige Codex-/V8-Quellbuild für Android ARM64 wurde erfolgreich in
 einem Container ohne Netzwerkverbindung ausgeführt. Er erzeugt sowohl die CLI
 als auch den Code-Mode-Host aus den festgelegten Fork-Rezepten. Die anschließende
 Prüfung mit `scripts/build-codex-from-source.sh verify` ist erfolgreich:
@@ -492,10 +497,62 @@ Gezielte Validierung ohne erneuten mehrstündigen Quellbau:
 - Alle 15 Python-Tests der Buildhilfen, Architekturverträge, Bash-Syntax,
   Runtime-Quellnachweis und Git-Diff sind erfolgreich geprüft.
 
-Der vollständige `APK`-Workflow wird nach dem Push dieses Fixes mit
-`preflight_only=false` erneut gestartet. Das Ergebnis der gesamten
-APK-Montage bleibt bis zu dessen Abschluss offen; der mehrstündige Lauf wird
-auf Wunsch des Benutzers nicht begleitet.
+Der vollständige `APK`-Workflow wurde danach mit `preflight_only=false` als
+[Lauf 39703947362](https://github.com/Mcpasi/AGENTCODI/actions/runs/39703947362)
+auf Commit `727ef34` erneut gestartet. Beide Quellbuild-Jobs waren erfolgreich;
+die Attestor-Kompilierung und -Injektion passierten die zuvor fehlschlagende
+Stelle. Die spätere Codex-Host-Prüfung deckte den folgenden Integrationsfehler auf.
+
+## Quellkorrektur des Code-Mode-Host-Pfads am 22. Oktober 2026
+
+Lauf `39703947362` scheiterte in der APK-Montage mit
+`Source-built Codex does not support the explicit code-mode host path.`
+Das verifizierte Codex-Artefakt dieses Laufs und der gepinnte Fork-Quellstand
+`af5fec3` bestätigen den Befund: `CODEX_CODE_MODE_HOST_PATH` wurde weder im
+Quellcode ausgewertet noch im erzeugten Programm gefunden. Der Fork ermittelte
+den Host allein anhand von Paketlayout und Standardname. Die frühere Annahme,
+das Setzen der Variable im Supervisor genüge, war falsch.
+
+Der eigene Patch `scripts/fdroid/patches/code-mode-host-path.patch` ergänzt
+`codex-rs/install-context/src/lib.rs`: Ein nicht leerer expliziter Pfad erhält
+Vorrang vor dem bisherigen Paket-/Ressourcenpfad. Eine leere oder fehlende
+Variable behält das bestehende Suchverhalten. Ein ausdrücklich gesetzter,
+aber fehlender Host bleibt als fehlend erkennbar; es wird kein anderer Host
+ausgewählt. Damit kann Codex die von Android als native Bibliothek installierte
+`libcodex-codehost.so` unter dem bereits vom Supervisor übergebenen Pfad starten.
+
+Source-Lock und Builder binden Patch, Ausgangsdatei und gepatchte Datei an
+SHA-256-Prüfsummen. Der Checkout wendet ausschließlich diesen geprüften Patch
+an; weitere Änderungen und zusätzliche unversionierte Quelldateien werden
+abgelehnt. Wiederholte Vorbereitung ist möglich. Der Ausgabenachweis enthält
+zusätzlich `patches_sha256`; frühere Nachweise ohne diese Korrektur werden
+abgelehnt. Nach dem Kompilieren prüft bereits der Quellbuilder den Host-Pfad-
+Marker im erzeugten Codex. Die bestehende APK-Prüfung bleibt ebenfalls aktiv.
+Die zuvor dokumentierten Codex-Ausgabehashes stammen aus dem ungepatchten
+historischen Bau und belegen diese neue Funktion noch nicht.
+
+Validierung vor dem erneuten vollständigen Bau:
+
+- Alle 19 Tests des tatsächlichen gepatchten Rust-Pakets
+  `codex-install-context` mit Rust `1.95.0` erfolgreich, einschließlich
+  Vorrang des expliziten Pfads, fehlendem explizitem Host und bisherigem
+  Ressourcenpfad bei leerer bzw. fehlender Variable.
+- Die öffentliche Host-Auswahl zusätzlich in unabhängigen Prozessen mit
+  expliziter, fehlender und leerer Umgebungsvariable sowie Pfaden mit
+  Leerzeichen und Unicode geprüft.
+- Patch auf einen frischen Checkout angewendet und dieselbe Vorbereitung
+  wiederholt; Quellstand, Patch- und Quelldateihashes stimmen.
+- Alle 18 Python-Tests der Buildhilfen erfolgreich. Neue Prüfungen lehnen
+  veränderte Patchdateien, abweichende gepatchte Quellen, zusätzliche
+  Quelländerungen und unversionierte Dateien ab. Ausgabenachweise müssen die
+  richtige Patchidentität enthalten.
+- Architekturverträge, Workflow-YAML/-Shell-Syntax und Git-Diff geprüft.
+
+Der Codex-Workflow führt die Rust-Tests der Host-Auswahl nach der Vorbereitung
+mit `--frozen` vor dem mehrstündigen V8-Bau aus. Nach dem Push wird der
+vollständige `APK`-Workflow einschließlich aller Quellrezepte erneut gestartet;
+sein Ergebnis bleibt offen. Der mehrstündige Lauf wird auf Wunsch des
+Benutzers nicht begleitet.
 
 ## Verbleibende F-Droid-Hürden
 

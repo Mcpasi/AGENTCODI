@@ -10,6 +10,18 @@
   },
   "libclang_major": "21",
   "ndk": "28.2.13676358",
+  "patches": [
+    {
+      "files": {
+        "codex-rs/install-context/src/lib.rs": {
+          "original_sha256": "18eef650f329b27fbfe986f88c565230d347cb6f5575e953260ace7d794b51b8",
+          "patched_sha256": "c3e588d355d687596bce0de50e1076d42641fa8a749a923e4aa66da3f1189a0f"
+        }
+      },
+      "path": "patches/code-mode-host-path.patch",
+      "sha256": "c9e7f31469b6eb5075a65de1127ea9394c6b1102e6d054a0bc8952638ab9945e"
+    }
+  ],
   "repository": "https://github.com/Mcpasi/codex-termux.git",
   "rust": "1.95.0",
   "schema": 1,

@@ -1,0 +1,94 @@
+diff --git a/codex-rs/install-context/src/lib.rs b/codex-rs/install-context/src/lib.rs
+index 699add6..35a2462 100644
+--- a/codex-rs/install-context/src/lib.rs
++++ b/codex-rs/install-context/src/lib.rs
+@@ -174,6 +174,19 @@ impl InstallContext {
+     }
+ 
+     pub fn code_mode_host_program(&self) -> PathBuf {
++        self.code_mode_host_program_with_override(std::env::var_os("CODEX_CODE_MODE_HOST_PATH"))
++    }
++
++    fn code_mode_host_program_with_override(
++        &self,
++        override_path: Option<std::ffi::OsString>,
++    ) -> PathBuf {
++        // App bundles can give the host an executable name required by their
++        // platform. Preserve an explicit missing path so availability fails
++        // closed instead of selecting a different bundled host.
++        if let Some(path) = override_path.filter(|value| !value.is_empty()) {
++            return PathBuf::from(path);
++        }
+         // prefer the one packed under codex-resources
+         self.bundled_resource(CODE_MODE_HOST_EXECUTABLE_NAME)
+             .map_or_else(
+@@ -372,6 +385,69 @@ mod tests {
+ 
+     const TEST_RESOURCE_NAME: &str = "codex-test-helper";
+ 
++    #[test]
++    fn code_mode_host_program_honors_explicit_path_before_bundled_hosts() -> std::io::Result<()> {
++        let package_dir = tempfile::tempdir()?;
++        let bin_dir = package_dir.path().join(BIN_DIRNAME);
++        let resources_dir = package_dir.path().join(RESOURCES_DIRNAME);
++        fs::create_dir_all(&bin_dir)?;
++        fs::create_dir_all(&resources_dir)?;
++        fs::write(package_dir.path().join(PACKAGE_METADATA_FILENAME), "{}")?;
++        let exe_path = bin_dir.join("codex");
++        fs::write(&exe_path, "")?;
++        fs::write(bin_dir.join(CODE_MODE_HOST_EXECUTABLE_NAME), "legacy host")?;
++        fs::write(resources_dir.join(CODE_MODE_HOST_EXECUTABLE_NAME), "resource host")?;
++        let explicit_host = package_dir.path().join("libcodex-codehost.so");
++        fs::write(&explicit_host, "explicit host")?;
++        let context = InstallContext::from_exe(false, Some(&exe_path), None);
++
++        assert_eq!(
++            context.code_mode_host_program_with_override(Some(explicit_host.clone().into_os_string())),
++            explicit_host
++        );
++        Ok(())
++    }
++
++    #[test]
++    fn code_mode_host_program_keeps_missing_explicit_path() -> std::io::Result<()> {
++        let package_dir = tempfile::tempdir()?;
++        let missing_host = package_dir.path().join("missing-libcodex-codehost.so");
++        let context = InstallContext {
++            method: InstallMethod::Other,
++            package_layout: None,
++        };
++
++        assert_eq!(
++            context.code_mode_host_program_with_override(Some(missing_host.clone().into_os_string())),
++            missing_host
++        );
++        assert!(!missing_host.exists());
++        Ok(())
++    }
++
++    #[test]
++    fn code_mode_host_program_empty_override_preserves_resource_lookup() -> std::io::Result<()> {
++        let package_dir = tempfile::tempdir()?;
++        let bin_dir = package_dir.path().join(BIN_DIRNAME);
++        let resources_dir = package_dir.path().join(RESOURCES_DIRNAME);
++        fs::create_dir_all(&bin_dir)?;
++        fs::create_dir_all(&resources_dir)?;
++        fs::write(package_dir.path().join(PACKAGE_METADATA_FILENAME), "{}")?;
++        let exe_path = bin_dir.join("codex");
++        let resource_host = resources_dir.join(CODE_MODE_HOST_EXECUTABLE_NAME);
++        fs::write(&exe_path, "")?;
++        fs::write(&resource_host, "resource host")?;
++        let context = InstallContext::from_exe(false, Some(&exe_path), None);
++        let expected = resource_host.canonicalize()?;
++
++        assert_eq!(context.code_mode_host_program_with_override(None), expected);
++        assert_eq!(
++            context.code_mode_host_program_with_override(Some(std::ffi::OsString::new())),
++            expected
++        );
++        Ok(())
++    }
++
+     #[test]
+     fn code_mode_host_program_prefers_package_resource_over_legacy_binary() -> std::io::Result<()> {
+         let package_dir = tempfile::tempdir()?;

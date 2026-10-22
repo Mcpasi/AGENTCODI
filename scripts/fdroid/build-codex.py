@@ -81,7 +81,7 @@ def verify_checkout(path, commit, clean=True):
                         path, capture=True).strip(), f"Source checkout has local changes: {path}")
 
 
-def checkout(path, repository, commit):
+def checkout(path, repository, commit, clean=True):
     if not path.exists():
         path.mkdir(parents=True)
         run(["git", "init", "--quiet", str(path)])
@@ -91,11 +91,53 @@ def checkout(path, repository, commit):
     if head.returncode != 0:
         run(["git", "fetch", "--depth=1", "origin", commit], path)
         run(["git", "checkout", "--detach", "FETCH_HEAD"], path)
-    verify_checkout(path, commit)
+    verify_checkout(path, commit, clean=clean)
+
+
+def source_patches(lock):
+    """Validate our source patches separately from the immutable fork recipes."""
+    patches = lock.get("patches", [])
+    for patch in patches:
+        path = LOCK_PATH.parent / patch["path"]
+        require(path.is_file() and not path.is_symlink()
+                and sha256(path) == patch["sha256"], "Pinned Codex source patch changed: " + patch["path"])
+    return patches
+
+
+def verify_patch_tree(source, lock, patched):
+    expected = {}
+    for patch in source_patches(lock):
+        for name, hashes in patch["files"].items():
+            require(name not in expected, "Overlapping Codex source patches: " + name)
+            expected[name] = hashes
+    changed = set(run(["git", "diff", "--name-only", "HEAD"], source, capture=True).splitlines())
+    require(changed <= set(expected), "Fork has changes outside the pinned source patches")
+    require(not run(["git", "ls-files", "--others", "--exclude-standard"], source, capture=True).strip(),
+            "Fork has untracked source files")
+    for name, hashes in expected.items():
+        path = source / name
+        allowed = {hashes["patched_sha256"]} if patched else set(hashes.values())
+        require(path.is_file() and not path.is_symlink() and sha256(path) in allowed,
+                "Pinned patched source changed: " + name)
+
+
+def apply_source_patches(source, lock):
+    verify_patch_tree(source, lock, patched=False)
+    for patch in source_patches(lock):
+        files = patch["files"]
+        if all(sha256(source / name) == hashes["patched_sha256"] for name, hashes in files.items()):
+            continue
+        require(all(sha256(source / name) == hashes["original_sha256"] for name, hashes in files.items()),
+                "Partially applied Codex source patch: " + patch["path"])
+        path = (LOCK_PATH.parent / patch["path"]).resolve()
+        run(["git", "apply", "--check", str(path)], source)
+        run(["git", "apply", str(path)], source)
+    verify_patch_tree(source, lock, patched=True)
 
 
 def verify_fork(source, lock):
-    verify_checkout(source, lock["commit"])
+    verify_checkout(source, lock["commit"], clean=False)
+    verify_patch_tree(source, lock, patched=True)
     for name, expected in lock["files"].items():
         require(sha256(source / name) == expected, f"Pinned recipe/source changed: {name}")
     package = json.loads((source / "npm-package/package.json").read_text())
@@ -237,6 +279,8 @@ def verify_output(output, lock):
     record = json.loads(manifest.read_text())
     require(record.get("schema") == 1 and record.get("source_lock_sha256") == sha256(LOCK_PATH), "Source build uses a different source lock")
     require(record.get("builder_sha256") == sha256(__file__), "Source build uses a different builder")
+    require(record.get("patches_sha256") == {p["path"]: p["sha256"] for p in source_patches(lock)},
+            "Source build uses different Codex source patches")
     require(record.get("commit") == lock["commit"] and record.get("v8_commit") == lock["v8"]["commit"]
             and record.get("v8_from_source") is True, "Source build must include the locked fork and sandbox V8 source build")
     archive = output / "package.tgz"
@@ -277,7 +321,8 @@ def main():
                 print(name + "=" + shlex.quote(value))
         return
     if args.command in ("checkout", "prepare"):
-        checkout(source, lock["repository"], lock["commit"])
+        checkout(source, lock["repository"], lock["commit"], clean=False)
+        apply_source_patches(source, lock)
     verify_fork(source, lock)
     if args.command == "checkout":
         print("Verified source checkout " + lock["commit"])
@@ -377,6 +422,8 @@ def main():
                 shutil.copyfile(src, dst)
                 run([str(toolchain / "bin/llvm-strip"), "--strip-all", str(dst)])
                 files[name] = dst.read_bytes()
+            require(b"CODEX_CODE_MODE_HOST_PATH" in files["bin/codex.bin"],
+                    "Source-built Codex is missing the pinned code-mode host path support")
             for name in ("LICENSE", "NOTICE"):
                 files[name] = (source / "npm-package" / name).read_bytes()
             metadata = json.loads((source / "npm-package/package.json").read_text())
@@ -389,6 +436,7 @@ def main():
         verify_android_sources(v8, lock)
         require(prepared["v8_diff_sha256"] == v8_state(v8), "V8 sources changed during the build")
         record = {"schema": 1, "source_lock_sha256": sha256(LOCK_PATH), "builder_sha256": sha256(__file__),
+                  "patches_sha256": {p["path"]: p["sha256"] for p in source_patches(lock)},
                   "commit": lock["commit"], "v8_commit": lock["v8"]["commit"], "v8_from_source": True,
                   "source_date_epoch": lock["source_date_epoch"], "rustc": run(["rustup", "run", lock["rust"], "rustc", "-vV"], capture=True),
                   "ndk": lock["ndk"], "release_profile": release_profile, "v8_archive_sha256": sha256(located["archive"]),

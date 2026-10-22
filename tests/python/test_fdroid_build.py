@@ -9,6 +9,7 @@ import subprocess
 import sys
 import tempfile
 import unittest
+from unittest.mock import patch
 import zipfile
 
 sys.dont_write_bytecode = True
@@ -203,11 +204,18 @@ class SourceIntegrityTest(unittest.TestCase):
             record = {"schema": 1, "commit": lock["commit"], "v8_commit": lock["v8"]["commit"],
                       "v8_from_source": True, "source_lock_sha256": builder.sha256(builder.LOCK_PATH),
                       "builder_sha256": builder.sha256(builder.__file__),
+                      "patches_sha256": {p["path"]: p["sha256"] for p in builder.source_patches(lock)},
                       "archive_sha256": builder.sha256(output / "package.tgz"),
                       "payload_sha256": {name: hashlib.sha256(data).hexdigest() for name, data in files.items()}}
             manifest = output / "source-build.json"
             manifest.write_text(json.dumps(record))
             builder.verify_output(output, lock)
+            record["patches_sha256"] = {}
+            manifest.write_text(json.dumps(record))
+            with self.assertRaisesRegex(ValueError, "different Codex source patches"):
+                builder.verify_output(output, lock)
+            record["patches_sha256"] = {p["path"]: p["sha256"] for p in builder.source_patches(lock)}
+            manifest.write_text(json.dumps(record))
             with (output / "package.tgz").open("ab") as archive:
                 archive.write(b"tampering")
             with self.assertRaises(ValueError):
@@ -216,6 +224,65 @@ class SourceIntegrityTest(unittest.TestCase):
             manifest.write_text(json.dumps(record))
             with self.assertRaises(ValueError):
                 builder.verify_output(output, lock)
+
+
+class CodexSourcePatchTest(unittest.TestCase):
+    def fixture(self, root):
+        source = root / "fork"
+        source.mkdir()
+        original = b"fn main() {}\n"
+        modified = b"fn main() { patched(); }\n"
+        (source / "source.rs").write_bytes(original)
+        (source / "other.rs").write_text("unchanged\n")
+        for args in (("init", "--quiet"), ("add", "."),
+                     ("-c", "user.name=Build test", "-c", "user.email=build@example.invalid",
+                      "commit", "--quiet", "-m", "fixture")):
+            subprocess.run(["git", *args], cwd=source, check=True)
+        patch_file = root / "host.patch"
+        patch_file.write_text("--- a/source.rs\n+++ b/source.rs\n@@ -1 +1 @@\n-fn main() {}\n+fn main() { patched(); }\n")
+        lock = {"patches": [{"path": "host.patch", "sha256": builder.sha256(patch_file),
+                            "files": {"source.rs": {"original_sha256": hashlib.sha256(original).hexdigest(),
+                                                    "patched_sha256": hashlib.sha256(modified).hexdigest()}}}]}
+        return source, lock, patch_file
+
+    def test_locked_patch_is_applied_and_repeated_preparation_is_safe(self):
+        with tempfile.TemporaryDirectory() as temporary:
+            root = Path(temporary)
+            source, lock, _ = self.fixture(root)
+            with patch.object(builder, "LOCK_PATH", root / "lock.json"):
+                builder.apply_source_patches(source, lock)
+                builder.apply_source_patches(source, lock)
+                builder.verify_patch_tree(source, lock, patched=True)
+                self.assertEqual((source / "source.rs").read_text(), "fn main() { patched(); }\n")
+
+    def test_source_changes_outside_and_inside_the_patch_are_rejected(self):
+        with tempfile.TemporaryDirectory() as temporary:
+            root = Path(temporary)
+            source, lock, _ = self.fixture(root)
+            with patch.object(builder, "LOCK_PATH", root / "lock.json"):
+                builder.apply_source_patches(source, lock)
+                (source / "other.rs").write_text("unexpected change\n")
+                with self.assertRaisesRegex(ValueError, "outside the pinned"):
+                    builder.verify_patch_tree(source, lock, patched=True)
+                (source / "other.rs").write_text("unchanged\n")
+                (source / "extra.rs").write_text("untracked source\n")
+                with self.assertRaisesRegex(ValueError, "untracked source"):
+                    builder.apply_source_patches(source, lock)
+                (source / "extra.rs").unlink()
+                with (source / "source.rs").open("a") as stream:
+                    stream.write("unreviewed();\n")
+                with self.assertRaisesRegex(ValueError, "patched source changed"):
+                    builder.apply_source_patches(source, lock)
+
+    def test_changed_patch_is_rejected_before_source_mutation(self):
+        with tempfile.TemporaryDirectory() as temporary:
+            root = Path(temporary)
+            source, lock, patch_file = self.fixture(root)
+            patch_file.write_text("modified patch\n")
+            with patch.object(builder, "LOCK_PATH", root / "lock.json"):
+                with self.assertRaisesRegex(ValueError, "source patch changed"):
+                    builder.apply_source_patches(source, lock)
+                self.assertEqual((source / "source.rs").read_text(), "fn main() {}\n")
 
 
 if __name__ == "__main__":

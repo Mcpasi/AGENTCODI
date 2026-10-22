@@ -61,6 +61,12 @@ jobs:
       - name: Fetch sources and locked Cargo dependencies
         run: ./scripts/build-codex-from-source.sh prepare
 
+      - name: Test the patched host selection before the long V8 build
+        working-directory: .cache/fdroid/codex-termux/codex-rs
+        env:
+          CARGO_TARGET_DIR: ${{ runner.temp }}/codex-install-context-tests
+        run: rustup run "$RUST_VERSION" cargo test --frozen -p codex-install-context --lib
+
       - name: Build both fork recipes without network access
         run: |
           builder_user="$(id -un)"

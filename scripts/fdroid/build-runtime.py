@@ -53,7 +53,8 @@ def write_json(path, value):
 
 
 def recipe_hashes():
-    files = [Path(__file__), HERE / "stage-npm.py"] + sorted((HERE / "recipes").glob("*.sh"))
+    files = [Path(__file__), HERE / "stage-npm.py", HERE / "compile-python-stdlib.py"] \
+        + sorted((HERE / "recipes").glob("*.sh"))
     return {str(path.relative_to(ROOT)): sha256(path) for path in files}
 
 

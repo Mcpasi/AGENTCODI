@@ -179,6 +179,10 @@ def environment(source, v8, lock, cache):
                 "RUSTUP_TOOLCHAIN": lock["rust"], "CARGO_INCREMENTAL": "0",
                 "SOURCE_DATE_EPOCH": str(lock["source_date_epoch"]), "TZ": "UTC",
                 "LANG": "C.UTF-8", "LC_ALL": "C.UTF-8", "ZERO_AR_DATE": "1",
+                # The fork permits cross pkg-config probes. Debian's bzip2.pc
+                # describes the Linux host, so build the locked crate's bundled
+                # BZip2 sources instead of emitting an Android -lbz2 dependency.
+                "BZIP2_NO_PKG_CONFIG": "1",
                 "CARGO_BUILD_JOBS": env.get("AGENTCODI_BUILD_JOBS", "2")})
     env["PATH"] = str(ndk / "toolchains/llvm/prebuilt/linux-x86_64/bin") + os.pathsep + env["PATH"]
     cargo_home = Path(env.get("CARGO_HOME", Path.home() / ".cargo")).resolve()

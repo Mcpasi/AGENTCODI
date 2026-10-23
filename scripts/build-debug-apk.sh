@@ -621,9 +621,7 @@ env -i \
   PYTHONHOME="$TERMUX_RUNTIME_PREFIX" \
   PYTHONNOUSERSITE=1 \
   PYTHONUTF8=1 \
-  "$PYTHON_SOURCE_BINARY" -m compileall -b -f -q -j 1 \
-    --invalidation-mode checked-hash \
-    -s "$PYTHON_STDLIB_SOURCE" -p /usr/lib/python3.14 \
+  "$PYTHON_SOURCE_BINARY" "$SCRIPT_DIR/fdroid/compile-python-stdlib.py" \
     "$PYTHON_STDLIB_SOURCE"
 fi
 if [ ! -f "$PYTHON_STDLIB_SOURCE/encodings/__init__.pyc" ]; then

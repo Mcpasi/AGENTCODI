@@ -36,9 +36,7 @@ termux_step_post_massage() {
   # This interpreter was compiled from the same locked Python sources for the
   # Linux build host. Never run the Android interpreter during cross-assembly.
   local build_python="$TERMUX_BUILD_PYTHON_DIR/host-build-prefix/bin/python3.14"
-  "$build_python" -c 'import sys; assert sys.version_info[:3] == (3, 14, 6)'
-  "$build_python" -m compileall -b -f -q -j 1 --invalidation-mode checked-hash \
-    -s "$TERMUX_PREFIX/lib/python3.14" -p /usr/lib/python3.14 \
+  "$build_python" "$AGENTCODI_PROJECT_ROOT/scripts/fdroid/compile-python-stdlib.py" \
     "$TERMUX_PREFIX/lib/python3.14"
   test -f "$TERMUX_PREFIX/lib/python3.14/encodings/__init__.pyc"
 }

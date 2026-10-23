@@ -108,6 +108,29 @@ class ReproducibleBuildTest(unittest.TestCase):
 
 
 class SourceIntegrityTest(unittest.TestCase):
+    def test_android_build_ignores_host_bzip2_pkg_config_even_when_inherited(self):
+        lock = json.loads(builder.LOCK_PATH.read_text())
+        with tempfile.TemporaryDirectory() as temporary:
+            root = Path(temporary)
+            ndk, sdk, llvm = root / "ndk", root / "sdk", root / "llvm"
+            ndk.mkdir()
+            (ndk / "source.properties").write_text("Pkg.Revision = " + lock["ndk"] + "\n")
+            for name in ("platforms/android-" + lock["sdk_platform"],
+                         "build-tools/" + lock["sdk_build_tools"]):
+                (sdk / name).mkdir(parents=True)
+            (llvm / "bin").mkdir(parents=True)
+            (llvm / "bin/clang").touch()
+            inherited = {"PATH": "/usr/bin", "ANDROID_HOME": str(sdk),
+                         "ANDROID_NDK_HOME": str(ndk), "V8_SYSTEM_LIBCLANG_DIR": str(llvm / "lib"),
+                         "CARGO_HOME": str(root / "cargo"), "BZIP2_NO_PKG_CONFIG": "0"}
+            with patch.dict(os.environ, inherited, clear=True), \
+                    patch.object(builder.shutil, "which", return_value="/usr/bin/rustup"), \
+                    patch.object(builder, "run", side_effect=["rustc " + lock["rust"] + " (test)",
+                                                             "clang version " + lock["libclang_major"] + ".1.8"]):
+                env = builder.environment(root / "source", root / "v8", lock, root / "cache")
+                self.assertEqual(env["BZIP2_NO_PKG_CONFIG"], "1")
+                self.assertEqual(os.environ["BZIP2_NO_PKG_CONFIG"], "0")
+
     def test_release_profile_comes_from_literal_fork_recipe_settings(self):
         with tempfile.TemporaryDirectory() as temporary:
             root = Path(temporary)

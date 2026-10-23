@@ -25,7 +25,7 @@ Repo: https://github.com/Mcpasi/AGENTCODI.git
 Builds:
   - versionName: 0.7.6-preview.1
     versionCode: 87
-    commit: 3ef6c3339590aba12e7b727c8478dff8e59ae8c4
+    commit: 0fd8aa5f137e5bc060c55024fe9050da9ba8b5dd
     # The full source build takes about three hours on GitHub. Allow eight
     # hours for a different CPU and for the sequential native buildserver run.
     timeout: 28800

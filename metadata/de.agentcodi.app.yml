@@ -1,0 +1,62 @@
+Categories:
+  - Development
+  - Internet
+License: Apache-2.0
+AuthorName: Pascal (Mc Pasi)
+SourceCode: https://github.com/Mcpasi/AGENTCODI
+IssueTracker: https://github.com/Mcpasi/AGENTCODI/issues
+Changelog: https://github.com/Mcpasi/AGENTCODI/blob/HEAD/CHANGELOG.md
+
+AutoName: AGENTCODI
+Summary: Android workspace for the Codex coding agent
+Description: |-
+  Use the Codex coding agent in a native Android workspace with a file browser,
+  editor, terminal, and explicit approval controls. The app includes its
+  Android ARM64 runtime, Node.js, npm, Python, and ripgrep built from source.
+
+  Access to OpenAI's proprietary service requires your own API credentials.
+AntiFeatures:
+  NonFreeNet:
+    en-US: The coding agent uses OpenAI's proprietary API service.
+
+RepoType: git
+Repo: https://github.com/Mcpasi/AGENTCODI.git
+
+Builds:
+  - versionName: 0.7.6-preview.1
+    versionCode: 87
+    commit: 3ef6c3339590aba12e7b727c8478dff8e59ae8c4
+    # The full source build takes about three hours on GitHub. Allow eight
+    # hours for a different CPU and for the sequential native buildserver run.
+    timeout: 28800
+    ndk: 28.2.13676358
+    sudo:
+      - bash build/de.agentcodi.app/.github/ci/install-debian-build-deps.sh
+    output: output/apk/AGENTCODI-unsigned.apk
+    build:
+      - export ANDROID_HOME=$$SDK$$ ANDROID_NDK_HOME=$$NDK$$
+      # Fetch locked public source/host-tool inputs, then build from that cache
+      # with offline Cargo and local-only recipe downloaders. No GitHub
+      # artifacts, release APKs, Termux DEBs or private mirrors are consumed.
+      - ./scripts/fdroid/prepare.sh all
+      - ./scripts/fdroid/build.sh
+
+MaintainerNotes: |-
+  Upstream integration recipe for Debian 13 x86_64. The sudo phase installs
+  host dependencies from Debian main and signed trixie-backports only.
+  The build script prepares immutable public inputs after the upstream source
+  scan, then compiles both locked source builders and assembles an unsigned APK.
+  Review the external source locks and host-tool downloads during inclusion;
+  the offline build phases do not download Android runtime binaries.
+
+  Runtime execution and sandbox tests require Android ARM64; the Debian build
+  performs static ELF, 16 KiB page, dependency, schema, and APK payload checks.
+  The separate ARM64 APK workflow retains the runtime execution tests.
+  Before submission, run fdroid build --server --test de.agentcodi.app:87,
+  review the bundled legal notices, and independently reproduce the APK.
+  Automatic updates are disabled while this preview recipe is being validated.
+
+AutoUpdateMode: None
+UpdateCheckMode: None
+CurrentVersion: 0.7.6-preview.1
+CurrentVersionCode: 87

@@ -6,6 +6,9 @@ if [ "$#" -ne 0 ]; then
   exit 1
 fi
 # All downloads belong to preparation. F-Droid supplies its own signing key.
+if [ "$(uname -m)" = x86_64 ]; then
+  source "$SCRIPT_DIR/fdroid/host-env.sh"
+fi
 export AGENTCODI_BUILD_VARIANT=unsigned
 export AGENTCODI_OFFLINE=1
 exec "$SCRIPT_DIR/build-debug-apk.sh"

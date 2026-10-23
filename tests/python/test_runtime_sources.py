@@ -6,6 +6,7 @@ import subprocess
 import tempfile
 import unittest
 from unittest.mock import patch
+import zipfile
 
 ROOT = Path(__file__).resolve().parents[2]
 spec = importlib.util.spec_from_file_location("runtime_sources", ROOT / "scripts/fdroid/build-runtime.py")
@@ -14,6 +15,40 @@ spec.loader.exec_module(runtime)
 
 
 class RuntimeSourcesTest(unittest.TestCase):
+    def test_assembly_toolchain_is_idempotent_and_never_downloads_during_build(self):
+        with tempfile.TemporaryDirectory() as directory:
+            root = Path(directory)
+            cache, work = root / "cache", root / "work"
+            (cache / "blobs").mkdir(parents=True)
+            archive = root / "ndk.zip"
+            with zipfile.ZipFile(archive, "w") as stream:
+                stream.writestr("android-ndk-r29/source.properties", "Pkg.Revision = 29\n")
+            digest = runtime.sha256(archive)
+            archive.rename(cache / "blobs" / digest)
+            lock = {"host_inputs": [{"extract": "ndk", "sha256": digest,
+                                     "url": "https://example.invalid/ndk.zip"}]}
+            with patch.object(runtime, "download", side_effect=AssertionError("network during build")):
+                runtime.prepare_toolchain(cache, work, lock, fetch=False)
+                runtime.prepare_toolchain(cache, work, lock, fetch=False)
+                self.assertEqual((work / "tools/ndk.sha256").read_text(), digest + "\n")
+                (cache / "blobs" / digest).write_bytes(b"changed archive")
+                with self.assertRaisesRegex(ValueError, "changed prepared assembly NDK"):
+                    runtime.prepare_toolchain(cache, work, lock, fetch=False)
+
+    def test_assembly_toolchain_rejects_incomplete_extractions(self):
+        with tempfile.TemporaryDirectory() as directory:
+            root = Path(directory)
+            cache, work = root / "cache", root / "work"
+            (cache / "blobs").mkdir(parents=True)
+            blob = cache / "blobs/input"
+            blob.write_bytes(b"archive")
+            digest = runtime.sha256(blob)
+            blob.rename(cache / "blobs" / digest)
+            (work / "tools").mkdir(parents=True)
+            lock = {"host_inputs": [{"extract": "ndk", "sha256": digest}]}
+            with self.assertRaisesRegex(ValueError, "Incomplete assembly NDK"):
+                runtime.prepare_toolchain(cache, work, lock, fetch=False)
+
     def fixture(self, output):
         record = runtime.identity()
         paths = {}

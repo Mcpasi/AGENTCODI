@@ -23,10 +23,7 @@ jobs:
         run: |
           docker run --rm --user "$(id -u):$(id -g)" \
             -v "$GITHUB_WORKSPACE":/workspace agentcodi-runtime-source \
-            rustup toolchain install 1.95.0 --profile minimal --target aarch64-linux-android
-          docker run --rm --user "$(id -u):$(id -g)" \
-            -v "$GITHUB_WORKSPACE":/workspace agentcodi-runtime-source \
-            ./scripts/build-runtime-from-source.sh prepare
+            ./scripts/fdroid/prepare.sh runtime
       - name: Compile the local recipes without network access
         run: |
           docker run --rm --network none --user "$(id -u):$(id -g)" \

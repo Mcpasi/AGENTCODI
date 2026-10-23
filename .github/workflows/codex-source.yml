@@ -16,62 +16,41 @@ jobs:
       LANG: C.UTF-8
       LC_ALL: C.UTF-8
       AGENTCODI_BUILD_JOBS: '2'
+      IMAGE: agentcodi-codex-source
     steps:
       - name: Check out AGENTCODI
         uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd # v6.0.2
         with:
           persist-credentials: false
 
-      - name: Fetch and verify the locked fork and recipes
-        run: ./scripts/build-codex-from-source.sh checkout
-
-      - name: Read toolchain versions from the source lock
+      - name: Make room while preserving the runner SDK
         run: |
-          python3 - <<'PY'
-          import json, os
-          from pathlib import Path
-          lock = json.loads(Path('scripts/fdroid/source-lock.json').read_text())
-          with open(os.environ['GITHUB_ENV'], 'a') as out:
-              for name, key in {'LLVM_VERSION': 'libclang_major', 'RUST_VERSION': 'rust',
-                                'ANDROID_NDK_VERSION': 'ndk', 'SDK_PLATFORM': 'sdk_platform',
-                                'SDK_BUILD_TOOLS': 'sdk_build_tools'}.items():
-                  print(name + '=' + lock[key], file=out)
-          PY
+          sudo rm -rf /usr/share/dotnet /opt/ghc /usr/local/.ghcup /opt/hostedtoolcache/CodeQL
+          df -h /
 
-      - name: Prepare disk on the disposable hosted runner using the fork recipe
-        run: |
-          ./scripts/build-codex-from-source.sh disk-preparation > "$RUNNER_TEMP/source-disk.sh"
-          bash -Eeuo pipefail "$RUNNER_TEMP/source-disk.sh"
-
-      - name: Install host dependencies from the locked V8 recipe
-        run: |
-          ./scripts/build-codex-from-source.sh host-dependencies > "$RUNNER_TEMP/source-host.sh"
-          bash -Eeuo pipefail "$RUNNER_TEMP/source-host.sh"
-          sudo apt-get install -y --no-install-recommends build-essential cmake ninja-build
-
-      - name: Install the locked Rust and Android toolchains
-        run: |
-          rustup toolchain install "$RUST_VERSION" --profile minimal --target aarch64-linux-android
-          "$ANDROID_HOME/cmdline-tools/latest/bin/sdkmanager" \
-            "ndk;$ANDROID_NDK_VERSION" "platforms;android-$SDK_PLATFORM" "build-tools;$SDK_BUILD_TOOLS"
-          echo "ANDROID_NDK_HOME=$ANDROID_HOME/ndk/$ANDROID_NDK_VERSION" >> "$GITHUB_ENV"
-          echo "RUSTUP_HOME=${RUSTUP_HOME:-$HOME/.rustup}" >> "$GITHUB_ENV"
-          echo "CARGO_HOME=${CARGO_HOME:-$HOME/.cargo}" >> "$GITHUB_ENV"
+      - name: Build the Debian source environment
+        run: docker build --progress=plain -t "$IMAGE" -f .github/ci/Dockerfile.runtime-source .github/ci
 
       - name: Fetch sources and locked Cargo dependencies
-        run: ./scripts/build-codex-from-source.sh prepare
+        run: |
+          docker run --rm --user "$(id -u):$(id -g)" \
+            -v "$GITHUB_WORKSPACE":/workspace -v "$ANDROID_HOME":/opt/android-sdk \
+            -e AGENTCODI_BUILD_JOBS "$IMAGE" ./scripts/fdroid/prepare.sh codex
 
       - name: Test the patched host selection before the long V8 build
-        working-directory: .cache/fdroid/codex-termux/codex-rs
-        env:
-          CARGO_TARGET_DIR: ${{ runner.temp }}/codex-install-context-tests
-        run: rustup run "$RUST_VERSION" cargo test --frozen -p codex-install-context --lib
+        run: |
+          docker run --rm --network none --user "$(id -u):$(id -g)" \
+            -v "$GITHUB_WORKSPACE":/workspace -v "$ANDROID_HOME":/opt/android-sdk \
+            -e CARGO_TARGET_DIR=/workspace/.build/codex-install-context-tests \
+            "$IMAGE" bash -Eeuo pipefail -c \
+            'cd .cache/fdroid/codex-termux/codex-rs; rustup run 1.95.0 cargo test --frozen -p codex-install-context --lib'
 
       - name: Build both fork recipes without network access
         run: |
-          builder_user="$(id -un)"
-          sudo -E unshare --net sudo -E -u "$builder_user" env "PATH=$PATH" \
-            ./scripts/build-codex-from-source.sh build
+          docker run --rm --network none --user "$(id -u):$(id -g)" \
+            -v "$GITHUB_WORKSPACE":/workspace -v "$ANDROID_HOME":/opt/android-sdk \
+            -e ANDROID_NDK_HOME=/opt/android-sdk/ndk/28.2.13676358 \
+            -e AGENTCODI_BUILD_JOBS "$IMAGE" ./scripts/build-codex-from-source.sh build
 
       - name: Verify the source-built package
         run: ./scripts/build-codex-from-source.sh verify

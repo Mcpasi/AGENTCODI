@@ -1,0 +1,71 @@
+name: F-Droid Debian
+
+on:
+  push:
+    branches: [fdroid/source-build-and-editor]
+    paths:
+      - .github/workflows/fdroid.yml
+      - metadata/de.agentcodi.app.yml
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  codex-source:
+    uses: ./.github/workflows/codex-source.yml
+
+  runtime-source:
+    uses: ./.github/workflows/runtime-source.yml
+
+  apk:
+    name: Unsigned APK on Debian x86_64
+    needs: [codex-source, runtime-source]
+    runs-on: ubuntu-24.04
+    # GitHub-hosted jobs have a six-hour limit. F-Droid's complete native
+    # build has its own eight-hour limit in metadata/de.agentcodi.app.yml.
+    timeout-minutes: 360
+    env:
+      IMAGE: agentcodi-fdroid
+    steps:
+      - uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd # v6.0.2
+        with:
+          persist-credentials: false
+      - name: Download Codex built from source on Debian
+        uses: actions/download-artifact@v4
+        with:
+          name: codex-source
+          path: output/codex-source
+      - name: Download runtime built from source on Debian
+        uses: actions/download-artifact@v4
+        with:
+          name: runtime-source
+          path: output/runtime-source
+      - name: Verify the source receipts
+        run: |
+          tar -xf output/runtime-source/runtime-source.tar -C output/runtime-source
+          ./scripts/build-codex-from-source.sh verify
+          ./scripts/build-runtime-from-source.sh verify
+      - name: Build the Debian environment
+        run: docker build --progress=plain -t "$IMAGE" -f .github/ci/Dockerfile.runtime-source .github/ci
+      - name: Prepare the host SDK and verified assembly inputs
+        run: |
+          docker run --rm --user "$(id -u):$(id -g)" \
+            -v "$GITHUB_WORKSPACE":/workspace -v "$ANDROID_HOME":/opt/android-sdk \
+            "$IMAGE" ./scripts/fdroid/prepare.sh assembly
+      - name: Test the Debian host tools
+        run: |
+          docker run --rm --network none --user "$(id -u):$(id -g)" \
+            -v "$GITHUB_WORKSPACE":/workspace \
+            "$IMAGE" bash -Eeuo pipefail -c \
+            'python3 -B -m unittest discover -s tests/python; .github/ci/check-debian-cross-tools.sh; .github/ci/run-cpp-tests.sh'
+      - name: Assemble and verify the unsigned APK offline
+        run: |
+          docker run --rm --network none --user "$(id -u):$(id -g)" \
+            -v "$GITHUB_WORKSPACE":/workspace -v "$ANDROID_HOME":/opt/android-sdk:ro \
+            "$IMAGE" ./scripts/build-fdroid-apk.sh
+      - uses: actions/upload-artifact@bbbca2ddaa5d8feaa63e36b76fdaad77386f024f # v7.0.0
+        with:
+          name: agentcodi-fdroid-unsigned
+          path: output/apk/*unsigned.apk
+          if-no-files-found: error

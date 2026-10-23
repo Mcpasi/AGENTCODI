@@ -13,6 +13,15 @@ TARGET_SDK="35"
 ABI="arm64-v8a"
 BUILD_VARIANT="${AGENTCODI_BUILD_VARIANT:-debug}"
 BOOTSTRAP_LAYOUT="${AGENTCODI_BOOTSTRAP_LAYOUT:-nested}"
+APK_HOST="${AGENTCODI_APK_HOST:-android-arm64}"
+case "$APK_HOST" in
+  android-arm64|linux-x86_64) ;;
+  *) echo "Unsupported APK build host: $APK_HOST" >&2; exit 1 ;;
+esac
+if [ "$APK_HOST" = linux-x86_64 ] && [ "$(uname -m)" != x86_64 ]; then
+  echo "The Debian cross-assembler requires a Linux x86_64 host." >&2
+  exit 1
+fi
 
 case "$BOOTSTRAP_LAYOUT" in
   nested|flat) ;;
@@ -364,7 +373,12 @@ verify_file_sha256 "$RIPGREP_DEPENDENCIES_SOURCE" "$RIPGREP_DEPENDENCIES_SHA256"
 verify_file_sha256 "$RIPGREP_LICENSES_SOURCE" "$RIPGREP_LICENSES_SHA256"
 
 echo "Running Java, C++, and architecture tests..."
-"$SCRIPT_DIR/test.sh"
+if [ "$APK_HOST" = linux-x86_64 ]; then
+  "$SCRIPT_DIR/check-architecture.sh"
+  "$PROJECT_ROOT/.github/ci/run-java-tests.sh"
+else
+  "$SCRIPT_DIR/test.sh"
+fi
 
 WORK_DIR="$(mktemp -d "$BUILD_ROOT/apk.work.XXXXXX")"
 BOOTSTRAP_FLAT_DIRS=()
@@ -434,12 +448,21 @@ tar -xzf "$CODEX_ANDROID_ARCHIVE" -C "$CODEX_EXTRACT"
 AAPT2_BIN="$AAPT2_EXTRACT/data/data/com.termux/files/usr/bin/aapt2"
 AAPT2_LIBRARY_PATH="$AAPT2_EXTRACT/data/data/com.termux/files/usr/lib"
 PATCHELF_BIN="$AAPT2_EXTRACT/data/data/com.termux/files/usr/bin/patchelf"
+BUILD_TOOL_ENV=(env LD_LIBRARY_PATH="$AAPT2_LIBRARY_PATH")
+if [ "$APK_HOST" = linux-x86_64 ]; then
+  AAPT2_BIN="${ANDROID_HOME:?}/build-tools/36.0.0/aapt2"
+  PATCHELF_BIN="$(command -v patchelf)"
+  # Debian's host patchelf performs the same ELF transformation. The Android
+  # patchelf package remains a source-built input for the ARM64 test path.
+  PATCHELF_VERSION=0.18.0
+  BUILD_TOOL_ENV=(env -u LD_LIBRARY_PATH)
+fi
 if [ ! -x "$AAPT2_BIN" ]; then
   echo "Pinned aapt2 package did not contain an executable." >&2
   exit 1
 fi
 if [ ! -x "$PATCHELF_BIN" ] \
-    || ! env LD_LIBRARY_PATH="$AAPT2_LIBRARY_PATH" "$PATCHELF_BIN" --version \
+    || ! "${BUILD_TOOL_ENV[@]}" "$PATCHELF_BIN" --version \
       | grep -Fq "patchelf $PATCHELF_VERSION"; then
   echo "Pinned build-only patchelf package is missing or invalid." >&2
   exit 1
@@ -532,12 +555,16 @@ mkdir -p "$CODEX_METADATA_CLASSES"
 "$JAVA" -Xmx64m -cp "$CODEX_METADATA_CLASSES" \
   de.agentcodi.tools.CodexPackageMetadata \
   "$CODEX_PACKAGE_JSON" "$CODEX_ANDROID_VERSION" "$CODEX_UPSTREAM_SOURCE_TAG"
+if [ "$APK_HOST" = linux-x86_64 ]; then
+  cp "$CODEX_EXTRACT"/package/schema/*.json "$CODEX_SCHEMA_DIR/"
+else
 env -i \
   HOME="$CODEX_SCHEMA_HOME" \
   CODEX_HOME="$CODEX_SCHEMA_HOME/codex-home" \
   TMPDIR="$CODEX_SCHEMA_TMP" \
   LD_LIBRARY_PATH="$CODEX_EXTRACT/package/bin" \
   "$CODEX_SOURCE_BINARY" app-server generate-json-schema --out "$CODEX_SCHEMA_DIR"
+fi
 verify_file_sha256 \
   "$CODEX_SCHEMA_DIR/codex_app_server_protocol.schemas.json" \
   "$CODEX_SCHEMA_BUNDLE_SHA256"
@@ -583,6 +610,7 @@ if cmp -s "$CODEX_BINARY" "$CODEX_CODE_MODE_HOST_BINARY"; then
 fi
 
 echo "Compiling the pinned Python standard library to bytecode..."
+if [ "$APK_HOST" = android-arm64 ]; then
 PYTHON_COMPILE_HOME="$WORK_DIR/python-compile-home"
 mkdir -p "$PYTHON_COMPILE_HOME"
 chmod 700 "$PYTHON_COMPILE_HOME"
@@ -594,8 +622,10 @@ env -i \
   PYTHONNOUSERSITE=1 \
   PYTHONUTF8=1 \
   "$PYTHON_SOURCE_BINARY" -m compileall -b -f -q -j 1 \
+    --invalidation-mode checked-hash \
     -s "$PYTHON_STDLIB_SOURCE" -p /usr/lib/python3.14 \
     "$PYTHON_STDLIB_SOURCE"
+fi
 if [ ! -f "$PYTHON_STDLIB_SOURCE/encodings/__init__.pyc" ]; then
   echo "Pinned Python standard library did not compile to legacy-path bytecode." >&2
   exit 1
@@ -611,10 +641,10 @@ if find "$TOOL_RUNTIME_STAGE" -type l -print -quit | grep -q .; then
 fi
 
 echo "Compiling Android resources..."
-env LD_LIBRARY_PATH="$AAPT2_LIBRARY_PATH" "$AAPT2_BIN" compile --dir "$PROJECT_ROOT/app/src/main/res" -o "$COMPILED_RESOURCES"
+"${BUILD_TOOL_ENV[@]}" "$AAPT2_BIN" compile --dir "$PROJECT_ROOT/app/src/main/res" -o "$COMPILED_RESOURCES"
 
 UNSIGNED_APK="$WORK_DIR/unsigned.apk"
-env LD_LIBRARY_PATH="$AAPT2_LIBRARY_PATH" "$AAPT2_BIN" link -o "$UNSIGNED_APK" --manifest "$PROJECT_ROOT/app/src/main/AndroidManifest.xml" --java "$GENERATED_JAVA" --min-sdk-version "$MIN_SDK" --target-sdk-version "$TARGET_SDK" --version-code "$VERSION_CODE" --version-name "$APP_VERSION" -I "$ANDROID_JAR" "$COMPILED_RESOURCES"
+"${BUILD_TOOL_ENV[@]}" "$AAPT2_BIN" link -o "$UNSIGNED_APK" --manifest "$PROJECT_ROOT/app/src/main/AndroidManifest.xml" --java "$GENERATED_JAVA" --min-sdk-version "$MIN_SDK" --target-sdk-version "$TARGET_SDK" --version-code "$VERSION_CODE" --version-name "$APP_VERSION" -I "$ANDROID_JAR" "$COMPILED_RESOURCES"
 
 echo "Compiling isolated Java modules..."
 CORE_CLASSES="$CLASSES_ROOT/core"
@@ -982,13 +1012,13 @@ done
 
 record_derived_hash NODE_UNGUARDED_RUNTIME_SHA256 "$NATIVE_DIR/$NODE_LIBRARY_NAME"
 verify_file_sha256 "$NATIVE_DIR/$RIPGREP_LIBRARY_NAME" "$RIPGREP_SOURCE_SHA256"
-env LD_LIBRARY_PATH="$AAPT2_LIBRARY_PATH" "$PATCHELF_BIN" \
+"${BUILD_TOOL_ENV[@]}" "$PATCHELF_BIN" \
   --page-size 16384 --add-needed "$NODE_GUARD_LIBRARY_NAME" \
   "$NATIVE_DIR/$NODE_LIBRARY_NAME"
-env LD_LIBRARY_PATH="$AAPT2_LIBRARY_PATH" "$PATCHELF_BIN" \
+"${BUILD_TOOL_ENV[@]}" "$PATCHELF_BIN" \
   --page-size 16384 --add-needed "$PYTHON_GUARD_LIBRARY_NAME" \
   "$NATIVE_DIR/$PYTHON_LIBRARY_NAME"
-env LD_LIBRARY_PATH="$AAPT2_LIBRARY_PATH" "$PATCHELF_BIN" \
+"${BUILD_TOOL_ENV[@]}" "$PATCHELF_BIN" \
   --page-size 16384 --add-needed "$RIPGREP_GUARD_LIBRARY_NAME" \
   "$NATIVE_DIR/$RIPGREP_LIBRARY_NAME"
 
@@ -1311,6 +1341,7 @@ if readelf -dW "$NATIVE_DIR/$RIPGREP_LIBRARY_NAME" | grep -Eq '(RPATH|RUNPATH)' 
   echo "Packaged ripgrep has an unsafe host path or unexpected ELF dependency." >&2
   exit 1
 fi
+if [ "$APK_HOST" = android-arm64 ]; then
 ripgrep_version_output="$("$RIPGREP_SOURCE_BINARY" --version)"
 if [ "$(printf '%s\n' "$ripgrep_version_output" | sed -n '1p')" != "ripgrep $RIPGREP_VERSION" ] \
     || ! printf '%s\n' "$ripgrep_version_output" | grep -Fq 'features:-pcre2'; then
@@ -1327,6 +1358,7 @@ if ! printf '%s\n' "$ripgrep_pcre2_output" \
     || grep -Eiq '^(pcre2|pcre2-sys) [0-9]' "$RIPGREP_DEPENDENCIES_SOURCE"; then
   echo "Packaged ripgrep feature or dependency inventory is inconsistent." >&2
   exit 1
+fi
 fi
 for dependency in libcares.so libcrypto_3.so libicudata_78.so libicui18n_78.so libicuuc_78.so libsqlite3.so libssl_3.so libz_1.so libpython3.14.so libandroid-posix-semaphore.so libandroid-support.so libbz2_1_0.so libexpat_1.so libffi.so liblzma_5.so libncursesw_6.so libpanelw_6.so libzstd_1.so; do
   if ! file "$NATIVE_DIR/$dependency" | grep -q 'ARM aarch64'; then
@@ -1396,6 +1428,10 @@ if readelf -d "$NATIVE_DIR/$NODE_LIBRARY_NAME" \
   exit 1
 fi
 
+# Execution tests require a real Android ARM64 linker and sandbox. Debian
+# cross-builds retain every static ELF, payload, dependency and APK check.
+# The ARM64 APK workflow continues to exercise this complete smoke sequence.
+if [ "$APK_HOST" = android-arm64 ]; then
 TOOLCHAIN_SMOKE_ROOT="$WORK_DIR/toolchain-smoke"
 TOOLCHAIN_SMOKE_WORKSPACE="$TOOLCHAIN_SMOKE_ROOT/workspace"
 TOOLCHAIN_SMOKE_DIRECTORY="$TOOLCHAIN_SMOKE_WORKSPACE/toolchain"
@@ -1900,6 +1936,9 @@ if ! printf '%s\n' "$code_mode_host_help" | grep -Fq 'Transport endpoint:'; then
   echo "Packaged code-mode host did not pass its native startup smoke test." >&2
   exit 1
 fi
+else
+  echo "Debian cross-build: Android runtime execution tests require the ARM64 APK workflow or a device."
+fi
 while IFS= read -r native_file; do
   if ! readelf -lW "$native_file" | awk '$1 == "LOAD" { seen = 1; if ($NF != "0x4000") bad = 1 } END { exit (!seen || bad) }'; then
     echo "Native library is not compatible with 16 KiB Android pages: $native_file" >&2
@@ -1970,11 +2009,11 @@ elif ! printf '%s\n' "$certificate_report" | grep -Fq 'Signer #1 certificate DN:
   exit 1
 fi
 fi
-badging="$(env LD_LIBRARY_PATH="$AAPT2_LIBRARY_PATH" "$AAPT2_BIN" dump badging "$VERSIONED_APK")"
+badging="$("${BUILD_TOOL_ENV[@]}" "$AAPT2_BIN" dump badging "$VERSIONED_APK")"
 printf '%s\n' "$badging" | grep -Fq "package: name='$APP_ID'"
 printf '%s\n' "$badging" | grep -Fq "versionCode='$VERSION_CODE'"
 printf '%s\n' "$badging" | grep -Fq "versionName='$APP_VERSION'"
-printf '%s\n' "$badging" | grep -Fq "minSdkVersion:'$MIN_SDK'"
+printf '%s\n' "$badging" | grep -Eq "(minSdkVersion|sdkVersion):'$MIN_SDK'"
 printf '%s\n' "$badging" | grep -Fq "targetSdkVersion:'$TARGET_SDK'"
 printf '%s\n' "$badging" | grep -Fq "application-label:'$APP_NAME'"
 printf '%s\n' "$badging" | grep -Fq "launchable-activity: name='de.agentcodi.app.MainActivity'"

@@ -1,20 +1,22 @@
-# Linux x86_64 cross-builder. Android package dependencies are built by our
-# local recipes; APT supplies only host tools, none of this image is packaged.
-FROM ubuntu:26.04@sha256:c098726dd9b9733f3e885f8de0ef375206a311b0a317eadc40d347b1115fb944
-RUN --mount=type=secret,id=proxy_ca \
-    if [ -s /run/secrets/proxy_ca ]; then export CURL_CA_BUNDLE=/run/secrets/proxy_ca; fi; \
-    apt-get update && apt-get install -y --no-install-recommends \
-      ca-certificates curl git python3 python-is-python3 build-essential clang-21 lld-21 \
-      cmake ninja-build autoconf automake libtool-bin autopoint gettext pkg-config \
-      bison flex gperf tcl texinfo help2man file binutils jq patch unzip zip xz-utils \
-      zstd bzip2 lzip patchelf libssl-dev zlib1g-dev libffi-dev libbz2-dev liblzma-dev \
-      libncurses-dev libreadline-dev uuid-dev nodejs rustup \
-    && rm -rf /var/lib/apt/lists/*
-RUN apt-get update && apt-get install -y --no-install-recommends autoconf-archive libc-ares-dev libsqlite3-dev \
-    && rm -rf /var/lib/apt/lists/*
-RUN mkdir -p /data/data && chmod 1777 /data /data/data
+# Debian x86_64 buildserver equivalent. APT supplies host tools only;
+# Android runtime dependencies are compiled by the locked source recipes.
+FROM debian:trixie-slim@sha256:62bd423aeee912639ca8ee681c2b762cb3e25137e0a92b20be455898a9f034ad
+COPY install-debian-build-deps.sh setup-system-shim.sh /ci/
+RUN --mount=type=secret,id=proxy_ca,mode=0444 \
+    if [ -s /run/secrets/proxy_ca ]; then \
+      export CURL_CA_BUNDLE=/run/secrets/proxy_ca; \
+      export SSL_CERT_FILE=/run/secrets/proxy_ca; \
+      export APT_CONFIG=/tmp/agentcodi-apt.conf; \
+      printf 'Acquire::https::CaInfo "/run/secrets/proxy_ca";\n' > "$APT_CONFIG"; \
+    fi; \
+    bash /ci/install-debian-build-deps.sh \
+    && bash /ci/setup-system-shim.sh \
+    && useradd --create-home --uid 1001 builder \
+    && rm -rf /var/lib/apt/lists/* /tmp/agentcodi-apt.conf
 ENV LANG=C.UTF-8 LC_ALL=C.UTF-8 TZ=UTC
 ENV RUSTUP_HOME=/workspace/.cache/runtime-source/rustup
-ENV CARGO_HOME=/workspace/.cache/runtime-source/cargo
+ENV CARGO_HOME=/workspace/.cache/cargo
+ENV V8_SYSTEM_LIBCLANG_DIR=/usr/lib/llvm-21/lib
+ENV ANDROID_HOME=/opt/android-sdk
 WORKDIR /workspace
-USER ubuntu
+USER builder

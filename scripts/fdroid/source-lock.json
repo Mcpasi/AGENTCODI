@@ -4,6 +4,8 @@
     ".github/workflows/rusty-v8-android-release.yml": "3476ba163ffd526f1f4bf7946a3347a6d81bba55a4d4e1871d11426d10ee0e9d",
     ".github/workflows/termux-npm-build-publish.yml": "ae85e4fdf9f82e59f0ffc48f8357dc037180f40172f445d8a565af142121bab7",
     "codex-rs/Cargo.lock": "91a340025a101939b16b78335d8248058abc52bd7ca5afb7205bcf440f436fb7",
+    "codex-rs/app-server-protocol/schema/json/codex_app_server_protocol.schemas.json": "e8284c5cb8157554a3dd1e035aadbd4325aea501af56887e9c2e12eb1b9b9448",
+    "codex-rs/app-server-protocol/schema/json/codex_app_server_protocol.v2.schemas.json": "d3eace08be5dca386bfd1f1e8df650058b4113f1e10870a284d775d75517576a",
     "codex-rs/rust-toolchain.toml": "570656042681cfd8795403a455baf9a33035331a07db0645e866bbcea89a3d64",
     "scripts/check_v8_sandbox.py": "9ce552ff19331bf4bed26ce046a7e0fe6c4783c54094a734a83d82a91977fa9c",
     "scripts/patch_rusty_v8_android_bindgen.py": "04c64be649c8a69a5a624daa30b422e52beb32d5ec5fc0e872d076fb96a9e33d"

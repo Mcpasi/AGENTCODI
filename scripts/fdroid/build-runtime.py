@@ -220,10 +220,29 @@ def setup_work(cache, work, lock):
             'source "$AGENTCODI_PROJECT_ROOT/scripts/fdroid/recipes/common.sh"\n')
     # Unused Debian packaging helpers have a patch requiring extra source input.
     (engine / "packages/python/debpython.patch").unlink(missing_ok=True)
-    for item in lock["host_inputs"]:
-        if item.get("extract") == "ndk":
-            run("unzip", "-q", cache / "blobs" / item["sha256"], "-d", work / "tools")
+    prepare_toolchain(cache, work, lock, fetch=False)
     write_json(marker, identity())
+
+
+def prepare_toolchain(cache, work, lock, fetch=True):
+    """Also used by the x86_64 assembler, which needs no target build prefix."""
+    items = [item for item in lock["host_inputs"] if item.get("extract") == "ndk"]
+    require(len(items) == 1, "Expected one locked assembly NDK")
+    item = items[0]
+    if fetch:
+        download(cache, item["url"], item["sha256"])
+    archive = cache / "blobs" / item["sha256"]
+    require(archive.is_file() and not archive.is_symlink() and sha256(archive) == item["sha256"],
+            "Missing or changed prepared assembly NDK")
+    destination = work / "tools"
+    marker = destination / "ndk.sha256"
+    if marker.is_file() and marker.read_text().strip() == item["sha256"]:
+        require((destination / "android-ndk-r29/source.properties").is_file(), "Incomplete assembly NDK")
+        return
+    require(not destination.exists(), "Incomplete assembly NDK; remove " + str(destination))
+    destination.mkdir(parents=True)
+    run("unzip", "-q", archive, "-d", destination)
+    marker.write_text(item["sha256"] + "\n")
 
 
 def build(cache, output, work, lock, through):
@@ -292,7 +311,7 @@ def verify_output(output):
 
 def main():
     parser = argparse.ArgumentParser(description=__doc__)
-    parser.add_argument("phase", choices=("plan", "prepare", "build", "verify", "shell-env"))
+    parser.add_argument("phase", choices=("plan", "prepare", "prepare-toolchain", "build", "verify", "shell-env"))
     parser.add_argument("--through", help="Stop after a recipe for diagnosis, without producing a complete build receipt")
     args = parser.parse_args()
     lock = json.loads(LOCK_PATH.read_text())
@@ -304,6 +323,8 @@ def main():
         print(json.dumps(lock, indent=2))
     elif args.phase == "prepare":
         prepare(cache, lock)
+    elif args.phase == "prepare-toolchain":
+        prepare_toolchain(cache, work, lock)
     elif args.phase == "build":
         build(cache, output, work, lock, args.through)
     else:

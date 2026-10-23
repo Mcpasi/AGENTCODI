@@ -25,7 +25,9 @@ LOCK_PATH = Path(__file__).with_name("source-lock.json")
 CODEX_RECIPE = ".github/workflows/termux-npm-build-publish.yml"
 V8_RECIPE = ".github/workflows/rusty-v8-android-release.yml"
 PAYLOAD = ("bin/codex.bin", "bin/codex-code-mode-host", "bin/libc++_shared.so",
-           "LICENSE", "NOTICE", "package.json")
+           "LICENSE", "NOTICE", "package.json",
+           "schema/codex_app_server_protocol.schemas.json",
+           "schema/codex_app_server_protocol.v2.schemas.json")
 
 
 def require(condition, message):
@@ -426,6 +428,12 @@ def main():
                     "Source-built Codex is missing the pinned code-mode host path support")
             for name in ("LICENSE", "NOTICE"):
                 files[name] = (source / "npm-package" / name).read_bytes()
+            # These reviewed generated schemas are committed in the pinned
+            # source tree and included in the source receipt. An x86_64 APK
+            # assembler must not execute the Android app-server to read them.
+            for name in PAYLOAD:
+                if name.startswith("schema/"):
+                    files[name] = (source / "codex-rs/app-server-protocol/schema/json" / Path(name).name).read_bytes()
             metadata = json.loads((source / "npm-package/package.json").read_text())
             metadata.update(gitHead=lock["commit"], agentcodiUpstreamCommit=lock["upstream_commit"])
             files["package.json"] = (json.dumps(metadata, sort_keys=True, indent=2) + "\n").encode()

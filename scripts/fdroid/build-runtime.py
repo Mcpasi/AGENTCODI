@@ -246,6 +246,17 @@ def prepare_toolchain(cache, work, lock, fetch=True):
     marker.write_text(item["sha256"] + "\n")
 
 
+def verify_python_bytecode(archive):
+    """Inspect the DEB that will be transported, rather than the live prefix."""
+    listing = capture("dpkg-deb", "--contents", archive)
+    files = {line.split()[-1].removeprefix("./") for line in listing.splitlines()
+             if line.startswith("-")}
+    prefix = str(PREFIX).lstrip("/") + "/lib/python3.14/"
+    required = {prefix + name for name in ("encodings/__init__.pyc", "importlib/__init__.pyc", "os.pyc")}
+    missing = required - files
+    require(not missing, "Source-built Python DEB is missing packaged bytecode: " + ", ".join(sorted(missing)))
+
+
 def build(cache, output, work, lock, through):
     verify_prepared(cache, lock)
     require(capture("uname", "-m") == "x86_64", "Runtime recipes require Linux x86_64")
@@ -287,6 +298,7 @@ def build(cache, output, work, lock, through):
         matches = list((output / "debs").glob(package + "_*.deb"))
         require(len(matches) == 1, "Missing or ambiguous source-built package: " + package)
         selected[name] = str(matches[0].relative_to(output))
+    verify_python_bytecode(output / selected["PYTHON"])
     require(identity() == initial_identity, "Source recipes changed during this build")
     record = initial_identity
     record.update({"from_source": True, "archives": selected,

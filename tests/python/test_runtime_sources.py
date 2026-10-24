@@ -2,7 +2,9 @@ import importlib.util
 import json
 import os
 from pathlib import Path
+import shutil
 import subprocess
+import sys
 import tempfile
 import unittest
 from unittest.mock import patch
@@ -15,6 +17,62 @@ spec.loader.exec_module(runtime)
 
 
 class RuntimeSourcesTest(unittest.TestCase):
+    def test_python_post_massage_compiles_bytecode_into_the_transported_deb(self):
+        with tempfile.TemporaryDirectory() as directory:
+            root = Path(directory)
+            base, project = root / "base", root / "project"
+            (base / "packages/python").mkdir(parents=True)
+            (base / "packages/python/build.sh").write_text(":\n")
+            installed = root / "installed"
+            stdlib = installed / "lib/python3.14"
+            (stdlib / "lib-dynload").mkdir(parents=True)
+            for name in ("encodings/__init__.py", "importlib/__init__.py", "os.py"):
+                file = stdlib / name
+                file.parent.mkdir(parents=True, exist_ok=True)
+                file.write_text("value = 42\n")
+            for name in ("_bz2", "_ctypes", "_curses", "_curses_panel", "_lzma", "_multiprocessing",
+                         "_sqlite3", "_ssl", "_zstd", "zlib"):
+                (stdlib / "lib-dynload" / (name + ".fixture.so")).touch()
+            massage = root / "massage"
+            package_prefix = massage / str(runtime.PREFIX).lstrip("/")
+            shutil.copytree(installed, package_prefix)
+            control = massage / "DEBIAN/control"
+            control.parent.mkdir()
+            control.parent.chmod(0o755)
+            control.write_text("Package: python\nVersion: 3.14.6-1\nArchitecture: aarch64\n"
+                               "Maintainer: Test <test@example.invalid>\nDescription: Python packaging fixture\n")
+            control.chmod(0o644)
+            archive = root / "python.deb"
+            def package():
+                subprocess.run(["dpkg-deb", "--build", "--root-owner-group", str(massage), str(archive)],
+                               check=True, stdout=subprocess.DEVNULL)
+            package()
+            with self.assertRaisesRegex(ValueError, "missing packaged bytecode"):
+                runtime.verify_python_bytecode(archive)
+            # Run the real recipe hook and bytecode compiler with the host test
+            # interpreter. Python 3.14.6's CLI version check is tested separately.
+            compiler = project / "scripts/fdroid/compile-python-stdlib.py"
+            compiler.parent.mkdir(parents=True)
+            compiler.write_text("import importlib.util, sys\n"
+                "spec = importlib.util.spec_from_file_location('stdlib', "
+                + repr(str(ROOT / "scripts/fdroid/compile-python-stdlib.py")) + ")\n"
+                "module = importlib.util.module_from_spec(spec)\nspec.loader.exec_module(module)\n"
+                "module.compile_stdlib(sys.argv[1])\n")
+            host_python = root / "host-python/host-build-prefix/bin/python3.14"
+            host_python.parent.mkdir(parents=True)
+            host_python.symlink_to(sys.executable)
+            env = dict(os.environ, AGENTCODI_BASE_RECIPES=str(base), AGENTCODI_PROJECT_ROOT=str(project),
+                       TERMUX_PREFIX=str(installed), TERMUX_PREFIX_CLASSICAL=str(runtime.PREFIX),
+                       TERMUX_PKG_MASSAGEDIR=str(massage), TERMUX_BUILD_PYTHON_DIR=str(root / "host-python"),
+                       PYTHONDONTWRITEBYTECODE="1")
+            subprocess.run(["bash", "-Eeuo", "pipefail", "-c",
+                'source "$1"; termux_step_post_massage', "recipe",
+                str(ROOT / "scripts/fdroid/recipes/python.sh")], cwd=package_prefix, env=env, check=True)
+            self.assertFalse((stdlib / "encodings/__init__.pyc").exists())
+            self.assertTrue((package_prefix / "lib/python3.14/encodings/__init__.pyc").is_file())
+            package()
+            runtime.verify_python_bytecode(archive)
+
     def test_assembly_toolchain_is_idempotent_and_never_downloads_during_build(self):
         with tempfile.TemporaryDirectory() as directory:
             root = Path(directory)

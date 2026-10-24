@@ -29,15 +29,18 @@ MODULES
 }
 termux_step_post_make_install() { :; }
 termux_step_post_massage() {
+  # The package has already been copied out of the live dependency prefix.
+  # Only the massage tree is archived into the DEB after this hook returns.
+  local packaged_stdlib="$TERMUX_PKG_MASSAGEDIR/$TERMUX_PREFIX_CLASSICAL/lib/python3.14"
   for name in _bz2 _ctypes _curses _curses_panel _lzma _multiprocessing _sqlite3 _ssl _zstd zlib; do
-    compgen -G "$TERMUX_PREFIX/lib/python3.14/lib-dynload/$name.*.so" >/dev/null \
+    compgen -G "$packaged_stdlib/lib-dynload/$name.*.so" >/dev/null \
       || termux_error_exit "Missing Python runtime module: $name"
   done
   # This interpreter was compiled from the same locked Python sources for the
   # Linux build host. Never run the Android interpreter during cross-assembly.
   local build_python="$TERMUX_BUILD_PYTHON_DIR/host-build-prefix/bin/python3.14"
   "$build_python" "$AGENTCODI_PROJECT_ROOT/scripts/fdroid/compile-python-stdlib.py" \
-    "$TERMUX_PREFIX/lib/python3.14"
-  test -f "$TERMUX_PREFIX/lib/python3.14/encodings/__init__.pyc"
+    "$packaged_stdlib"
+  test -f "$packaged_stdlib/encodings/__init__.pyc"
 }
 termux_step_create_debscripts() { :; }
